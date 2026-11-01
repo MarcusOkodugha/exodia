@@ -97,6 +97,12 @@ const parse = async (request, env) => {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const seed = url.pathname.match(/^\/api\/seed\/([a-f0-9]{48})$/);
+    if (seed && request.method === 'GET') {
+      const data = env.SEED ? await env.SEED.get(seed[1]) : null;
+      if (!data) return json({ error: 'Not found' }, 404);
+      return new Response(data, { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+    }
     if (url.pathname === '/api/parse') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return parse(request, env);
