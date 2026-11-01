@@ -229,7 +229,7 @@ const renderSoon = () => {
   else render();
 };
 
-const profileLink = () => `${location.origin}/#/me/${syncState.profile}`;
+const profileLink = () => `${location.origin}/me/${syncState.profile}`;
 const pointManifest = () => {
   const manifest = document.querySelector('link[rel="manifest"]');
   if (manifest) manifest.href = `/manifest.webmanifest?k=${syncState.profile}`;
@@ -553,7 +553,7 @@ const renderHome = () => {
   const sessions = sortedSessions().filter((session) => session.exercises.length > 0 || session.cardio > 0);
   return `<main class="page">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-    <h1 class="title">${greeting}${state.name ? `, ${esc(state.name)}` : ''}</h1>
+    <h1 class="title">${state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
     <section class="card${view.exodiaOpen ? ' open' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
         <span class="headName">Exodia</span>
@@ -1257,6 +1257,8 @@ const route = () => {
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);
 view.focusDraft = desktopQuery.matches;
+const linkedProfile = location.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
+if (linkedProfile && linkedProfile[1] !== syncState.profile) joinProfile(linkedProfile[1]).then(render);
 route();
 pointManifest();
 syncNow();

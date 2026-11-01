@@ -152,7 +152,7 @@ const manifest = async (request, env, url) => {
   const response = await env.ASSETS.fetch(new Request(new URL('/manifest.webmanifest', url), request));
   const data = await response.json();
   const key = url.searchParams.get('k') ?? '';
-  if (PROFILE_KEY.test(key)) data.start_url = `/#/me/${key}`;
+  if (PROFILE_KEY.test(key)) data.start_url = `/me/${key}`;
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'no-store' } });
 };
 
@@ -164,6 +164,11 @@ export default {
       return sync(request, env);
     }
     if (url.pathname === '/manifest.webmanifest') return manifest(request, env, url);
+    const personal = url.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
+    if (personal) {
+      const html = await (await env.ASSETS.fetch(new Request(new URL('/', url), request))).text();
+      return new Response(html.replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?k=${personal[1]}"`), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
     if (url.pathname === '/api/parse') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return parse(request, env);

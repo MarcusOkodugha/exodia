@@ -6,7 +6,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/manifest.webmanifest"]
+    "run_worker_first": ["/api/*", "/manifest.webmanifest", "/me/*"]
   },
   "d1_databases": [
     { "binding": "DB", "database_name": "exodia", "database_id": "28c10402-5308-4cfb-8c4e-ac405919fafb" }

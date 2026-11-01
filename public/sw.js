@@ -1,4 +1,4 @@
-const CACHE = 'exodia-v27';
+const CACHE = 'exodia-v29';
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
