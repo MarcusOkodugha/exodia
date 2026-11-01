@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="duo" color-interpolation-filters="sRGB">
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncR type="discrete" tableValues="0.788 0.949"/>
+        <feFuncG type="discrete" tableValues="0.392 0.690"/>
+        <feFuncB type="discrete" tableValues="0.259 0.557"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="#F5F4ED"/>
+  <text x="256" y="272" font-size="370" text-anchor="middle" dominant-baseline="middle" filter="url(#duo)">🪬</text>
+</svg>

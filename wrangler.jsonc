@@ -6,16 +6,21 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/manifest.webmanifest"]
   },
-  "kv_namespaces": [
-    { "binding": "SEED", "id": "2706c6792c5c42bc85e62c54c3e42892" }
+  "d1_databases": [
+    { "binding": "DB", "database_name": "exodia", "database_id": "28c10402-5308-4cfb-8c4e-ac405919fafb" }
   ],
   "ratelimits": [
     {
       "name": "PARSE_LIMITER",
       "namespace_id": "1001",
       "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      "name": "SYNC_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 60, "period": 60 }
     }
   ]
 }
