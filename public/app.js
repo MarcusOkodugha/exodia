@@ -56,6 +56,7 @@ const ICONS = {
   you: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
   chev: '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  stop: '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>',
   mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
@@ -122,7 +123,7 @@ const loadSync = () => {
 
 let syncState = loadSync();
 const localJson = () => Object.fromEntries(state.sessions.map((session) => [session.date, JSON.stringify(session)]));
-const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {} });
+const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [] });
 let lastSaved = localJson();
 let lastMeta = metaJson();
 
@@ -171,13 +172,14 @@ const applyIncoming = (result) => {
   }
   if (result.meta) {
     const { updated, ...incomingMeta } = result.meta;
-    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {} });
+    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [] });
     const dirty = lastMeta !== syncState.metaSynced;
     if (!dirty || syncState.metaStamp <= updated) {
       syncState.metaSynced = incoming;
       if (incoming !== lastMeta) {
         state.name = incomingMeta.name || '';
         state.bests = incomingMeta.bests || {};
+        state.log = incomingMeta.log || [];
         changed = true;
       }
     }
@@ -213,9 +215,13 @@ const syncNow = () => {
       syncState.cursor = result.cursor;
       writeLocal();
       view.syncedAt = Date.now();
+      if (Boolean(result.admin) !== Boolean(view.isAdmin)) {
+        view.isAdmin = Boolean(result.admin);
+        renderSoon();
+      }
       view.syncFailed = false;
       if (changed) renderSoon();
-      else if (view.route === 'you') render();
+      else if (view.route === 'you') renderSoon();
       if (changes.length === 500) scheduleSync(0);
       return true;
     })
@@ -229,8 +235,13 @@ const syncNow = () => {
   return syncing;
 };
 
+const clearToast = () => {
+  view.toast = null;
+  document.querySelector('.toast')?.remove();
+};
+
 const renderSoon = () => {
-  if (document.activeElement && document.activeElement.matches('.page input')) view.renderOnBlur = true;
+  if (document.activeElement && document.activeElement.matches('.page input, #draft')) view.renderOnBlur = true;
   else render();
 };
 
@@ -290,7 +301,7 @@ const validSets = (exercise) => exercise.sets.filter((set) => Number(set.kg) >= 
 const sessionVolume = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).reduce((total, set) => total + Number(set.kg) * Number(set.reps), 0), 0);
 const sessionSets = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).length, 0);
 const repsInTank = (set) => (Number(set.rpe) >= 1 ? Math.min(5, Math.max(0, 10 - Number(set.rpe))) : 0);
-const setEstimate = (set) => estimate(Number(set.kg), Number(set.reps) + repsInTank(set));
+const setEstimate = (set) => (set.warmup ? 0 : estimate(Number(set.kg), Number(set.reps) + repsInTank(set)));
 const topEstimate = (exercise) => Math.max(0, ...validSets(exercise).map(setEstimate));
 
 const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
@@ -433,8 +444,8 @@ const recentLog = () => sortedSessions()
 const parseWithAi = async (text, audio) => {
   const response = await fetch('/api/parse', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, audio, today: todayIso(), viewing: view.composerDate || todayIso(), recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
+    headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
+    body: JSON.stringify({ text, audio, name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'The AI could not read that.');
@@ -451,7 +462,7 @@ const singleBefore = (name, date) => Math.max(Number(state.bests?.[name]) || 0, 
 const prKind = (name, date, set) => {
   const kg = Number(set.kg);
   const reps = Number(set.reps);
-  if (set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
+  if (set.warmup || set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
   const before = priorSets(name, date);
   if (before.length === 0 && !state.bests?.[name]) return null;
   if (reps === 1) return kg > singleBefore(name, date) ? 'max' : null;
@@ -471,8 +482,7 @@ const checkPr = (name, date = todayIso()) => {
     ? { kind: 'max', name, title: `New 1RM PR · ${name}`, text: `${top.kg} kg, +${round(top.kg - singleBefore(name, date))} kg on your best single` }
     : { kind: 'rep', name, title: `Rep PR · ${name}`, text: `${top.kg} × ${top.reps}, your heaviest for ${top.reps} reps` };
   setTimeout(() => {
-    view.toast = null;
-    render();
+    clearToast();
   }, top.kind === 'max' ? 6000 : 3500);
 };
 
@@ -487,7 +497,7 @@ const addEntries = (result, date = todayIso()) => {
       exercise = { name, sets: [] };
       session.exercises.push(exercise);
     }
-    for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), edited: true });
+    for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true });
     checkPr(name, date);
   }
   if (result.cardioMinutes) session.cardio = (session.cardio || 0) + Number(result.cardioMinutes);
@@ -514,7 +524,18 @@ const renderBars = (pieces) => pieces.map((piece) => `
     <div class="track"><div class="fill" style="width:${Math.min(100, Math.round((piece.done / piece.target) * 100))}%"></div></div>
   </div>`).join('');
 
+const BIG_LIFTS = ['Bench Press', 'Pause Bench Press', 'Close-Grip Bench Press', 'Squat', 'Front Squat', 'Pause Squat', 'Deadlift', 'Sumo Deadlift'];
+
+const topSets = (session) => session.exercises
+  .map((exercise) => ({
+    name: exercise.name,
+    set: validSets(exercise).filter((set) => !set.warmup).reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) || (Number(set.kg) === Number(winner.kg) && Number(set.reps) > Number(winner.reps)) ? set : winner), null)
+  }))
+  .filter((item) => item.set)
+  .sort((first, second) => Number(BIG_LIFTS.includes(second.name)) - Number(BIG_LIFTS.includes(first.name)) || Number(second.set.kg) - Number(first.set.kg));
+
 const renderExercise = (session, exercise, exerciseIndex) => {
+  const editing = view.editDay === session.date;
   const best = bestBefore(exercise.name, session.date);
   const rows = exercise.sets.map((set, setIndex) => {
     const kg = Number(set.kg);
@@ -525,18 +546,18 @@ const renderExercise = (session, exercise, exerciseIndex) => {
     const label = `${esc(exercise.name)}, set ${setIndex + 1}`;
     const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}"`;
     return `<div class="swipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
-      <span class="setNo num">${setIndex + 1}</span>
+      ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${setIndex + 1}</span>`}
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="kg">
       <span class="unit">kg</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
       <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="reps">
-      <input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="rpe" ${where} data-field="rpe">
+      ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>`}
       ${pr === 'max' ? '<span class="pct pr max">1RM PR</span>' : pr === 'rep' ? '<span class="pct pr">PR</span>' : `<span class="pct num">${percent ? percent + '%' : ''}</span>`}
       <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
     </div></div>`;
   }).join('');
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.names.has(exercise.name);
   return `<div class="exercise${landing ? ' landing' : ''}">
-    <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button><div class="exHead swipeFace"><button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button><button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
+    <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button> <div class="exHead swipeFace">${editing ? `<button class="minus" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}"></button>` : ''}<button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button><button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
     ${rows}
     <button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}">Add set</button>
   </div>`;
@@ -548,21 +569,22 @@ const renderSession = (session) => {
   const pendings = view.pending.filter((pending) => pending.date === session.date);
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
-  const summary = [...session.exercises.filter((exercise) => validSets(exercise).length > 0).map((exercise) => `${exercise.name} ${validSets(exercise)[0].kg} × ${validSets(exercise)[0].reps}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join(' · ');
+  const editing = view.editDay === session.date;
+  const summary = [...topSets(session).map(({ name, set }) => `${name} ${set.kg} × ${set.reps}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join(' · ');
   return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}" id="session-${session.date}">
     <div class="headRow">
       <button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
         <span class="headName">${dayLabel(session.date)}</span>
         <span class="meta num">${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}</span>
-        ${ICONS.chev}
       </button>
-      ${open ? `<button class="dots" data-action="day-menu" data-date="${session.date}" aria-label="More for ${dayLabel(session.date)}" aria-expanded="${view.dayMenu === session.date}">•••</button>` : ''}
+      ${open ? `<button class="editBtn" data-action="edit-day" data-date="${session.date}">${editing ? 'Done' : 'Edit'}</button>` : ''}
+      <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
-    ${open && view.dayMenu === session.date ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
+    ${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
       <label class="sr" for="label-${session.date}">Name this day</label><input id="label-${session.date}" class="pill dayLabelInput" placeholder="Name this day" value="${esc(session.label || '')}" data-day-label="${session.date}">
       <p class="dayMenuLabel">Move to</p>
       <div class="days scroll">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
-      <button class="textBtn" data-action="delete-day" data-date="${session.date}">Delete day</button>
+      <button class="textBtn danger" data-action="delete-day" data-date="${session.date}">Delete day</button>
     </div>` : ''}
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
@@ -616,7 +638,10 @@ const smoothPath = (points) => {
   const tangents = points.map((point, index) => {
     if (index === 0) return slopes[0];
     if (index === points.length - 1) return slopes.at(-1);
-    return slopes[index - 1] * slopes[index] <= 0 ? 0 : (slopes[index - 1] + slopes[index]) / 4;
+    if (slopes[index - 1] * slopes[index] <= 0) return 0;
+    const tangent = (slopes[index - 1] + slopes[index]) / 4;
+    const limit = 3 * Math.min(Math.abs(slopes[index - 1]), Math.abs(slopes[index]));
+    return Math.sign(tangent) * Math.min(Math.abs(tangent), limit);
   });
   return points.slice(0, -1).reduce((path, [x, y], index) => {
     const [nextX, nextY] = points[index + 1];
@@ -627,7 +652,26 @@ const smoothPath = (points) => {
 
 const niceStep = (span) => [5, 10, 20, 25, 50, 100].find((step) => span / step <= 4) || 200;
 
-const chartFor = (points) => {
+const monthlyBest = (points) => {
+  const usable = points
+    .map((point) => ({ ...point, sets: point.sets.filter((set) => Number(set.reps) <= 20) }))
+    .filter((point) => point.sets.length);
+  if (usable.length < 2 || parseIso(usable.at(-1).date) - parseIso(usable[0].date) < 183 * 86400000) return usable;
+  const months = new Map();
+  for (const point of usable) {
+    const key = point.date.slice(0, 7);
+    const month = months.get(key) || { date: point.date, value: 0, sets: [], topKg: -1 };
+    const top = Math.max(...point.sets.map((set) => Number(set.kg)));
+    if (top > month.topKg) Object.assign(month, { date: point.date, topKg: top });
+    month.value = Math.max(month.value, point.value);
+    month.sets.push(...point.sets);
+    months.set(key, month);
+  }
+  return [...months.values()];
+};
+
+const chartFor = (allPoints) => {
+  const points = monthlyBest(allPoints);
   if (points.length === 0) return '';
   const lines = { lift: view.lines?.lift !== false, est: view.lines?.est !== false };
   let bestSingle = 0;
@@ -715,6 +759,61 @@ const renderTrends = () => {
   </main>`;
 };
 
+const rawDetails = (raw) => {
+  if (!raw) return '';
+  let pretty = raw;
+  try {
+    pretty = JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    // keep the raw text as it is
+  }
+  return `<details class="rawBox"><summary>Raw command</summary><pre class="raw">${esc(pretty)}</pre></details>`;
+};
+
+const chatEntry = ({ at, who, said, heard, did, raw, fixIndex }) => `<div class="chatItem">
+  <p class="chatTime">${new Date(at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${who ? ` · ${esc(who)}` : ''}</p>
+  <div class="bubbleIn">${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}</div>
+  <div class="bubbleOut"><p>${esc(did)}</p>${rawDetails(raw)}${fixIndex === undefined ? '' : `<button class="textBtn" data-action="fix-log" data-index="${fixIndex}">Fix this</button>`}</div>
+</div>`;
+
+const renderLog = () => `<main class="page">
+    <p class="eyebrow">What you said, and what Exodia did</p>
+    <h1 class="title">Log</h1>
+    <div class="chat">${(state.log || []).map((entry, index) => ({ entry, index })).reverse().map(({ entry, index }) => chatEntry({ at: entry.at, said: entry.said, heard: entry.heard, did: entry.did.join(' · '), raw: entry.raw, fixIndex: index })).join('') || '<p class="empty">Say or type something in the box below and it shows up here.</p>'}</div>
+  </main>`;
+
+const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
+  .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Not allowed'))))
+  .then((data) => {
+    view.adminRows = data.commands;
+  })
+  .catch(() => {
+    view.adminRows = [];
+  })
+  .finally(() => {
+    if (view.route === 'admin') {
+      render();
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+  });
+
+const renderAdmin = () => {
+  if (!view.adminRows) {
+    if (!view.adminLoading) {
+      view.adminLoading = true;
+      loadAdmin().finally(() => {
+        view.adminLoading = false;
+      });
+    }
+    return '<main class="page"><h1 class="title">Admin</h1><p class="empty">Loading every command…</p></main>';
+  }
+  return `<main class="page">
+    <p class="eyebrow">Every command from everyone, only visible to you</p>
+    <h1 class="title">Admin</h1>
+    <div class="chat">${view.adminRows.slice().reverse().map((row) => chatEntry(row)).join('') || '<p class="empty">No commands yet.</p>'}</div>
+  </main>`;
+};
+
 const renderYou = () => {
   const big = ['Deadlift', 'Squat', 'Bench Press'];
   const lifts = [...big, ...loggedLifts().filter((name) => !big.includes(name)).sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 7)];
@@ -771,9 +870,9 @@ const renderProgress = () => {
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
       ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
-    <p class="section">Volume per week</p>
+    <p class="section">Volume per week · tonnes</p>
     <section class="card" style="padding:14px 16px">
-      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><div style="height:${Math.round((week.volume / maxVolume) * 100)}%"></div></button>`).join('')}</div>
+      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}</div>
       <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? 'This week' : 'Week ending ' + dayLabel(weeks[view.volumeWeek ?? 5].end)}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
     </section>
     <p class="section">Best lifts</p>
@@ -785,20 +884,14 @@ const renderProgress = () => {
 const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Bench Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
 
 const dayName = (session) => {
-  const peaks = session.exercises
-    .map((exercise) => validSets(exercise)
-      .map((set) => ({ name: exercise.name, set, score: setEstimate(set) / (bestOverall(exercise.name) || setEstimate(set)) }))
-      .reduce((winner, item) => (!winner || item.score > winner.score ? item : winner), null))
-    .filter(Boolean)
-    .sort((first, second) => second.score - first.score)
-    .map(({ name, set }) => `${SHORT_NAMES[name] || name}${prKind(name, session.date, set) === 'max' ? ' PR' : ''} ${set.kg}×${set.reps}`);
+  const peaks = topSets(session).map(({ name, set }) => `${SHORT_NAMES[name] || name}${prKind(name, session.date, set) === 'max' ? ' PR' : ''} ${set.kg}×${set.reps}`);
   const text = [...peaks, ...(session.cardio ? [`Cardio ${session.cardio}m`] : [])].join(', ') || 'Session';
   return session.label ? `${text} · ${session.label}` : text;
 };
 
 const drawerContent = () => {
   const history = exodiaHistory();
-  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.menu], ...(view.isAdmin ? [['admin', 'Admin', ICONS.trophy]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       <p class="drawerLabel">Recent sessions</p>
       ${sortedSessions().slice(0, 8).map((session) => `<button class="drawerRow" data-action="jump-session" data-date="${session.date}"><span class="dayName" title="${esc(dayName(session))}">${esc(dayName(session))}</span><span class="muted">${['Today', 'Yesterday'].includes(dayLabel(session.date)) ? dayLabel(session.date) : parseIso(session.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(session.date.slice(0, 4) === todayIso().slice(0, 4) ? {} : { year: '2-digit' }) })}</span></button>`).join('') || '<p class="drawerRow muted">None yet</p>'}`;
 };
@@ -825,21 +918,26 @@ const renderTray = (enter = false) => `<div class="tray${enter ? ' enter' : ''}"
   <div class="picks scroll">${renderPicks()}</div>
 </div>`;
 
-const goButton = () => {
-  const sending = view.listening || view.draft.trim().length > 0;
-  return `<button class="go" data-action="${sending ? 'send' : 'mic'}" aria-label="${view.listening ? 'Stop and log' : sending ? 'Log it' : 'Speak instead'}">${sending ? ICONS.up : ICONS.mic}</button>`;
+const promptButtons = () => {
+  if (view.listening) return `<div class="promptButtons"><button class="roundBtn ghost" data-action="stop-mic" aria-label="Stop listening">${ICONS.stop}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button></div>`;
+  const hasText = view.draft.trim().length > 0 || Boolean(view.voiceBlob);
+  return `<div class="promptButtons">${hasText
+    ? `<button class="roundBtn ghost" data-action="mic" aria-label="Speak">${ICONS.mic}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button>`
+    : `<button class="roundBtn send" data-action="mic" aria-label="Speak">${ICONS.mic}</button>`}</div>`;
 };
 
 const renderDock = () => `<div class="dock">
   ${view.composer ? renderTray(view.trayEnter) : ''}
+  ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
+  ${view.editContext ? `<p class="dockStatus editing">Editing ${esc(view.editContext.names.join(', ') || 'workout')} · ${dayLabel(view.editContext.date)}<button class="clearEdit" data-action="clear-edit" aria-label="Stop editing">×</button></p>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : view.heard ? `<p class="dockStatus heard">Heard: “${esc(view.heard)}”</p>` : ''}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}">
     <label for="draft" class="sr">Type or say what you did</label>
     <textarea id="draft" class="promptInput" rows="1" enterkeyhint="send" autocomplete="off">${esc(view.draft)}</textarea>
     ${view.listening
-      ? `<span class="hint listeningRow" aria-hidden="true"><span class="wave${view.speaking ? ' speaking' : ''}"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>${view.speaking ? 'Hearing you…' : 'Listening…'}</span>`
+      ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
-    ${goButton()}
+    <div class="promptBar">${view.listening ? `<span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : '<span class="modelTag">Exodia</span>'}${promptButtons()}</div>
   </div>
 </div>`;
 
@@ -852,7 +950,7 @@ const syncDock = () => {
   const prompt = document.querySelector('.dock .prompt');
   if (!prompt) return;
   prompt.classList.toggle('hasText', view.draft.trim().length > 0);
-  prompt.querySelector('.go').outerHTML = goButton();
+  prompt.querySelector('.promptButtons').outerHTML = promptButtons();
   const tray = document.querySelector('.dock .tray');
   if (view.composer && (!tray || tray.classList.contains('leaving'))) {
     tray?.remove();
@@ -892,7 +990,7 @@ const tickTypewriter = () => {
     delay = 800;
   }
   typewriter.text = EXAMPLES[typewriter.index].slice(0, typewriter.length);
-  const hint = document.querySelector('.prompt .hint:not(.listeningRow)');
+  const hint = document.querySelector('.prompt .hint:not(.live)');
   if (hint) {
     hint.classList.toggle('fading', typewriter.fading);
     hint.textContent = typewriter.text;
@@ -918,7 +1016,7 @@ const render = () => {
   const focused = document.activeElement;
   const draftFocused = focused && focused.id === 'draft';
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
-  const page = view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : renderHome();
+  const page = view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
   const dock = renderDock();
   const layout = desktopQuery.matches
     ? `<div class="desk">
@@ -934,7 +1032,7 @@ const render = () => {
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
   app.innerHTML = `
     ${layout}
-    ${view.toast ? `<button class="toast ${view.toast.kind}" role="status" data-action="dismiss-toast" aria-label="Dismiss">${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div></button>` : ''}`;
+    ${view.toast ? `<div class="toast ${view.toast.kind}" role="status"><button class="toastBody" data-action="dismiss-toast" aria-label="Dismiss">${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div></button>${view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>` : ''}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -960,17 +1058,49 @@ const render = () => {
 const closeComposer = () => {
   view.composer = false;
   view.draft = '';
+  view.voiceBlob = null;
   view.status = '';
   view.focusDraft = desktopQuery.matches;
   stopRecording();
 };
 
 let recording = null;
+const liveLine = () => view.live || (view.speaking ? 'Hearing you…' : 'Listening…');
+
+const startLiveText = () => {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition || !recording) return;
+  const recognizer = new Recognition();
+  recognizer.lang = navigator.language || 'en-US';
+  recognizer.continuous = true;
+  recognizer.interimResults = true;
+  const before = view.live ? `${view.live} ` : '';
+  recognizer.onresult = (event) => {
+    view.live = before + [...event.results].map((result) => result[0].transcript).join(' ').trim();
+    const line = document.querySelector('.prompt .liveText');
+    if (line) line.textContent = liveLine();
+  };
+  recognizer.onerror = () => {};
+  recognizer.onend = () => {
+    if (recording && recording.recognizer === recognizer) startLiveText();
+  };
+  recording.recognizer = recognizer;
+  try {
+    recognizer.start();
+  } catch {
+    recording.recognizer = null;
+  }
+};
 
 const stopRecording = async () => {
   if (!recording) return null;
-  const { recorder, context, frame, timer, done } = recording;
+  const { recorder, context, frame, timer, done, recognizer } = recording;
   recording = null;
+  try {
+    recognizer?.stop();
+  } catch {
+    // already stopped
+  }
   clearTimeout(timer);
   cancelAnimationFrame(frame);
   recorder.stop();
@@ -994,7 +1124,9 @@ const watchLevel = (stream, context) => {
     const speaking = performance.now() - lastLoud < 500;
     if (speaking !== view.speaking) {
       view.speaking = speaking;
-      render();
+      document.querySelector('.prompt .wave')?.classList.toggle('speaking', speaking);
+      const line = document.querySelector('.prompt .liveText');
+      if (line) line.textContent = liveLine();
     }
     recording.frame = requestAnimationFrame(tick);
   };
@@ -1032,6 +1164,8 @@ const startListening = async () => {
   recorder.start();
   recording = { recorder, context, done, frame: 0, timer: setTimeout(send, 240000) };
   watchLevel(stream, context);
+  view.live = '';
+  startLiveText();
   view.listening = true;
   view.status = '';
   render();
@@ -1091,8 +1225,7 @@ const changeWithUndo = (title, change) => {
   view.toast = { kind: 'rep', title, text: 'Tap to undo', undo: before };
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(() => {
-    view.toast = null;
-    render();
+    clearToast();
   }, 5000);
 };
 
@@ -1112,11 +1245,23 @@ const moveSession = (source, to) => {
   source.cardio = 0;
 };
 
+const showAdded = (result, day) => {
+  const names = (result.exercises || []).map((exercise) => findExerciseName(exercise.name) || titleCase(exercise.name));
+  const edit = { date: day, names };
+  if (view.toast) {
+    view.toast.edit = edit;
+    return;
+  }
+  const text = [...(result.exercises || []).map((exercise, index) => `${names[index]} ${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? `@${set.rpe}` : ''}`).join(', ')}`), ...(result.cardioMinutes ? [`Cardio ${result.cardioMinutes} min`] : [])].join(' · ');
+  view.toast = { kind: 'added', title: `Added to ${dayLabel(day)}`, text, edit };
+  clearTimeout(view.toastTimer);
+  view.toastTimer = setTimeout(clearToast, 7000);
+};
+
 const note = (title, text) => {
   view.toast = { kind: 'rep', title, text };
   setTimeout(() => {
-    view.toast = null;
-    render();
+    clearToast();
   }, 3500);
 };
 
@@ -1150,17 +1295,94 @@ const applyEdits = (result) => {
     const name = findExerciseName(target.exercise) || titleCase(target.exercise);
     const item = { ...target, date: loggedDay(target.date, name) };
     const session = ensureSession(item.date);
-    const sets = item.sets.map((set) => ({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), edited: true }));
+    const sets = item.sets.map((set) => ({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true }));
     const exercise = session.exercises.find((other) => other.name === name);
     if (exercise) exercise.sets = sets;
     else session.exercises.push({ name, sets });
     view.open.add(item.date);
     done.push(`Updated ${name} on ${dayLabel(item.date)}`);
   }
-  if (done.length === 0) return false;
+  const moving = (result.move || []).map((target) => {
+    const name = target.exercise ? findExerciseName(target.exercise) || titleCase(target.exercise) : null;
+    const from = loggedDay(target.from, name);
+    const session = sessionFor(from);
+    if (!session) return null;
+    const exercises = name ? session.exercises.filter((exercise) => exercise.name === name) : [...session.exercises];
+    const cardio = name ? 0 : session.cardio || 0;
+    if (exercises.length === 0 && !cardio) return null;
+    return { from, to: target.to, name, session, exercises, cardio };
+  }).filter(Boolean);
+  for (const item of moving) {
+    item.session.exercises = item.session.exercises.filter((exercise) => !item.exercises.includes(exercise));
+    if (!item.name) item.session.cardio = 0;
+  }
+  for (const item of moving) {
+    const target = ensureSession(item.to);
+    for (const exercise of item.exercises) {
+      const same = target.exercises.find((other) => other.name === exercise.name);
+      if (same) same.sets.push(...exercise.sets);
+      else target.exercises.push(exercise);
+    }
+    target.cardio = (target.cardio || 0) + item.cardio;
+    view.open.add(item.to);
+    done.push(`Moved ${item.name || 'workout'} from ${dayLabel(item.from)} to ${dayLabel(item.to)}`);
+  }
+  state.sessions = state.sessions.filter((session) => session.exercises.length || session.cardio);
+  if (done.length) save();
+  return done;
+};
+
+const describeRemoval = (result) => (result.remove || []).map((target) => {
+  const name = target.exercise ? findExerciseName(target.exercise) || titleCase(target.exercise) : null;
+  const day = loggedDay(target.date, name);
+  return name ? `${name} from ${dayLabel(day)}` : dayLabel(day);
+}).join(', ');
+
+const addLog = (said, did, extra = {}) => {
+  state.log = [{ at: Date.now(), said: String(said || '').slice(0, 300), did, ...extra }, ...(state.log || [])].slice(0, 30);
   save();
-  note(done[0], done.length > 1 ? `and ${done.length - 1} more` : 'Synced to all your devices');
-  return true;
+};
+
+const describeAdd = (result, day) => `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`cardio ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
+
+const applyResult = (result, date, said, heard = '') => {
+  const did = applyEdits(result);
+  if (result.label) {
+    const day = sessionFor(result.date || date) || result.exercises?.length ? result.date || date : loggedDay(result.date || date, null);
+    const target = sessionFor(day) || (result.exercises?.length || result.cardioMinutes ? ensureSession(day) : null);
+    if (target) {
+      target.label = result.label;
+      save();
+      did.push(`Named ${dayLabel(day)} “${result.label}”`);
+    }
+  }
+  if (result.exercises?.length || result.cardioMinutes) {
+    const day = result.date || date;
+    land(result, day);
+    did.push(describeAdd(result, day));
+    showAdded(result, day);
+  } else view.scrollTarget = null;
+  if (did.length === 0) throw new Error('Nothing to log in that. Fix it and send again.');
+  if (!view.toast) note(did[0], did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices');
+  addLog(said, did, { heard: heard.slice(0, 300), raw: JSON.stringify(result).slice(0, 1500) });
+};
+
+const YES = /^(yes|yeah|yep|ja|japp|sure|do it|confirm|ok)\b/i;
+const NO = /^(no|nope|nej|cancel|stop|don't)\b/i;
+
+const answerConfirm = (yes) => {
+  const pending = view.confirm;
+  view.confirm = null;
+  if (!pending) return;
+  if (!yes) {
+    addLog(pending.said, ['Cancelled, nothing removed']);
+    return;
+  }
+  try {
+    applyResult(pending.result, pending.date, pending.said, pending.heard);
+  } catch (error) {
+    view.status = error.message;
+  }
 };
 
 const land = (result, date) => {
@@ -1182,18 +1404,30 @@ const showHome = () => {
 
 const send = async () => {
   view.heard = '';
-  const voice = await stopRecording();
-  const text = view.draft.trim();
+  const recorded = recording ? await stopRecording() : view.voiceBlob;
+  view.voiceBlob = null;
+  const live = (view.live || '').trim();
+  view.live = '';
+  const voice = recorded?.size > 4000 ? recorded : null;
+  const text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
   if (!text && !voice?.size) {
     render();
     return;
   }
   const date = view.composerDate || todayIso();
-  const local = !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
+  if (!voice && view.confirm && (YES.test(text) || NO.test(text))) {
+    answerConfirm(YES.test(text));
+    closeComposer();
+    render();
+    return;
+  }
+  const local = !view.editContext && !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
   if (local) {
     closeComposer();
     showHome();
     land(local, date);
+    showAdded(local, date);
+    addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500) });
     render();
     return;
   }
@@ -1214,19 +1448,13 @@ const send = async () => {
     const result = await parseWithAi(text, audio);
     heard = result.transcript || '';
     view.heard = voice?.size ? heard : '';
-    const changed = applyEdits(result);
-    if (result.label) {
-      const day = sessionFor(result.date || date) || result.exercises?.length ? result.date || date : loggedDay(result.date || date, null);
-      const target = sessionFor(day) || (result.exercises?.length || result.cardioMinutes ? ensureSession(day) : null);
-      if (target) {
-        target.label = result.label;
-        save();
-        if (!result.exercises?.length && !result.cardioMinutes) note(`Named ${dayLabel(day)}`, result.label);
-      }
-    }
-    if (!result.exercises?.length && !result.cardioMinutes && !changed && !result.label) throw new Error(heard ? 'No sets in that. Fix it and send again.' : 'Could not find any sets in that.');
-    if (result.exercises?.length || result.cardioMinutes) land(result, result.date || date);
-    else view.scrollTarget = null;
+    const said = heard || text;
+    if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
+    else if (result.remove?.length && voice) {
+      view.confirm = { result, date, said, heard, text: describeRemoval(result) };
+      view.scrollTarget = null;
+    } else applyResult(result, date, said, voice ? heard : '');
+    view.editContext = null;
   } catch (error) {
     view.composer = true;
     view.composerDate = date === todayIso() ? null : date;
@@ -1239,6 +1467,13 @@ const send = async () => {
 };
 
 document.addEventListener('click', (event) => {
+  if (view.editDay && !event.target.closest(`#session-${view.editDay}`)) {
+    view.editDay = null;
+    if (!event.target.closest('[data-action]')) {
+      render();
+      return;
+    }
+  }
   const insideDock = Boolean(event.target.closest('.dock'));
   if (view.composer && !insideDock && !event.target.closest('[data-action]')) {
     closeTray();
@@ -1273,17 +1508,17 @@ document.addEventListener('click', (event) => {
   } else if (action === 'delete-exercise' && session) {
     changeWithUndo(`${session.exercises[Number(target.dataset.exercise)].name} deleted`, () => session.exercises.splice(Number(target.dataset.exercise), 1));
   } else if (action === 'delete-day' && session) {
-    view.dayMenu = null;
+    view.editDay = null;
     changeWithUndo(`${dayLabel(date)} deleted`, () => {
       session.exercises = [];
       session.cardio = 0;
     });
-  } else if (action === 'day-menu') {
-    view.dayMenu = view.dayMenu === date ? null : date;
-    view.menuEnter = true;
+  } else if (action === 'edit-day') {
+    view.editDay = view.editDay === date ? null : date;
+    view.menuEnter = Boolean(view.editDay);
   } else if (action === 'move-day' && session) {
     const to = target.dataset.to;
-    view.dayMenu = null;
+    view.editDay = null;
     changeWithUndo(`Moved to ${dayLabel(to)}`, () => moveSession(session, to));
     view.open.add(to);
     view.scrollTarget = to;
@@ -1304,6 +1539,21 @@ document.addEventListener('click', (event) => {
     view.rulesEnter = view.exodiaOpen;
   }
   else if (action === 'toggle-info') view.info = !view.info;
+  else if (action === 'confirm-yes') answerConfirm(true);
+  else if (action === 'edit-added' && view.toast?.edit) {
+    view.editContext = view.toast.edit;
+    view.composerDate = view.toast.edit.date;
+    view.focusDraft = true;
+    view.toast = null;
+  } else if (action === 'clear-edit') view.editContext = null;
+  else if (action === 'fix-log') {
+    const entry = state.log?.[Number(target.dataset.index)];
+    if (entry) {
+      view.draft = `Fix this: “${entry.said.slice(0, 120)}” (${entry.did.join('; ').slice(0, 120)}). It should be `;
+      view.focusDraft = true;
+    }
+  }
+  else if (action === 'confirm-no') answerConfirm(false);
   else if (action === 'pick-point') view.chartPick = view.chartPick === date ? null : date;
   else if (action === 'toggle-line') view.lines = { lift: view.lines?.lift !== false, est: view.lines?.est !== false, [target.dataset.line]: view.lines?.[target.dataset.line] === false };
   else if (action === 'toggle-session') {
@@ -1366,6 +1616,14 @@ document.addEventListener('click', (event) => {
     closeComposer();
   } else if (action === 'mic') {
     return view.listening ? send() : startListening();
+  } else if (action === 'stop-mic') {
+    return stopRecording().then((blob) => {
+      view.voiceBlob = blob?.size > 4000 ? blob : null;
+      if (view.live) view.draft = [view.draft.trim(), view.live].filter(Boolean).join(' ');
+      view.live = '';
+      view.focusDraft = true;
+      render();
+    });
   } else if (action === 'send') return send();
   else if (action === 'copy-link') {
     navigator.clipboard.writeText(profileLink()).then(() => {
@@ -1502,10 +1760,12 @@ const route = () => {
     render();
     return;
   }
-  view.route = ['trends', 'you'].includes(name) ? name : 'home';
+  view.route = ['trends', 'you', 'log', 'admin'].includes(name) ? name : 'home';
+  if (view.route === 'admin') view.adminRows = null;
   view.menu = false;
   window.scrollTo(0, 0);
   render();
+  if (view.route === 'log') window.scrollTo(0, document.body.scrollHeight);
 };
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);
@@ -1539,7 +1799,7 @@ document.addEventListener('pointermove', (event) => {
     swipe.active = true;
     swipe.face.style.transition = 'none';
   }
-  swipe.dx = Math.min(0, Math.max(-120, dx + (swipe.face.parentElement.classList.contains('open') ? -76 : 0)));
+  swipe.dx = Math.min(0, Math.max(-swipe.face.offsetWidth, dx + (swipe.face.parentElement.classList.contains('open') ? -76 : 0)));
   swipe.face.style.transform = `translateX(${swipe.dx}px)`;
 });
 const endSwipe = () => {
@@ -1549,6 +1809,11 @@ const endSwipe = () => {
   face.style.transition = '';
   face.style.transform = '';
   if (!active) return;
+  if (dx < -face.offsetWidth * 0.55) {
+    face.parentElement.querySelector('.swipeDel').click();
+    lastSwipe = Date.now();
+    return;
+  }
   lastSwipe = Date.now();
   face.parentElement.classList.toggle('open', dx < -40);
 };
@@ -1577,7 +1842,7 @@ document.addEventListener('focusout', (event) => {
 document.addEventListener('focusout', () => {
   if (!view.renderOnBlur) return;
   setTimeout(() => {
-    if (document.activeElement && document.activeElement.matches('.page input')) return;
+    if (document.activeElement && document.activeElement.matches('.page input, #draft')) return;
     view.renderOnBlur = false;
     render();
   });
