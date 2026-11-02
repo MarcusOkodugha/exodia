@@ -11,6 +11,7 @@ const LIBRARY = [
   { name: 'Overhead Press', piece: 'push', heavy: true, aliases: ['ohp', 'overhead press', 'press', 'military press'] },
   { name: 'Dips', piece: 'push', heavy: false, aliases: ['dips', 'dip'] },
   { name: 'Pause Bench Press', piece: 'push', heavy: true, aliases: ['pause bench', 'pause bench press', 'paused bench'] },
+  { name: 'Close-Grip Bench Press', piece: 'push', heavy: true, aliases: ['close grip', 'close grip bench', 'close-grip bench', 'closegrip'] },
   { name: 'Deadlift', piece: 'pull', heavy: true, aliases: ['deadlift', 'deadlifts', 'dl', 'marklyft'] },
   { name: 'Sumo Deadlift', piece: 'pull', heavy: true, aliases: ['sumo', 'sumo deadlift'] },
   { name: 'Barbell Row', piece: 'pull', heavy: false, aliases: ['row', 'rows', 'barbell row'] },
@@ -62,7 +63,10 @@ const ICONS = {
 };
 
 const esc = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
-const estimate = (kg, reps) => (reps === 1 ? kg : kg * (1 + reps / 30));
+const estimate = (kg, reps) => (reps <= 1 ? kg : reps <= 10 ? (kg * 36) / (37 - reps) : kg * (1 + reps / 30));
+const weightFor = (oneRepMax, reps) => (reps <= 1 ? oneRepMax : reps <= 10 ? (oneRepMax * (37 - reps)) / 36 : oneRepMax / (1 + reps / 30));
+const ESTIMATE_INFO = `<div class="info" role="note"><p>Estimated 1RM uses the same math as the Strength Level one rep max calculator.</p><p>Up to 10 reps it is the Brzycki formula: weight × 36 ÷ (37 − reps). Above 10 reps it is the Epley formula: weight × (1 + reps ÷ 30). Example: 120 × 7 gives about 144 kg.</p><p>Exodia uses your strongest rep set. A single you actually lifted is never estimated; it counts as it is, and it is your real best.</p><p><a href="https://strengthlevel.com/one-rep-max-calculator" target="_blank" rel="noopener">Strength Level calculator</a></p></div>`;
+const infoButton = () => `<button class="infoBtn" data-action="toggle-info" aria-expanded="${Boolean(view.info)}" aria-label="How the estimate works">i</button>`;
 const round = (value) => Math.round(value * 10) / 10;
 const pad = (number) => String(number).padStart(2, '0');
 const isoDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -79,7 +83,8 @@ const addDays = (iso, days) => {
 const dayLabel = (iso) => {
   if (iso === todayIso()) return 'Today';
   if (iso === addDays(todayIso(), -1)) return 'Yesterday';
-  return parseIso(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const sameYear = iso.slice(0, 4) === todayIso().slice(0, 4);
+  return parseIso(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) }).replace(',', '');
 };
 const tonnes = (kg) => (kg / 1000).toFixed(1) + ' t';
 const setCount = (count) => count + (count === 1 ? ' set' : ' sets');
@@ -98,7 +103,7 @@ const loadState = () => {
 };
 
 let state = loadState();
-const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 180, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null };
+const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 0, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null };
 
 const SYNC_KEY = 'exodia.sync';
 const PROFILE_KEY = /^[a-f0-9]{32}$/;
@@ -284,31 +289,34 @@ const ensureSession = (date) => {
 const validSets = (exercise) => exercise.sets.filter((set) => Number(set.kg) >= 0 && Number(set.reps) > 0 && set.kg !== '' && set.reps !== '');
 const sessionVolume = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).reduce((total, set) => total + Number(set.kg) * Number(set.reps), 0), 0);
 const sessionSets = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).length, 0);
-const topEstimate = (exercise) => Math.max(0, ...validSets(exercise).map((set) => estimate(Number(set.kg), Number(set.reps))));
+const repsInTank = (set) => (Number(set.rpe) >= 1 ? Math.min(5, Math.max(0, 10 - Number(set.rpe))) : 0);
+const setEstimate = (set) => estimate(Number(set.kg), Number(set.reps) + repsInTank(set));
+const topEstimate = (exercise) => Math.max(0, ...validSets(exercise).map(setEstimate));
+
+const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
+const countsFor = (name) => [name, ...(HARDER_VARIANTS[name] || [])];
 
 const bestBefore = (name, date) => {
-  let best = 0;
+  let best = Number(state.bests?.[name]) || 0;
   for (const session of state.sessions) {
     if (session.date >= date) continue;
-    for (const exercise of session.exercises) if (exercise.name === name) best = Math.max(best, topEstimate(exercise));
+    for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) best = Math.max(best, topEstimate(exercise));
   }
   return best;
 };
 const bestOverall = (name) => bestBefore(name, '9999-12-31');
-const heaviestSet = (name) => {
-  let heaviest = null;
-  for (const session of state.sessions) {
-    for (const exercise of session.exercises) {
-      if (exercise.name !== name) continue;
-      for (const set of validSets(exercise)) {
-        const kg = Number(set.kg);
-        const reps = Number(set.reps);
-        if (!heaviest || kg > heaviest.kg || (kg === heaviest.kg && reps > heaviest.reps)) heaviest = { kg, reps };
-      }
-    }
-  }
-  return heaviest;
+const setsOf = (name) => state.sessions.flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets)).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), rpe: set.rpe }));
+const bestSingle = (name) => Math.max(Number(state.bests?.[name]) || 0, ...setsOf(name).filter((set) => set.reps === 1).map((set) => set.kg));
+const heaviestLifted = (name) => {
+  const record = Number(state.bests?.[name]) > 0 ? [{ kg: Number(state.bests[name]), reps: 1 }] : [];
+  return [...record, ...setsOf(name)].reduce((winner, set) => (!winner || set.kg > winner.kg || (set.kg === winner.kg && set.reps > winner.reps) ? set : winner), null);
 };
+const bestEstimate = (name) => setsOf(name)
+  .filter((set) => set.reps > 1 || repsInTank(set) > 0)
+  .reduce((winner, set) => {
+    const value = setEstimate(set);
+    return !winner || value > winner.value ? { ...set, value } : winner;
+  }, null);
 const loggedLifts = () => [...new Set(state.sessions.flatMap((session) => session.exercises.filter((exercise) => validSets(exercise).length > 0).map((exercise) => exercise.name)))];
 
 const lastSetsFor = (name, skipDate = todayIso()) => {
@@ -416,11 +424,17 @@ const parseLocally = (text) => {
   return result.exercises.length > 0 || result.cardioMinutes > 0 ? result : null;
 };
 
+const recentLog = () => sortedSessions()
+  .filter((session) => session.exercises.length || session.cardio)
+  .slice(0, 12)
+  .map((session) => `${session.date}: ${[...session.exercises.map((exercise) => `${exercise.name} ${validSets(exercise).map((set) => `${set.kg}x${set.reps}${set.rpe ? `@${set.rpe}` : ''}`).join(', ')}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join('; ')}`)
+  .join('\n');
+
 const parseWithAi = async (text, audio) => {
   const response = await fetch('/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, audio, today: todayIso(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
+    body: JSON.stringify({ text, audio, today: todayIso(), viewing: view.composerDate || todayIso(), recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'The AI could not read that.');
@@ -428,24 +442,38 @@ const parseWithAi = async (text, audio) => {
 };
 
 const announced = new Set();
+const priorSets = (name, date) => state.sessions
+  .filter((session) => session.date < date)
+  .flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets))
+  .map((set) => ({ kg: Number(set.kg), reps: Number(set.reps) }));
+const singleBefore = (name, date) => Math.max(Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg));
+
+const prKind = (name, date, set) => {
+  const kg = Number(set.kg);
+  const reps = Number(set.reps);
+  if (set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
+  const before = priorSets(name, date);
+  if (before.length === 0 && !state.bests?.[name]) return null;
+  if (reps === 1) return kg > singleBefore(name, date) ? 'max' : null;
+  return before.some((previous) => previous.reps >= reps && previous.kg >= kg) ? null : 'rep';
+};
+
 const checkPr = (name, date = todayIso()) => {
   const session = sessionFor(date);
   const exercise = session && session.exercises.find((item) => item.name === name);
   if (!exercise) return;
-  const best = bestBefore(name, date);
-  const top = validSets(exercise).reduce((winner, set) => {
-    const value = estimate(Number(set.kg), Number(set.reps));
-    return !winner || value > winner.value ? { value, set } : winner;
-  }, null);
-  const key = top ? `${name}:${round(top.value)}` : '';
-  if (top && best && top.value > best && !announced.has(key)) {
-    announced.add(key);
-    view.toast = { name, value: Math.round(top.value), set: `${top.set.kg} × ${top.set.reps}`, gain: Math.round(top.value - best) };
-    setTimeout(() => {
-      view.toast = null;
-      render();
-    }, 5000);
-  }
+  const prs = validSets(exercise).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), kind: prKind(name, date, set) })).filter((set) => set.kind);
+  const top = prs.filter((set) => set.kind === 'max').sort((first, second) => second.kg - first.kg)[0] || prs.sort((first, second) => second.kg - first.kg)[0];
+  const key = top ? `${name}:${date}:${top.kg}x${top.reps}` : '';
+  if (!top || announced.has(key)) return;
+  announced.add(key);
+  view.toast = top.kind === 'max'
+    ? { kind: 'max', name, title: `New 1RM PR · ${name}`, text: `${top.kg} kg, +${round(top.kg - singleBefore(name, date))} kg on your best single` }
+    : { kind: 'rep', name, title: `Rep PR · ${name}`, text: `${top.kg} × ${top.reps}, your heaviest for ${top.reps} reps` };
+  setTimeout(() => {
+    view.toast = null;
+    render();
+  }, top.kind === 'max' ? 6000 : 3500);
 };
 
 const addEntries = (result, date = todayIso()) => {
@@ -459,7 +487,7 @@ const addEntries = (result, date = todayIso()) => {
       exercise = { name, sets: [] };
       session.exercises.push(exercise);
     }
-    for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: String(set.reps), edited: true });
+    for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), edited: true });
     checkPr(name, date);
   }
   if (result.cardioMinutes) session.cardio = (session.cardio || 0) + Number(result.cardioMinutes);
@@ -491,20 +519,24 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   const rows = exercise.sets.map((set, setIndex) => {
     const kg = Number(set.kg);
     const reps = Number(set.reps);
-    const value = set.kg !== '' && set.reps !== '' && reps > 0 ? estimate(kg, reps) : 0;
+    const value = set.kg !== '' && set.reps !== '' && reps > 0 ? setEstimate(set) : 0;
     const percent = best && value ? Math.round((value / best) * 100) : 0;
+    const pr = prKind(exercise.name, session.date, set);
     const label = `${esc(exercise.name)}, set ${setIndex + 1}`;
-    return `<div class="setRow">
+    const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}"`;
+    return `<div class="swipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
       <span class="setNo num">${setIndex + 1}</span>
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="kg">
       <span class="unit">kg</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
       <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="reps">
-      <span class="pct num${percent > 100 ? ' pr' : ''}">${percent ? (percent > 100 ? 'PR ' : '') + percent + '%' : ''}</span>
-    </div>`;
+      <input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="rpe" ${where} data-field="rpe">
+      ${pr === 'max' ? '<span class="pct pr max">1RM PR</span>' : pr === 'rep' ? '<span class="pct pr">PR</span>' : `<span class="pct num">${percent ? percent + '%' : ''}</span>`}
+      <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
+    </div></div>`;
   }).join('');
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.names.has(exercise.name);
   return `<div class="exercise${landing ? ' landing' : ''}">
-    <button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button>
+    <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button><div class="exHead swipeFace"><button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button><button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
     ${rows}
     <button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}">Add set</button>
   </div>`;
@@ -517,12 +549,21 @@ const renderSession = (session) => {
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const summary = [...session.exercises.filter((exercise) => validSets(exercise).length > 0).map((exercise) => `${exercise.name} ${validSets(exercise)[0].kg} × ${validSets(exercise)[0].reps}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join(' · ');
-  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}" id="session-${session.date}">
-    <button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
-      <span class="headName">${dayLabel(session.date)}</span>
-      <span class="meta num">${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}</span>
-      ${ICONS.chev}
-    </button>
+  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}" id="session-${session.date}">
+    <div class="headRow">
+      <button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
+        <span class="headName">${dayLabel(session.date)}</span>
+        <span class="meta num">${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}</span>
+        ${ICONS.chev}
+      </button>
+      ${open ? `<button class="dots" data-action="day-menu" data-date="${session.date}" aria-label="More for ${dayLabel(session.date)}" aria-expanded="${view.dayMenu === session.date}">•••</button>` : ''}
+    </div>
+    ${open && view.dayMenu === session.date ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
+      <label class="sr" for="label-${session.date}">Name this day</label><input id="label-${session.date}" class="pill dayLabelInput" placeholder="Name this day" value="${esc(session.label || '')}" data-day-label="${session.date}">
+      <p class="dayMenuLabel">Move to</p>
+      <div class="days scroll">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
+      <button class="textBtn" data-action="delete-day" data-date="${session.date}">Delete day</button>
+    </div>` : ''}
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
@@ -561,37 +602,69 @@ const renderHome = () => {
         ${ICONS.chev}
       </button>
       <button class="bars" data-action="toggle-exodia" tabindex="-1" aria-hidden="true">${renderBars(pieces)}</button>
-      ${view.exodiaOpen ? `<div class="rules">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 85% of your best. Last 7 days, any program.</p></div>` : ''}
+      <div class="exodiaCount"><span>Exodia count</span><span class="num">${exodiaHistory().hits}</span></div>
+      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 85% of your best. Last 7 days, any program.</p></div>` : ''}
     </section>
     <p class="section">Sessions</p>
     <div class="list">${sessions.length || view.pending.length ? listWithGhosts(sessions.slice(0, 30)) : '<p class="empty">Nothing logged yet. Type or say a set in the box below.</p>'}</div>
   </main>`;
 };
 
+const smoothPath = (points) => {
+  if (points.length < 2) return '';
+  const slopes = points.slice(0, -1).map(([x, y], index) => (points[index + 1][1] - y) / (points[index + 1][0] - x));
+  const tangents = points.map((point, index) => {
+    if (index === 0) return slopes[0];
+    if (index === points.length - 1) return slopes.at(-1);
+    return slopes[index - 1] * slopes[index] <= 0 ? 0 : (slopes[index - 1] + slopes[index]) / 4;
+  });
+  return points.slice(0, -1).reduce((path, [x, y], index) => {
+    const [nextX, nextY] = points[index + 1];
+    const third = (nextX - x) / 3;
+    return `${path} C${x + third},${y + tangents[index] * third} ${nextX - third},${nextY - tangents[index + 1] * third} ${nextX},${nextY}`;
+  }, `M${points[0][0]},${points[0][1]}`);
+};
+
+const niceStep = (span) => [5, 10, 20, 25, 50, 100].find((step) => span / step <= 4) || 200;
+
 const chartFor = (points) => {
   if (points.length === 0) return '';
-  const width = 320;
-  const height = 150;
-  const values = points.map((point) => point.value);
-  const low = Math.floor((Math.min(...values) - 2) / 5) * 5;
-  const high = Math.ceil((Math.max(...values) + 2) / 5) * 5;
-  const first = parseIso(points[0].date).getTime();
-  const span = Math.max(1, parseIso(points.at(-1).date).getTime() - first);
-  const x = (date) => (points.length === 1 ? width / 2 : ((parseIso(date).getTime() - first) / span) * (width - 12) + 6);
-  const y = (value) => height - 10 - ((value - low) / Math.max(1, high - low)) * (height - 20);
-  let running = 0;
-  const steps = points.map((point) => {
-    const isBest = point.value > running;
-    running = Math.max(running, point.value);
-    return { date: point.date, value: running, session: point.value, isBest };
+  const lines = { lift: view.lines?.lift !== false, est: view.lines?.est !== false };
+  let bestSingle = 0;
+  let bestSoFar = 0;
+  const rows = points.map((point) => {
+    const top = point.sets.reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) ? set : winner), null);
+    const single = Math.max(0, ...point.sets.filter((set) => Number(set.reps) === 1).map((set) => Number(set.kg)));
+    const isPr = single > bestSingle && bestSingle > 0;
+    bestSingle = Math.max(bestSingle, single);
+    bestSoFar = Math.max(bestSoFar, point.value);
+    return { date: point.date, lifted: Number(top.kg), top, sessionEstimate: point.value, estimate: bestSoFar, isPr };
   });
-  const dots = steps.map((step) => `<circle cx="${x(step.date).toFixed(1)}" cy="${y(step.session).toFixed(1)}" r="${step.isBest ? 3.5 : 2.5}" fill="${step.isBest ? '#C96442' : '#E2B49C'}"/>`).join('');
-  const path = steps.map((step, index) => `${index ? 'L' : 'M'}${x(step.date).toFixed(1)} ${y(step.value).toFixed(1)}`).join(' ');
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Best expected 1RM, now ${Math.round(running)} kg">
-    <line x1="0" x2="${width}" y1="${y(high)}" y2="${y(high)}" stroke="#ECE9E0"/><line x1="0" x2="${width}" y1="${y(low)}" y2="${y(low)}" stroke="#ECE9E0"/>
-    <path d="${path}" fill="none" stroke="#141413" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${dots}
-  </svg>
-  <div class="axis num"><span>${high} kg</span><span>${low} kg</span></div>`;
+  const picked = rows.find((row) => row.date === view.chartPick);
+  const values = rows.flatMap((row) => [...(lines.lift ? [row.lifted] : []), ...(lines.est ? [row.estimate] : [])]);
+  const all = values.length ? values : rows.map((row) => row.lifted);
+  const step = niceStep(Math.max(...all) - Math.min(...all) || 10);
+  const low = Math.floor(Math.min(...all) / step) * step;
+  const high = Math.max(low + step, Math.ceil(Math.max(...all) / step) * step);
+  const first = parseIso(rows[0].date).getTime();
+  const span = Math.max(1, parseIso(rows.at(-1).date).getTime() - first);
+  const x = (date) => (rows.length === 1 ? 500 : ((parseIso(date).getTime() - first) / span) * 1000);
+  const y = (value) => ((high - value) / (high - low)) * 1000;
+  const ticks = Array.from({ length: Math.round((high - low) / step) + 1 }, (unused, index) => high - index * step);
+  const path = (key) => smoothPath(rows.map((row) => [x(row.date), y(row[key])]));
+  return `<div class="chips lineChips">${[['lift', 'Weight lifted'], ['est', 'Est. 1RM']].map(([key, label]) => `<button class="lineChip ${key}" data-action="toggle-line" data-line="${key}" aria-pressed="${lines[key]}"><i></i>${label}</button>`).join('')}</div>
+  <div class="trend" role="img" aria-label="Weight lifted and estimated 1RM over time">
+    ${ticks.map((tick) => `<span class="tick" style="top:${(y(tick) / 10).toFixed(2)}%"><b class="num">${tick}</b></span>`).join('')}
+    <div class="plot">
+      <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+        ${lines.est ? `<path d="${path('estimate')}" class="lineEst" vector-effect="non-scaling-stroke"/>` : ''}
+        ${lines.lift ? `<path d="${path('lifted')}" class="lineLift" vector-effect="non-scaling-stroke"/>` : ''}
+      </svg>
+      ${lines.lift ? rows.map((row) => `<button class="dot${row.isPr ? ' pr' : ''}${row === picked ? ' on' : ''}" data-action="pick-point" data-date="${row.date}" style="left:${x(row.date) / 10}%;top:${y(row.lifted) / 10}%" aria-label="${dayLabel(row.date)}, ${row.top.kg} × ${row.top.reps}"></button>`).join('') : ''}
+    </div>
+  </div>
+  ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · ${picked.top.kg} × ${picked.top.reps}${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · est. ${Math.round(picked.sessionEstimate)} kg${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}
+  <div class="axis num"><span>${dayLabel(rows[0].date)}</span><span>${dayLabel(rows.at(-1).date)}</span></div>`;
 };
 
 const renderTrends = () => {
@@ -611,8 +684,9 @@ const renderTrends = () => {
     const best = bestOverall(name);
     const since = addDays(todayIso(), -view.range);
     const points = all.filter((point) => view.range === 0 || point.date >= since);
-    const heaviest = heaviestSet(name);
+    const lifted = heaviestLifted(name);
     const last = all.at(-1);
+    const lastTop = last.sets.reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) || (Number(set.kg) === Number(winner.kg) && Number(set.reps) > Number(winner.reps)) ? set : winner), null);
     return `<section class="card${open ? ' open' : ''}">
       <button class="head" data-action="toggle-trend" data-name="${esc(name)}" aria-expanded="${open}">
         <span class="headName">${esc(name)}</span>
@@ -621,38 +695,42 @@ const renderTrends = () => {
       </button>
       ${open ? `
         <div class="tiles">
-          <div class="tile"><p class="tileValue num" style="color:var(--clayText)">${Math.round(best)}<small> kg</small></p><p class="tileLabel">Expected</p></div>
-          <div class="tile"><p class="tileValue num">${heaviest ? heaviest.kg : '–'}<small>${heaviest ? ` × ${heaviest.reps}` : ''}</small></p><p class="tileLabel">Heaviest set</p></div>
-          <button class="tile" data-action="jump-session" data-date="${last.date}" aria-label="Last set ${last.sets[0].kg} × ${last.sets[0].reps}, open ${dayLabel(last.date)}"><p class="tileValue num">${last.sets[0].kg}<small> × ${last.sets[0].reps}</small></p><p class="tileLabel">Last set · ${dayLabel(last.date)}</p></button>
+          <div class="tile"><p class="tileValue num" style="color:var(--clayText)">${lifted ? lifted.kg : '–'}<small>${lifted ? ` × ${lifted.reps}` : ''}</small></p><p class="tileLabel">Best lifted</p></div>
+          <div class="tile"><p class="tileValue num">${Math.round(best)}<small> kg</small></p><p class="tileLabel">Est. 1RM ${infoButton()}</p></div>
+          <button class="tile" data-action="jump-session" data-date="${last.date}" aria-label="Latest top set ${lastTop.kg} × ${lastTop.reps}, open ${dayLabel(last.date)}"><p class="tileValue num">${lastTop.kg}<small> × ${lastTop.reps}</small></p><p class="tileLabel">Latest top set<br>${dayLabel(last.date)}</p></button>
         </div>
+        ${view.info ? ESTIMATE_INFO : ''}
         <div class="chartHead">
-          <p class="chartTitle">Expected 1RM</p>
+          <p class="chartTitle">Trend</p>
           ${[[90, '3M'], [180, '6M'], [365, '1Y'], [0, 'All']].map(([days, label]) => `<button class="chip" data-action="range" data-days="${days}" aria-pressed="${view.range === days}"><span class="chipFace">${label}</span></button>`).join('')}
         </div>
         ${points.length ? chartFor(points) : '<p class="empty">No sessions in this range.</p>'}
-        <div class="repTable num">${[1, 3, 5, 8, 10].map((reps) => { const kg = Math.round(reps === 1 ? best : best / (1 + reps / 30)); return `<button data-action="prefill" data-text="${esc(name)} ${kg}x${reps}" aria-label="Log ${esc(name)} ${kg} kg for ${reps}"><b>${kg}</b><span>${reps} ${reps === 1 ? 'rep' : 'reps'}</span></button>`; }).join('')}</div>` : `<p class="summary num">${all.length} ${all.length === 1 ? 'session' : 'sessions'} · last ${dayLabel(last.date)}</p>`}
+` : `<p class="summary num">${all.length} ${all.length === 1 ? 'session' : 'sessions'} · last ${dayLabel(last.date)}</p>`}
     </section>`;
   }).join('');
   return `<main class="page">
-    <p class="eyebrow">Expected 1RM, heaviest sets and rep targets</p>
+    <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
     <div class="list" style="margin-top:20px">${cards || '<p class="empty">Log a few sessions and your trends show up here.</p>'}</div>
   </main>`;
 };
 
 const renderYou = () => {
-  const lifts = loggedLifts().sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 10);
+  const big = ['Deadlift', 'Squat', 'Bench Press'];
+  const lifts = [...big, ...loggedLifts().filter((name) => !big.includes(name)).sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 7)];
   return `<main class="page">
-    <h1 class="title">${esc(state.name || 'You')}</h1>
-    <section class="card" style="margin-top:20px"><div class="row"><label for="name" style="flex:1">Name</label><input id="name" class="pill" style="width:160px;text-align:left" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="Your name" data-name-input></div></section>
+    <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+    <h1 class="title"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="You" data-name-input></h1>
     <p class="section">Best lifts</p>
     <section class="card">
+      <div class="row" style="min-height:36px"><span style="flex:1"></span><span class="muted" style="width:96px;text-align:right;font-size:13px;white-space:nowrap">Best lifted</span><span class="muted" style="width:84px;display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:13px;white-space:nowrap">Est. 1RM ${infoButton()}</span></div>
+      ${view.info ? ESTIMATE_INFO : ''}
       ${lifts.map((name) => {
-        const heaviest = heaviestSet(name);
-        return `<button class="row liftRow" data-action="open-trend" data-name="${esc(name)}"><span style="flex:1;min-width:0">${esc(name)}</span><span class="num" style="font-weight:600">${heaviest.kg} × ${heaviest.reps}</span><span class="muted num" style="width:92px;text-align:right">≈ ${Math.round(bestOverall(name))} 1RM</span></button>`;
-      }).join('') || '<p class="empty" style="margin:14px 0">Your best sets show up here once you log them.</p>'}
+        const lifted = heaviestLifted(name);
+        return `<button class="row liftRow" data-action="open-trend" data-name="${esc(name)}"><span style="flex:1;min-width:0">${esc(name)}</span><span class="num" style="width:96px;text-align:right;font-weight:600">${lifted ? `${lifted.kg} × ${lifted.reps}` : '–'}</span><span class="muted num" style="width:84px;text-align:right">${lifted ? `${Math.round(bestOverall(name))} kg` : ''}</span></button>`;
+      }).join('')}
     </section>
-    <p class="note">The heaviest set you have actually lifted, and the one-rep max it predicts. Paused and other variations count as their own lift.</p>
+    <p class="note">Best lifted is the heaviest set you have actually done. Est. 1RM is your current one-rep max: your best single, or what your strongest rep set predicts if that is higher. Paused and other variations count as their own lift.</p>
     <p class="section">Your link</p>
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(profileLink())}</span><button class="textBtn" data-action="copy-link">${view.copied ? 'Copied' : 'Copy'}</button></div>
@@ -666,7 +744,6 @@ const renderYou = () => {
       <div class="row"><button class="textBtn" data-action="export">Download a backup</button></div>
       <div class="row"><label class="textBtn" style="display:flex;align-items:center;cursor:pointer">Restore a backup<input type="file" accept="application/json" class="sr" data-action="import"></label></div>
     </section>
-    <p class="note">App icon from the Twemoji hamsa by Twitter, CC-BY 4.0, recolored.</p>
   </main>`;
 };
 
@@ -678,7 +755,7 @@ const renderProgress = () => {
     for (const exercise of session.exercises) {
       if (validSets(exercise).length === 0) continue;
       if (!history.has(exercise.name)) history.set(exercise.name, []);
-      history.get(exercise.name).push({ date: session.date, value: topEstimate(exercise) });
+      history.get(exercise.name).push({ date: session.date, value: topEstimate(exercise), sets: validSets(exercise) });
     }
   }
   const lifts = [...history.keys()].sort((first, second) => history.get(second).length - history.get(first).length || bestOverall(second) - bestOverall(first));
@@ -692,7 +769,7 @@ const renderProgress = () => {
   return `<p class="eyebrow">Progress</p>
     <h2 class="title" style="font-size:28px;line-height:34px">${focus ? esc(focus) : 'Your lifts'}</h2>
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
-      ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Expected 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
+      ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
     <p class="section">Volume per week</p>
     <section class="card" style="padding:14px 16px">
@@ -701,18 +778,29 @@ const renderProgress = () => {
     </section>
     <p class="section">Best lifts</p>
     <section class="card">
-      ${lifts.slice(0, 10).map((name) => `<button class="row liftRow" data-action="focus-lift" data-name="${esc(name)}" aria-pressed="${name === focus}"><span style="flex:1">${esc(name)}</span><span class="muted num">${Math.round(bestOverall(name))} kg</span></button>`).join('') || '<p class="empty" style="margin:14px 0">Nothing yet.</p>'}
+      ${lifts.slice(0, 10).map((name) => `<button class="row liftRow" data-action="focus-lift" data-name="${esc(name)}" aria-pressed="${name === focus}"><span style="flex:1">${esc(name)}</span><span class="num" style="${bestSingle(name) ? 'font-weight:600' : 'color:var(--text2)'}">${bestSingle(name) ? `${bestSingle(name)} kg` : `est. ${Math.round(bestOverall(name))}`}</span></button>`).join('') || '<p class="empty" style="margin:14px 0">Nothing yet.</p>'}
     </section>`;
+};
+
+const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Bench Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
+
+const dayName = (session) => {
+  const peaks = session.exercises
+    .map((exercise) => validSets(exercise)
+      .map((set) => ({ name: exercise.name, set, score: setEstimate(set) / (bestOverall(exercise.name) || setEstimate(set)) }))
+      .reduce((winner, item) => (!winner || item.score > winner.score ? item : winner), null))
+    .filter(Boolean)
+    .sort((first, second) => second.score - first.score)
+    .map(({ name, set }) => `${SHORT_NAMES[name] || name}${prKind(name, session.date, set) === 'max' ? ' PR' : ''} ${set.kg}×${set.reps}`);
+  const text = [...peaks, ...(session.cardio ? [`Cardio ${session.cardio}m`] : [])].join(', ') || 'Session';
+  return session.label ? `${text} · ${session.label}` : text;
 };
 
 const drawerContent = () => {
   const history = exodiaHistory();
   return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
-      <p class="drawerLabel">Exodia</p>
-      <button class="drawerRow" data-action="show-exodia"><span>Hit ${history.hits} ${history.hits === 1 ? 'time' : 'times'}</span><span class="muted">Rules</span></button>
-      ${history.last ? `<button class="drawerRow" data-action="jump-session" data-date="${history.last}"><span>Last hit</span><span class="muted">${dayLabel(history.last)}</span></button>` : '<div class="drawerRow"><span>Last hit</span><span class="muted">Not yet</span></div>'}
       <p class="drawerLabel">Recent sessions</p>
-      ${sortedSessions().slice(0, 8).map((session) => `<button class="drawerRow" data-action="jump-session" data-date="${session.date}"><span>${dayLabel(session.date)}</span><span class="muted num">${tonnes(sessionVolume(session))}</span></button>`).join('') || '<p class="drawerRow muted">None yet</p>'}`;
+      ${sortedSessions().slice(0, 8).map((session) => `<button class="drawerRow" data-action="jump-session" data-date="${session.date}"><span class="dayName" title="${esc(dayName(session))}">${esc(dayName(session))}</span><span class="muted">${['Today', 'Yesterday'].includes(dayLabel(session.date)) ? dayLabel(session.date) : parseIso(session.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(session.date.slice(0, 4) === todayIso().slice(0, 4) ? {} : { year: '2-digit' }) })}</span></button>`).join('') || '<p class="drawerRow muted">None yet</p>'}`;
 };
 
 const renderDrawer = () => `<div class="overlay">
@@ -732,7 +820,7 @@ const renderPicks = () => {
     ${query && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
 
-const renderTray = () => `<div class="tray" role="group" aria-label="Add an exercise">
+const renderTray = (enter = false) => `<div class="tray${enter ? ' enter' : ''}" role="group" aria-label="Add an exercise">
   <div class="days scroll" role="group" aria-label="Day">${Array.from({ length: 14 }, (unused, index) => addDays(todayIso(), -index)).map((iso) => `<button class="chip" data-action="composer-day" data-date="${iso}" aria-pressed="${(view.composerDate || todayIso()) === iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
   <div class="picks scroll">${renderPicks()}</div>
 </div>`;
@@ -743,8 +831,8 @@ const goButton = () => {
 };
 
 const renderDock = () => `<div class="dock">
-  ${view.composer ? renderTray() : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}
+  ${view.composer ? renderTray(view.trayEnter) : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : view.heard ? `<p class="dockStatus heard">Heard: “${esc(view.heard)}”</p>` : ''}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}">
     <label for="draft" class="sr">Type or say what you did</label>
     <textarea id="draft" class="promptInput" rows="1" enterkeyhint="send" autocomplete="off">${esc(view.draft)}</textarea>
@@ -766,9 +854,18 @@ const syncDock = () => {
   prompt.classList.toggle('hasText', view.draft.trim().length > 0);
   prompt.querySelector('.go').outerHTML = goButton();
   const tray = document.querySelector('.dock .tray');
-  if (view.composer && !tray) prompt.parentElement.insertAdjacentHTML('afterbegin', renderTray());
+  if (view.composer && (!tray || tray.classList.contains('leaving'))) {
+    tray?.remove();
+    prompt.parentElement.insertAdjacentHTML('afterbegin', renderTray(true));
+  }
   else if (view.composer) tray.querySelector('.picks').innerHTML = renderPicks();
-  else if (tray) tray.remove();
+  else if (tray && !tray.classList.contains('leaving')) {
+    tray.classList.add('leaving');
+    setTimeout(() => {
+      tray.remove();
+      tuckCards();
+    }, 140);
+  }
   tuckCards();
 };
 
@@ -810,7 +907,7 @@ const tuckCards = () => {
   for (const card of document.querySelectorAll('.page .card')) {
     const box = card.getBoundingClientRect();
     const shown = line - box.top;
-    card.classList.toggle('tucked', shown < box.height && shown < Math.min(box.height, 96));
+    card.classList.toggle('tucked', box.height <= 140 && shown < box.height);
   }
 };
 window.addEventListener('scroll', () => requestAnimationFrame(tuckCards), { passive: true });
@@ -825,20 +922,19 @@ const render = () => {
   const dock = renderDock();
   const layout = desktopQuery.matches
     ? `<div class="desk">
-        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo" aria-hidden="true">🪬</span>Exodia</a>${drawerContent()}</nav>
+        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
         <aside class="right" aria-label="Progress">${renderProgress()}</aside>
       </div>`
     : `<header class="topbar"><div class="topbarInner">
         <button class="iconBtn" data-action="open-menu" aria-label="Open menu">${ICONS.menu}</button>
-        <a class="brand" href="#/"><span class="logo" aria-hidden="true">🪬</span>Exodia</a>
+        <a class="brand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>
         <a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
   app.innerHTML = `
-    <svg width="0" height="0" aria-hidden="true" style="position:absolute"><filter id="duo" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.788 0.949"/><feFuncG type="discrete" tableValues="0.392 0.690"/><feFuncB type="discrete" tableValues="0.259 0.557"/></feComponentTransfer></filter></svg>
     ${layout}
-    ${view.toast ? `<button class="toast" role="status" data-action="dismiss-toast" aria-label="Dismiss"><span class="trophy">${ICONS.trophy}</span><div><p class="toastTitle">New PR · ${esc(view.toast.name)}</p><p class="toastText num">${view.toast.set} · expected ${view.toast.value} kg, +${view.toast.gain} kg</p></div></button>` : ''}`;
+    ${view.toast ? `<button class="toast ${view.toast.kind}" role="status" data-action="dismiss-toast" aria-label="Dismiss">${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div></button>` : ''}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -849,6 +945,10 @@ const render = () => {
     }
   }
   view.focusDraft = false;
+  view.trayEnter = false;
+  view.opening = null;
+  view.menuEnter = false;
+  view.rulesEnter = false;
   tuckCards();
   if (view.scrollTarget) {
     const card = document.getElementById(`session-${view.scrollTarget}`);
@@ -930,7 +1030,7 @@ const startListening = async () => {
     };
   });
   recorder.start();
-  recording = { recorder, context, done, frame: 0, timer: setTimeout(send, 60000) };
+  recording = { recorder, context, done, frame: 0, timer: setTimeout(send, 240000) };
   watchLevel(stream, context);
   view.listening = true;
   view.status = '';
@@ -981,6 +1081,88 @@ const guessDate = (text, fallback) => {
   return addDays(todayIso(), -back);
 };
 
+const EDIT_WORDS = /\b(remove|delete|undo|change|edit|fix|wrong|instead|ta bort|radera|ändra|byt)\b/i;
+
+const changeWithUndo = (title, change) => {
+  const before = JSON.stringify(state.sessions);
+  change();
+  state.sessions = state.sessions.filter((session) => session.exercises.length || session.cardio);
+  save();
+  view.toast = { kind: 'rep', title, text: 'Tap to undo', undo: before };
+  clearTimeout(view.toastTimer);
+  view.toastTimer = setTimeout(() => {
+    view.toast = null;
+    render();
+  }, 5000);
+};
+
+const moveSession = (source, to) => {
+  const target = sessionFor(to);
+  if (!target) {
+    source.date = to;
+    return;
+  }
+  for (const exercise of source.exercises) {
+    const same = target.exercises.find((item) => item.name === exercise.name);
+    if (same) same.sets.push(...exercise.sets);
+    else target.exercises.push(exercise);
+  }
+  target.cardio = (target.cardio || 0) + (source.cardio || 0);
+  source.exercises = [];
+  source.cardio = 0;
+};
+
+const note = (title, text) => {
+  view.toast = { kind: 'rep', title, text };
+  setTimeout(() => {
+    view.toast = null;
+    render();
+  }, 3500);
+};
+
+const loggedDay = (date, exercise) => {
+  const has = (session) => session.exercises.length && (!exercise || session.exercises.some((item) => item.name === exercise));
+  if (sessionFor(date) && has(sessionFor(date))) return date;
+  const weekday = parseIso(date).getDay();
+  return sortedSessions().find((session) => session.date <= todayIso() && parseIso(session.date).getDay() === weekday && has(session))?.date || date;
+};
+
+const applyEdits = (result) => {
+  const done = [];
+  for (const target of result.remove || []) {
+    const exerciseName = target.exercise ? findExerciseName(target.exercise) || titleCase(target.exercise) : null;
+    const item = { ...target, date: loggedDay(target.date, exerciseName) };
+    const session = sessionFor(item.date);
+    if (!session) continue;
+    if (item.exercise) {
+      const name = findExerciseName(item.exercise) || titleCase(item.exercise);
+      if (!session.exercises.some((exercise) => exercise.name === name)) continue;
+      session.exercises = session.exercises.filter((exercise) => exercise.name !== name);
+      done.push(`Removed ${name} from ${dayLabel(item.date)}`);
+    } else {
+      session.exercises = [];
+      session.cardio = 0;
+      done.push(`Removed ${dayLabel(item.date)}`);
+    }
+    if (session.exercises.length === 0 && !session.cardio) state.sessions = state.sessions.filter((other) => other !== session);
+  }
+  for (const target of result.replace || []) {
+    const name = findExerciseName(target.exercise) || titleCase(target.exercise);
+    const item = { ...target, date: loggedDay(target.date, name) };
+    const session = ensureSession(item.date);
+    const sets = item.sets.map((set) => ({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), edited: true }));
+    const exercise = session.exercises.find((other) => other.name === name);
+    if (exercise) exercise.sets = sets;
+    else session.exercises.push({ name, sets });
+    view.open.add(item.date);
+    done.push(`Updated ${name} on ${dayLabel(item.date)}`);
+  }
+  if (done.length === 0) return false;
+  save();
+  note(done[0], done.length > 1 ? `and ${done.length - 1} more` : 'Synced to all your devices');
+  return true;
+};
+
 const land = (result, date) => {
   const existing = sessionFor(date);
   const isNew = !existing || (existing.exercises.length === 0 && !existing.cardio);
@@ -999,6 +1181,7 @@ const showHome = () => {
 };
 
 const send = async () => {
+  view.heard = '';
   const voice = await stopRecording();
   const text = view.draft.trim();
   if (!text && !voice?.size) {
@@ -1006,7 +1189,7 @@ const send = async () => {
     return;
   }
   const date = view.composerDate || todayIso();
-  const local = !voice && !DAY_WORDS.test(text) ? parseLocally(text) : null;
+  const local = !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
   if (local) {
     closeComposer();
     showHome();
@@ -1030,8 +1213,20 @@ const send = async () => {
     const audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
     const result = await parseWithAi(text, audio);
     heard = result.transcript || '';
-    if (!result.exercises?.length && !result.cardioMinutes) throw new Error(heard ? 'No sets in that. Fix it and send again.' : 'Could not find any sets in that.');
-    land(result, result.date || date);
+    view.heard = voice?.size ? heard : '';
+    const changed = applyEdits(result);
+    if (result.label) {
+      const day = sessionFor(result.date || date) || result.exercises?.length ? result.date || date : loggedDay(result.date || date, null);
+      const target = sessionFor(day) || (result.exercises?.length || result.cardioMinutes ? ensureSession(day) : null);
+      if (target) {
+        target.label = result.label;
+        save();
+        if (!result.exercises?.length && !result.cardioMinutes) note(`Named ${dayLabel(day)}`, result.label);
+      }
+    }
+    if (!result.exercises?.length && !result.cardioMinutes && !changed && !result.label) throw new Error(heard ? 'No sets in that. Fix it and send again.' : 'Could not find any sets in that.');
+    if (result.exercises?.length || result.cardioMinutes) land(result, result.date || date);
+    else view.scrollTarget = null;
   } catch (error) {
     view.composer = true;
     view.composerDate = date === todayIso() ? null : date;
@@ -1046,8 +1241,7 @@ const send = async () => {
 document.addEventListener('click', (event) => {
   const insideDock = Boolean(event.target.closest('.dock'));
   if (view.composer && !insideDock && !event.target.closest('[data-action]')) {
-    view.composer = false;
-    render();
+    closeTray();
     return;
   }
   if (view.composer && !insideDock) view.composer = false;
@@ -1064,10 +1258,40 @@ document.addEventListener('click', (event) => {
   const date = target.dataset.date;
   const session = date ? sessionFor(date) : null;
   if (action === 'import') return;
-  if (action === 'dismiss-toast') view.toast = null;
+  if (action === 'dismiss-toast') {
+    if (view.toast?.undo) {
+      state.sessions = JSON.parse(view.toast.undo);
+      save();
+    }
+    view.toast = null;
+  } else if (action === 'delete-set' && session) {
+    changeWithUndo('Set deleted', () => {
+      const exercise = session.exercises[Number(target.dataset.exercise)];
+      exercise.sets.splice(Number(target.dataset.set), 1);
+      if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
+    });
+  } else if (action === 'delete-exercise' && session) {
+    changeWithUndo(`${session.exercises[Number(target.dataset.exercise)].name} deleted`, () => session.exercises.splice(Number(target.dataset.exercise), 1));
+  } else if (action === 'delete-day' && session) {
+    view.dayMenu = null;
+    changeWithUndo(`${dayLabel(date)} deleted`, () => {
+      session.exercises = [];
+      session.cardio = 0;
+    });
+  } else if (action === 'day-menu') {
+    view.dayMenu = view.dayMenu === date ? null : date;
+    view.menuEnter = true;
+  } else if (action === 'move-day' && session) {
+    const to = target.dataset.to;
+    view.dayMenu = null;
+    changeWithUndo(`Moved to ${dayLabel(to)}`, () => moveSession(session, to));
+    view.open.add(to);
+    view.scrollTarget = to;
+  }
   if (action === 'open-menu') view.menu = true;
   else if (action === 'close-menu') view.menu = false;
   else if (action === 'open-composer') {
+    view.trayEnter = !view.composer;
     view.composer = true;
     view.composerDate = target.dataset.date || todayIso();
     view.focusDraft = true;
@@ -1075,8 +1299,20 @@ document.addEventListener('click', (event) => {
     view.composerDate = date;
     view.focusDraft = true;
   }
-  else if (action === 'toggle-exodia') view.exodiaOpen = !view.exodiaOpen;
-  else if (action === 'toggle-session') view.open.has(date) ? view.open.delete(date) : view.open.add(date);
+  else if (action === 'toggle-exodia') {
+    view.exodiaOpen = !view.exodiaOpen;
+    view.rulesEnter = view.exodiaOpen;
+  }
+  else if (action === 'toggle-info') view.info = !view.info;
+  else if (action === 'pick-point') view.chartPick = view.chartPick === date ? null : date;
+  else if (action === 'toggle-line') view.lines = { lift: view.lines?.lift !== false, est: view.lines?.est !== false, [target.dataset.line]: view.lines?.[target.dataset.line] === false };
+  else if (action === 'toggle-session') {
+    if (view.open.has(date)) view.open.delete(date);
+    else {
+      view.open.add(date);
+      view.opening = date;
+    }
+  }
   else if (action === 'focus-lift') view.focusLift = target.dataset.name;
   else if (action === 'pick-week') view.volumeWeek = Number(target.dataset.index);
   else if (action === 'open-trend') {
@@ -1182,6 +1418,13 @@ document.addEventListener('input', (event) => {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const index = Number(target.dataset.set);
     const field = target.dataset.field;
+    if (field === 'rpe') {
+      const rpe = parseFloat(target.value.replace(',', '.'));
+      if (rpe >= 1 && rpe <= 10) exercise.sets[index].rpe = rpe;
+      else delete exercise.sets[index].rpe;
+      save();
+      return;
+    }
     const previous = exercise.sets[index][field];
     exercise.sets[index][field] = target.value.replace(',', '.');
     if (field === 'kg') {
@@ -1196,6 +1439,16 @@ document.addEventListener('input', (event) => {
 
 document.addEventListener('change', (event) => {
   const target = event.target;
+  if (target.dataset.dayLabel) {
+    const session = sessionFor(target.dataset.dayLabel);
+    if (session) {
+      if (target.value.trim()) session.label = target.value.trim().slice(0, 40);
+      else delete session.label;
+      save();
+      render();
+    }
+    return;
+  }
   if (target.hasAttribute('data-name-input')) {
     state.name = target.value.trim().slice(0, 40);
     save();
@@ -1269,6 +1522,58 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) syncNow();
 });
 window.addEventListener('online', () => syncNow());
+let swipe = null;
+let lastSwipe = 0;
+document.addEventListener('pointerdown', (event) => {
+  const face = event.target.closest('.swipeFace');
+  for (const open of document.querySelectorAll('.swipe.open')) if (open !== face?.parentElement) open.classList.remove('open');
+  swipe = face && event.pointerType !== 'mouse' ? { face, x: event.clientX, y: event.clientY, dx: 0, active: false } : null;
+});
+document.addEventListener('pointermove', (event) => {
+  if (!swipe) return;
+  const dx = event.clientX - swipe.x;
+  const dy = event.clientY - swipe.y;
+  if (!swipe.active) {
+    if (Math.abs(dy) > 10) swipe = null;
+    if (!swipe || Math.abs(dx) < 10) return;
+    swipe.active = true;
+    swipe.face.style.transition = 'none';
+  }
+  swipe.dx = Math.min(0, Math.max(-120, dx + (swipe.face.parentElement.classList.contains('open') ? -76 : 0)));
+  swipe.face.style.transform = `translateX(${swipe.dx}px)`;
+});
+const endSwipe = () => {
+  if (!swipe) return;
+  const { face, dx, active } = swipe;
+  swipe = null;
+  face.style.transition = '';
+  face.style.transform = '';
+  if (!active) return;
+  lastSwipe = Date.now();
+  face.parentElement.classList.toggle('open', dx < -40);
+};
+document.addEventListener('pointerup', endSwipe);
+document.addEventListener('pointercancel', endSwipe);
+document.addEventListener('click', (event) => {
+  if (Date.now() - lastSwipe < 350) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, true);
+
+const closeTray = () => {
+  if (!view.composer) return;
+  view.composer = false;
+  syncDock();
+};
+for (const type of ['wheel', 'touchmove']) {
+  document.addEventListener(type, (event) => {
+    if (!event.target.closest('.dock')) closeTray();
+  }, { passive: true });
+}
+document.addEventListener('focusout', (event) => {
+  if (event.target.closest?.('.dock') && event.relatedTarget && !event.relatedTarget.closest('.dock')) closeTray();
+});
 document.addEventListener('focusout', () => {
   if (!view.renderOnBlur) return;
   setTimeout(() => {

@@ -1,5 +1,5 @@
 const MAX_TEXT = 400;
-const MAX_AUDIO = 3000000;
+const MAX_AUDIO = 14000000;
 const PROFILE_KEY = /^[a-f0-9]{32}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CHANGES = 500;
@@ -16,7 +16,8 @@ Running, cycling, walking or other cardio goes in cardioMinutes.
 Use common English exercise names like "Bench Press", "Deadlift", "Hack Squat".
 Prefer a name from the known list when it matches.
 If the user says which day it happened, set date as YYYY-MM-DD from the calendar below. "Last Friday" or "on Friday" means the most recent Friday before today, never the week before. "Yesterday" is the day before today. If no day is mentioned, leave date out.
-When a voice note is attached, listen to it, write what was said in transcript, and log from it. Expect gym words: exercise names, kilos, reps and sets.`;
+When a voice note is attached, listen to it, write what was said in transcript, and log from it. Expect gym words: exercise names, kilos, reps and sets.
+The user can also fix what is already logged. The recent log below lists their sessions. "This session" or "today" means the day in view. To delete a whole day, add it to remove with no exercise. To delete one exercise from a day, add it to remove with that exercise name. To change sets of an exercise already logged, add it to replace with the full new list of sets for that exercise on that day. Use exact dates and exercise names from the recent log. For edits and deletes, a weekday like "Friday" means the newest logged day in the recent log that falls on that weekday, not an empty day. When changing a set, the replace list must contain every set of that exercise on that day, with only the mentioned set changed. If the user names the session or says where it happened, like a gym or place ("at Sathedvik", "call it leg day"), put that short name in label, without words like "at". Only fill exercises for new sets that were actually done; leave it empty for pure edits or deletes.`;
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -41,12 +42,17 @@ const SCHEMA = {
     },
     cardioMinutes: { type: 'INTEGER' },
     date: { type: 'STRING' },
-    transcript: { type: 'STRING' }
+    transcript: { type: 'STRING' },
+    label: { type: 'STRING' },
+    remove: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, exercise: { type: 'STRING' } }, required: ['date'] } },
+    replace: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, exercise: { type: 'STRING' }, sets: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kg: { type: 'NUMBER' }, reps: { type: 'INTEGER' }, rpe: { type: 'NUMBER' } }, required: ['kg', 'reps'] } } }, required: ['date', 'exercise', 'sets'] } }
   },
   required: ['exercises']
 };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+
+const cleanSet = (set) => ({ kg: Math.min(1000, Math.max(0, Number(set?.kg) || 0)), reps: Math.min(100, Math.max(0, Math.round(Number(set?.reps) || 0))), ...(Number(set?.rpe) >= 1 && Number(set?.rpe) <= 10 ? { rpe: Number(set.rpe) } : {}) });
 
 const clean = (raw, today) => {
   const exercises = (Array.isArray(raw?.exercises) ? raw.exercises : [])
@@ -56,7 +62,7 @@ const clean = (raw, today) => {
       sets: (Array.isArray(exercise?.sets) ? exercise.sets : [])
         .filter((set) => !set?.warmup)
         .slice(0, 20)
-        .map((set) => ({ kg: Math.min(1000, Math.max(0, Number(set.kg) || 0)), reps: Math.min(100, Math.max(0, Math.round(Number(set.reps) || 0))) }))
+        .map(cleanSet)
         .filter((set) => set.reps > 0)
     }))
     .filter((exercise) => exercise.name && exercise.sets.length > 0);
@@ -64,7 +70,16 @@ const clean = (raw, today) => {
   const date = typeof raw?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null;
   const valid = date && today && date <= today && Date.parse(today) - Date.parse(date) <= 60 * 86400000;
   const transcript = typeof raw?.transcript === 'string' ? raw.transcript.slice(0, MAX_TEXT).trim() : '';
-  return valid ? { exercises, cardioMinutes, date, transcript } : { exercises, cardioMinutes, transcript };
+  const remove = (Array.isArray(raw?.remove) ? raw.remove : [])
+    .filter((item) => typeof item?.date === 'string' && DATE.test(item.date))
+    .slice(0, 20)
+    .map((item) => ({ date: item.date, ...(typeof item.exercise === 'string' && item.exercise.trim() ? { exercise: item.exercise.trim().slice(0, 60) } : {}) }));
+  const replace = (Array.isArray(raw?.replace) ? raw.replace : [])
+    .filter((item) => typeof item?.date === 'string' && DATE.test(item.date) && typeof item.exercise === 'string' && Array.isArray(item.sets))
+    .slice(0, 20)
+    .map((item) => ({ date: item.date, exercise: item.exercise.trim().slice(0, 60), sets: item.sets.slice(0, 20).map(cleanSet).filter((set) => set.reps > 0) }));
+  const label = typeof raw?.label === 'string' ? raw.label.trim().slice(0, 40) : '';
+  return { exercises, cardioMinutes, transcript, remove, replace, ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
 
 const parse = async (request, env) => {
@@ -73,7 +88,7 @@ const parse = async (request, env) => {
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
   const audio = typeof body?.audio === 'string' && /^[A-Za-z0-9+/=]+$/.test(body.audio) ? body.audio : '';
   if (text.length > MAX_TEXT) return json({ error: 'Keep it under 400 characters.' }, 400);
-  if (audio.length > MAX_AUDIO) return json({ error: 'Keep voice notes under a minute.' }, 400);
+  if (audio.length > MAX_AUDIO) return json({ error: 'Keep voice notes under four minutes.' }, 400);
   if (!text && !audio) return json({ error: 'Say or type what you did.' }, 400);
   const deviceId = typeof body?.deviceId === 'string' ? body.deviceId.slice(0, 64) : 'unknown';
   const ip = request.headers.get('cf-connecting-ip') ?? 'local';
@@ -86,6 +101,8 @@ const parse = async (request, env) => {
   const today = typeof body?.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : null;
   const weekday = today ? new Date(`${today}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' }) : '';
   const calendar = today ? Array.from({ length: 14 }, (unused, index) => { const day = new Date(Date.parse(`${today}T12:00:00Z`) - index * 86400000); return `${day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })} ${day.toISOString().slice(0, 10)}${index === 0 ? ' (today)' : index === 1 ? ' (yesterday)' : ''}`; }).join('\n') : '';
+  const recent = typeof body?.recent === 'string' ? body.recent.slice(0, 4000) : '';
+  const viewing = typeof body?.viewing === 'string' && DATE.test(body.viewing) ? body.viewing : today;
   const known = Array.isArray(body?.known) ? body.known.filter((name) => typeof name === 'string').slice(0, 40).map((name) => name.slice(0, 60)) : [];
   const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
   for (const model of models) {
@@ -93,7 +110,7 @@ const parse = async (request, env) => {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: `${PROMPT}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}` }] },
+        systemInstruction: { parts: [{ text: `${PROMPT}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}\nRecent log, newest first:\n${recent || 'nothing logged yet'}` }] },
         contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
         generationConfig: { temperature: 0, maxOutputTokens: 500, responseMimeType: 'application/json', responseSchema: SCHEMA }
       })
