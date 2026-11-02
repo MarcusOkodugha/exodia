@@ -1,19 +1,12 @@
 <p align="center"><img src="docs/screens.png" alt="Exodia on three phones: the home screen, a lift's trend chart and the recovery map" width="100%"></p>
 
-<h1 align="center">Exodia</h1>
+<a href="https://exodia.marcusokodugha.workers.dev/join"><img src="docs/try-exodia.png" align="right" width="195" alt="Try Exodia"></a>
 
-<p align="center">
-  <b>Unstructured in. Structured out.</b><br>
-  Talk, type or paste anything. Exodia transcribes it, turns it into structured data and tracks it for you.
-</p>
+# Exodia
 
-<p align="center">
-  <a href="https://exodia.marcusokodugha.workers.dev/join"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/try-button-dark.png"><img src="docs/try-button-light.png" alt="Try Exodia" width="133"></picture></a>
-</p>
+**Unstructured in. Structured out.** Talk, type or paste anything. Exodia transcribes it, turns it into structured data and tracks it for you.
 
-<h3 align="center"><a href="https://exodia.marcusokodugha.workers.dev/join">exodia.marcusokodugha.workers.dev/join</a></h3>
-
-<p align="center">No sign-up. Open it on your phone and add it to the Home Screen.</p>
+**Try it on your phone:** [exodia.marcusokodugha.workers.dev/join](https://exodia.marcusokodugha.workers.dev/join). No sign-up, just add it to your Home Screen.
 
 ---
 
