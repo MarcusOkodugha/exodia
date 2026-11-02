@@ -590,3 +590,12 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .dot::after { content: ''; position: absolute; inset: -11px; border-radius: 50%; }
 .right .muscles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .right .muscleList { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; column-gap: 20px; }
+
+.dayAdd .textBtn { color: var(--text2); }
+.dayAccLabel { margin-right: 4px; color: var(--text2); font-size: 14px; }
+.dayActions { flex-wrap: nowrap; white-space: nowrap; }
+.dayActions .chip { flex: none; }
+.dayActions .chipFace { padding: 0 8px; }
+.dayAdd { gap: 14px; }
+.dayAdd .textBtn { white-space: nowrap; }
+.dayAccLabel { flex: none; font-size: 13px; }
