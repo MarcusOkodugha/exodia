@@ -714,7 +714,7 @@ const HAND = [
   ['77% 0, 100% 0, 100% 64%, 73% 64%, 77% 46%', 87, 50],
 ];
 const EXODIA_TIMES = { impact: 1750, fly: 2250, done: 2800 };
-const preloadHands = () => ['/hamsa-512.png', '/hamsa-512-blue.png'].forEach((src) => { new Image().src = src; });
+const preloadHands = () => ['/hamsa-512.png', '/hamsa-512-blue.png', ...['palm', 'thumb-left', 'index', 'middle', 'ring', 'thumb-right'].flatMap((name) => [`/fist/${name}-line.png`, `/fist/${name}-fill.png`])].forEach((src) => { new Image().src = src; });
 const centre = (el) => {
   const box = el?.getBoundingClientRect();
   return box && box.width ? { x: box.left + box.width / 2, y: box.top + box.height / 2, w: box.width } : null;
@@ -736,46 +736,52 @@ const FIST_OPEN = [500, 1350, 2000, 2420, 2900];
 const FIST_DURATION = [700, 620, 440, 420, 780];
 const FIST_TIMES = { eye: 3600, impact: 4120, fly: 4750, done: 5350 };
 // [window the piece shows through, folded offset x %, y %, rim style]
-// Windows each finger slides through, and how far it is tucked into the fist when closed (x %, y %).
-// The three fingers tuck in by the same amount, so their knuckles line up with no slivers.
+// The real logo cut into pieces, each as an outline layer and a fill layer (/fist/*.png). All outlines sit
+// below all fills, so wherever pieces overlap the fills merge and no inner line shows; a moving piece always
+// has its real outline. At rest the layers add up to the logo exactly, so the end only opens the eye.
+// [piece, how it starts tucked into the palm].
 const FIST = [
-  ['0 39%, 23% 39%, 23% 44.5%, 25% 47%, 27.5% 66%, 0 66%', 22, 4],
-  ['25.8% 0, 39% 0, 39% 12%, 42.25% 12%, 42.25% 47.5%, 25.8% 47.5%', 0, 27],
-  ['39% 0, 60% 0, 60% 8%, 58.5% 8%, 58.5% 12%, 57.45% 12%, 57.45% 47.5%, 42.25% 47.5%, 42.25% 12%, 39% 12%', 0, 27],
-  ['60% 0, 74.2% 0, 74.2% 47.5%, 57.45% 47.5%, 57.45% 12%, 58.5% 12%, 58.5% 8%, 60% 8%', 0, 27],
-  ['77% 39%, 100% 39%, 100% 66%, 72.5% 66%, 75% 47%, 77% 44.5%', -22, 4],
+  ['thumb-left', 'translate(22%, 15%)'],
+  ['index', 'translateY(31%)'],
+  ['middle', 'translateY(31%)'],
+  ['ring', 'translateY(31%)'],
+  ['thumb-right', 'translate(-22%, 15%)'],
 ];
-// The closed fist: one smooth shape that follows the hand's own bowl. Its outline parts on top and at the
-// thumbs fade as each piece comes out, so no line is ever left inside the open hand.
-const FIST_PATH = {"fill": "M28.00 42.20 C35.83 41.97 64.17 41.97 72.00 42.20 C79.83 42.43 74.33 42.80 75.00 43.60 C75.67 44.40 75.73 45.10 76.00 47.00 C76.27 48.90 76.40 52.17 76.60 55.00 C76.80 57.83 77.08 61.50 77.20 64.00 C77.32 66.50 77.35 68.67 77.30 70.00 C77.25 71.33 77.03 71.33 76.90 72.00 C76.77 72.67 76.67 73.33 76.50 74.00 C76.33 74.67 76.10 75.33 75.90 76.00 C75.70 76.67 75.50 77.33 75.30 78.00 C75.10 78.67 74.88 79.33 74.70 80.00 C74.52 80.67 74.42 81.33 74.20 82.00 C73.98 82.67 73.70 83.33 73.40 84.00 C73.10 84.67 72.77 85.33 72.40 86.00 C72.03 86.67 71.65 87.33 71.20 88.00 C70.75 88.67 70.32 89.33 69.70 90.00 C69.08 90.67 68.25 91.33 67.50 92.00 C66.75 92.67 66.17 93.33 65.20 94.00 C64.23 94.67 62.80 95.50 61.70 96.00 C60.60 96.50 60.55 96.73 58.60 97.00 C56.65 97.27 52.87 97.60 50.00 97.60 C47.13 97.60 43.42 97.27 41.40 97.00 C39.38 96.73 39.03 96.50 37.90 96.00 C36.77 95.50 35.57 94.67 34.60 94.00 C33.63 93.33 32.88 92.67 32.10 92.00 C31.32 91.33 30.48 90.67 29.90 90.00 C29.32 89.33 29.02 88.67 28.60 88.00 C28.18 87.33 27.77 86.67 27.40 86.00 C27.03 85.33 26.73 84.67 26.40 84.00 C26.07 83.33 25.65 82.67 25.40 82.00 C25.15 81.33 25.08 80.67 24.90 80.00 C24.72 79.33 24.47 78.67 24.30 78.00 C24.13 77.33 24.07 76.67 23.90 76.00 C23.73 75.33 23.47 74.67 23.30 74.00 C23.13 73.33 23.07 72.67 22.90 72.00 C22.73 71.33 22.32 71.33 22.30 70.00 C22.28 68.67 22.62 66.50 22.80 64.00 C22.98 61.50 23.20 57.83 23.40 55.00 C23.60 52.17 23.73 48.90 24.00 47.00 C24.27 45.10 24.33 44.40 25.00 43.60 C25.67 42.80 20.17 42.43 28.00 42.20 Z", "outline": "M77.20 64.00 C77.32 66.50 77.35 68.67 77.30 70.00 C77.25 71.33 77.03 71.33 76.90 72.00 C76.77 72.67 76.67 73.33 76.50 74.00 C76.33 74.67 76.10 75.33 75.90 76.00 C75.70 76.67 75.50 77.33 75.30 78.00 C75.10 78.67 74.88 79.33 74.70 80.00 C74.52 80.67 74.42 81.33 74.20 82.00 C73.98 82.67 73.70 83.33 73.40 84.00 C73.10 84.67 72.77 85.33 72.40 86.00 C72.03 86.67 71.65 87.33 71.20 88.00 C70.75 88.67 70.32 89.33 69.70 90.00 C69.08 90.67 68.25 91.33 67.50 92.00 C66.75 92.67 66.17 93.33 65.20 94.00 C64.23 94.67 62.80 95.50 61.70 96.00 C60.60 96.50 60.55 96.73 58.60 97.00 C56.65 97.27 52.87 97.60 50.00 97.60 C47.13 97.60 43.42 97.27 41.40 97.00 C39.38 96.73 39.03 96.50 37.90 96.00 C36.77 95.50 35.57 94.67 34.60 94.00 C33.63 93.33 32.88 92.67 32.10 92.00 C31.32 91.33 30.48 90.67 29.90 90.00 C29.32 89.33 29.02 88.67 28.60 88.00 C28.18 87.33 27.77 86.67 27.40 86.00 C27.03 85.33 26.73 84.67 26.40 84.00 C26.07 83.33 25.65 82.67 25.40 82.00 C25.15 81.33 25.08 80.67 24.90 80.00 C24.72 79.33 24.47 78.67 24.30 78.00 C24.13 77.33 24.07 76.67 23.90 76.00 C23.73 75.33 23.47 74.67 23.30 74.00 C23.13 73.33 23.07 72.67 22.90 72.00 C22.73 71.33 22.32 71.33 22.30 70.00 C22.28 68.67 22.62 66.50 22.80 64.00", "parts": ["M22.80 64.00 C22.98 61.50 23.20 57.83 23.40 55.00 C23.60 52.17 23.73 48.90 24.00 47.00 C24.27 45.10 24.33 44.40 25.00 43.60 C25.67 42.80 20.17 42.43 28.00 42.20", "", "", "", "M72.00 42.20 C79.83 42.43 74.33 42.80 75.00 43.60 C75.67 44.40 75.73 45.10 76.00 47.00 C76.27 48.90 76.40 52.17 76.60 55.00 C76.80 57.83 77.08 61.50 77.20 64.00"]};
+const FIST_SIDES = ['M21.9 69 C22.2 62 22.5 55 22.8 49 C22.9 47.3 23.3 46.2 24 45.4', 'M78.1 69 C77.8 62 77.5 55 77.2 49 C77.1 47.3 76.7 46.2 76 45.4'];
+
 const playFist = () => {
   const show = document.createElement('div');
   show.className = 'exodiaShow';
   show.setAttribute('aria-hidden', 'true');
+  const layer = (name, kind, index) => `<i class="exLayer" ${index === undefined ? '' : `data-piece="${index}"`} style="background-image:url(/fist/${name}-${kind}.png)"></i>`;
   show.innerHTML = `<div class="exFly"><div class="exHand">
-    ${FIST.map(([clip]) => `<i class="exWin" style="clip-path:polygon(${clip})"><i class="exImg"></i></i>`).join('')}
-    <svg class="exFist" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="exFistFill" d="${FIST_PATH.fill}"/><path class="exFistLine" d="${FIST_PATH.outline}"/>${FIST_PATH.parts.map((part) => `<path class="exFistLine exFistPart" d="${part}"/>`).join('')}</svg>
-    <i class="exFull"></i>
+    ${FIST.map(([name], index) => layer(name, 'line', index)).join('')}${layer('palm', 'line')}
+    ${layer(FIST[0][0], 'fill', 0)}${layer(FIST[4][0], 'fill', 4)}${layer('palm', 'fill')}
+    <svg class="exSides" viewBox="0 0 100 100" preserveAspectRatio="none">${FIST_SIDES.map((side) => `<path d="${side}"/>`).join('')}</svg>
+    ${[1, 2, 3].map((index) => layer(FIST[index][0], 'fill', index)).join('')}
+    <i class="exLid"></i>
     <i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
   </div>
   <div class="exBars">${FIST_LABELS.map((label) => `<div><span>${label}</span><i><b></b></i></div>`).join('')}</div></div>`;
   document.body.append(show);
   const hand = show.querySelector('.exHand');
   hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out', fill: 'backwards' });
-  const parts = show.querySelectorAll('.exFistPart');
   const bars = show.querySelectorAll('.exBars > div');
-  show.querySelectorAll('.exImg').forEach((image, index) => {
-    const [, x, y] = FIST[index];
-    image.animate([
-      { transform: `translate(${x}%, ${y}%)` },
-      { transform: 'none' },
-    ], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.3, 0.45, 1)', fill: 'backwards' });
-    parts[index].animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, delay: FIST_OPEN[index], easing: 'ease-out', fill: 'both' });
-    bars[index].querySelector('b').animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)', fill: 'both' });
-    bars[index].animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 200, delay: FIST_OPEN[index], fill: 'both' });
-    bars[index].querySelector('span').animate([{ transform: 'none', color: 'var(--text)' }, { transform: 'scale(1.18)', color: 'var(--clay)', offset: 0.35 }, { transform: 'none', color: 'var(--text)' }], { duration: Math.max(560, FIST_DURATION[index]), delay: FIST_OPEN[index], easing: 'ease-out' });
+  show.querySelectorAll('.exLayer[data-piece]').forEach((piece) => {
+    const index = Number(piece.dataset.piece);
+    piece.animate([{ transform: FIST[index][1] }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.25, 0.45, 1)', fill: 'backwards' });
   });
-  show.querySelector('.exFull').animate([{ clipPath: 'circle(10% at 50% 66%)', opacity: 0 }, { opacity: 1, offset: 0.4 }, { clipPath: 'circle(80% at 50% 66%)', opacity: 1 }], { duration: 480, delay: FIST_TIMES.eye, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  // The palm's side line stays in front while a thumb slides out from behind it, then fades as the thumb lands.
+  show.querySelectorAll('.exSides path').forEach((side, index) => {
+    const piece = index === 0 ? 0 : 4;
+    side.animate([{ opacity: 1 }, { opacity: 1, offset: 0.78 }, { opacity: 0 }], { duration: FIST_DURATION[piece], delay: FIST_OPEN[piece], easing: 'ease-in', fill: 'both' });
+  });
+  bars.forEach((bar, index) => {
+    bar.querySelector('b').animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)', fill: 'both' });
+    bar.animate([{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: FIST_OPEN[index] - 80, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
+    bar.querySelector('span').animate([{ transform: 'none', color: 'var(--text)' }, { transform: 'scale(1.18)', color: 'var(--clay)', offset: 0.35 }, { transform: 'none', color: 'var(--text)' }], { duration: Math.max(560, FIST_DURATION[index]), delay: FIST_OPEN[index], easing: 'ease-out' });
+  });
+  show.querySelector('.exLid').animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.9)' }], { duration: 480, delay: FIST_TIMES.eye, easing: 'ease-in-out', fill: 'both' });
   const timers = [];
   const finish = () => {
     timers.forEach(clearTimeout);
@@ -971,7 +977,15 @@ const monthlyBest = (points) => {
     month.sets.push(...point.sets);
     months.set(key, month);
   }
-  return [...months.values()];
+  // The latest session always gets its own dot, so the most recent top set can be tapped.
+  const latest = usable.at(-1);
+  const kept = [...months.values()];
+  if (kept.at(-1).date !== latest.date) {
+    const month = kept.at(-1);
+    if (month.date.slice(0, 7) === latest.date.slice(0, 7)) month.sets = month.sets.filter((set) => !latest.sets.includes(set));
+    kept.push(latest);
+  }
+  return kept;
 };
 
 const chartFor = (allPoints) => {
@@ -996,7 +1010,9 @@ const chartFor = (allPoints) => {
   const high = Math.max(low + step, Math.ceil(Math.max(...all) / step) * step);
   const first = parseIso(rows[0].date).getTime();
   const span = Math.max(1, parseIso(rows.at(-1).date).getTime() - first);
-  const x = (date) => (rows.length === 1 ? 500 : ((parseIso(date).getTime() - first) / span) * 1000);
+  // Mostly even spacing so every dot can be tapped, with a little real time mixed in for the shape.
+  const order = new Map(rows.map((row, index) => [row.date, index]));
+  const x = (date) => (rows.length === 1 ? 500 : 0.8 * (order.get(date) / (rows.length - 1)) * 1000 + 0.2 * ((parseIso(date).getTime() - first) / span) * 1000);
   const y = (value) => ((high - value) / (high - low)) * 1000;
   const ticks = Array.from({ length: Math.round((high - low) / step) + 1 }, (unused, index) => high - index * step);
   const path = (key) => smoothPath(rows.map((row) => [x(row.date), y(row[key])]));
@@ -1137,6 +1153,7 @@ const renderTrends = () => {
     ${names.length ? '' : '<p class="empty" style="margin-top:20px">Log a few sessions and your trends show up here.</p>'}
     ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : ''}
     ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
+    ${names.length && !desktopQuery.matches ? renderVolume() : ''}
   </main>`;
 };
 
@@ -1313,6 +1330,20 @@ const renderYou = () => {
 
 const desktopQuery = window.matchMedia('(min-width: 1024px)');
 
+const renderVolume = () => {
+  const weeks = Array.from({ length: 6 }, (unused, index) => {
+    const end = addDays(todayIso(), -7 * (5 - index));
+    const volume = state.sessions.filter((session) => session.date > addDays(end, -7) && session.date <= end).reduce((sum, session) => sum + sessionVolume(session), 0);
+    return { end, volume };
+  });
+  const maxVolume = Math.max(1, ...weeks.map((week) => week.volume));
+  return `<p class="section">Volume per week · tonnes</p>
+    <section class="card" style="padding:14px 16px">
+      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}</div>
+      <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? 'This week' : 'Week ending ' + dayLabel(weeks[view.volumeWeek ?? 5].end)}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
+    </section>`;
+};
+
 const renderProgress = () => {
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
@@ -1324,22 +1355,13 @@ const renderProgress = () => {
   }
   const lifts = [...history.keys()].sort((first, second) => history.get(second).length - history.get(first).length || bestOverall(second) - bestOverall(first));
   const focus = lifts.includes(view.focusLift) ? view.focusLift : lifts[0];
-  const weeks = Array.from({ length: 6 }, (unused, index) => {
-    const end = addDays(todayIso(), -7 * (5 - index));
-    const volume = state.sessions.filter((session) => session.date > addDays(end, -7) && session.date <= end).reduce((sum, session) => sum + sessionVolume(session), 0);
-    return { end, volume };
-  });
-  const maxVolume = Math.max(1, ...weeks.map((week) => week.volume));
   return `<p class="eyebrow">Progress</p>
     <h2 class="title" style="font-size:28px;line-height:34px">${focus ? esc(focus) : 'Your lifts'}</h2>
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
       ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
-    <p class="section">Volume per week · tonnes</p>
-    <section class="card" style="padding:14px 16px">
-      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}</div>
-      <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? 'This week' : 'Week ending ' + dayLabel(weeks[view.volumeWeek ?? 5].end)}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
-    </section>
+    ${renderVolume()}
+    ${view.route === 'trends' ? '' : renderMuscles()}
     <p class="section">Best lifts</p>
     <section class="card">
       ${lifts.slice(0, 10).map((name) => `<button class="row liftRow" data-action="focus-lift" data-name="${esc(name)}" aria-pressed="${name === focus}"><span style="flex:1">${esc(name)}</span><span class="num" style="${bestSingle(name) ? 'font-weight:600' : 'color:var(--text2)'}">${bestSingle(name) ? `${bestSingle(name)} kg` : `est. ${Math.round(bestOverall(name))}`}</span></button>`).join('') || '<p class="empty" style="margin:14px 0">Nothing yet.</p>'}
