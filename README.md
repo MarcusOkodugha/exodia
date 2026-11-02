@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/banner.png" alt="Exodia on three phones: the home screen, the moment you hit Exodia, and the Trends page with the anatomy map" width="100%"></p>
+<p align="center"><img src="docs/banner.png" alt="Exodia on three phones: the home screen, a lift's trend chart and the recovery map" width="100%"></p>
 
 <h1 align="center">Exodia</h1>
 
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://exodia.marcusokodugha.workers.dev/join"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/try-dark.png"><img src="docs/try-light.png" alt="Try Exodia" width="210"></picture></a>
+  <a href="https://exodia.marcusokodugha.workers.dev/join"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/try-dark.png"><img src="docs/try-light.png" alt="Try Exodia" width="133"></picture></a>
 </p>
 
 <h3 align="center"><a href="https://exodia.marcusokodugha.workers.dev/join">exodia.marcusokodugha.workers.dev/join</a></h3>
@@ -45,21 +45,6 @@ Exodia stores:
 ```
 
 It handles corrections ("70, no, 100"), relative dates ("last Friday"), reps in reserve, warm-ups and moving entries between days. When something is unclear, it asks instead of guessing.
-
-## Screens
-
-<table>
-  <tr>
-    <td align="center" width="33%"><img src="docs/home.png" alt="Home screen"><br><b>Home</b><br>Every day on one page</td>
-    <td align="center" width="33%"><img src="docs/day.png" alt="An open day"><br><b>Day</b><br>Sets, % of best and e1RM</td>
-    <td align="center" width="33%"><img src="docs/quick-add.png" alt="Quick add"><br><b>Quick add</b><br>One tap, or import a file</td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/exodia.png" alt="Exodia animation"><br><b>Exodia</b><br>All five pieces in a week</td>
-    <td align="center"><img src="docs/trends.png" alt="Trends with anatomy map"><br><b>Trends</b><br>Recovery map and progress</td>
-    <td align="center"><img src="docs/welcome.png" alt="Welcome screen"><br><b>Start</b><br>Name, paste your history, go</td>
-  </tr>
-</table>
 
 ## Exodia, the weekly goal
 
