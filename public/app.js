@@ -44,7 +44,7 @@ const LIBRARY = [
 const PIECES = [
   { id: 'push', name: 'Push', target: 2, rule: 'heavy press, 2 times' },
   { id: 'pull', name: 'Pull', target: 1, rule: 'heavy deadlift' },
-  { id: 'legs', name: 'Legs', target: 1, rule: 'heavy squat or hack squat' },
+  { id: 'legs', name: 'Legs', target: 1, rule: 'any leg lift: squat, hack squat, leg press, leg extension…' },
   { id: 'arms', name: 'Arms', target: 1, rule: 'arm work' },
   { id: 'move', name: 'Move', target: 2, rule: 'cardio or a walk, 20 min or more, 2 times' }
 ];
@@ -53,6 +53,10 @@ const ICONS = {
   menu: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>',
   trends: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18l5-6 4 3 7-8"/></svg>',
   home: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11L12 4.5 20 11v8a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg>',
+  log: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>',
+  idea: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
+  search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+  admin: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.7-7 9-4.1-1.3-7-4.7-7-9V6.3z"/></svg>',
   you: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
   chev: '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -104,7 +108,7 @@ const loadState = () => {
 };
 
 let state = loadState();
-const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 0, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null };
+const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 0, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null, search: { query: '', local: [], ai: [], loading: false } };
 
 const SYNC_KEY = 'exodia.sync';
 const PROFILE_KEY = /^[a-f0-9]{32}$/;
@@ -236,6 +240,7 @@ const syncNow = () => {
 };
 
 const clearToast = () => {
+  if (view.toast?.pinned) return;
   view.toast = null;
   document.querySelector('.toast')?.remove();
 };
@@ -245,10 +250,20 @@ const renderSoon = () => {
   else render();
 };
 
-const profileLink = () => `${location.origin}/me/${syncState.profile}`;
+const isBlue = () => state.flavor === 'blue';
+const profileLink = () => `${location.origin}/me/${syncState.profile}${isBlue() ? '?f=blue' : ''}`;
 const pointManifest = () => {
   const manifest = document.querySelector('link[rel="manifest"]');
-  if (manifest) manifest.href = `/manifest.webmanifest?k=${syncState.profile}`;
+  if (manifest) manifest.href = `/manifest.webmanifest?k=${syncState.profile}${isBlue() ? '&f=blue' : ''}`;
+};
+const applyFlavor = () => {
+  if (document.documentElement.dataset.flavor === 'blue' && state.flavor !== 'blue') {
+    state.flavor = 'blue';
+    writeLocal();
+  }
+  if (!isBlue()) return;
+  document.documentElement.dataset.flavor = 'blue';
+  for (const link of document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')) link.href = link.getAttribute('href').replace(/(-blue)?\.png$/, '-blue.png');
 };
 
 const joinProfile = async (key) => {
@@ -348,14 +363,13 @@ const pieceProgress = (endIso) => {
     for (const exercise of session.exercises) {
       const entry = libraryEntry(exercise.name);
       if (!entry || !entry.piece || validSets(exercise).length === 0) continue;
-      if (entry.piece === 'arms') {
-        hit.arms = true;
+      if (entry.piece === 'arms' || entry.piece === 'legs') {
+        hit[entry.piece] = true;
         continue;
       }
-      const isLegsLift = entry.piece === 'legs' && entry.heavy;
       const isPullLift = entry.piece === 'pull' && entry.heavy;
       const isPushLift = entry.piece === 'push' && entry.heavy;
-      if (!isLegsLift && !isPullLift && !isPushLift) continue;
+      if (!isPullLift && !isPushLift) continue;
       const best = bestBefore(exercise.name, session.date);
       if (topEstimate(exercise) >= best * HEAVY_SHARE) hit[entry.piece] = true;
     }
@@ -439,14 +453,14 @@ const parseLocally = (text) => {
 const recentLog = () => sortedSessions()
   .filter((session) => session.exercises.length || session.cardio)
   .slice(0, 12)
-  .map((session) => `${session.date}: ${[...session.exercises.map((exercise) => `${exercise.name} ${validSets(exercise).map((set) => `${set.kg}x${set.reps}${set.rpe ? `@${set.rpe}` : ''}`).join(', ')}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join('; ')}`)
+  .map((session) => `${session.date}: ${[...session.exercises.map((exercise) => `${exercise.name} ${validSets(exercise).map((set) => `${set.kg}x${set.reps}${set.rpe ? `@${set.rpe}` : ''}${set.warmup ? ' warm-up' : ''}`).join(', ')}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join('; ')}`)
   .join('\n');
 
-const parseWithAi = async (text, audio) => {
+const parseWithAi = async (text, audio, hint = '') => {
   const response = await fetch('/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
-    body: JSON.stringify({ text, audio, name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
+    body: JSON.stringify({ text, audio, hint, name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'The AI could not read that.');
@@ -462,32 +476,35 @@ const singleBefore = (name, date) => Math.max(Number(state.bests?.[name]) || 0, 
 
 const earlierToday = (name, date, set) => {
   const sets = (sessionFor(date)?.exercises || []).filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets);
-  return sets.slice(0, Math.max(0, sets.indexOf(set))).filter((other) => !other.warmup).map((other) => ({ kg: Number(other.kg), reps: Number(other.reps) }));
+  return sets.slice(0, Math.max(0, sets.indexOf(set))).filter((other) => !other.warmup);
 };
+
+const earlierDays = (name, date) => new Set(state.sessions
+  .filter((session) => session.date < date && session.exercises.some((exercise) => countsFor(name).includes(exercise.name) && validSets(exercise).length))
+  .map((session) => session.date)).size;
 
 const prKind = (name, date, set) => {
   const kg = Number(set.kg);
   const reps = Number(set.reps);
   if (set.warmup || set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
+  if (earlierDays(name, date) < 3) return null;
   const today = earlierToday(name, date, set);
-  const before = [...priorSets(name, date), ...today];
-  if (priorSets(name, date).length === 0 && !state.bests?.[name]) return null;
-  if (reps === 1) return kg > Math.max(singleBefore(name, date), ...today.filter((other) => other.reps === 1).map((other) => other.kg)) ? 'max' : null;
-  return before.some((previous) => previous.reps >= reps && previous.kg >= kg) ? null : 'rep';
+  if (reps === 1 && kg > Math.max(singleBefore(name, date), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)))) return 'max';
+  return setEstimate(set) > Math.max(bestBefore(name, date), ...today.map(setEstimate)) + 0.01 ? 'est' : null;
 };
 
 const checkPr = (name, date = todayIso()) => {
   const session = sessionFor(date);
   const exercise = session && session.exercises.find((item) => item.name === name);
   if (!exercise) return;
-  const prs = validSets(exercise).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), kind: prKind(name, date, set) })).filter((set) => set.kind);
+  const prs = validSets(exercise).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), est: setEstimate(set), kind: prKind(name, date, set) })).filter((set) => set.kind);
   const top = prs.filter((set) => set.kind === 'max').sort((first, second) => second.kg - first.kg)[0] || prs.sort((first, second) => second.kg - first.kg)[0];
   const key = top ? `${name}:${date}:${top.kg}x${top.reps}` : '';
   if (!top || announced.has(key)) return;
   announced.add(key);
   view.toast = top.kind === 'max'
     ? { kind: 'max', name, title: `New 1RM PR · ${name}`, text: `${top.kg} kg, +${round(top.kg - singleBefore(name, date))} kg on your best single` }
-    : { kind: 'rep', name, title: `Rep PR · ${name}`, text: `${top.kg} × ${top.reps}, your heaviest for ${top.reps} reps` };
+    : { kind: 'rep', name, title: `New PR · ${name}`, text: `${top.kg} × ${top.reps}, estimated 1RM ${Math.round(top.est)} kg, +${round(top.est - bestBefore(name, date))} kg` };
   setTimeout(() => {
     clearToast();
   }, top.kind === 'max' ? 6000 : 3500);
@@ -521,7 +538,9 @@ const pickList = () => {
   for (const session of sortedSessions()) {
     for (const exercise of session.exercises) if (!recent.includes(exercise.name)) recent.push(exercise.name);
   }
-  const names = [...recent, ...LIBRARY.map((entry) => entry.name).filter((name) => !recent.includes(name))];
+  const starters = ['Bench Press', 'Squat', 'Deadlift', 'Overhead Press', 'Pull-up', 'Barbell Row'];
+  const library = [...starters, ...LIBRARY.map((entry) => entry.name).filter((name) => !starters.includes(name))];
+  const names = [...recent, ...library.filter((name) => !recent.includes(name))];
   return names.filter((name) => (query ? name.toLowerCase().includes(query) : !inToday.has(name))).slice(0, query ? 12 : 10);
 };
 
@@ -542,36 +561,64 @@ const topSets = (session) => session.exercises
   .filter((item) => item.set)
   .sort((first, second) => Number(BIG_LIFTS.includes(second.name)) - Number(BIG_LIFTS.includes(first.name)) || Number(second.set.kg) - Number(first.set.kg));
 
+const e1rmCell = (value) => (value ? `<span class="e1rm">${Math.round(value)}</span>` : '');
+const COLUMN_HEAD = '<span class="colHead">e1RM</span>';
+const sameSet = (first, second) => first.kg !== '' && first.reps !== '' && ['kg', 'reps', 'rpe'].every((key) => String(first[key] ?? '') === String(second[key] ?? '')) && Boolean(first.warmup) === Boolean(second.warmup);
+
 const renderExercise = (session, exercise, exerciseIndex) => {
   const editing = view.editDay === session.date;
   const best = bestBefore(exercise.name, session.date);
-  const rows = exercise.sets.map((set, setIndex) => {
-    const kg = Number(set.kg);
-    const reps = Number(set.reps);
-    const value = set.kg !== '' && set.reps !== '' && reps > 0 ? estimate(kg, reps + repsInTank(set)) : 0;
-    const percent = best && value ? Math.round((value / best) * 100) : 0;
+  const groups = [];
+  exercise.sets.forEach((set, index) => {
+    const last = groups.at(-1);
+    if (last && !editing && sameSet(exercise.sets[last.start], set)) last.count += 1;
+    else groups.push({ start: index, count: 1 });
+  });
+  const rows = groups.map(({ start, count }) => {
+    const set = exercise.sets[start];
+    const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(Number(set.kg), Number(set.reps) + repsInTank(set)) : 0;
     const pr = prKind(exercise.name, session.date, set);
-    const label = `${esc(exercise.name)}, set ${setIndex + 1}`;
-    const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}"`;
+    const numbers = count > 1 ? `${start + 1}–${start + count}` : `${start + 1}`;
+    const label = `${esc(exercise.name)}, ${count > 1 ? `sets ${numbers}` : `set ${numbers}`}`;
+    const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${start}" data-count="${count}"`;
     return `<div class="swipe setSwipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
-      ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${setIndex + 1}</span>`}
-      <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="kg">
+      ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${numbers}</span>`}
+      <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" ${where} data-field="kg">
       <span class="unit">kg</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
-      <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="reps">
+      <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" ${where} data-field="reps">
       ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>`}
-      ${pr === 'max' ? '<span class="pct pr max">1RM PR</span>' : pr === 'rep' ? '<span class="pct pr">PR</span>' : `<span class="pct num">${percent ? percent + '%' : ''}</span>`}
+      <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${best && value ? `${Math.round((value / best) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
       <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
     </div></div>`;
   }).join('');
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.names.has(exercise.name);
-  return `<div class="exercise${landing ? ' landing' : ''}">
-    <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button> <div class="exHead swipeFace">${editing ? `<button class="minus" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}"></button>` : ''}<button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button><button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
+  return `<div class="exercise${landing ? ' landing' : ''}${glowing(session.date, exercise.name) ? ' glow' : ''}">
+    <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button> <div class="exHead swipeFace">${editing ? `<button class="minus" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}"></button>` : ''}<button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button>${COLUMN_HEAD}<button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
     ${rows}
     <button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}">Add set</button>
   </div>`;
 };
 
 const renderPending = (pending) => `<div class="ghost" role="status"><span class="ghostText">Adding “${esc(pending.label)}”</span><span class="shimmer"></span><span class="shimmer short"></span></div>`;
+
+const accessoriesOf = (session) => session.accessories ?? (session.exercises.length ? 30 : 0);
+
+const glowFor = (items) => {
+  view.glow = new Map();
+  for (const { date, name } of items) {
+    if (!view.glow.has(date)) view.glow.set(date, new Set());
+    view.glow.get(date).add(name || '*');
+  }
+  clearTimeout(view.glowTimer);
+  view.glowTimer = setTimeout(() => {
+    view.glow = null;
+    for (const element of document.querySelectorAll('.glow')) element.classList.remove('glow');
+  }, 2800);
+};
+const glowing = (date, name) => {
+  const names = view.glow?.get(date);
+  return Boolean(names && (!name || names.has('*') || names.has(name)));
+};
 
 const KINDS = { legs: 'Leg day', pull: 'Pull day', push: 'Push day', arms: 'Arm day' };
 const dayKind = (session) => {
@@ -582,14 +629,27 @@ const dayKind = (session) => {
   return session.cardio ? 'Cardio' : '';
 };
 
+const dayPrKind = (session, name) => {
+  const kinds = session.exercises.filter((exercise) => exercise.name === name).flatMap((exercise) => exercise.sets.map((set) => prKind(name, session.date, set)));
+  return kinds.includes('max') ? 'max' : kinds.includes('est') ? 'est' : null;
+};
+const hasPr = (session, name) => Boolean(dayPrKind(session, name));
+
+const dayRow = (lift, pr, kg, reps, e1rm) => `<span class="dayRow">${kg && reps !== 'min' ? `<button class="dayLift" data-action="open-trend" data-name="${esc(lift)}">${esc(lift)}</button>` : `<span class="dayLift">${esc(lift)}</span>`}<span class="dayPr">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}</span><span class="dayKg">${kg}</span><span class="dayX">${kg && reps !== 'min' ? '×' : ''}</span><span class="dayReps">${reps}</span><span class="dayE1rm">${e1rm}</span></span>`;
+
 const daySummary = (session) => {
-  const top = topSets(session)[0];
-  const others = session.exercises.length - 1 + (session.cardio && top ? 1 : 0);
-  const prs = session.exercises.filter((exercise) => exercise.sets.some((set) => prKind(exercise.name, session.date, set))).length;
-  const best = top ? bestBefore(top.name, session.date) : 0;
-  const percent = top && best ? `${Math.round((estimate(Number(top.set.kg), Number(top.set.reps) + repsInTank(top.set)) / best) * 100)}%` : '';
-  const weight = top ? `${top.set.kg} × ${top.set.reps}` : session.cardio ? `${session.cardio} min` : '';
-  return `<span class="dayLift">${top ? esc(top.name) : session.cardio ? 'Cardio' : 'Nothing logged yet'}${others > 0 ? `<span class="dayMore">+${others}</span>` : ''}</span><span>${prs ? `<span class="prPill">${prs > 1 ? `${prs} PR` : 'PR'}</span>` : ''}</span><span class="dayWeight">${weight}</span><span class="dayPct">${percent}</span>`;
+  const [first, ...rest] = topSets(session);
+  const second = rest.find(({ name }) => hasPr(session, name)) || rest[0];
+  const others = [
+    ...rest.filter((item) => item !== second).map(({ name }) => name),
+    ...(session.cardio ? [`Cardio ${session.cardio} min`] : []),
+    ...(accessoriesOf(session) ? [`Accessories ${accessoriesOf(session)} min`] : [])
+  ];
+  const row = ({ name, set }) => {
+    return dayRow(name, dayPrKind(session, name), set.kg, set.reps, e1rmCell(estimate(Number(set.kg), Number(set.reps) + repsInTank(set))));
+  };
+  if (!first) return session.cardio ? dayRow('Cardio', false, session.cardio, 'min', '') : dayRow('Nothing logged yet', false, '', '', '');
+  return `${row(first)}${second ? row(second) : ''}${others.length ? `<span class="dayOthers">+ ${esc(others.join(', '))}</span>` : ''}`;
 };
 
 const renderSession = (session) => {
@@ -597,19 +657,21 @@ const renderSession = (session) => {
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
-  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}" id="session-${session.date}">
+  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
     <div class="headRow">
-      <button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
+      ${editing ? `<div class="head">
         <span class="headName dayDate">${dayLabel(session.date)}</span>
-        ${open ? '' : `<span class="dayKind">${esc(dayKind(session))}</span>`}
-        <span class="meta num">${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}</span>
-      </button>
+        <label class="sr" for="label-${session.date}">Name this day</label><input id="label-${session.date}" class="dayKindInput" placeholder="${esc(dayKind(session) || 'Name this day')}" value="${esc(session.label || '')}" data-day-label="${session.date}" autocomplete="off">
+        <span class="meta num">${tonnes(sessionVolume(session))}</span>
+      </div>` : `<button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
+        <span class="headName dayDate">${dayLabel(session.date)}</span>
+        <span class="dayKind">${esc(dayKind(session))}</span>
+        <span class="meta num">${open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
+      </button>`}
       ${open ? `<button class="editBtn" data-action="edit-day" data-date="${session.date}">${editing ? 'Done' : 'Edit'}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
     ${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
-      <button class="textBtn" data-action="log-day" data-date="${session.date}">Open in Log</button>
-      <label class="sr" for="label-${session.date}">Name this day</label><input id="label-${session.date}" class="pill dayLabelInput" placeholder="Name this day" value="${esc(session.label || '')}" data-day-label="${session.date}">
       <p class="dayMenuLabel">Move to</p>
       <div class="days scroll">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
       <button class="textBtn danger" data-action="delete-day" data-date="${session.date}">Delete day</button>
@@ -618,12 +680,12 @@ const renderSession = (session) => {
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
       ${session.cardio ? `<div class="cardio"><span>Cardio</span><span class="meta num">${session.cardio} min</span><button class="textBtn" data-action="remove-cardio" data-date="${session.date}">Remove</button></div>` : ''}
-      <button class="textBtn" style="display:block;border-top:1px solid var(--sep);width:100%;text-align:left" data-action="open-composer" data-date="${session.date}">Add exercise</button>
+      <div class="dayActions"><button class="textBtn" data-action="open-composer" data-date="${session.date}">Add exercise</button><button class="textBtn" data-action="log-day" data-date="${session.date}">Open in Log</button></div>
       <div class="foot">
         <span class="unit" style="margin-right:auto">Accessories</span>
-        ${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${session.accessories === minutes}"><span class="chipFace">${label}</span></button>`).join('')}
+        ${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}"><span class="chipFace">${label}</span></button>`).join('')}
       </div>
-      ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<button class="daySummary num" data-action="toggle-session" data-date="${session.date}" tabindex="-1" aria-hidden="true">${daySummary(session)}</button>`}
+      ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<div class="daySummary num" data-action="toggle-session" data-date="${session.date}">${daySummary(session)}</div>`}
   </section>`;
 };
 
@@ -635,6 +697,8 @@ const listWithGhosts = (sessions) => {
     .map((item) => item.html)
     .join('');
 };
+
+const quickStart = () => `<p class="empty">Tap a lift to log it, or say or type what you did in the box below.</p>${quickAdd()}`;
 
 const renderHome = () => {
   const pieces = pieceProgress(todayIso());
@@ -656,8 +720,8 @@ const renderHome = () => {
       <button class="bars" data-action="toggle-exodia" tabindex="-1" aria-hidden="true">${renderBars(pieces)}</button>
       ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 85% of your best. Last 7 days, any program.</p></div>` : ''}
     </section>
-    <p class="section">Sessions</p>
-    <div class="list">${sessions.length || view.pending.length ? listWithGhosts(sessions.slice(0, 30)) : '<p class="empty">Nothing logged yet. Type or say a set in the box below.</p>'}</div>
+    <p class="section sessionsHead">Sessions${sessions[0] && !view.open.has(sessions[0].date) ? COLUMN_HEAD : ''}</p>
+    <div class="list">${sessions.length || view.pending.length ? listWithGhosts(sessions.slice(0, 30)) : quickStart()}</div>
   </main>`;
 };
 
@@ -811,7 +875,8 @@ const chatStamp = (at, before) => {
   return at - before > 1800000 ? time : '';
 };
 
-const chatEntry = ({ stamp, who, said, heard, did, raw, fixIndex, voiceId, compact }) => {
+const chatEntry = ({ stamp, who, said, heard, did, raw, fixIndex: index, voiceId, compact, manual }) => {
+  const fixIndex = manual ? undefined : index;
   const lines = [].concat(did);
   const failed = OFF_LINE.test(lines[0] || '');
   const off = lines.some((line) => OFF_LINE.test(line));
@@ -819,7 +884,7 @@ const chatEntry = ({ stamp, who, said, heard, did, raw, fixIndex, voiceId, compa
   return `<div class="chatItem${off ? ' off' : ''}">
   ${stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
   ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
-  <div class="bubbleOut"><p>${esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Retry voice note</button>` : ''}</div>
+  <div class="bubbleOut"><p>${esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}</div>
 </div>`;
 };
 
@@ -831,7 +896,7 @@ const renderDayNow = (date) => {
   const session = sessionFor(date);
   return `<section class="card dayNow">
     <p class="dayNowTitle">${dayLabel(date)} right now</p>
-    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">Cardio</span><span class="dayNowSets num">${session.cardio} min</span></div>` : ''}${session.accessories ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${session.accessories} min</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
+    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">Cardio</span><span class="dayNowSets num">${session.cardio} min</span></div>` : ''}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${accessoriesOf(session)} min</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
     <p class="dayNowHint">Say or type what's wrong. Changes go to this day.</p>
   </section>`;
 };
@@ -848,6 +913,7 @@ const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncSta
   .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Not allowed'))))
   .then((data) => {
     view.adminRows = data.commands;
+    view.adminFeedback = data.feedback || [];
   })
   .catch(() => {
     view.adminRows = [];
@@ -855,9 +921,46 @@ const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncSta
   .finally(() => {
     if (view.route === 'admin') {
       render();
-      window.scrollTo(0, document.body.scrollHeight);
+      scrollPage(scroller().scrollHeight);
     }
   });
+
+const FEEDBACK_EXAMPLES = ['The mic stopped after a minute', 'Add a rest timer between sets', 'Let me log my body weight', 'Trends should show my squat first', 'The app froze when I pasted my notes'];
+
+const renderFeedback = () => `<main class="page">
+    <p class="eyebrow">Ideas and bugs</p>
+    <h1 class="title">Feedback</h1>
+    <p class="feedbackLead">Missing something, or did something break? Say it or type it in the box below, any way you like. Exodia writes it up and sends it to Marcus, who reads every one and decides what gets built.</p>
+    <div class="chat">${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Sending"><i></i><i></i><i></i></div></div>`).join('')}</div>
+  </main>`;
+
+const sendFeedback = async (text, voice) => {
+  const pending = { feedback: true, date: todayIso(), text: text || 'Voice note' };
+  view.pending.push(pending);
+  view.draft = '';
+  if (!desktopQuery.matches) document.activeElement?.blur();
+  render();
+  closeTray();
+  try {
+    const audio = voice ? await wavBase64(voice) : undefined;
+    const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, audio, name: state.name || '' }) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || 'Could not send that. Try again.');
+    state.feedback = [...(state.feedback || []), { at: Date.now(), said: body.said, kind: body.kind, title: body.title }].slice(-50);
+    addLog(body.said, [`Sent feedback to Marcus: ${body.title}`], { manual: true });
+    view.toast = { kind: 'rep', title: 'Sent to Marcus', text: body.title };
+    clearTimeout(view.toastTimer);
+    view.toastTimer = setTimeout(clearToast, 5000);
+  } catch (error) {
+    view.draft = text;
+    view.status = error.message;
+  } finally {
+    view.pending = view.pending.filter((item) => item !== pending);
+    render();
+  }
+};
+
+const FEEDBACK_STATUS = [['new', 'New'], ['planned', 'Planned'], ['done', 'Done'], ['declined', 'No']];
 
 const renderAdmin = () => {
   if (!view.adminRows) {
@@ -870,28 +973,44 @@ const renderAdmin = () => {
     return '<main class="page"><h1 class="title">Admin</h1><p class="empty">Loading every command…</p></main>';
   }
   return `<main class="page">
-    <p class="eyebrow">Every command from everyone, only visible to you</p>
+    <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
+    <p class="section">Feedback</p>
+    ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
+      <p class="feedbackHead"><span class="${item.kind === 'bug' ? 'prPill' : 'prPill est'}">${item.kind === 'bug' ? 'Bug' : 'Idea'}</span><b>${esc(item.title)}</b></p>
+      <p class="feedbackDetails">${esc(item.details)}</p>
+      <p class="feedbackMeta">${esc(item.who)} · ${new Date(item.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+      <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}</div>
+    </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
+    <p class="section">Every command</p>
     <div class="chat">${view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at) })).join('') || '<p class="empty">No commands yet.</p>'}</div>
   </main>`;
 };
 
+const aiInstructions = () => `Add my training to my Exodia app.
+If you can send web requests: POST ${location.origin}/api/add with the header "x-exodia-key: ${syncState.profile}" and the JSON body {"text": "<my training in plain words, with dates>"}. It reads any format and adds it to the right days.
+If you cannot send web requests: write my training as plain lines with dates, like "2026-10-31: Bench Press 120x5, 120x5, 120x4", and I will paste them into Exodia's box.
+Keep the key private; it gives full access to my log.`;
+
 const renderYou = () => {
   const big = ['Deadlift', 'Squat', 'Bench Press'];
   const lifts = [...big, ...loggedLifts().filter((name) => !big.includes(name)).sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 7)];
-  return `<main class="page">
+  return `<main class="page youPage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="You" data-name-input></h1>
-    <p class="section">Best lifts</p>
+    <p class="section liftHead"><span>Best lifts</span><span class="colHead liftCol">Best lifted</span><span class="colHead e1Col">e1RM ${infoButton()}</span></p>
+    ${view.info ? ESTIMATE_INFO : ''}
     <section class="card">
-      <div class="row" style="min-height:36px"><span style="flex:1"></span><span class="muted" style="width:96px;text-align:right;font-size:13px;white-space:nowrap">Best lifted</span><span class="muted" style="width:84px;display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:13px;white-space:nowrap">Est. 1RM ${infoButton()}</span></div>
-      ${view.info ? ESTIMATE_INFO : ''}
       ${lifts.map((name) => {
         const lifted = heaviestLifted(name);
-        return `<button class="row liftRow" data-action="open-trend" data-name="${esc(name)}"><span style="flex:1;min-width:0">${esc(name)}</span><span class="num" style="width:96px;text-align:right;font-weight:600">${lifted ? `${lifted.kg} × ${lifted.reps}` : '–'}</span><span class="muted num" style="width:84px;text-align:right">${lifted ? `${Math.round(bestOverall(name))} kg` : ''}</span></button>`;
+        return `<button class="row liftRow" data-action="open-trend" data-name="${esc(name)}"><span class="liftName">${esc(name)}</span><span class="liftCol liftSet num">${lifted ? `<span>${lifted.kg}</span><span class="liftX">×</span><span>${lifted.reps}</span>` : '<span></span><span></span><span>–</span>'}</span><span class="e1Col e1rm">${lifted ? Math.round(bestOverall(name)) : ''}</span></button>`;
       }).join('')}
     </section>
-    <p class="note">Best lifted is the heaviest set you have actually done. Est. 1RM is your current one-rep max: your best single, or what your strongest rep set predicts if that is higher. Paused and other variations count as their own lift.</p>
+    <p class="note">Best lifted is the heaviest set you have done. e1RM is your estimated one-rep max. Paused and other variations count as their own lift.</p>
+    <p class="section">Add from any AI</p>
+    <section class="card">
+      <div class="row"><span class="muted" style="flex:1;font-size:15px">Let ChatGPT, Gemini or Claude add your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy instructions'}</button></div>
+    </section>
     <p class="section">Your link</p>
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(profileLink())}</span><button class="textBtn" data-action="copy-link">${view.copied ? 'Copied' : 'Copy'}</button></div>
@@ -951,16 +1070,117 @@ const dayName = (session) => {
   return session.label ? `${text} · ${session.label}` : text;
 };
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+const searchLocal = (query) => {
+  const text = query.toLowerCase();
+  const names = [...new Set([...LIBRARY.map((entry) => entry.name), ...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name))])];
+  const mentioned = names.filter((name) => [name.toLowerCase(), ...(libraryEntry(name)?.aliases || [])].some((alias) => new RegExp(`(^|[^a-z])${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z])`).test(text)));
+  const wanted = mentioned.filter((name) => !mentioned.some((other) => other !== name && other.toLowerCase().includes(name.toLowerCase())));
+  const kgs = [];
+  const reps = [];
+  for (const match of text.replace(/\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/g, ' ').replace(/\b(19|20)\d{2}\b/g, ' ').matchAll(/(for\s+|x\s*|×\s*)?(\d+(?:[.,]\d+)?)\s*(kg|kilos?|reps?)?/g)) {
+    const value = Number(match[2].replace(',', '.'));
+    if (match[3]?.startsWith('rep') || match[1] || (value < 20 && !match[3])) reps.push(value);
+    else kgs.push(value);
+  }
+  const wantsPr = /\bprs?\b|record|personal best/.test(text);
+  const wantsTop = /\btop\b|heaviest/.test(text);
+  const dayMonth = text.match(/(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/) || text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*(\d{1,2})\b/);
+  const month = MONTHS.findIndex((name) => new RegExp(`\\b${name}`).test(text));
+  const year = text.match(/\b(19|20)\d{2}\b/)?.[0];
+  const weekday = WEEKDAYS.findIndex((name) => new RegExp(`\\b${name}[a-z]*day\\b|\\b${name}\\b`).test(text));
+  const results = [];
+  for (const session of sortedSessions()) {
+    const date = parseIso(session.date);
+    if (year && session.date.slice(0, 4) !== year) continue;
+    if (month !== -1 && date.getMonth() !== month) continue;
+    if (dayMonth && date.getDate() !== Number(dayMonth[1].match(/\d/) ? dayMonth[1] : dayMonth[2])) continue;
+    if (weekday !== -1 && date.getDay() !== weekday) continue;
+    let best = null;
+    const lifting = wanted.length || kgs.length || reps.length || wantsPr;
+    for (const exercise of lifting ? session.exercises : []) {
+      if (wanted.length && !wanted.includes(exercise.name)) continue;
+      const top = topSets({ exercises: [exercise] })[0]?.set;
+      for (const set of validSets(exercise)) {
+        let score = (wanted.length ? 3 : 0) + (set === top ? 0.5 : 0);
+        if (kgs.length && !kgs.includes(Number(set.kg))) continue;
+        if (kgs.length) score += 4;
+        if (reps.length && reps.includes(Number(set.reps))) score += 2;
+        else if (reps.length && !kgs.length) continue;
+        const kind = prKind(exercise.name, session.date, set);
+        if (wantsPr && !kind && !kgs.length) continue;
+        if (wantsPr && kind) score += 3;
+        if (wantsTop && set === top) score += 1;
+        if (!best || score > best.score) best = { score, line: `${exercise.name} ${set.kg} × ${set.reps}${kind === 'max' ? ' · 1RM PR' : kind ? ' · PR' : ''}` };
+      }
+    }
+    const dated = year || month !== -1 || dayMonth || weekday !== -1;
+    const words = `${session.label || ''} ${dayKind(session)}`.toLowerCase();
+    if (!best && !lifting && (dated || words.includes(text.trim()))) best = { score: 1, line: topSets(session).slice(0, 2).map(({ name, set }) => `${name} ${set.kg} × ${set.reps}`).join(' · ') || dayKind(session) };
+    if (best) results.push({ date: session.date, ...best });
+  }
+  return results.sort((first, second) => second.score - first.score || second.date.localeCompare(first.date)).slice(0, 8);
+};
+
+const searchIndex = () => sortedSessions()
+  .filter((session) => session.exercises.length || session.cardio)
+  .map((session) => `${session.date} ${parseIso(session.date).toLocaleDateString('en-GB', { weekday: 'short' })}${session.label ? ` "${session.label}"` : ''}: ${session.exercises.map((exercise) => {
+    const sets = validSets(exercise);
+    const top = topSets({ exercises: [exercise] })[0]?.set;
+    const prs = sets.filter((set) => prKind(exercise.name, session.date, set));
+    return `${exercise.name} ${sets.length} sets, top ${top ? `${top.kg}x${top.reps}` : '-'}${prs.length ? `, PR ${prs.map((set) => `${set.kg}x${set.reps}`).join(' ')}` : ''}`;
+  }).join('; ')}${session.cardio ? `; cardio ${session.cardio} min` : ''}`)
+  .join('\n')
+  .slice(0, 16000);
+
+let searchTimer = 0;
+let searchSeq = 0;
+
+const searchResults = () => {
+  const { local, ai, loading } = view.search;
+  const seen = new Set();
+  const rows = [...ai.map((item) => ({ date: item.date, line: item.why })), ...local].filter((item) => sessionFor(item.date) && !seen.has(item.date) && seen.add(item.date));
+  return `${rows.map((item) => `<button class="searchRow" data-action="jump-session" data-date="${item.date}"><span class="searchTop"><span>${dayLabel(item.date)}</span><span class="searchKind">${esc(dayKind(sessionFor(item.date)))}</span></span><span class="searchLine">${esc(item.line)}</span></button>`).join('')}${loading ? '<p class="searchNote">Searching with AI…</p>' : rows.length ? '' : '<p class="searchNote">Nothing found.</p>'}`;
+};
+
+const recentRows = () => sortedSessions().slice(0, 8).map((session) => `<button class="drawerRow" data-action="jump-session" data-date="${session.date}"><span class="dayName" title="${esc(dayName(session))}">${esc(dayName(session))}</span><span class="muted">${['Today', 'Yesterday'].includes(dayLabel(session.date)) ? dayLabel(session.date) : parseIso(session.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(session.date.slice(0, 4) === todayIso().slice(0, 4) ? {} : { year: '2-digit' }) })}</span></button>`).join('') || '<p class="drawerRow muted">None yet</p>';
+
+const drawerList = () => (view.search.query.trim() ? `<p class="drawerLabel">Results</p>${searchResults()}` : `<p class="drawerLabel">Recent sessions</p>${recentRows()}`);
+
+const paintSearch = () => {
+  const list = document.getElementById('drawerList');
+  if (list) list.innerHTML = drawerList();
+};
+
+const runAiSearch = () => {
+  const query = view.search.query.trim();
+  if (query.length < 3 || !navigator.onLine) return;
+  const seq = ++searchSeq;
+  view.search.loading = true;
+  paintSearch();
+  fetch('/api/search', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ query, index: searchIndex(), today: todayIso() }) })
+    .then((response) => response.json())
+    .catch(() => ({}))
+    .then((body) => {
+      if (seq !== searchSeq) return;
+      view.search.ai = Array.isArray(body.results) ? body.results : [];
+      view.search.loading = false;
+      paintSearch();
+    });
+};
+
 const drawerContent = () => {
   const history = exodiaHistory();
-  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.menu], ...(view.isAdmin ? [['admin', 'Admin', ICONS.trophy]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
-      <p class="drawerLabel">Recent sessions</p>
-      ${sortedSessions().slice(0, 8).map((session) => `<button class="drawerRow" data-action="jump-session" data-date="${session.date}"><span class="dayName" title="${esc(dayName(session))}">${esc(dayName(session))}</span><span class="muted">${['Today', 'Yesterday'].includes(dayLabel(session.date)) ? dayLabel(session.date) : parseIso(session.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(session.date.slice(0, 4) === todayIso().slice(0, 4) ? {} : { year: '2-digit' }) })}</span></button>`).join('') || '<p class="drawerRow muted">None yet</p>'}`;
+  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+      <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
+      <div id="drawerList">${drawerList()}</div>`;
 };
 
 const renderDrawer = () => `<div class="overlay">
     <button class="scrim" data-action="close-menu" aria-label="Close menu"></button>
-    <nav class="drawer" aria-label="Exodia">${drawerContent()}</nav>
+    <nav class="drawer" aria-label="Exodia"><a class="drawerBrand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
   </div>`;
 
 const renderPicks = () => {
@@ -982,9 +1202,11 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div></div>`).join('');
 
+const quickAdd = () => `<div class="quickAdd"><p class="section">Quick add</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, a spreadsheet</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
+
 const sheetBody = () => (nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
-  : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}${state.log?.length || view.pending.length ? '' : '<p class="empty">Say or type what you did. It shows up here, and you can tap a message to fix it.</p>'}</div>`);
+  : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>${view.draft.trim() && !view.showQuick ? '' : quickAdd()}`);
 
 const renderSheet = () => `<div class="sheet" role="group" aria-label="Chat">
   <button class="grabber" data-action="close-chat" aria-label="Close chat"></button>
@@ -1018,24 +1240,29 @@ const promptButtons = () => {
   if (view.listening) return `<div class="promptButtons"><button class="roundBtn stopBtn" data-action="stop-mic" aria-label="Stop listening">${ICONS.stop}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button></div>`;
   const hasText = view.draft.trim().length > 0 || Boolean(view.voiceBlob);
   return `<div class="promptButtons">${hasText
-    ? `<button class="roundBtn ghost" data-action="mic" aria-label="Speak">${ICONS.mic}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button>`
+    ? `<button class="roundBtn soft" data-action="mic" aria-label="Speak">${ICONS.mic}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button>`
     : `<button class="roundBtn send" data-action="mic" aria-label="Speak">${ICONS.mic}</button>`}</div>`;
+};
+
+const contextChip = () => {
+  const [kind, label, action, aria] = view.fixing ? ['Fixing', 'an earlier message', 'clear-edit', 'Stop fixing']
+    : view.editContext ? ['Editing', `${view.editContext.label || view.editContext.names.join(', ') || 'Workout'} · ${dayLabel(view.editContext.date)}`, 'clear-edit', 'Stop editing']
+    : view.composerDate && view.composerDate !== todayIso() ? ['Adding to', dayLabel(view.composerDate), 'clear-day', 'Add to today instead'] : [];
+  return kind ? `<div class="contextChip"><span class="contextKind">${kind}</span><span class="contextLabel">${esc(label)}</span><button class="contextX" data-action="${action}" aria-label="${aria}">${ICONS.close}</button></div>` : '';
 };
 
 const renderDock = () => `<div class="dock${view.composer ? ' open' : ''}">
   ${view.composer ? renderSheet() : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.fixing ? `<p class="dockStatus editing">Fixing an earlier note: change the words, then send<button class="clearEdit" data-action="clear-edit" aria-label="Stop fixing">×</button></p>` : ''}
-  ${view.composerDate && view.composerDate !== todayIso() && !view.editContext && !view.fixing ? `<p class="dockStatus editing">Adding to ${dayLabel(view.composerDate)}<button class="clearEdit" data-action="clear-day" aria-label="Add to today instead">×</button></p>` : ''}
-  ${view.editContext ? `<p class="dockStatus editing">Editing ${esc(view.editContext.names.join(', ') || 'workout')} · ${dayLabel(view.editContext.date)}<button class="clearEdit" data-action="clear-edit" aria-label="Stop editing">×</button></p>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}
-  <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}">
+  <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
+    ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
     <textarea id="draft" class="promptInput" rows="1" enterkeyhint="send" autocomplete="off">${esc(view.draft)}</textarea>
     ${view.listening
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
-    <div class="promptBar">${view.listening ? `<button class="roundBtn ghost" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : '<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>'}${promptButtons()}</div>
+    <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">${ICONS.plus}</button><span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
 </div>`;
 
@@ -1088,25 +1315,27 @@ const typewriter = { text: '', index: 0, length: 0, fading: false };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const tickTypewriter = () => {
+  const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : EXAMPLES;
+  typewriter.index %= examples.length;
   let delay = 70 + Math.random() * 60;
   if (reducedMotion.matches) {
-    typewriter.index = (typewriter.index + 1) % EXAMPLES.length;
-    typewriter.length = EXAMPLES[typewriter.index].length;
+    typewriter.index = (typewriter.index + 1) % examples.length;
+    typewriter.length = examples[typewriter.index].length;
     delay = 4500;
   } else if (typewriter.fading) {
     typewriter.fading = false;
     typewriter.length = 0;
-    typewriter.index = (typewriter.index + 1) % EXAMPLES.length;
+    typewriter.index = (typewriter.index + 1) % examples.length;
     delay = 600;
-  } else if (typewriter.length < EXAMPLES[typewriter.index].length) {
+  } else if (typewriter.length < examples[typewriter.index].length) {
     typewriter.length += 1;
-    if (typewriter.length === EXAMPLES[typewriter.index].length) delay = 3400;
+    if (typewriter.length === examples[typewriter.index].length) delay = 3400;
   } else {
     typewriter.fading = true;
     delay = 800;
   }
-  typewriter.text = EXAMPLES[typewriter.index].slice(0, typewriter.length);
-  const hint = document.querySelector('.prompt .hint:not(.live)');
+  typewriter.text = examples[typewriter.index].slice(0, typewriter.length);
+  const hint = document.querySelector('.dock:not(.onboardDock) .prompt .hint:not(.live)');
   if (hint) {
     hint.classList.toggle('fading', typewriter.fading);
     hint.textContent = typewriter.text;
@@ -1118,33 +1347,159 @@ const setVar = (name, value) => {
   if (document.documentElement.style.getPropertyValue(name) !== value) document.documentElement.style.setProperty(name, value);
 };
 
+// iOS web apps can't lock rotation, so in phone landscape the whole UI turns back to portrait.
+const turnQuery = window.matchMedia('(orientation: landscape) and (pointer: coarse) and (max-height: 520px)');
+let turn = 0;
+const turnUi = () => {
+  const angle = screen.orientation?.angle ?? window.orientation ?? 0;
+  turn = turnQuery.matches ? (angle === 90 ? -90 : 90) : 0;
+  const root = document.documentElement;
+  root.classList.toggle('turned', Boolean(turn));
+  root.dataset.turn = turn;
+  setVar('--vw', `${window.innerWidth}px`);
+  setVar('--vh', `${window.innerHeight}px`);
+};
+const scroller = () => (turn ? document.getElementById('app') : document.scrollingElement);
+const scrollPage = (top) => scroller().scrollTo(0, top);
+const uiPoint = (event) => turn === -90 ? { x: -event.clientY, y: event.clientX } : turn === 90 ? { x: event.clientY, y: -event.clientX } : { x: event.clientX, y: event.clientY };
+const uiBox = (el) => {
+  const box = el.getBoundingClientRect();
+  if (turn === -90) return { top: box.left, bottom: box.right, height: box.width };
+  if (turn === 90) return { top: window.innerWidth - box.right, bottom: window.innerWidth - box.left, height: box.width };
+  return box;
+};
+turnUi();
+turnQuery.addEventListener('change', turnUi);
+screen.orientation?.addEventListener('change', turnUi);
+window.addEventListener('orientationchange', turnUi);
+window.addEventListener('resize', turnUi);
+
 const tuckCards = () => {
   const dock = document.querySelector('.dock');
   if (!dock) return;
   const sheet = dock.querySelector('.sheet');
   const box = dock.offsetHeight - (sheet ? sheet.offsetHeight + 8 : 0);
   setVar('--dock-h', `${box}px`);
-  const screen = window.visualViewport?.height || window.innerHeight;
-  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, screen - box - (desktopQuery.matches ? 64 : Math.max(120, screen * 0.24)))))}px`);
-  const line = dock.getBoundingClientRect().bottom - box;
+  const tall = turn ? window.innerWidth : window.visualViewport?.height || window.innerHeight;
+  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, tall - box - (desktopQuery.matches ? 64 : Math.max(120, tall * 0.24)))))}px`);
+  const line = uiBox(dock).bottom - box;
   for (const card of document.querySelectorAll('.page .card')) {
-    const box = card.getBoundingClientRect();
+    const box = uiBox(card);
     const shown = line - box.top;
     card.classList.toggle('tucked', box.height <= 140 && shown < box.height);
   }
 };
-window.addEventListener('scroll', () => requestAnimationFrame(tuckCards), { passive: true });
+document.addEventListener('scroll', () => requestAnimationFrame(tuckCards), { passive: true, capture: true });
 window.addEventListener('resize', tuckCards);
 window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(tuckCards));
 
+const onboarding = () => view.route === 'home' && (Boolean(view.onboard?.busy || view.onboard?.status) || (!state.name && state.sessions.length === 0));
+
+const ONBOARD_EXAMPLES = [
+  'Mon 28 Oct\nBench 100 × 5, 5, 5\nIncline dumbbell 30s for 10',
+  'Date,Exercise,Weight,Reps\n2026-10-28,Squat,140,5\n2026-10-28,Squat,140,5',
+  'Last week I deadlifted 220 for 3,\nbench was 100 for 5 paused,\nand I ran 25 minutes on Friday',
+  'Leg day 24/10\nHack squat 200×8, 200×8, 200×6\nLeg extension 70×12, 70×12'
+];
+const onboardExample = { index: 0, fading: false };
+
+const renderOnboard = () => {
+  view.onboard ??= { name: '', data: '' };
+  const { busy, status, recording: listening, hearing, file } = view.onboard;
+  const filled = view.onboard.data.trim().length > 0 || Boolean(file);
+  const locked = busy || listening || hearing;
+  return `<main class="page onboard">
+    <span class="logo onboardLogo" aria-hidden="true"></span>
+    <h1 class="title">Welcome to Exodia</h1>
+    <p class="onboardLead">Log your training by talking or typing. No account, no setup.</p>
+    <label class="sr" for="onboardName">Your name</label>
+    <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
+    <p class="onboardMove"><b>Coming from another app?</b> Drop your StrengthLog or Strong export, your notes or a spreadsheet in the box below, or just tell it about your last weeks. Exodia sorts everything into days and your history and trends are ready in seconds.</p>
+    ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
+    <button class="textBtn onboardBlank" data-action="onboard-blank" ${locked ? 'disabled' : ''}>Nothing to bring? Start blank</button>
+  </main>
+  <div class="dock onboardDock">
+    <div class="prompt onboardPrompt${filled ? ' hasText' : ''}${listening ? ' listening' : ''}${file ? ' hasChip' : ''}">
+      ${file ? `<div class="contextChip"><span class="contextKind">File</span><span class="contextLabel">${esc(file.name)}</span><button class="contextX" data-action="onboard-unfile" aria-label="Remove file">${ICONS.close}</button></div>` : ''}
+      <label for="onboardData" class="sr">Your training so far</label>
+      <textarea id="onboardData" class="promptInput onboardData" rows="3" ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
+      ${listening ? '<span class="hint live" aria-hidden="true"><span class="liveText">Listening… tap stop when you are done</span></span>' : hearing ? '<span class="hint live" aria-hidden="true"><span class="liveText">Writing down what you said…</span></span>' : busy ? '<span class="hint live" aria-hidden="true"><span class="liveText">Reading your training…</span></span>' : `<span class="hint onboardHint${onboardExample.fading ? ' fading' : ''}" aria-hidden="true">${esc(ONBOARD_EXAMPLES[onboardExample.index])}</span>`}
+      <div class="promptBar"><label class="roundBtn soft onboardFile" aria-label="Add a file">${ICONS.plus}<input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="onboard-file" ${locked ? 'disabled' : ''}></label><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
+    </div>
+  </div>`;
+};
+
+setInterval(() => {
+  if (!onboarding() || view.onboard?.data?.trim() || reducedMotion.matches) return;
+  const hint = document.querySelector('.onboardHint');
+  if (!hint) return;
+  hint.classList.add('fading');
+  setTimeout(() => {
+    onboardExample.index = (onboardExample.index + 1) % ONBOARD_EXAMPLES.length;
+    hint.textContent = ONBOARD_EXAMPLES[onboardExample.index];
+    hint.classList.remove('fading');
+  }, 600);
+}, 4200);
+
+let onboardRecorder = null;
+
+const startOnboardMic = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    const chunks = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    onboardRecorder = { recorder, chunks, stream };
+    recorder.start();
+    view.onboard.recording = true;
+    view.onboard.status = '';
+  } catch {
+    view.onboard.status = 'Allow the microphone to talk to Exodia.';
+  }
+  render();
+};
+
+const stopOnboardMic = () => {
+  if (!onboardRecorder) return;
+  const { recorder, chunks, stream } = onboardRecorder;
+  onboardRecorder = null;
+  recorder.onstop = async () => {
+    stream.getTracks().forEach((track) => track.stop());
+    view.onboard.recording = false;
+    view.onboard.hearing = true;
+    render();
+    try {
+      const audio = await wavBase64(new Blob(chunks, { type: recorder.mimeType }));
+      const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Could not hear that. Try again.');
+      view.onboard.data = [view.onboard.data.trim(), body.text].filter(Boolean).join('\n');
+    } catch (error) {
+      view.onboard.status = error.message;
+    }
+    view.onboard.hearing = false;
+    render();
+  };
+  recorder.stop();
+};
+
 const render = () => {
   const app = document.getElementById('app');
+  if (onboarding()) {
+    const focusedId = document.activeElement?.id;
+    app.innerHTML = renderOnboard();
+    if (focusedId) document.getElementById(focusedId)?.focus();
+    return;
+  }
   const focused = document.activeElement;
   const draftFocused = focused && focused.id === 'draft';
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
+  const searchFocused = focused && focused.id === 'search';
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40 ? oldBody.scrollTop : null;
-  const page = view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
+  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
   const dock = `${view.composer ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
@@ -1155,12 +1510,15 @@ const render = () => {
     : `<header class="topbar"><div class="topbarInner">
         <button class="iconBtn" data-action="open-menu" aria-label="Open menu">${ICONS.menu}</button>
         <a class="brand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>
-        <a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>
+        ${view.route === 'home' ? `<a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>` : `<a class="iconBtn" href="#/" aria-label="Home">${ICONS.home}</a>`}
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
   app.innerHTML = `
     ${layout}
-    ${view.toast ? `<div class="toast ${view.toast.kind}" role="status"><button class="toastBody" data-action="dismiss-toast" aria-label="Dismiss">${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div></button>${view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>` : ''}`;
+    ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
+      <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
+      ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
+    </div>` : ''}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -1169,6 +1527,11 @@ const render = () => {
       const [start, end] = view.selectDraft ? [0, draft.value.length] : caret || [draft.value.length, draft.value.length];
       draft.setSelectionRange(start, end);
     }
+  }
+  if (searchFocused) {
+    const search = document.getElementById('search');
+    search?.focus();
+    search?.setSelectionRange(search.value.length, search.value.length);
   }
   view.focusDraft = false;
   view.selectDraft = false;
@@ -1370,16 +1733,16 @@ const guessDate = (text, fallback) => {
 
 const EDIT_WORDS = /\b(remove|delete|undo|change|edit|fix|wrong|instead|ta bort|radera|ändra|byt)\b/i;
 
-const changeWithUndo = (title, change) => {
+const changeWithUndo = (title, change, tapped = title) => {
   const before = JSON.stringify(state.sessions);
   change();
   state.sessions = state.sessions.filter((session) => session.exercises.length || session.cardio);
-  save();
-  view.toast = { kind: 'rep', title, text: 'Tap to undo', undo: before };
+  addLog(tapped, [title], { manual: true });
+  view.toast = { kind: 'rep', title, text: 'Undo puts it back', undo: before };
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(() => {
     clearToast();
-  }, 5000);
+  }, 12000);
 };
 
 const moveSession = (source, to) => {
@@ -1398,17 +1761,42 @@ const moveSession = (source, to) => {
   source.cardio = 0;
 };
 
-const showAdded = (result, day) => {
-  const names = (result.exercises || []).map((exercise) => findExerciseName(exercise.name) || titleCase(exercise.name));
-  const edit = { date: day, names };
-  if (view.toast) {
-    view.toast.edit = edit;
-    return;
+const condenseSets = (sets) => {
+  const parts = [];
+  for (const set of sets.filter((item) => item.kg !== '' && item.reps !== '')) {
+    const text = `${set.kg} × ${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`;
+    const last = parts.at(-1);
+    if (last && last.text === text) last.count += 1;
+    else parts.push({ text, count: 1 });
   }
-  const text = [...(result.exercises || []).map((exercise, index) => `${names[index]} ${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? `@${set.rpe}` : ''}`).join(', ')}`), ...(result.cardioMinutes ? [`Cardio ${result.cardioMinutes} min`] : [])].join(' · ');
-  view.toast = { kind: 'added', title: `Added to ${dayLabel(day)}`, text, edit };
+  return parts.map(({ text, count }) => (count > 1 ? `${text} ×${count}` : text)).join(' · ');
+};
+
+const resultDetail = (touched) => {
+  const days = new Map();
+  for (const { date, name } of touched) {
+    if (!days.has(date)) days.set(date, new Set());
+    if (name) days.get(date).add(name);
+  }
+  return [...days].map(([date, names]) => {
+    const session = sessionFor(date);
+    if (!session) return '';
+    const rows = session.exercises.filter((exercise) => !names.size || names.has(exercise.name)).map((exercise) => [exercise.name, condenseSets(exercise.sets)]);
+    if (!names.size && session.cardio) rows.push(['Cardio', `${session.cardio} min`]);
+    return `<p class="toastDay">${dayLabel(date)}</p>${rows.map(([name, sets]) => `<div class="toastRow"><span class="toastLift">${esc(name)}</span><span class="toastSets num">${esc(sets)}</span></div>`).join('')}`;
+  }).join('');
+};
+
+const showResult = (did, touched, before = null) => {
+  glowFor(touched);
+  const detail = resultDetail(touched);
+  const named = touched.filter((item) => item.name);
+  const edit = named.length ? { date: named[0].date, names: [...new Set(named.filter((item) => item.date === named[0].date).map((item) => item.name))] } : null;
+  if (view.toast?.name && ['max', 'rep'].includes(view.toast.kind)) Object.assign(view.toast, { detail, edit });
+  else view.toast = { kind: 'result', title: did[0], text: did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices', detail, edit, undo: before, open: Boolean(detail) };
+  if (before && view.toast) view.toast.undo = before;
   clearTimeout(view.toastTimer);
-  view.toastTimer = setTimeout(clearToast, 7000);
+  view.toastTimer = setTimeout(clearToast, 12000);
 };
 
 const note = (title, text) => {
@@ -1494,13 +1882,16 @@ const describeRemoval = (result) => (result.remove || []).map((target) => {
 const addLog = (said, did, extra = {}) => {
   const replaced = view.replacing;
   view.replacing = null;
-  state.log = [{ at: Date.now(), said: String(said || '').slice(0, 300), did, ...extra }, ...(state.log || []).filter((entry) => entry.at !== replaced)].slice(0, 30);
+  const previous = (state.log || [])[0];
+  const merged = extra.merge && previous?.merge === extra.merge && Date.now() - previous.at < 120000 ? previous.at : null;
+  state.log = [{ at: Date.now(), said: String(said || '').slice(0, 300), did, ...extra }, ...(state.log || []).filter((entry) => entry.at !== replaced && entry.at !== merged)].slice(0, 80);
   save();
 };
 
 const describeAdd = (result, day) => `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`cardio ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 const applyResult = (result, date, said, heard = '') => {
+  const before = JSON.stringify(state.sessions);
   const did = applyEdits(result);
   if (result.label) {
     const day = sessionFor(result.date || date) || result.exercises?.length ? result.date || date : loggedDay(result.date || date, null);
@@ -1515,7 +1906,6 @@ const applyResult = (result, date, said, heard = '') => {
     const day = result.date || date;
     land(result, day);
     did.push(describeAdd(result, day));
-    showAdded(result, day);
   } else view.scrollTarget = null;
   if (result.accessoriesMinutes) {
     const day = result.date || date;
@@ -1528,7 +1918,14 @@ const applyResult = (result, date, said, heard = '') => {
   if (result.unclear) {
     did.push(`Didn't understand: ${result.unclear}`);
   }
-  if (!view.toast) note(did[0], did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices');
+  showResult(did, [
+    ...(result.exercises || []).map((exercise) => ({ date: result.date || date, name: findExerciseName(exercise.name) || titleCase(exercise.name) })),
+    ...(result.replace || []).map((target) => {
+      const name = findExerciseName(target.exercise) || titleCase(target.exercise);
+      return { date: loggedDay(target.date, name), name };
+    }),
+    ...(result.move || []).map((target) => ({ date: target.to, name: target.exercise ? findExerciseName(target.exercise) || titleCase(target.exercise) : null }))
+  ], before);
   addLog(said, did, { heard: heard.slice(0, 300), raw: JSON.stringify(result).slice(0, 1500) });
 };
 
@@ -1561,6 +1958,16 @@ const land = (result, date) => {
   }, 1800);
 };
 
+const importText = (text) => fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 80) }) })
+  .then((response) => response.json().then((body) => (response.ok ? body : Promise.reject(new Error(body.error || 'Could not read that. Try again.')))))
+  .then(async (body) => {
+    await syncNow();
+    const days = (body.added || []).filter((day) => day.sets > 0);
+    const did = [days.length ? `Added ${days.length} ${days.length === 1 ? 'day' : 'days'}, ${days.reduce((sum, day) => sum + day.sets, 0)} sets` : 'Nothing new to add', ...(body.unclear ? [`Didn't understand: ${body.unclear}`] : [])];
+    showResult(did, days.map((day) => ({ date: day.date, name: null })));
+    return did;
+  });
+
 const send = async () => {
   const recorded = recording ? await stopRecording() : view.voiceBlob;
   view.voiceBlob = null;
@@ -1576,7 +1983,27 @@ const send = async () => {
     render();
     return;
   }
+  if (view.route === 'feedback') return sendFeedback(text, voice);
   const date = view.composerDate || todayIso();
+  if (!voice && text.length > 600 && !view.fixing && !view.editContext) {
+    const pending = { date, label: 'your training', text: text.slice(0, 120) + '…' };
+    view.pending.push(pending);
+    view.draft = '';
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    render();
+    closeTray();
+    try {
+      addLog(text.slice(0, 300), await importText(text));
+    } catch (error) {
+      view.draft = text;
+      openChat();
+      addLog(text.slice(0, 300), [`Not logged: ${error.message}`]);
+    } finally {
+      view.pending = view.pending.filter((item) => item !== pending);
+      render();
+    }
+    return;
+  }
   if (!voice && view.confirm && (YES.test(text) || NO.test(text))) {
     answerConfirm(YES.test(text));
     closeComposer();
@@ -1585,11 +2012,12 @@ const send = async () => {
   }
   const local = !view.fixing && !view.editContext && !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
   if (local) {
+    const before = JSON.stringify(state.sessions);
     view.draft = '';
     view.status = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
     land(local, date);
-    showAdded(local, date);
+    showResult([describeAdd(local, date)], local.exercises.map(({ name }) => ({ date, name })), before);
     addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500) });
     render();
     closeTray();
@@ -1605,13 +2033,15 @@ const send = async () => {
   view.draft = '';
   view.status = '';
   view.scrollTarget = pending.date;
+  if (!desktopQuery.matches) document.activeElement?.blur();
   render();
+  closeTray();
   let heard = '';
   let done = false;
   try {
     const audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
     const fixing = view.fixing;
-    const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio);
+    const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '');
     heard = result.transcript || '';
     const said = fixing ? `Fix: ${text}` : heard || text;
     if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
@@ -1619,7 +2049,7 @@ const send = async () => {
       view.confirm = { result, date, said, heard, text: describeRemoval(result) };
       view.scrollTarget = null;
     } else applyResult(result, date, said, voice ? heard : '');
-    view.editContext = null;
+    if (view.editDay !== view.editContext?.date) view.editContext = null;
     view.fixing = null;
     if (view.retryVoice) dropVoice(view.retryVoice);
     view.retryVoice = null;
@@ -1629,7 +2059,7 @@ const send = async () => {
     openChat();
     const voiceId = voice ? `voice-${Date.now()}` : null;
     if (voiceId) keepVoice(voiceId, voice);
-    addLog(text || heard || live || 'Voice note', [`Not logged: ${error.message}${voice ? ` (voice ${Math.round(voice.size / 1024)} KB, saved for retry)` : ''}`], voiceId ? { voiceId } : {});
+    addLog(text || heard || live || 'Voice note', [`Not logged: ${error.message}${voice ? ' The recording is kept.' : ''}`], voiceId ? { voiceId } : {});
   } finally {
     view.pending = view.pending.filter((item) => item !== pending);
     if (done && !desktopQuery.matches) document.activeElement?.blur();
@@ -1665,36 +2095,105 @@ document.addEventListener('click', (event) => {
   const date = target.dataset.date;
   const session = date ? sessionFor(date) : null;
   if (action === 'import') return;
-  if (action === 'dismiss-toast') {
-    if (view.toast?.undo) {
-      state.sessions = JSON.parse(view.toast.undo);
-      save();
+  if (action === 'onboard-mic' && view.onboard) return startOnboardMic();
+  if (action === 'onboard-stop' && view.onboard) return stopOnboardMic();
+  if (action === 'onboard-unfile' && view.onboard) {
+    view.onboard.file = null;
+    render();
+    return;
+  }
+  if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
+    const name = view.onboard.name.trim();
+    if (!name) {
+      view.onboard.status = 'Add your name first.';
+      render();
+      document.getElementById('onboardName')?.focus();
+      return;
     }
+    state.name = name.slice(0, 40);
+    save();
+    const text = action === 'onboard-blank' ? '' : [view.onboard.data.trim(), view.onboard.file?.text].filter(Boolean).join('\n\n');
+    if (!text) {
+      view.onboard = null;
+      render();
+      return;
+    }
+    view.onboard.busy = true;
+    view.onboard.status = '';
+    render();
+    importText(text)
+      .then(() => {
+        view.onboard = null;
+      })
+      .catch((error) => {
+        view.onboard.busy = false;
+        view.onboard.status = `${error.message} Your text is still here.`;
+      })
+      .finally(render);
+    return;
+  }
+  if (action === 'copy-ai') {
+    navigator.clipboard.writeText(aiInstructions()).then(() => {
+      view.copiedAi = true;
+      render();
+      setTimeout(() => {
+        view.copiedAi = false;
+        render();
+      }, 1600);
+    });
+    return;
+  }
+  if (action === 'feedback-status') {
+    const item = view.adminFeedback?.find((entry) => entry.id === Number(target.dataset.id));
+    if (!item) return;
+    item.status = target.dataset.status;
+    render();
+    fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ id: item.id, status: item.status }) });
+    return;
+  }
+  if (action === 'toggle-toast' && view.toast) {
+    view.toast.open = !view.toast.open;
+    view.toast.pinned = view.toast.open;
+    target.closest('.toast').classList.toggle('open', view.toast.open);
+    target.setAttribute('aria-expanded', String(view.toast.open));
+    clearTimeout(view.toastTimer);
+    if (!view.toast.open) view.toastTimer = setTimeout(clearToast, 4000);
+    return;
+  }
+  if (action === 'dismiss-toast') {
     view.toast = null;
+  } else if (action === 'undo-change' && view.toast?.undo) {
+    state.sessions = JSON.parse(view.toast.undo);
+    glowFor(state.sessions.map((item) => ({ date: item.date, name: null })).filter((item) => view.open.has(item.date)));
+    addLog('Undo', [`Undid: ${view.toast.title}`], { manual: true });
+    view.toast = { kind: 'rep', title: 'Undone', text: view.toast.title };
+    clearTimeout(view.toastTimer);
+    view.toastTimer = setTimeout(clearToast, 3500);
   } else if (action === 'delete-set' && session) {
-    changeWithUndo('Set deleted', () => {
-      const exercise = session.exercises[Number(target.dataset.exercise)];
+    const exercise = session.exercises[Number(target.dataset.exercise)];
+    const set = exercise.sets[Number(target.dataset.set)];
+    changeWithUndo(`Deleted ${exercise.name} ${set.kg} × ${set.reps} on ${dayLabel(date)}`, () => {
       exercise.sets.splice(Number(target.dataset.set), 1);
       if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
-    });
+    }, 'Delete set');
   } else if (action === 'delete-exercise' && session) {
-    changeWithUndo(`${session.exercises[Number(target.dataset.exercise)].name} deleted`, () => session.exercises.splice(Number(target.dataset.exercise), 1));
+    changeWithUndo(`Deleted ${session.exercises[Number(target.dataset.exercise)].name} on ${dayLabel(date)}`, () => session.exercises.splice(Number(target.dataset.exercise), 1), 'Delete exercise');
   } else if (action === 'delete-day' && session) {
     view.editDay = null;
-    changeWithUndo(`${dayLabel(date)} deleted`, () => {
+    changeWithUndo(`Deleted ${dayLabel(date)}`, () => {
       session.exercises = [];
       session.cardio = 0;
-    });
+    }, 'Delete day');
   } else if (action === 'edit-day') {
     view.editDay = view.editDay === date ? null : date;
     view.menuEnter = Boolean(view.editDay);
     view.fixing = null;
-    if (view.editDay && session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name) };
+    if (view.editDay && session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
     else if (view.editContext?.date === date) view.editContext = null;
   } else if (action === 'log-day') {
     view.logDate = date;
     view.editDay = null;
-    if (session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name) };
+    if (session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
     location.hash = '#/log';
     return;
   } else if (action === 'log-all') {
@@ -1702,7 +2201,8 @@ document.addEventListener('click', (event) => {
   } else if (action === 'move-day' && session) {
     const to = target.dataset.to;
     view.editDay = null;
-    changeWithUndo(`Moved to ${dayLabel(to)}`, () => moveSession(session, to));
+    changeWithUndo(`Moved ${dayLabel(date)} to ${dayLabel(to)}`, () => moveSession(session, to), `Move to ${dayLabel(to)}`);
+    glowFor([{ date: to, name: null }]);
     view.open.add(to);
     view.scrollTarget = to;
   }
@@ -1723,6 +2223,13 @@ document.addEventListener('click', (event) => {
   }
   else if (action === 'toggle-info') view.info = !view.info;
   else if (action === 'confirm-yes') answerConfirm(true);
+  else if (action === 'retry-said') {
+    const entry = state.log?.[Number(target.dataset.index)];
+    if (!entry) return;
+    view.replacing = entry.at;
+    view.draft = entry.said;
+    return send();
+  }
   else if (action === 'retry-voice') {
     const voiceId = target.dataset.voice;
     return loadVoice(voiceId).then((blob) => {
@@ -1733,13 +2240,14 @@ document.addEventListener('click', (event) => {
       }
       view.voiceBlob = blob;
       view.retryVoice = voiceId;
+      view.replacing = state.log?.find((entry) => entry.voiceId === voiceId)?.at ?? null;
       return send();
     });
   }
   else if (action === 'edit-added' && view.toast?.edit) {
     view.editContext = view.toast.edit;
     view.composerDate = view.toast.edit.date;
-    view.focusDraft = true;
+    view.focusDraft = desktopQuery.matches;
     view.toast = null;
   } else if (action === 'clear-day') {
     view.composerDate = todayIso();
@@ -1812,23 +2320,34 @@ document.addEventListener('click', (event) => {
   } else if (action === 'toggle-trend') view.trendOpen = view.trendOpen === target.dataset.name ? '' : target.dataset.name;
   else if (action === 'range') view.range = Number(target.dataset.days);
   else if (action === 'accessories' && session) {
-    session.accessories = Number(target.dataset.minutes);
-    save();
+    session.accessories = accessoriesOf(session) === Number(target.dataset.minutes) ? 0 : Number(target.dataset.minutes);
+    addLog(`Accessories ${target.textContent.trim()}`, [session.accessories ? `Accessories ${session.accessories} min on ${dayLabel(date)}` : `No accessories on ${dayLabel(date)}`], { manual: true, merge: `acc:${date}` });
   } else if (action === 'add-set' && session) {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
     exercise.sets.push({ kg: last.kg, reps: last.reps, edited: false });
-    save();
+    addLog('Add set', [`Added a ${exercise.name} set on ${dayLabel(date)}`], { manual: true });
   } else if (action === 'remove-cardio' && session) {
     session.cardio = 0;
-    save();
+    addLog('Remove cardio', [`Removed cardio on ${dayLabel(date)}`], { manual: true });
+  } else if (action === 'open-quick') {
+    openChat();
+    view.showQuick = true;
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    render();
+    const body = document.querySelector('.sheetBody');
+    const list = document.querySelector('.sheet .quickAdd');
+    if (body && list) body.scrollTop = list.offsetTop - body.offsetTop - 8;
+    return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
     const last = lastSetsFor(name, view.composerDate || todayIso());
     addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps })) : [{ kg: '', reps: '' }] }] }, view.composerDate || todayIso());
+    addLog(`Add ${name}`, [`Added ${name} to ${dayLabel(view.composerDate || todayIso())}`], { manual: true });
     closeComposer();
   } else if (action === 'pick-cardio') {
     addEntries({ exercises: [], cardioMinutes: 30 }, view.composerDate || todayIso());
+    addLog('Add cardio', [`Added cardio 30 min to ${dayLabel(view.composerDate || todayIso())}`], { manual: true });
     closeComposer();
   } else if (action === 'mic') {
     return view.listening ? send() : startListening();
@@ -1883,6 +2402,27 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('input', (event) => {
   const target = event.target;
+  if (target.id === 'onboardName' || target.id === 'onboardData') {
+    view.onboard[target.id === 'onboardName' ? 'name' : 'data'] = target.value;
+    const prompt = document.querySelector('.onboardPrompt');
+    const filled = view.onboard.data.trim().length > 0 || Boolean(view.onboard.file);
+    if (target.id === 'onboardData' && prompt && prompt.classList.contains('hasText') !== filled) {
+      render();
+      document.getElementById('onboardData')?.setSelectionRange(target.value.length, target.value.length);
+    }
+    return;
+  }
+  if (target.id === 'search') {
+    view.search.query = target.value;
+    view.search.local = target.value.trim() ? searchLocal(target.value) : [];
+    view.search.ai = [];
+    view.search.loading = false;
+    searchSeq += 1;
+    clearTimeout(searchTimer);
+    if (target.value.trim().length >= 3) searchTimer = setTimeout(runAiSearch, 700);
+    paintSearch();
+    return;
+  }
   if (target.id === 'draft') {
     view.draft = target.value;
     if (!view.composer) {
@@ -1897,19 +2437,22 @@ document.addEventListener('input', (event) => {
     const session = sessionFor(target.dataset.date);
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const index = Number(target.dataset.set);
+    const group = exercise.sets.slice(index, index + (Number(target.dataset.count) || 1));
     const field = target.dataset.field;
     if (field === 'rpe') {
       const rpe = parseFloat(target.value.replace(',', '.'));
-      if (rpe >= 1 && rpe <= 10) exercise.sets[index].rpe = rpe;
-      else delete exercise.sets[index].rpe;
+      for (const set of group) {
+        if (rpe >= 1 && rpe <= 10) set.rpe = rpe;
+        else delete set.rpe;
+      }
       save();
       return;
     }
     const previous = exercise.sets[index][field];
-    exercise.sets[index][field] = target.value.replace(',', '.');
+    for (const set of group) set[field] = target.value.replace(',', '.');
     if (field === 'kg') {
-      exercise.sets[index].edited = true;
-      for (let next = index + 1; next < exercise.sets.length; next += 1) {
+      for (const set of group) set.edited = true;
+      for (let next = index + group.length; next < exercise.sets.length; next += 1) {
         if (!exercise.sets[next].edited && exercise.sets[next].kg === previous) exercise.sets[next].kg = exercise.sets[index].kg;
       }
     }
@@ -1924,6 +2467,7 @@ document.addEventListener('change', (event) => {
     if (session) {
       if (target.value.trim()) session.label = target.value.trim().slice(0, 40);
       else delete session.label;
+      addLog('Name day', [session.label ? `Named ${dayLabel(session.date)} “${session.label}”` : `Removed the name of ${dayLabel(session.date)}`], { manual: true });
       save();
       render();
     }
@@ -1939,12 +2483,27 @@ document.addEventListener('change', (event) => {
     const session = sessionFor(target.dataset.date);
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const set = exercise.sets[Number(target.dataset.set)];
-    if (set && set.kg === '' && set.reps === '') exercise.sets.splice(Number(target.dataset.set), 1);
+    if (set && set.kg === '' && set.reps === '') exercise.sets.splice(Number(target.dataset.set), Number(target.dataset.count) || 1);
     if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
     if (session.exercises.length === 0 && !session.cardio) state.sessions = state.sessions.filter((item) => item !== session);
+    const changed = exercise.sets[Number(target.dataset.set)];
+    if (changed && changed.kg !== '' && changed.reps !== '') addLog('Edit numbers', [`${exercise.name} set ${Number(target.dataset.set) + 1} is now ${changed.kg} × ${changed.reps}${changed.rpe ? ` @${changed.rpe}` : ''} on ${dayLabel(session.date)}`], { manual: true, merge: `set:${session.date}:${exercise.name}:${target.dataset.set}` });
     checkPr(exercise.name, session.date);
     save();
     render();
+  } else if (target.dataset.action === 'import-file' && target.files[0]) {
+    target.files[0].text().then((text) => {
+      view.draft = text.slice(0, 150000);
+      view.showQuick = false;
+      send();
+    });
+  } else if (target.dataset.action === 'onboard-file' && target.files[0] && view.onboard) {
+    const picked = target.files[0];
+    picked.text().then((text) => {
+      view.onboard.file = { name: picked.name, text: text.slice(0, 150000) };
+      view.onboard.status = text.length > 150000 ? 'That file is very long; the first part is used.' : '';
+      render();
+    });
   } else if (target.dataset.action === 'import' && target.files[0]) {
     target.files[0].text().then((text) => {
       const restored = JSON.parse(text);
@@ -1957,6 +2516,12 @@ document.addEventListener('change', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.target.id === 'search' && event.key === 'Enter') {
+    event.preventDefault();
+    clearTimeout(searchTimer);
+    runAiSearch();
+    return;
+  }
   if (event.target.id === 'draft' && event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
     send();
@@ -1982,19 +2547,20 @@ const route = () => {
     render();
     return;
   }
-  view.route = ['trends', 'you', 'log', 'admin'].includes(name) ? name : 'home';
+  view.route = ['trends', 'you', 'log', 'admin', 'feedback'].includes(name) ? name : 'home';
   if (view.route !== 'log') view.logDate = null;
   if (view.route === 'admin') view.adminRows = null;
   view.menu = false;
-  window.scrollTo(0, 0);
+  scrollPage(0);
   render();
-  if (view.route === 'log') window.scrollTo(0, document.body.scrollHeight);
+  if (view.route === 'log') scrollPage(scroller().scrollHeight);
 };
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);
 view.focusDraft = desktopQuery.matches;
 const linkedProfile = location.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
 if (linkedProfile && linkedProfile[1] !== syncState.profile) joinProfile(linkedProfile[1]).then(render);
+applyFlavor();
 route();
 pointManifest();
 syncNow();
@@ -2005,17 +2571,62 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) syncNow();
 });
 window.addEventListener('online', () => syncNow());
+document.addEventListener('focusin', (event) => {
+  const input = event.target.closest?.('input.pill');
+  if (!input) return;
+  setTimeout(() => {
+    if (document.activeElement === input) input.setSelectionRange(input.value.length, input.value.length);
+  }, 60);
+});
+
+let hold = null;
+let held = false;
+document.addEventListener('pointerdown', (event) => {
+  held = false;
+  const section = event.target.closest('.homePage .session:not(.open)');
+  if (!section || event.target.closest('.dayLift')) return;
+  const date = section.id.replace('session-', '');
+  hold = { ...uiPoint(event), timer: setTimeout(() => {
+    hold = null;
+    const session = sessionFor(date);
+    if (!session) return;
+    view.open.add(date);
+    view.opening = date;
+    view.editDay = date;
+    view.menuEnter = true;
+    view.fixing = null;
+    view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
+    held = true;
+    render();
+  }, 450) };
+});
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => {
+  if (hold) clearTimeout(hold.timer);
+  hold = null;
+});
+document.addEventListener('pointermove', (event) => {
+  const point = uiPoint(event);
+  if (hold && Math.hypot(point.x - hold.x, point.y - hold.y) > 10) {
+    clearTimeout(hold.timer);
+    hold = null;
+  }
+});
+
+document.addEventListener('mousedown', (event) => {
+  if (event.target.closest('.dock .promptBar button, .dock .contextX')) event.preventDefault();
+});
 let swipe = null;
 let lastSwipe = 0;
 document.addEventListener('pointerdown', (event) => {
   const face = event.target.closest('.swipeFace');
   for (const open of document.querySelectorAll('.swipe.open')) if (open !== face?.parentElement) open.classList.remove('open');
-  swipe = face && event.pointerType !== 'mouse' ? { face, x: event.clientX, y: event.clientY, dx: 0, active: false } : null;
+  swipe = face && event.pointerType !== 'mouse' ? { face, ...uiPoint(event), dx: 0, active: false } : null;
 });
 document.addEventListener('pointermove', (event) => {
   if (!swipe) return;
-  const dx = event.clientX - swipe.x;
-  const dy = event.clientY - swipe.y;
+  const point = uiPoint(event);
+  const dx = point.x - swipe.x;
+  const dy = point.y - swipe.y;
   if (!swipe.active) {
     if (Math.abs(dy) > 10) swipe = null;
     if (!swipe || Math.abs(dx) < 10) return;
@@ -2043,6 +2654,12 @@ const endSwipe = () => {
 document.addEventListener('pointerup', endSwipe);
 document.addEventListener('pointercancel', endSwipe);
 document.addEventListener('click', (event) => {
+  if (held) {
+    held = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (Date.now() - lastSwipe < 350) {
     event.preventDefault();
     event.stopPropagation();
@@ -2052,6 +2669,7 @@ document.addEventListener('click', (event) => {
 const closeTray = () => {
   if (!view.composer) return;
   view.composer = false;
+  view.showQuick = false;
   if (!desktopQuery.matches && document.activeElement?.closest?.('.dock')) document.activeElement.blur();
   syncDock();
 };
@@ -2074,4 +2692,12 @@ document.addEventListener('focusout', () => {
 tickTypewriter();
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js');
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const hadWorker = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.register('/sw.js').then((registration) => document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) registration.update();
+  }));
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadWorker && !view.listening && !view.draft.trim() && !view.pending.length) location.reload();
+  });
+}
