@@ -2,9 +2,7 @@
 
 <a href="https://exodia.marcusokodugha.workers.dev/join"><img src="docs/try-exodia.png" align="right" width="195" alt="Try Exodia"></a>
 
-# Exodia
-
-**Unstructured in. Structured out.** Talk, type or paste anything. Exodia transcribes it, turns it into structured data and tracks it for you.
+**Exodia. Unstructured in, structured out.** Talk, type or paste anything. Exodia transcribes it, turns it into structured data and tracks it for you.
 
 **Try it on your phone:** [exodia.marcusokodugha.workers.dev/join](https://exodia.marcusokodugha.workers.dev/join). No sign-up, just add it to your Home Screen.
 
