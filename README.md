@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/hero.png" alt="Exodia on three phones: the home screen, the moment you hit Exodia, and the Trends page with the anatomy map" width="100%"></p>
+<p align="center"><img src="docs/banner.png" alt="Exodia on three phones: the home screen, the moment you hit Exodia, and the Trends page with the anatomy map" width="100%"></p>
 
 <h1 align="center">Exodia</h1>
 
