@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://exodia.marcusokodugha.workers.dev/join"><img src="https://img.shields.io/badge/Try_Exodia-open_on_your_phone-C96442?style=for-the-badge" alt="Try Exodia"></a>
+  <a href="https://exodia.marcusokodugha.workers.dev/join"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/try-dark.png"><img src="docs/try-light.png" alt="Try Exodia" width="210"></picture></a>
 </p>
 
 <h3 align="center"><a href="https://exodia.marcusokodugha.workers.dev/join">exodia.marcusokodugha.workers.dev/join</a></h3>
