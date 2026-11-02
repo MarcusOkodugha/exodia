@@ -254,20 +254,16 @@ const renderSoon = () => {
   else render();
 };
 
-const isBlue = () => state.flavor === 'blue';
-const profileLink = () => `${location.origin}/me/${syncState.profile}${isBlue() ? '?f=blue' : ''}`;
+const profileLink = () => `${location.origin}/me/${syncState.profile}`;
 const pointManifest = () => {
   const manifest = document.querySelector('link[rel="manifest"]');
-  if (manifest) manifest.href = `/manifest.webmanifest?k=${syncState.profile}${isBlue() ? '&f=blue' : ''}`;
+  if (manifest) manifest.href = `/manifest.webmanifest?k=${syncState.profile}`;
 };
+// Everyone gets the same orange app; drop the old blue look some browsers remembered.
 const applyFlavor = () => {
-  if (document.documentElement.dataset.flavor === 'blue' && state.flavor !== 'blue') {
-    state.flavor = 'blue';
-    writeLocal();
-  }
-  if (!isBlue()) return;
-  document.documentElement.dataset.flavor = 'blue';
-  for (const link of document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')) link.href = link.getAttribute('href').replace(/(-blue)?\.png$/, '-blue.png');
+  if (!state.flavor) return;
+  delete state.flavor;
+  writeLocal();
 };
 
 const joinProfile = async (key) => {
@@ -738,28 +734,30 @@ const FIST_LABELS = ['Push', 'Pull', 'Legs', 'Arms', 'Move'];
 const FIST_OPEN = [480, 1000, 1400, 1700, 1920];
 const FIST_TIMES = { eye: 2200, impact: 2480, fly: 3050, done: 3600 };
 // [window the piece shows through, folded offset x %, y %, rim style]
+// Windows each finger slides through, and how far it is tucked into the fist when closed (x %, y %).
 const FIST = [
-  ['0 36%, 25.8% 36%, 25.8% 47%, 28.5% 66%, 0 66%', 22, 4, 'M27 64 L24.4 49.4 Q24 46.3 27.2 46.3 L28 46.3'],
-  ['25.8% 0, 38% 0, 42.25% 13%, 42.25% 47.5%, 25.8% 47.5%', 0, 30, 'M27.6 46.3 H42.6'],
-  ['42.25% 0, 57.45% 0, 57.45% 47.5%, 42.25% 47.5%', 0, 38, 'M42 46.3 H58'],
-  ['57.45% 13%, 62% 0, 74.2% 0, 74.2% 47.5%, 57.45% 47.5%', 0, 30, 'M57.4 46.3 H72.4'],
-  ['74.2% 36%, 100% 36%, 100% 66%, 71.5% 66%, 74.2% 47%', -22, 4, 'M73 64 L75.6 49.4 Q76 46.3 72.8 46.3 L72 46.3'],
+  ['0 39%, 25.8% 39%, 25.8% 47%, 28.5% 66%, 0 66%', 22, 4],
+  ['25.8% 0, 38% 0, 42.25% 13%, 42.25% 47.5%, 25.8% 47.5%', 0, 35],
+  ['42.25% 0, 57.45% 0, 57.45% 47.5%, 42.25% 47.5%', 0, 43],
+  ['57.45% 13%, 62% 0, 74.2% 0, 74.2% 47.5%, 57.45% 47.5%', 0, 35],
+  ['74.2% 39%, 100% 39%, 100% 66%, 71.5% 66%, 74.2% 47%', -22, 4],
 ];
+// The closed fist: one smooth shape that follows the hand's own bowl, drawn in the hand's colours.
+const FIST_PATH = 'M28.00 42.20 C35.83 41.97 64.17 41.97 72.00 42.20 C79.83 42.43 74.33 42.80 75.00 43.60 C75.67 44.40 75.73 45.10 76.00 47.00 C76.27 48.90 76.40 52.17 76.60 55.00 C76.80 57.83 77.08 61.50 77.20 64.00 C77.32 66.50 77.35 68.67 77.30 70.00 C77.25 71.33 77.03 71.33 76.90 72.00 C76.77 72.67 76.67 73.33 76.50 74.00 C76.33 74.67 76.10 75.33 75.90 76.00 C75.70 76.67 75.50 77.33 75.30 78.00 C75.10 78.67 74.88 79.33 74.70 80.00 C74.52 80.67 74.42 81.33 74.20 82.00 C73.98 82.67 73.70 83.33 73.40 84.00 C73.10 84.67 72.77 85.33 72.40 86.00 C72.03 86.67 71.65 87.33 71.20 88.00 C70.75 88.67 70.32 89.33 69.70 90.00 C69.08 90.67 68.25 91.33 67.50 92.00 C66.75 92.67 66.17 93.33 65.20 94.00 C64.23 94.67 62.80 95.50 61.70 96.00 C60.60 96.50 60.55 96.73 58.60 97.00 C56.65 97.27 52.87 97.60 50.00 97.60 C47.13 97.60 43.42 97.27 41.40 97.00 C39.38 96.73 39.03 96.50 37.90 96.00 C36.77 95.50 35.57 94.67 34.60 94.00 C33.63 93.33 32.88 92.67 32.10 92.00 C31.32 91.33 30.48 90.67 29.90 90.00 C29.32 89.33 29.02 88.67 28.60 88.00 C28.18 87.33 27.77 86.67 27.40 86.00 C27.03 85.33 26.73 84.67 26.40 84.00 C26.07 83.33 25.65 82.67 25.40 82.00 C25.15 81.33 25.08 80.67 24.90 80.00 C24.72 79.33 24.47 78.67 24.30 78.00 C24.13 77.33 24.07 76.67 23.90 76.00 C23.73 75.33 23.47 74.67 23.30 74.00 C23.13 73.33 23.07 72.67 22.90 72.00 C22.73 71.33 22.32 71.33 22.30 70.00 C22.28 68.67 22.62 66.50 22.80 64.00 C22.98 61.50 23.20 57.83 23.40 55.00 C23.60 52.17 23.73 48.90 24.00 47.00 C24.27 45.10 24.33 44.40 25.00 43.60 C25.67 42.80 20.17 42.43 28.00 42.20 Z';
 const playFist = () => {
   const show = document.createElement('div');
   show.className = 'exodiaShow';
   show.setAttribute('aria-hidden', 'true');
   show.innerHTML = `<div class="exFly"><div class="exHand">
     ${FIST.map(([clip]) => `<i class="exWin" style="clip-path:polygon(${clip})"><i class="exImg"></i></i>`).join('')}
-    <i class="exLid"></i><i class="exPiece exPalm"></i><i class="exPiece exEye"></i>
-    <svg class="exRims" viewBox="0 0 100 100" preserveAspectRatio="none">${FIST.map(([, , , rim]) => `<path d="${rim}"/>`).join('')}</svg>
+    <svg class="exFist" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${FIST_PATH}"/></svg>
+    <i class="exFull"></i>
     ${FIST_LABELS.map((label) => `<b class="exLabel">${label}</b>`).join('')}
     <i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
   </div></div>`;
   document.body.append(show);
   const hand = show.querySelector('.exHand');
-  hand.animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
-  const rims = show.querySelectorAll('.exRims path');
+  hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out', fill: 'backwards' });
   show.querySelectorAll('.exImg').forEach((image, index) => {
     const [, x, y] = FIST[index];
     const thumb = index === 0 || index === 4;
@@ -767,7 +765,6 @@ const playFist = () => {
       { transform: `translate(${x}%, ${y}%)${thumb ? ` rotate(${index === 0 ? 12 : -12}deg)` : ''}` },
       { transform: 'none' },
     ], { duration: 520, delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.35, 0.45, 1)', fill: 'backwards' });
-    rims[index].animate([{ opacity: 1 }, { opacity: 0 }], { duration: 110, delay: FIST_OPEN[index] + 190, easing: 'ease-out', fill: 'both' });
   });
   show.querySelectorAll('.exLabel').forEach((label, index) => {
     const next = FIST_OPEN[index + 1] ?? FIST_TIMES.eye;
@@ -778,7 +775,7 @@ const playFist = () => {
       { opacity: 0, transform: 'translate(-50%, -10px)' },
     ], { duration: next - FIST_OPEN[index] + 80, delay: FIST_OPEN[index], easing: 'ease-out', fill: 'both' });
   });
-  show.querySelector('.exEye').animate([{ transform: 'scaleY(0.06)', opacity: 0.6 }, { transform: 'scaleY(1.18)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 360, delay: FIST_TIMES.eye, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'backwards' });
+  show.querySelector('.exFull').animate([{ clipPath: 'circle(0% at 50% 66%)' }, { clipPath: 'circle(80% at 50% 66%)' }], { duration: 480, delay: FIST_TIMES.eye, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', fill: 'both' });
   const timers = [];
   const finish = () => {
     timers.forEach(clearTimeout);
@@ -1812,7 +1809,7 @@ const render = () => {
   const dock = `${view.composer ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
-        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
+        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
         <aside class="right" aria-label="Progress">${renderProgress()}</aside>
       </div>`
@@ -2534,6 +2531,9 @@ document.addEventListener('click', (event) => {
   } else if (action === 'dev-normal') {
     view.devMenu = false;
     view.devHit = false;
+    view.celebrating = false;
+    document.querySelectorAll('.exodiaShow').forEach((show) => show.click());
+    document.documentElement.classList.remove('exodiaBlue');
   } else if (action === 'dev-newuser') return enterSandbox();
   else if (action === 'dev-exit') return exitSandbox();
   else if (action === 'open-menu') view.menu = true;

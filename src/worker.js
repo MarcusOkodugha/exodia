@@ -544,12 +544,7 @@ const manifest = async (request, env, url) => {
   const response = await env.ASSETS.fetch(new Request(new URL('/manifest.webmanifest', url), request));
   const data = await response.json();
   const key = url.searchParams.get('k') ?? '';
-  const blue = url.searchParams.get('f') === 'blue';
-  if (blue) {
-    data.start_url = '/join';
-    data.icons = data.icons.map((icon) => ({ ...icon, src: icon.src.replace('.png', '-blue.png') }));
-  }
-  if (PROFILE_KEY.test(key)) data.start_url = `/me/${key}${blue ? '?f=blue' : ''}`;
+  if (PROFILE_KEY.test(key)) data.start_url = `/me/${key}`;
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'no-store' } });
 };
 
@@ -568,10 +563,8 @@ export default {
     }
     const personal = url.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
     if (personal || url.pathname === '/join' || url.pathname === '/join/') {
-      const blue = !personal || url.searchParams.get('f') === 'blue';
       let html = await (await env.ASSETS.fetch(new Request(new URL('/', url), request))).text();
-      html = html.replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?${personal ? `k=${personal[1]}&` : ''}${blue ? 'f=blue' : ''}"`);
-      if (blue) html = html.replace('<html lang="en">', '<html lang="en" data-flavor="blue">').replace(/(href="\/(?:favicon-64|icon-192|apple-touch-icon))\.png"/g, '$1-blue.png"');
+      if (personal) html = html.replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?k=${personal[1]}"`);
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (url.pathname === '/api/transcribe') {

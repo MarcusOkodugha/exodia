@@ -427,7 +427,6 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .setRow .e1rm { display: inline-block; width: 32px; text-align: right; }
 .homePage .session .exercise, .homePage .session .ghost, .homePage .session .deleteDay, .homePage .session .dayMenu, .homePage .session .foot, .homePage .session .cardio, .homePage .session .dayActions { border-top: 0; }
 .homePage .session .exercise { padding-top: 14px; }
-[data-flavor="blue"] .logo { background-image: url(/logo-blue.png); }
 .onboard { padding-top: calc(var(--top) + 56px); }
 .onboardLogo { display: block; width: 56px; height: 56px; margin: 0 0 18px; }
 .onboardLead { margin: 8px 0 28px; font-size: 17px; line-height: 24px; color: var(--text2); }
@@ -558,6 +557,8 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .impact .exLid { opacity: 0; }
 .exWin { position: absolute; inset: 0; }
 .exImg { position: absolute; inset: 0; background: url(/hamsa-512.png) center / 100% no-repeat; will-change: transform; }
-.exRims { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.exRims path { fill: none; stroke: #F1AE8C; stroke-width: 3.6; stroke-linejoin: round; }
+.exFist { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.exFist path { fill: #C96442; stroke: #F1AE8C; stroke-width: 4.8; stroke-linejoin: round; }
+.exFull { position: absolute; inset: 0; background: url(/hamsa-512.png) center / 100% no-repeat; clip-path: circle(0% at 50% 66%); }
 .impact .exImg { background-image: url(/hamsa-512-blue.png); }
+.side .devBtn { top: 18px; right: 6px; }
