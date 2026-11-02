@@ -731,51 +731,51 @@ const celebrate = () => {
 // The hand starts as a fist, opens one finger per piece (slow, then faster), then the eye opens.
 // Fingers slide out of the palm whole, never squashed; peach rims close the fist's cut edges until they do.
 const FIST_LABELS = ['Push', 'Pull', 'Legs', 'Arms', 'Move'];
-const FIST_OPEN = [480, 1000, 1400, 1700, 1920];
-const FIST_TIMES = { eye: 2200, impact: 2480, fly: 3050, done: 3600 };
+// Push and Pull open slowly, Legs and Arms speed up, Move lands slow: start of each finger and how long it takes.
+const FIST_OPEN = [500, 1350, 2000, 2420, 2900];
+const FIST_DURATION = [700, 620, 440, 420, 780];
+const FIST_TIMES = { eye: 3820, impact: 4220, fly: 4850, done: 5450 };
 // [window the piece shows through, folded offset x %, y %, rim style]
 // Windows each finger slides through, and how far it is tucked into the fist when closed (x %, y %).
 const FIST = [
-  ['0 39%, 25.8% 39%, 25.8% 47%, 28.5% 66%, 0 66%', 22, 4],
+  ['0 39%, 23% 39%, 23% 44.5%, 25% 47%, 27.5% 66%, 0 66%', 22, 4],
   ['25.8% 0, 38% 0, 42.25% 13%, 42.25% 47.5%, 25.8% 47.5%', 0, 35],
   ['42.25% 0, 57.45% 0, 57.45% 47.5%, 42.25% 47.5%', 0, 43],
   ['57.45% 13%, 62% 0, 74.2% 0, 74.2% 47.5%, 57.45% 47.5%', 0, 35],
-  ['74.2% 39%, 100% 39%, 100% 66%, 71.5% 66%, 74.2% 47%', -22, 4],
+  ['77% 39%, 100% 39%, 100% 66%, 72.5% 66%, 75% 47%, 77% 44.5%', -22, 4],
 ];
-// The closed fist: one smooth shape that follows the hand's own bowl, drawn in the hand's colours.
-const FIST_PATH = 'M28.00 42.20 C35.83 41.97 64.17 41.97 72.00 42.20 C79.83 42.43 74.33 42.80 75.00 43.60 C75.67 44.40 75.73 45.10 76.00 47.00 C76.27 48.90 76.40 52.17 76.60 55.00 C76.80 57.83 77.08 61.50 77.20 64.00 C77.32 66.50 77.35 68.67 77.30 70.00 C77.25 71.33 77.03 71.33 76.90 72.00 C76.77 72.67 76.67 73.33 76.50 74.00 C76.33 74.67 76.10 75.33 75.90 76.00 C75.70 76.67 75.50 77.33 75.30 78.00 C75.10 78.67 74.88 79.33 74.70 80.00 C74.52 80.67 74.42 81.33 74.20 82.00 C73.98 82.67 73.70 83.33 73.40 84.00 C73.10 84.67 72.77 85.33 72.40 86.00 C72.03 86.67 71.65 87.33 71.20 88.00 C70.75 88.67 70.32 89.33 69.70 90.00 C69.08 90.67 68.25 91.33 67.50 92.00 C66.75 92.67 66.17 93.33 65.20 94.00 C64.23 94.67 62.80 95.50 61.70 96.00 C60.60 96.50 60.55 96.73 58.60 97.00 C56.65 97.27 52.87 97.60 50.00 97.60 C47.13 97.60 43.42 97.27 41.40 97.00 C39.38 96.73 39.03 96.50 37.90 96.00 C36.77 95.50 35.57 94.67 34.60 94.00 C33.63 93.33 32.88 92.67 32.10 92.00 C31.32 91.33 30.48 90.67 29.90 90.00 C29.32 89.33 29.02 88.67 28.60 88.00 C28.18 87.33 27.77 86.67 27.40 86.00 C27.03 85.33 26.73 84.67 26.40 84.00 C26.07 83.33 25.65 82.67 25.40 82.00 C25.15 81.33 25.08 80.67 24.90 80.00 C24.72 79.33 24.47 78.67 24.30 78.00 C24.13 77.33 24.07 76.67 23.90 76.00 C23.73 75.33 23.47 74.67 23.30 74.00 C23.13 73.33 23.07 72.67 22.90 72.00 C22.73 71.33 22.32 71.33 22.30 70.00 C22.28 68.67 22.62 66.50 22.80 64.00 C22.98 61.50 23.20 57.83 23.40 55.00 C23.60 52.17 23.73 48.90 24.00 47.00 C24.27 45.10 24.33 44.40 25.00 43.60 C25.67 42.80 20.17 42.43 28.00 42.20 Z';
+// The closed fist: one smooth shape that follows the hand's own bowl. Its outline parts on top and at the
+// thumbs fade as each piece comes out, so no line is ever left inside the open hand.
+const FIST_PATH = {"fill": "M28.00 42.20 C35.83 41.97 64.17 41.97 72.00 42.20 C79.83 42.43 74.33 42.80 75.00 43.60 C75.67 44.40 75.73 45.10 76.00 47.00 C76.27 48.90 76.40 52.17 76.60 55.00 C76.80 57.83 77.08 61.50 77.20 64.00 C77.32 66.50 77.35 68.67 77.30 70.00 C77.25 71.33 77.03 71.33 76.90 72.00 C76.77 72.67 76.67 73.33 76.50 74.00 C76.33 74.67 76.10 75.33 75.90 76.00 C75.70 76.67 75.50 77.33 75.30 78.00 C75.10 78.67 74.88 79.33 74.70 80.00 C74.52 80.67 74.42 81.33 74.20 82.00 C73.98 82.67 73.70 83.33 73.40 84.00 C73.10 84.67 72.77 85.33 72.40 86.00 C72.03 86.67 71.65 87.33 71.20 88.00 C70.75 88.67 70.32 89.33 69.70 90.00 C69.08 90.67 68.25 91.33 67.50 92.00 C66.75 92.67 66.17 93.33 65.20 94.00 C64.23 94.67 62.80 95.50 61.70 96.00 C60.60 96.50 60.55 96.73 58.60 97.00 C56.65 97.27 52.87 97.60 50.00 97.60 C47.13 97.60 43.42 97.27 41.40 97.00 C39.38 96.73 39.03 96.50 37.90 96.00 C36.77 95.50 35.57 94.67 34.60 94.00 C33.63 93.33 32.88 92.67 32.10 92.00 C31.32 91.33 30.48 90.67 29.90 90.00 C29.32 89.33 29.02 88.67 28.60 88.00 C28.18 87.33 27.77 86.67 27.40 86.00 C27.03 85.33 26.73 84.67 26.40 84.00 C26.07 83.33 25.65 82.67 25.40 82.00 C25.15 81.33 25.08 80.67 24.90 80.00 C24.72 79.33 24.47 78.67 24.30 78.00 C24.13 77.33 24.07 76.67 23.90 76.00 C23.73 75.33 23.47 74.67 23.30 74.00 C23.13 73.33 23.07 72.67 22.90 72.00 C22.73 71.33 22.32 71.33 22.30 70.00 C22.28 68.67 22.62 66.50 22.80 64.00 C22.98 61.50 23.20 57.83 23.40 55.00 C23.60 52.17 23.73 48.90 24.00 47.00 C24.27 45.10 24.33 44.40 25.00 43.60 C25.67 42.80 20.17 42.43 28.00 42.20 Z", "outline": "M77.20 64.00 C77.32 66.50 77.35 68.67 77.30 70.00 C77.25 71.33 77.03 71.33 76.90 72.00 C76.77 72.67 76.67 73.33 76.50 74.00 C76.33 74.67 76.10 75.33 75.90 76.00 C75.70 76.67 75.50 77.33 75.30 78.00 C75.10 78.67 74.88 79.33 74.70 80.00 C74.52 80.67 74.42 81.33 74.20 82.00 C73.98 82.67 73.70 83.33 73.40 84.00 C73.10 84.67 72.77 85.33 72.40 86.00 C72.03 86.67 71.65 87.33 71.20 88.00 C70.75 88.67 70.32 89.33 69.70 90.00 C69.08 90.67 68.25 91.33 67.50 92.00 C66.75 92.67 66.17 93.33 65.20 94.00 C64.23 94.67 62.80 95.50 61.70 96.00 C60.60 96.50 60.55 96.73 58.60 97.00 C56.65 97.27 52.87 97.60 50.00 97.60 C47.13 97.60 43.42 97.27 41.40 97.00 C39.38 96.73 39.03 96.50 37.90 96.00 C36.77 95.50 35.57 94.67 34.60 94.00 C33.63 93.33 32.88 92.67 32.10 92.00 C31.32 91.33 30.48 90.67 29.90 90.00 C29.32 89.33 29.02 88.67 28.60 88.00 C28.18 87.33 27.77 86.67 27.40 86.00 C27.03 85.33 26.73 84.67 26.40 84.00 C26.07 83.33 25.65 82.67 25.40 82.00 C25.15 81.33 25.08 80.67 24.90 80.00 C24.72 79.33 24.47 78.67 24.30 78.00 C24.13 77.33 24.07 76.67 23.90 76.00 C23.73 75.33 23.47 74.67 23.30 74.00 C23.13 73.33 23.07 72.67 22.90 72.00 C22.73 71.33 22.32 71.33 22.30 70.00 C22.28 68.67 22.62 66.50 22.80 64.00", "parts": ["M22.80 64.00 C22.98 61.50 23.20 57.83 23.40 55.00 C23.60 52.17 23.73 48.90 24.00 47.00", "M24.00 47.00 C24.27 45.10 24.33 44.40 25.00 43.60 C25.67 42.80 20.17 42.43 28.00 42.20 H42.25", "M42.25 42.2 H57.45", "M57.45 42.2 H72 C79.83 42.43 74.33 42.80 75.00 43.60 C75.67 44.40 75.73 45.10 76.00 47.00", "M76.00 47.00 C76.27 48.90 76.40 52.17 76.60 55.00 C76.80 57.83 77.08 61.50 77.20 64.00"]};
 const playFist = () => {
   const show = document.createElement('div');
   show.className = 'exodiaShow';
   show.setAttribute('aria-hidden', 'true');
   show.innerHTML = `<div class="exFly"><div class="exHand">
     ${FIST.map(([clip]) => `<i class="exWin" style="clip-path:polygon(${clip})"><i class="exImg"></i></i>`).join('')}
-    <svg class="exFist" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${FIST_PATH}"/></svg>
+    <svg class="exFist" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="exFistFill" d="${FIST_PATH.fill}"/><path class="exFistLine" d="${FIST_PATH.outline}"/>${FIST_PATH.parts.map((part) => `<path class="exFistLine exFistPart" d="${part}"/>`).join('')}</svg>
     <i class="exFull"></i>
-    ${FIST_LABELS.map((label) => `<b class="exLabel">${label}</b>`).join('')}
     <i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
-  </div></div>`;
+  </div>
+  <div class="exBars">${FIST_LABELS.map((label) => `<div><span>${label}</span><i><b></b></i></div>`).join('')}</div></div>`;
   document.body.append(show);
   const hand = show.querySelector('.exHand');
   hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out', fill: 'backwards' });
+  const parts = show.querySelectorAll('.exFistPart');
+  const bars = show.querySelectorAll('.exBars > div');
   show.querySelectorAll('.exImg').forEach((image, index) => {
     const [, x, y] = FIST[index];
     const thumb = index === 0 || index === 4;
     image.animate([
       { transform: `translate(${x}%, ${y}%)${thumb ? ` rotate(${index === 0 ? 12 : -12}deg)` : ''}` },
       { transform: 'none' },
-    ], { duration: 520, delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.35, 0.45, 1)', fill: 'backwards' });
+    ], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.3, 0.45, 1)', fill: 'backwards' });
+    parts[index].animate([{ opacity: 1 }, { opacity: 0 }], { duration: FIST_DURATION[index] * 0.45, delay: FIST_OPEN[index] + 60, easing: 'ease-out', fill: 'both' });
+    bars[index].querySelector('b').animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)', fill: 'both' });
+    bars[index].animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 200, delay: FIST_OPEN[index], fill: 'both' });
+    bars[index].querySelector('span').animate([{ transform: 'none', color: 'var(--text)' }, { transform: 'scale(1.18)', color: 'var(--clay)', offset: 0.35 }, { transform: 'none', color: 'var(--text)' }], { duration: Math.max(560, FIST_DURATION[index]), delay: FIST_OPEN[index], easing: 'ease-out' });
   });
-  show.querySelectorAll('.exLabel').forEach((label, index) => {
-    const next = FIST_OPEN[index + 1] ?? FIST_TIMES.eye;
-    label.animate([
-      { opacity: 0, transform: 'translate(-50%, 10px)' },
-      { opacity: 1, transform: 'translate(-50%, 0)', offset: 0.35 },
-      { opacity: 1, transform: 'translate(-50%, 0)', offset: 0.75 },
-      { opacity: 0, transform: 'translate(-50%, -10px)' },
-    ], { duration: next - FIST_OPEN[index] + 80, delay: FIST_OPEN[index], easing: 'ease-out', fill: 'both' });
-  });
-  show.querySelector('.exFull').animate([{ clipPath: 'circle(0% at 50% 66%)' }, { clipPath: 'circle(80% at 50% 66%)' }], { duration: 480, delay: FIST_TIMES.eye, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', fill: 'both' });
+  show.querySelector('.exFull').animate([{ clipPath: 'circle(10% at 50% 66%)', opacity: 0 }, { opacity: 1, offset: 0.4 }, { clipPath: 'circle(80% at 50% 66%)', opacity: 1 }], { duration: 520, delay: FIST_TIMES.eye, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', fill: 'both' });
   const timers = [];
   const finish = () => {
     timers.forEach(clearTimeout);
