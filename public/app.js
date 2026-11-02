@@ -416,8 +416,9 @@ const parseChunk = (chunk) => {
   }
   const loose = numbers.match(/^(\d+(?:[.,]\d+)?)\s*(?:for|x)\s+(.+)$/);
   if (loose) {
-    const reps = loose[2].split(/,|\band\b|\boch\b|\s+/).map((part) => part.trim()).filter((part) => /^\d+$/.test(part));
-    if (reps.length > 0) return { name, sets: reps.map((count) => ({ kg: loose[1].replace(',', '.'), reps: count })) };
+    const parts = loose[2].split(/,|\band\b|\boch\b|\s+/).map((part) => part.trim()).filter(Boolean);
+    const reps = parts.filter((part) => /^\d+$/.test(part));
+    if (reps.length > 0 && reps.length === parts.length) return { name, sets: reps.map((count) => ({ kg: loose[1].replace(',', '.'), reps: count })) };
   }
   return null;
 };
@@ -459,13 +460,19 @@ const priorSets = (name, date) => state.sessions
   .map((set) => ({ kg: Number(set.kg), reps: Number(set.reps) }));
 const singleBefore = (name, date) => Math.max(Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg));
 
+const earlierToday = (name, date, set) => {
+  const sets = (sessionFor(date)?.exercises || []).filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets);
+  return sets.slice(0, Math.max(0, sets.indexOf(set))).filter((other) => !other.warmup).map((other) => ({ kg: Number(other.kg), reps: Number(other.reps) }));
+};
+
 const prKind = (name, date, set) => {
   const kg = Number(set.kg);
   const reps = Number(set.reps);
   if (set.warmup || set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
-  const before = priorSets(name, date);
-  if (before.length === 0 && !state.bests?.[name]) return null;
-  if (reps === 1) return kg > singleBefore(name, date) ? 'max' : null;
+  const today = earlierToday(name, date, set);
+  const before = [...priorSets(name, date), ...today];
+  if (priorSets(name, date).length === 0 && !state.bests?.[name]) return null;
+  if (reps === 1) return kg > Math.max(singleBefore(name, date), ...today.filter((other) => other.reps === 1).map((other) => other.kg)) ? 'max' : null;
   return before.some((previous) => previous.reps >= reps && previous.kg >= kg) ? null : 'rep';
 };
 
@@ -524,6 +531,7 @@ const renderBars = (pieces) => pieces.map((piece) => `
     <div class="track"><div class="fill" style="width:${Math.min(100, Math.round((piece.done / piece.target) * 100))}%"></div></div>
   </div>`).join('');
 
+const BIG_THREE = ['Bench Press', 'Squat', 'Deadlift'];
 const BIG_LIFTS = ['Bench Press', 'Pause Bench Press', 'Close-Grip Bench Press', 'Squat', 'Front Squat', 'Pause Squat', 'Deadlift', 'Sumo Deadlift'];
 
 const topSets = (session) => session.exercises
@@ -540,12 +548,12 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   const rows = exercise.sets.map((set, setIndex) => {
     const kg = Number(set.kg);
     const reps = Number(set.reps);
-    const value = set.kg !== '' && set.reps !== '' && reps > 0 ? setEstimate(set) : 0;
+    const value = set.kg !== '' && set.reps !== '' && reps > 0 ? estimate(kg, reps + repsInTank(set)) : 0;
     const percent = best && value ? Math.round((value / best) * 100) : 0;
     const pr = prKind(exercise.name, session.date, set);
     const label = `${esc(exercise.name)}, set ${setIndex + 1}`;
     const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}"`;
-    return `<div class="swipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
+    return `<div class="swipe setSwipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
       ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${setIndex + 1}</span>`}
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${setIndex}" data-field="kg">
       <span class="unit">kg</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
@@ -565,22 +573,42 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 
 const renderPending = (pending) => `<div class="ghost" role="status"><span class="ghostText">Adding “${esc(pending.label)}”</span><span class="shimmer"></span><span class="shimmer short"></span></div>`;
 
+const KINDS = { legs: 'Leg day', pull: 'Pull day', push: 'Push day', arms: 'Arm day' };
+const dayKind = (session) => {
+  if (session.label) return session.label[0].toUpperCase() + session.label.slice(1);
+  const pieces = [...new Set(session.exercises.filter((exercise) => validSets(exercise).length).map((exercise) => libraryEntry(exercise.name)?.piece).filter(Boolean))];
+  if (pieces.length === 1) return KINDS[pieces[0]];
+  if (pieces.length > 1) return pieces.slice(0, 2).map((piece) => piece[0].toUpperCase() + piece.slice(1)).join(' + ');
+  return session.cardio ? 'Cardio' : '';
+};
+
+const daySummary = (session) => {
+  const top = topSets(session)[0];
+  const others = session.exercises.length - 1 + (session.cardio && top ? 1 : 0);
+  const prs = session.exercises.filter((exercise) => exercise.sets.some((set) => prKind(exercise.name, session.date, set))).length;
+  const best = top ? bestBefore(top.name, session.date) : 0;
+  const percent = top && best ? `${Math.round((estimate(Number(top.set.kg), Number(top.set.reps) + repsInTank(top.set)) / best) * 100)}%` : '';
+  const weight = top ? `${top.set.kg} × ${top.set.reps}` : session.cardio ? `${session.cardio} min` : '';
+  return `<span class="dayLift">${top ? esc(top.name) : session.cardio ? 'Cardio' : 'Nothing logged yet'}${others > 0 ? `<span class="dayMore">+${others}</span>` : ''}</span><span>${prs ? `<span class="prPill">${prs > 1 ? `${prs} PR` : 'PR'}</span>` : ''}</span><span class="dayWeight">${weight}</span><span class="dayPct">${percent}</span>`;
+};
+
 const renderSession = (session) => {
   const pendings = view.pending.filter((pending) => pending.date === session.date);
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
-  const summary = [...topSets(session).map(({ name, set }) => `${name} ${set.kg} × ${set.reps}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join(' · ');
   return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}" id="session-${session.date}">
     <div class="headRow">
       <button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
-        <span class="headName">${dayLabel(session.date)}</span>
+        <span class="headName dayDate">${dayLabel(session.date)}</span>
+        ${open ? '' : `<span class="dayKind">${esc(dayKind(session))}</span>`}
         <span class="meta num">${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}</span>
       </button>
       ${open ? `<button class="editBtn" data-action="edit-day" data-date="${session.date}">${editing ? 'Done' : 'Edit'}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
     ${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
+      <button class="textBtn" data-action="log-day" data-date="${session.date}">Open in Log</button>
       <label class="sr" for="label-${session.date}">Name this day</label><input id="label-${session.date}" class="pill dayLabelInput" placeholder="Name this day" value="${esc(session.label || '')}" data-day-label="${session.date}">
       <p class="dayMenuLabel">Move to</p>
       <div class="days scroll">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
@@ -594,7 +622,8 @@ const renderSession = (session) => {
       <div class="foot">
         <span class="unit" style="margin-right:auto">Accessories</span>
         ${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${session.accessories === minutes}"><span class="chipFace">${label}</span></button>`).join('')}
-      </div>` : `<button class="summary num" data-action="toggle-session" data-date="${session.date}" tabindex="-1" aria-hidden="true">${esc(summary || 'Nothing logged yet')}</button>`}
+      </div>
+      ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<button class="daySummary num" data-action="toggle-session" data-date="${session.date}" tabindex="-1" aria-hidden="true">${daySummary(session)}</button>`}
   </section>`;
 };
 
@@ -614,17 +643,17 @@ const renderHome = () => {
   const hour = new Date().getHours();
   const greeting = hour < 5 ? 'Late session?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const sessions = sortedSessions().filter((session) => session.exercises.length > 0 || session.cardio > 0);
-  return `<main class="page">
+  return `<main class="page homePage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">${state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
     <section class="card${view.exodiaOpen ? ' open' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
         <span class="headName">Exodia</span>
+        <span class="exodiaHits num" aria-label="Exodia hit ${exodiaHistory().hits} times">${exodiaHistory().hits}</span>
         <span class="meta num">${complete === 5 ? 'Complete' : complete + ' of 5'} · ${tonnes(weekVolume)}</span>
         ${ICONS.chev}
       </button>
       <button class="bars" data-action="toggle-exodia" tabindex="-1" aria-hidden="true">${renderBars(pieces)}</button>
-      <div class="exodiaCount"><span>Exodia count</span><span class="num">${exodiaHistory().hits}</span></div>
       ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 85% of your best. Last 7 days, any program.</p></div>` : ''}
     </section>
     <p class="section">Sessions</p>
@@ -721,8 +750,10 @@ const renderTrends = () => {
     }
   }
   const names = [...history.keys()].sort((first, second) => history.get(second).at(-1).date.localeCompare(history.get(first).at(-1).date));
-  if (view.trendOpen === null && names.length) view.trendOpen = names[0];
-  const cards = names.map((name) => {
+  const big = BIG_THREE.filter((name) => history.has(name));
+  const rest = names.filter((name) => !big.includes(name));
+  if (view.trendOpen === null && names.length) view.trendOpen = big[0] || names[0];
+  const card = (name) => {
     const all = history.get(name);
     const open = view.trendOpen === name;
     const best = bestOverall(name);
@@ -731,7 +762,7 @@ const renderTrends = () => {
     const lifted = heaviestLifted(name);
     const last = all.at(-1);
     const lastTop = last.sets.reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) || (Number(set.kg) === Number(winner.kg) && Number(set.reps) > Number(winner.reps)) ? set : winner), null);
-    return `<section class="card${open ? ' open' : ''}">
+    return `<section class="card${open ? ' open' : ''}" data-trend="${esc(name)}">
       <button class="head" data-action="toggle-trend" data-name="${esc(name)}" aria-expanded="${open}">
         <span class="headName">${esc(name)}</span>
         <span class="meta num">${Math.round(best)} kg</span>
@@ -739,9 +770,9 @@ const renderTrends = () => {
       </button>
       ${open ? `
         <div class="tiles">
-          <div class="tile"><p class="tileValue num" style="color:var(--clayText)">${lifted ? lifted.kg : '–'}<small>${lifted ? ` × ${lifted.reps}` : ''}</small></p><p class="tileLabel">Best lifted</p></div>
-          <div class="tile"><p class="tileValue num">${Math.round(best)}<small> kg</small></p><p class="tileLabel">Est. 1RM ${infoButton()}</p></div>
-          <button class="tile" data-action="jump-session" data-date="${last.date}" aria-label="Latest top set ${lastTop.kg} × ${lastTop.reps}, open ${dayLabel(last.date)}"><p class="tileValue num">${lastTop.kg}<small> × ${lastTop.reps}</small></p><p class="tileLabel">Latest top set<br>${dayLabel(last.date)}</p></button>
+          <div class="tile"><p class="tileValue num">${lifted ? lifted.kg : '–'}<small>${lifted ? ` × ${lifted.reps}` : ''}</small></p><p class="tileLabel">Best lifted</p><p class="tileSub">All time</p></div>
+          <div class="tile"><p class="tileValue num">${Math.round(best)}<small> kg</small></p><p class="tileLabel">Est. 1RM ${infoButton()}</p><p class="tileSub">All time</p></div>
+          <button class="tile" data-action="jump-session" data-date="${last.date}" aria-label="Latest top set ${lastTop.kg} × ${lastTop.reps}, open ${dayLabel(last.date)}"><p class="tileValue num">${lastTop.kg}<small> × ${lastTop.reps}</small></p><p class="tileLabel">Latest top set</p><p class="tileSub">${dayLabel(last.date)}</p></button>
         </div>
         ${view.info ? ESTIMATE_INFO : ''}
         <div class="chartHead">
@@ -751,11 +782,13 @@ const renderTrends = () => {
         ${points.length ? chartFor(points) : '<p class="empty">No sessions in this range.</p>'}
 ` : `<p class="summary num">${all.length} ${all.length === 1 ? 'session' : 'sessions'} · last ${dayLabel(last.date)}</p>`}
     </section>`;
-  }).join('');
-  return `<main class="page">
+  };
+  return `<main class="page trendsPage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
-    <div class="list" style="margin-top:20px">${cards || '<p class="empty">Log a few sessions and your trends show up here.</p>'}</div>
+    ${names.length ? '' : '<p class="empty" style="margin-top:20px">Log a few sessions and your trends show up here.</p>'}
+    ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : ''}
+    ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
   </main>`;
 };
 
@@ -770,16 +803,45 @@ const rawDetails = (raw) => {
   return `<details class="rawBox"><summary>Raw command</summary><pre class="raw">${esc(pretty)}</pre></details>`;
 };
 
-const chatEntry = ({ at, who, said, heard, did, raw, fixIndex }) => `<div class="chatItem">
-  <p class="chatTime">${new Date(at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${who ? ` · ${esc(who)}` : ''}</p>
-  <div class="bubbleIn">${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}</div>
-  <div class="bubbleOut"><p>${esc(did)}</p>${rawDetails(raw)}${fixIndex === undefined ? '' : `<button class="textBtn" data-action="fix-log" data-index="${fixIndex}">Fix this</button>`}</div>
+const OFF_LINE = /^(Not logged|Didn't understand)/;
+const chatStamp = (at, before) => {
+  const time = new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const day = isoDate(new Date(at));
+  if (!before || isoDate(new Date(before)) !== day) return `${dayLabel(day)} · ${time}`;
+  return at - before > 1800000 ? time : '';
+};
+
+const chatEntry = ({ stamp, who, said, heard, did, raw, fixIndex, voiceId, compact }) => {
+  const lines = [].concat(did);
+  const failed = OFF_LINE.test(lines[0] || '');
+  const off = lines.some((line) => OFF_LINE.test(line));
+  const youSaid = `${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}${off && fixIndex !== undefined ? `<span class="bubbleHint">${failed ? 'Didn’t go through' : 'Partly logged'} · tap to edit</span>` : ''}`;
+  return `<div class="chatItem${off ? ' off' : ''}">
+  ${stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
+  ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
+  <div class="bubbleOut"><p>${esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Retry voice note</button>` : ''}</div>
 </div>`;
+};
+
+const chatList = (entries, compact) => entries.map(({ entry, index }, position) => chatEntry({ ...entry, stamp: chatStamp(entry.at, entries[position - 1]?.entry.at), fixIndex: index, compact })).join('');
+
+const logMatchesDay = (entry, date) => (entry.raw || '').includes(date) || entry.did.some((line) => line.includes(dayLabel(date)));
+
+const renderDayNow = (date) => {
+  const session = sessionFor(date);
+  return `<section class="card dayNow">
+    <p class="dayNowTitle">${dayLabel(date)} right now</p>
+    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">Cardio</span><span class="dayNowSets num">${session.cardio} min</span></div>` : ''}${session.accessories ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${session.accessories} min</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
+    <p class="dayNowHint">Say or type what's wrong. Changes go to this day.</p>
+  </section>`;
+};
 
 const renderLog = () => `<main class="page">
     <p class="eyebrow">What you said, and what Exodia did</p>
     <h1 class="title">Log</h1>
-    <div class="chat">${(state.log || []).map((entry, index) => ({ entry, index })).reverse().map(({ entry, index }) => chatEntry({ at: entry.at, said: entry.said, heard: entry.heard, did: entry.did.join(' · '), raw: entry.raw, fixIndex: index })).join('') || '<p class="empty">Say or type something in the box below and it shows up here.</p>'}</div>
+    ${view.logDate ? `<p class="logFilter">Showing ${dayLabel(view.logDate)}<button class="textBtn" data-action="log-all">Show all</button></p>` : ''}
+    <div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).filter(({ entry }) => !view.logDate || logMatchesDay(entry, view.logDate)).reverse(), false) || '<p class="empty">Say or type something in the box below and it shows up here.</p>'}</div>
+  ${view.logDate ? renderDayNow(view.logDate) : ''}
   </main>`;
 
 const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
@@ -810,7 +872,7 @@ const renderAdmin = () => {
   return `<main class="page">
     <p class="eyebrow">Every command from everyone, only visible to you</p>
     <h1 class="title">Admin</h1>
-    <div class="chat">${view.adminRows.slice().reverse().map((row) => chatEntry(row)).join('') || '<p class="empty">No commands yet.</p>'}</div>
+    <div class="chat">${view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at) })).join('') || '<p class="empty">No commands yet.</p>'}</div>
   </main>`;
 };
 
@@ -913,31 +975,67 @@ const renderPicks = () => {
     ${query && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
 
-const renderTray = (enter = false) => `<div class="tray${enter ? ' enter' : ''}" role="group" aria-label="Add an exercise">
-  <div class="days scroll" role="group" aria-label="Day">${Array.from({ length: 14 }, (unused, index) => addDays(todayIso(), -index)).map((iso) => `<button class="chip" data-action="composer-day" data-date="${iso}" aria-pressed="${(view.composerDate || todayIso()) === iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
-  <div class="picks scroll">${renderPicks()}</div>
+const nameQuery = () => {
+  const text = view.draft.trim();
+  return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
+};
+
+const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div></div>`).join('');
+
+const sheetBody = () => (nameQuery()
+  ? `<div class="picks">${renderPicks()}</div>`
+  : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}${state.log?.length || view.pending.length ? '' : '<p class="empty">Say or type what you did. It shows up here, and you can tap a message to fix it.</p>'}</div>`);
+
+const renderSheet = () => `<div class="sheet" role="group" aria-label="Chat">
+  <button class="grabber" data-action="close-chat" aria-label="Close chat"></button>
+  <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : 'chat'}">${sheetBody()}</div>
 </div>`;
 
+const openChat = () => {
+  if (!view.composer) view.trayEnter = true;
+  view.composer = true;
+  if (!view.composerDate) view.composerDate = todayIso();
+};
+
+const scrollChat = () => {
+  const body = document.querySelector('.sheetBody');
+  if (body) body.scrollTop = body.scrollHeight;
+};
+
+const animateChat = (opening) => {
+  const dock = document.querySelector('.dock');
+  const sheet = dock?.querySelector('.sheet');
+  if (!sheet || reducedMotion.matches) return Promise.resolve();
+  const hidden = `inset(${sheet.offsetHeight + 8}px 0px 0px 0px round 20px 20px 0px 0px)`;
+  const shown = 'inset(0px 0px 0px 0px round 20px 20px 0px 0px)';
+  const timing = opening ? { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' } : { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' };
+  document.querySelector('.chatScrim')?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: timing.duration, direction: opening ? 'normal' : 'reverse', fill: 'forwards' });
+  sheet.querySelector('.sheetBody').animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { ...timing, direction: opening ? 'normal' : 'reverse' });
+  return dock.animate(opening ? [{ clipPath: hidden }, { clipPath: shown }] : [{ clipPath: shown }, { clipPath: hidden }], timing).finished.catch(() => null);
+};
+
 const promptButtons = () => {
-  if (view.listening) return `<div class="promptButtons"><button class="roundBtn ghost" data-action="stop-mic" aria-label="Stop listening">${ICONS.stop}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button></div>`;
+  if (view.listening) return `<div class="promptButtons"><button class="roundBtn stopBtn" data-action="stop-mic" aria-label="Stop listening">${ICONS.stop}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button></div>`;
   const hasText = view.draft.trim().length > 0 || Boolean(view.voiceBlob);
   return `<div class="promptButtons">${hasText
     ? `<button class="roundBtn ghost" data-action="mic" aria-label="Speak">${ICONS.mic}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button>`
     : `<button class="roundBtn send" data-action="mic" aria-label="Speak">${ICONS.mic}</button>`}</div>`;
 };
 
-const renderDock = () => `<div class="dock">
-  ${view.composer ? renderTray(view.trayEnter) : ''}
+const renderDock = () => `<div class="dock${view.composer ? ' open' : ''}">
+  ${view.composer ? renderSheet() : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
+  ${view.fixing ? `<p class="dockStatus editing">Fixing an earlier note: change the words, then send<button class="clearEdit" data-action="clear-edit" aria-label="Stop fixing">×</button></p>` : ''}
+  ${view.composerDate && view.composerDate !== todayIso() && !view.editContext && !view.fixing ? `<p class="dockStatus editing">Adding to ${dayLabel(view.composerDate)}<button class="clearEdit" data-action="clear-day" aria-label="Add to today instead">×</button></p>` : ''}
   ${view.editContext ? `<p class="dockStatus editing">Editing ${esc(view.editContext.names.join(', ') || 'workout')} · ${dayLabel(view.editContext.date)}<button class="clearEdit" data-action="clear-edit" aria-label="Stop editing">×</button></p>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : view.heard ? `<p class="dockStatus heard">Heard: “${esc(view.heard)}”</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}">
     <label for="draft" class="sr">Type or say what you did</label>
     <textarea id="draft" class="promptInput" rows="1" enterkeyhint="send" autocomplete="off">${esc(view.draft)}</textarea>
     ${view.listening
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
-    <div class="promptBar">${view.listening ? `<span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : '<span class="modelTag">Exodia</span>'}${promptButtons()}</div>
+    <div class="promptBar">${view.listening ? `<button class="roundBtn ghost" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : '<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>'}${promptButtons()}</div>
   </div>
 </div>`;
 
@@ -947,22 +1045,40 @@ const fitDraft = (draft) => {
 };
 
 const syncDock = () => {
-  const prompt = document.querySelector('.dock .prompt');
+  const dock = document.querySelector('.dock');
+  const prompt = dock?.querySelector('.prompt');
   if (!prompt) return;
   prompt.classList.toggle('hasText', view.draft.trim().length > 0);
   prompt.querySelector('.promptButtons').outerHTML = promptButtons();
-  const tray = document.querySelector('.dock .tray');
-  if (view.composer && (!tray || tray.classList.contains('leaving'))) {
-    tray?.remove();
-    prompt.parentElement.insertAdjacentHTML('afterbegin', renderTray(true));
-  }
-  else if (view.composer) tray.querySelector('.picks').innerHTML = renderPicks();
-  else if (tray && !tray.classList.contains('leaving')) {
-    tray.classList.add('leaving');
-    setTimeout(() => {
-      tray.remove();
+  const sheet = dock.querySelector('.sheet');
+  if (view.composer && (!sheet || sheet.classList.contains('leaving'))) {
+    sheet?.remove();
+    document.querySelector('.chatScrim')?.remove();
+    dock.getAnimations().forEach((animation) => animation.cancel());
+    dock.classList.add('open');
+    dock.insertAdjacentHTML('afterbegin', renderSheet());
+    dock.insertAdjacentHTML('beforebegin', '<div class="chatScrim"></div>');
+    tuckCards();
+    scrollChat();
+    animateChat(true);
+  } else if (view.composer) {
+    const body = sheet.querySelector('.sheetBody');
+    const mode = nameQuery() ? `q:${nameQuery()}` : 'chat';
+    if (body.dataset.mode !== mode) {
+      body.dataset.mode = mode;
+      body.innerHTML = sheetBody();
+      scrollChat();
+    }
+  } else if (sheet && !sheet.classList.contains('leaving')) {
+    sheet.classList.add('leaving');
+    animateChat(false).then(() => {
+      if (view.composer || !sheet.isConnected) return;
+      sheet.remove();
+      document.querySelector('.chatScrim')?.remove();
+      dock.classList.remove('open');
+      dock.getAnimations().forEach((animation) => animation.cancel());
       tuckCards();
-    }, 140);
+    });
   }
   tuckCards();
 };
@@ -998,10 +1114,19 @@ const tickTypewriter = () => {
   setTimeout(tickTypewriter, delay);
 };
 
+const setVar = (name, value) => {
+  if (document.documentElement.style.getPropertyValue(name) !== value) document.documentElement.style.setProperty(name, value);
+};
+
 const tuckCards = () => {
   const dock = document.querySelector('.dock');
   if (!dock) return;
-  const line = dock.getBoundingClientRect().top;
+  const sheet = dock.querySelector('.sheet');
+  const box = dock.offsetHeight - (sheet ? sheet.offsetHeight + 8 : 0);
+  setVar('--dock-h', `${box}px`);
+  const screen = window.visualViewport?.height || window.innerHeight;
+  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, screen - box - (desktopQuery.matches ? 64 : Math.max(120, screen * 0.24)))))}px`);
+  const line = dock.getBoundingClientRect().bottom - box;
   for (const card of document.querySelectorAll('.page .card')) {
     const box = card.getBoundingClientRect();
     const shown = line - box.top;
@@ -1010,14 +1135,17 @@ const tuckCards = () => {
 };
 window.addEventListener('scroll', () => requestAnimationFrame(tuckCards), { passive: true });
 window.addEventListener('resize', tuckCards);
+window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(tuckCards));
 
 const render = () => {
   const app = document.getElementById('app');
   const focused = document.activeElement;
   const draftFocused = focused && focused.id === 'draft';
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
+  const oldBody = document.querySelector('.sheetBody');
+  const chatScroll = oldBody && oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40 ? oldBody.scrollTop : null;
   const page = view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
-  const dock = renderDock();
+  const dock = `${view.composer ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
@@ -1038,16 +1166,25 @@ const render = () => {
     fitDraft(draft);
     if (draftFocused || view.focusDraft) {
       draft.focus();
-      const [start, end] = caret || [draft.value.length, draft.value.length];
+      const [start, end] = view.selectDraft ? [0, draft.value.length] : caret || [draft.value.length, draft.value.length];
       draft.setSelectionRange(start, end);
     }
   }
   view.focusDraft = false;
-  view.trayEnter = false;
+  view.selectDraft = false;
   view.opening = null;
   view.menuEnter = false;
   view.rulesEnter = false;
   tuckCards();
+  const body = document.querySelector('.sheetBody');
+  if (body) body.scrollTop = chatScroll ?? body.scrollHeight;
+  if (view.trayEnter) animateChat(true);
+  view.trayEnter = false;
+  if (view.trendScroll && view.route === 'trends') {
+    const card = [...document.querySelectorAll('[data-trend]')].find((item) => item.dataset.trend === view.trendScroll);
+    view.trendScroll = null;
+    if (card) requestAnimationFrame(() => card.scrollIntoView({ block: 'start' }));
+  }
   if (view.scrollTarget) {
     const card = document.getElementById(`session-${view.scrollTarget}`);
     view.scrollTarget = null;
@@ -1065,6 +1202,20 @@ const closeComposer = () => {
 };
 
 let recording = null;
+
+const voiceStore = (mode, run) => new Promise((resolve, reject) => {
+  const open = indexedDB.open('exodia-voice', 1);
+  open.onupgradeneeded = () => open.result.createObjectStore('notes');
+  open.onerror = () => reject(open.error);
+  open.onsuccess = () => {
+    const request = run(open.result.transaction('notes', mode).objectStore('notes'));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  };
+});
+const keepVoice = (id, blob) => voiceStore('readwrite', (store) => store.put(blob, id)).catch(() => null);
+const loadVoice = (id) => voiceStore('readonly', (store) => store.get(id)).catch(() => null);
+const dropVoice = (id) => voiceStore('readwrite', (store) => store.delete(id)).catch(() => null);
 const liveLine = () => view.live || (view.speaking ? 'Hearing you…' : 'Listening…');
 
 const startLiveText = () => {
@@ -1134,6 +1285,7 @@ const watchLevel = (stream, context) => {
 };
 
 const startListening = async () => {
+  if (!desktopQuery.matches) document.activeElement?.blur();
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     view.status = 'Use the mic on your keyboard.';
     view.focusDraft = true;
@@ -1162,12 +1314,13 @@ const startListening = async () => {
     };
   });
   recorder.start();
-  recording = { recorder, context, done, frame: 0, timer: setTimeout(send, 240000) };
+  recording = { recorder, context, done, frame: 0, timer: setTimeout(send, 360000) };
   watchLevel(stream, context);
   view.live = '';
   startLiveText();
   view.listening = true;
   view.status = '';
+  openChat();
   render();
 };
 
@@ -1339,7 +1492,9 @@ const describeRemoval = (result) => (result.remove || []).map((target) => {
 }).join(', ');
 
 const addLog = (said, did, extra = {}) => {
-  state.log = [{ at: Date.now(), said: String(said || '').slice(0, 300), did, ...extra }, ...(state.log || [])].slice(0, 30);
+  const replaced = view.replacing;
+  view.replacing = null;
+  state.log = [{ at: Date.now(), said: String(said || '').slice(0, 300), did, ...extra }, ...(state.log || []).filter((entry) => entry.at !== replaced)].slice(0, 30);
   save();
 };
 
@@ -1362,7 +1517,17 @@ const applyResult = (result, date, said, heard = '') => {
     did.push(describeAdd(result, day));
     showAdded(result, day);
   } else view.scrollTarget = null;
-  if (did.length === 0) throw new Error('Nothing to log in that. Fix it and send again.');
+  if (result.accessoriesMinutes) {
+    const day = result.date || date;
+    const session = sessionFor(day) || ensureSession(day);
+    session.accessories = result.accessoriesMinutes;
+    save();
+    did.push(`Accessories ${result.accessoriesMinutes} min on ${dayLabel(day)}`);
+  }
+  if (did.length === 0) throw new Error(result.unclear ? `Didn't understand: ${result.unclear}.` : 'Nothing to log in that. Fix it and send again.');
+  if (result.unclear) {
+    did.push(`Didn't understand: ${result.unclear}`);
+  }
   if (!view.toast) note(did[0], did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices');
   addLog(said, did, { heard: heard.slice(0, 300), raw: JSON.stringify(result).slice(0, 1500) });
 };
@@ -1396,14 +1561,7 @@ const land = (result, date) => {
   }, 1800);
 };
 
-const showHome = () => {
-  if (view.route === 'home') return;
-  history.pushState(null, '', '#/');
-  view.route = 'home';
-};
-
 const send = async () => {
-  view.heard = '';
   const recorded = recording ? await stopRecording() : view.voiceBlob;
   view.voiceBlob = null;
   const live = (view.live || '').trim();
@@ -1411,6 +1569,10 @@ const send = async () => {
   const voice = recorded?.size > 4000 ? recorded : null;
   const text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
   if (!text && !voice?.size) {
+    if (recorded) {
+      openChat();
+      addLog('Voice note', [`Not logged: no sound recorded (${Math.round(recorded.size / 1024)} KB)`]);
+    }
     render();
     return;
   }
@@ -1421,14 +1583,16 @@ const send = async () => {
     render();
     return;
   }
-  const local = !view.editContext && !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
+  const local = !view.fixing && !view.editContext && !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
   if (local) {
-    closeComposer();
-    showHome();
+    view.draft = '';
+    view.status = '';
+    if (!desktopQuery.matches) document.activeElement?.blur();
     land(local, date);
     showAdded(local, date);
     addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500) });
     render();
+    closeTray();
     return;
   }
   if (!navigator.onLine) {
@@ -1436,38 +1600,46 @@ const send = async () => {
     render();
     return;
   }
-  const pending = { date: guessDate(text, date), label: text || 'your voice note' };
+  const pending = { date: guessDate(text, date), label: text || 'your voice note', text: text || live || 'Voice note' };
   view.pending.push(pending);
-  closeComposer();
-  showHome();
+  view.draft = '';
+  view.status = '';
   view.scrollTarget = pending.date;
   render();
   let heard = '';
+  let done = false;
   try {
     const audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
-    const result = await parseWithAi(text, audio);
+    const fixing = view.fixing;
+    const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio);
     heard = result.transcript || '';
-    view.heard = voice?.size ? heard : '';
-    const said = heard || text;
+    const said = fixing ? `Fix: ${text}` : heard || text;
     if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
     else if (result.remove?.length && voice) {
       view.confirm = { result, date, said, heard, text: describeRemoval(result) };
       view.scrollTarget = null;
     } else applyResult(result, date, said, voice ? heard : '');
     view.editContext = null;
+    view.fixing = null;
+    if (view.retryVoice) dropVoice(view.retryVoice);
+    view.retryVoice = null;
+    done = !view.confirm && !result.unclear && !view.draft.trim() && !view.listening && view.pending.length === 1;
   } catch (error) {
-    view.composer = true;
     view.composerDate = date === todayIso() ? null : date;
-    view.draft = text || heard;
-    view.status = error.message;
+    openChat();
+    const voiceId = voice ? `voice-${Date.now()}` : null;
+    if (voiceId) keepVoice(voiceId, voice);
+    addLog(text || heard || live || 'Voice note', [`Not logged: ${error.message}${voice ? ` (voice ${Math.round(voice.size / 1024)} KB, saved for retry)` : ''}`], voiceId ? { voiceId } : {});
   } finally {
     view.pending = view.pending.filter((item) => item !== pending);
+    if (done && !desktopQuery.matches) document.activeElement?.blur();
     render();
+    if (done) closeTray();
   }
 };
 
 document.addEventListener('click', (event) => {
-  if (view.editDay && !event.target.closest(`#session-${view.editDay}`)) {
+  if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
     view.editDay = null;
     if (!event.target.closest('[data-action]')) {
       render();
@@ -1516,6 +1688,17 @@ document.addEventListener('click', (event) => {
   } else if (action === 'edit-day') {
     view.editDay = view.editDay === date ? null : date;
     view.menuEnter = Boolean(view.editDay);
+    view.fixing = null;
+    if (view.editDay && session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name) };
+    else if (view.editContext?.date === date) view.editContext = null;
+  } else if (action === 'log-day') {
+    view.logDate = date;
+    view.editDay = null;
+    if (session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name) };
+    location.hash = '#/log';
+    return;
+  } else if (action === 'log-all') {
+    view.logDate = null;
   } else if (action === 'move-day' && session) {
     const to = target.dataset.to;
     view.editDay = null;
@@ -1540,18 +1723,50 @@ document.addEventListener('click', (event) => {
   }
   else if (action === 'toggle-info') view.info = !view.info;
   else if (action === 'confirm-yes') answerConfirm(true);
+  else if (action === 'retry-voice') {
+    const voiceId = target.dataset.voice;
+    return loadVoice(voiceId).then((blob) => {
+      if (!blob) {
+        view.status = 'That recording is on another device, or was already sent.';
+        render();
+        return;
+      }
+      view.voiceBlob = blob;
+      view.retryVoice = voiceId;
+      return send();
+    });
+  }
   else if (action === 'edit-added' && view.toast?.edit) {
     view.editContext = view.toast.edit;
     view.composerDate = view.toast.edit.date;
     view.focusDraft = true;
     view.toast = null;
-  } else if (action === 'clear-edit') view.editContext = null;
-  else if (action === 'fix-log') {
+  } else if (action === 'clear-day') {
+    view.composerDate = todayIso();
+  } else if (action === 'clear-edit') {
+    view.editContext = null;
+    view.fixing = null;
+    view.replacing = null;
+  }
+  else if (action === 'edit-said') {
     const entry = state.log?.[Number(target.dataset.index)];
-    if (entry) {
-      view.draft = `Fix this: “${entry.said.slice(0, 120)}” (${entry.did.join('; ').slice(0, 120)}). It should be `;
-      view.focusDraft = true;
+    if (!entry) return;
+    const failed = OFF_LINE.test(entry.did[0] || '');
+    if (failed && entry.voiceId && entry.said === 'Voice note') {
+      target.closest('.chatItem').querySelector('[data-action="retry-voice"]')?.click();
+      return;
     }
+    view.fixing = failed ? null : { said: entry.said, did: entry.did.join('; ') };
+    view.replacing = failed ? entry.at : null;
+    view.editContext = null;
+    view.draft = entry.said === 'Voice note' ? '' : entry.said;
+    openChat();
+    view.focusDraft = true;
+    view.selectDraft = true;
+  }
+  else if (action === 'close-chat') {
+    closeTray();
+    return;
   }
   else if (action === 'confirm-no') answerConfirm(false);
   else if (action === 'pick-point') view.chartPick = view.chartPick === date ? null : date;
@@ -1567,6 +1782,7 @@ document.addEventListener('click', (event) => {
   else if (action === 'pick-week') view.volumeWeek = Number(target.dataset.index);
   else if (action === 'open-trend') {
     view.trendOpen = target.dataset.name;
+    view.trendScroll = target.dataset.name;
     view.menu = false;
     if (view.route !== 'trends') {
       location.hash = '#/trends';
@@ -1621,7 +1837,13 @@ document.addEventListener('click', (event) => {
       view.voiceBlob = blob?.size > 4000 ? blob : null;
       if (view.live) view.draft = [view.draft.trim(), view.live].filter(Boolean).join(' ');
       view.live = '';
-      view.focusDraft = true;
+      view.focusDraft = desktopQuery.matches;
+      render();
+    });
+  } else if (action === 'cancel-mic') {
+    return stopRecording().then(() => {
+      view.live = '';
+      view.voiceBlob = null;
       render();
     });
   } else if (action === 'send') return send();
@@ -1761,6 +1983,7 @@ const route = () => {
     return;
   }
   view.route = ['trends', 'you', 'log', 'admin'].includes(name) ? name : 'home';
+  if (view.route !== 'log') view.logDate = null;
   if (view.route === 'admin') view.adminRows = null;
   view.menu = false;
   window.scrollTo(0, 0);
@@ -1829,6 +2052,7 @@ document.addEventListener('click', (event) => {
 const closeTray = () => {
   if (!view.composer) return;
   view.composer = false;
+  if (!desktopQuery.matches && document.activeElement?.closest?.('.dock')) document.activeElement.blur();
   syncDock();
 };
 for (const type of ['wheel', 'touchmove']) {

@@ -1,5 +1,5 @@
-const MAX_TEXT = 400;
-const MAX_AUDIO = 14000000;
+const MAX_TEXT = 1500;
+const MAX_AUDIO = 16000000;
 const PROFILE_KEY = /^[a-f0-9]{32}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CHANGES = 500;
@@ -9,7 +9,7 @@ const DEFAULT_MODELS = 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-f
 const PROMPT = `You turn a lifter's spoken or typed workout note into JSON.
 Weights are kilograms. Return only sets that were actually done.
 "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps.
-"warm up 100 6, 140 4" means warm-up sets; keep them and set warmup true. If they say they warmed up or worked up plate by plate without exact numbers, add warm-up sets below the first working weight in steps of one 20 kg plate per side (40 kg), starting at 60 kg, with fewer reps as it gets heavier (60x6, 100x4, 140x2, 180x1 style), and copy their usual warm-ups from the recent log if it has any. Reps in reserve N is the same as rpe 10 minus N: "3 in reserve" is rpe 7.
+"warm up 100 6, 140 4" means warm-up sets; keep them and set warmup true. Never invent warm-up sets: add them only when the user says they warmed up or worked up. If they say they warmed up or worked up plate by plate without exact numbers, add warm-up sets below the first working weight in steps of one 20 kg plate per side (40 kg), starting at 60 kg, with fewer reps as it gets heavier (60x6, 100x4, 140x2, 180x1 style), and copy their usual warm-ups from the recent log if it has any. Reps in reserve N means rpe 10 minus N, never rpe N: "3 in reserve" is rpe 7, "8 reps in reserve" is rpe 2. Accessory work in minutes ("30 minutes of accessories") goes in accessoriesMinutes. For lifts measured in lengths, distance or time (sled drag, sled push, farmer's walk, carries), log kg as the load and reps as the number of lengths or rounds. If part of the note cannot be logged at all, put that part, in the user's words, in unclear, and still log everything else.
 "effort 70%" or "felt light" can become rpe (70% effort is about rpe 7).
 Bodyweight exercises use kg 0, or the added weight.
 Running, cycling, walking or other cardio goes in cardioMinutes.
@@ -41,6 +41,8 @@ const SCHEMA = {
       }
     },
     cardioMinutes: { type: 'INTEGER' },
+    accessoriesMinutes: { type: 'INTEGER' },
+    unclear: { type: 'STRING' },
     date: { type: 'STRING' },
     transcript: { type: 'STRING' },
     label: { type: 'STRING' },
@@ -83,7 +85,17 @@ const clean = (raw, today) => {
     .filter((item) => DATE.test(item?.from ?? '') && DATE.test(item?.to ?? '') && item.from !== item.to)
     .slice(0, 10)
     .map((item) => ({ from: item.from, to: item.to, ...(typeof item.exercise === 'string' && item.exercise.trim() ? { exercise: item.exercise.trim().slice(0, 60) } : {}) }));
-  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(label ? { label } : {}), ...(valid ? { date } : {}) };
+  const accessoriesMinutes = Math.min(300, Math.max(0, Math.round(Number(raw?.accessoriesMinutes) || 0)));
+  const unclear = typeof raw?.unclear === 'string' ? raw.unclear.trim().slice(0, 300) : '';
+  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
+};
+
+const logCommand = (request, env, ctx, body, said, result) => {
+  const profile = request.headers.get('x-exodia-key') ?? '';
+  ctx.waitUntil(env.DB.prepare('INSERT INTO commands (at, profile, name, said, result) VALUES (?, ?, ?, ?, ?)')
+    .bind(Date.now(), PROFILE_KEY.test(profile) ? profile.slice(0, 6) : 'unknown', typeof body?.name === 'string' ? body.name.slice(0, 40) : '', String(said || '').slice(0, 500), JSON.stringify(result).slice(0, 4000))
+    .run()
+    .catch(() => {}));
 };
 
 const parse = async (request, env, ctx) => {
@@ -91,8 +103,11 @@ const parse = async (request, env, ctx) => {
   const body = await request.json().catch(() => null);
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
   const audio = typeof body?.audio === 'string' && /^[A-Za-z0-9+/=]+$/.test(body.audio) ? body.audio : '';
-  if (text.length > MAX_TEXT) return json({ error: 'Keep it under 400 characters.' }, 400);
-  if (audio.length > MAX_AUDIO) return json({ error: 'Keep voice notes under four minutes.' }, 400);
+  if (text.length > MAX_TEXT) return json({ error: 'Keep it under 1500 characters.' }, 400);
+  if (audio.length > MAX_AUDIO) {
+    logCommand(request, env, ctx, body, text || 'Voice note', { error: 'Voice note too long' });
+    return json({ error: 'Keep voice notes under six minutes.' }, 400);
+  }
   if (!text && !audio) return json({ error: 'Say or type what you did.' }, 400);
   const deviceId = typeof body?.deviceId === 'string' ? body.deviceId.slice(0, 64) : 'unknown';
   const ip = request.headers.get('cf-connecting-ip') ?? 'local';
@@ -110,6 +125,7 @@ const parse = async (request, env, ctx) => {
   const focus = typeof body?.focus === 'string' ? body.focus.slice(0, 200) : '';
   const known = Array.isArray(body?.known) ? body.known.filter((name) => typeof name === 'string').slice(0, 40).map((name) => name.slice(0, 60)) : [];
   const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
+  let lastError = '';
   for (const model of models) {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
@@ -117,27 +133,34 @@ const parse = async (request, env, ctx) => {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: `${PROMPT}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}` }] },
         contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 500, responseMimeType: 'application/json', responseSchema: SCHEMA }
+        generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA }
       })
     });
-    if (response.status === 404 || response.status === 400) continue;
-    if (response.status === 429) return json({ error: 'The free AI quota is used up for now. Try “bench 120x4x3”.' }, 429);
-    if (!response.ok) return json({ error: 'The AI is not answering right now.' }, 502);
+    if (response.status === 404 || response.status === 400) {
+      lastError = `${model}: ${response.status} ${(await response.text()).slice(0, 160)}`;
+      continue;
+    }
+    if (response.status === 429) {
+      logCommand(request, env, ctx, body, text || 'Voice note', { error: 'AI quota used up' });
+      return json({ error: 'The free AI quota is used up for now. Try “bench 120x4x3”.' }, 429);
+    }
+    if (!response.ok) {
+      logCommand(request, env, ctx, body, text || 'Voice note', { error: `AI error ${response.status}` });
+      return json({ error: 'The AI is not answering right now.' }, 502);
+    }
     const data = await response.json();
     const output = data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
     try {
       const result = clean(JSON.parse(output), today);
-      const profile = request.headers.get('x-exodia-key') ?? '';
-      ctx.waitUntil(env.DB.prepare('INSERT INTO commands (at, profile, name, said, result) VALUES (?, ?, ?, ?, ?)')
-        .bind(Date.now(), PROFILE_KEY.test(profile) ? profile.slice(0, 6) : 'unknown', typeof body?.name === 'string' ? body.name.slice(0, 40) : '', (text || result.transcript || '').slice(0, 500), JSON.stringify(result).slice(0, 4000))
-        .run()
-        .catch(() => {}));
+      logCommand(request, env, ctx, body, text || result.transcript, result);
       return json(result);
     } catch {
+      logCommand(request, env, ctx, body, text || 'Voice note', { error: 'AI answer could not be read' });
       return json({ error: 'Could not read that. Try “bench 120 for 4, 4 and 7”.' }, 422);
     }
   }
-  return json({ error: 'No AI model available right now.' }, 502);
+  logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}` });
+  return json({ error: 'The AI could not read that note. Try again, or type it.' }, 502);
 };
 
 const sync = async (request, env) => {
@@ -187,6 +210,9 @@ const describe = (raw) => {
     ...(result.replace || []).map((item) => `Change ${item.exercise} on ${item.date} to ${sets(item.sets)}`),
     ...(result.move || []).map((item) => `Move ${item.exercise ? `${item.exercise} ` : ''}from ${item.from} to ${item.to}`),
     ...(result.label ? [`Name day “${result.label}”`] : []),
+    ...(result.accessoriesMinutes ? [`Accessories ${result.accessoriesMinutes} min`] : []),
+    ...(result.unclear ? [`Did not understand: ${result.unclear}`] : []),
+    ...(result.error ? [`Failed: ${result.error}`] : []),
     ...(result.date ? [`Day ${result.date}`] : [])
   ].join(' · ') || 'Nothing understood';
 };
