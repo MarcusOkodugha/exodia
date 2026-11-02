@@ -19,10 +19,10 @@
 
 ## What it does
 
-- **Transcribes** voice notes with Whisper, tuned to a gym's vocabulary.
+- **Transcribes** voice notes with Whisper, tuned to the words you actually use.
 - **Structures** rambling speech, chat messages and old exports (StrengthLog, Strong, spreadsheets) into validated JSON with Claude.
 - **Tracks** every entry on one page, with undo and a full command log.
-- **Analyses** progress: estimated one-rep max, personal records, monthly trends and a muscle recovery map.
+- **Analyses** progress: estimated one-rep max, personal records, monthly trends and a full-body recovery map.
 - **Motivates** with Exodia, a weekly goal of five pieces you collect in a rolling seven days.
 
 ## Unstructured to structured
