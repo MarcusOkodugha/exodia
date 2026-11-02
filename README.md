@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/banner.png" alt="Exodia on three phones: the home screen, a lift's trend chart and the recovery map" width="100%"></p>
+<p align="center"><img src="docs/screens.png" alt="Exodia on three phones: the home screen, a lift's trend chart and the recovery map" width="100%"></p>
 
 <h1 align="center">Exodia</h1>
 
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://exodia.marcusokodugha.workers.dev/join"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/try-dark.png"><img src="docs/try-light.png" alt="Try Exodia" width="133"></picture></a>
+  <a href="https://exodia.marcusokodugha.workers.dev/join"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/try-button-dark.png"><img src="docs/try-button-light.png" alt="Try Exodia" width="133"></picture></a>
 </p>
 
 <h3 align="center"><a href="https://exodia.marcusokodugha.workers.dev/join">exodia.marcusokodugha.workers.dev/join</a></h3>
