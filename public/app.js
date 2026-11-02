@@ -1100,7 +1100,7 @@ const renderMuscles = () => {
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
-    <p class="muscleNote">Red is still recovering: about 6 days for legs, 4 for abs and forearms, 3 for chest and arms. Recovered muscles keep a light tint until 7 days have passed.</p>`;
+    <p class="muscleNote">Red means still recovering.</p>`;
 };
 
 const renderTrends = () => {
