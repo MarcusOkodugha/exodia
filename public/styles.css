@@ -556,3 +556,8 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .exLabel { position: absolute; left: 50%; top: -18%; transform: translateX(-50%); opacity: 0; color: var(--clay); font-size: 22px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none; }
 .exLid { position: absolute; left: 27.5%; top: 50.5%; width: 45%; height: 31%; border-radius: 50%; background: #C96442; }
 .impact .exLid { opacity: 0; }
+.exWin { position: absolute; inset: 0; }
+.exImg { position: absolute; inset: 0; background: url(/hamsa-512.png) center / 100% no-repeat; will-change: transform; }
+.exRims { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.exRims path { fill: none; stroke: #F1AE8C; stroke-width: 3.6; stroke-linejoin: round; }
+.impact .exImg { background-image: url(/hamsa-512-blue.png); }

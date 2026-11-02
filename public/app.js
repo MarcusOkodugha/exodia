@@ -733,35 +733,41 @@ const celebrate = () => {
   requestAnimationFrame(() => (view.exodiaStyle === 'bars' ? playExodia() : playFist()));
 };
 // The hand starts as a fist, opens one finger per piece (slow, then faster), then the eye opens.
+// Fingers slide out of the palm whole, never squashed; peach rims close the fist's cut edges until they do.
 const FIST_LABELS = ['Push', 'Pull', 'Legs', 'Arms', 'Move'];
 const FIST_OPEN = [480, 1000, 1400, 1700, 1920];
 const FIST_TIMES = { eye: 2200, impact: 2480, fly: 3050, done: 3600 };
-// [clip, x % and y % of the knuckle the piece folds into]
+// [window the piece shows through, folded offset x %, y %, rim style]
 const FIST = [
-  ['0 0, 25% 0, 25% 47%, 28.5% 65%, 0 65%', 26, 60],
-  ['24% 0, 42.5% 0, 42.5% 48%, 24% 48%', 33, 47],
-  ['41.5% 0, 59.5% 0, 59.5% 48%, 41.5% 48%', 50, 47],
-  ['58.5% 0, 77% 0, 77% 48%, 58.5% 48%', 68, 47],
-  ['76% 0, 100% 0, 100% 65%, 71.5% 65%, 76% 47%', 75, 60],
+  ['0 36%, 25.8% 36%, 25.8% 47%, 28.5% 66%, 0 66%', 22, 4, 'M27 64 L24.4 49.4 Q24 46.3 27.2 46.3 L28 46.3'],
+  ['25.8% 0, 38% 0, 42.25% 13%, 42.25% 47.5%, 25.8% 47.5%', 0, 30, 'M27.6 46.3 H42.6'],
+  ['42.25% 0, 57.45% 0, 57.45% 47.5%, 42.25% 47.5%', 0, 38, 'M42 46.3 H58'],
+  ['57.45% 13%, 62% 0, 74.2% 0, 74.2% 47.5%, 57.45% 47.5%', 0, 30, 'M57.4 46.3 H72.4'],
+  ['74.2% 36%, 100% 36%, 100% 66%, 71.5% 66%, 74.2% 47%', -22, 4, 'M73 64 L75.6 49.4 Q76 46.3 72.8 46.3 L72 46.3'],
 ];
 const playFist = () => {
   const show = document.createElement('div');
   show.className = 'exodiaShow';
   show.setAttribute('aria-hidden', 'true');
   show.innerHTML = `<div class="exFly"><div class="exHand">
+    ${FIST.map(([clip]) => `<i class="exWin" style="clip-path:polygon(${clip})"><i class="exImg"></i></i>`).join('')}
     <i class="exLid"></i><i class="exPiece exPalm"></i><i class="exPiece exEye"></i>
-    ${FIST.map(([clip, x, y]) => `<i class="exPiece exFinger" style="clip-path:polygon(${clip});transform-origin:${x}% ${y}%"></i>`).join('')}
+    <svg class="exRims" viewBox="0 0 100 100" preserveAspectRatio="none">${FIST.map(([, , , rim]) => `<path d="${rim}"/>`).join('')}</svg>
     ${FIST_LABELS.map((label) => `<b class="exLabel">${label}</b>`).join('')}
     <i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
   </div></div>`;
   document.body.append(show);
   const hand = show.querySelector('.exHand');
-  const spring = 'cubic-bezier(0.3, 1.5, 0.5, 1)';
   hand.animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
-  show.querySelectorAll('.exFinger').forEach((finger, index) => {
+  const rims = show.querySelectorAll('.exRims path');
+  show.querySelectorAll('.exImg').forEach((image, index) => {
+    const [, x, y] = FIST[index];
     const thumb = index === 0 || index === 4;
-    const closed = thumb ? `scale(0.2) rotate(${index === 0 ? 40 : -40}deg)` : 'scaleY(0.14)';
-    finger.animate([{ transform: closed }, { transform: 'none' }], { duration: 420, delay: FIST_OPEN[index], easing: spring, fill: 'backwards' });
+    image.animate([
+      { transform: `translate(${x}%, ${y}%)${thumb ? ` rotate(${index === 0 ? 12 : -12}deg)` : ''}` },
+      { transform: 'none' },
+    ], { duration: 520, delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.35, 0.45, 1)', fill: 'backwards' });
+    rims[index].animate([{ opacity: 1 }, { opacity: 0 }], { duration: 110, delay: FIST_OPEN[index] + 190, easing: 'ease-out', fill: 'both' });
   });
   show.querySelectorAll('.exLabel').forEach((label, index) => {
     const next = FIST_OPEN[index + 1] ?? FIST_TIMES.eye;
