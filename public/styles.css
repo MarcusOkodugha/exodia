@@ -570,3 +570,19 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .exBars b { display: block; height: 100%; border-radius: 3px; background: var(--clay); transform-origin: left; }
 .impact .exBars b { background: var(--exodiaBlue); }
 .leaving .exBars { opacity: 0; }
+
+/* Example data: a slim pill on every page until the person starts their own log. */
+.demoPill { position: fixed; z-index: 6; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 6px 18px rgba(20, 20, 19, 0.16); }
+.demoPill button { padding: 7px 14px; border-radius: 999px; background: var(--clay); color: #FFFFFF; font-size: 14px; font-weight: 600; }
+.demo .page { padding-top: calc(var(--top) + 112px); }
+
+.onboardHow { margin: -4px 0 18px; color: var(--text2); font-size: 15px; line-height: 21px; }
+.onboardHow summary { cursor: pointer; color: var(--text); font-weight: 600; list-style: none; min-height: 32px; display: flex; align-items: center; }
+.onboardHow summary::-webkit-details-marker { display: none; }
+.onboardHow summary::after { content: '›'; margin-left: 6px; transition: transform 0.2s ease; }
+.onboardHow[open] summary::after { transform: rotate(90deg); }
+.onboardHow ul { margin: 6px 0 10px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.onboardHow li { display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: 8px; }
+.onboardHow b { color: var(--text); font-weight: 600; }
+.onboardHow p { margin: 0; }
+.setRow .pct .prPill { margin-left: 6px; }

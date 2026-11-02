@@ -197,7 +197,7 @@ const applyIncoming = (result) => {
 };
 
 const syncNow = () => {
-  if (view.sandbox) return Promise.resolve();
+  if (view.sandbox || state.demo) return Promise.resolve();
   if (syncing) {
     scheduleSync();
     return syncing;
@@ -1695,7 +1695,7 @@ document.addEventListener('scroll', () => requestAnimationFrame(tuckCards), { pa
 window.addEventListener('resize', tuckCards);
 window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(tuckCards));
 
-const onboarding = () => view.route === 'home' && (Boolean(view.onboard?.busy || view.onboard?.status) || (!state.name && state.sessions.length === 0));
+const onboarding = () => view.route === 'home' && (Boolean(view.onboard?.busy || view.onboard?.status) || (!state.name && !state.started && state.sessions.length === 0));
 
 const ONBOARD_EXAMPLES = [
   'Mon 28 Oct\nBench 100 × 5, 5, 5\nIncline dumbbell 30s for 10',
@@ -1704,6 +1704,66 @@ const ONBOARD_EXAMPLES = [
   'Leg day 24/10\nHack squat 200×8, 200×8, 200×6\nLeg extension 70×12, 70×12'
 ];
 const onboardExample = { index: 0, fading: false };
+
+// Example data for people who just want to look around: about eight weeks of steady training for "Alex",
+// ending at 4 of 5 Exodia pieces so one logged walk or run plays the hit.
+const demoSessions = () => {
+  const today = todayIso();
+  const sets = (kg, reps, count, rpe) => Array.from({ length: count }, () => ({ kg: String(kg), reps: String(reps), ...(rpe ? { rpe } : {}), edited: true }));
+  const round = (kg) => Math.round(kg / 2.5) * 2.5;
+  const days = [];
+  for (let week = 7; week >= 0; week -= 1) {
+    const step = 7 - week;
+    const at = (offset) => addDays(today, -(week * 7 + offset));
+    days.push({ date: at(6), label: 'Push day', exercises: [
+      { name: 'Bench Press', sets: [...sets(round(80 + step * 2), 5, 3), ...sets(round(85 + step * 2), 3, 1, 8)] },
+      { name: 'Overhead Press', sets: sets(round(45 + step), 8, 3) },
+      { name: 'Dumbbell Bench Press', sets: sets(round(26 + step * 0.5), 10, 3) },
+    ] });
+    days.push({ date: at(4), label: 'Pull day', exercises: [
+      { name: 'Deadlift', sets: [...sets(round(140 + step * 3), 5, 2), ...sets(round(150 + step * 3), 3, 1, 8)] },
+      { name: 'Barbell Row', sets: sets(round(65 + step * 1.5), 8, 3) },
+      { name: 'Lat Pulldown', sets: sets(round(55 + step), 10, 3) },
+    ] });
+    days.push({ date: at(2), label: 'Leg day', exercises: [
+      { name: 'Squat', sets: [...sets(round(105 + step * 3), 5, 3), ...sets(round(112.5 + step * 3), 3, 1, 8)] },
+      { name: 'Leg Press', sets: sets(round(160 + step * 5), 10, 3) },
+      { name: 'Leg Curl', sets: sets(round(45 + step), 12, 3) },
+    ] });
+    days.push({ date: at(1), label: 'Arm day', exercises: [
+      { name: 'Dumbbell Curl', sets: sets(round(12 + step * 0.5), 10, 3) },
+      { name: 'Triceps Pushdown', sets: sets(round(25 + step), 12, 3) },
+    ], cardio: week % 2 === 0 ? 30 : 0 });
+  }
+  days.push({ date: addDays(today, -3), label: 'Push day', exercises: [
+    { name: 'Bench Press', sets: [...sets(97.5, 5, 3), ...sets(102.5, 2, 1, 9)] },
+    { name: 'Overhead Press', sets: sets(52.5, 8, 3) },
+  ] });
+  const byDate = new Map();
+  for (const day of days.filter((day) => day.date <= today)) byDate.set(day.date, { accessories: 30, cardio: 0, ...day, ...(byDate.get(day.date) || {}) });
+  return [...byDate.values()];
+};
+const startDemo = () => {
+  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(), bests: {}, name: 'Alex', demo: true };
+  view.onboard = null;
+  view.open = new Set();
+  lastSaved = localJson();
+  lastMeta = metaJson();
+  writeLocal();
+  location.hash = '#/';
+  render();
+};
+const endDemo = () => {
+  state = { version: 1, deviceId: state.deviceId, sessions: [], bests: {} };
+  view.onboard = null;
+  view.open = new Set([todayIso()]);
+  lastSaved = localJson();
+  lastMeta = metaJson();
+  writeLocal();
+  location.hash = '#/';
+  render();
+};
+const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
 
 const renderOnboard = () => {
   view.onboard ??= { name: '', data: '' };
@@ -1715,10 +1775,20 @@ const renderOnboard = () => {
     <h1 class="title">Welcome to Exodia</h1>
     <p class="onboardLead">Log your training by talking or typing. No account, no setup.</p>
     <label class="sr" for="onboardName">Your name</label>
-    <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
-    <p class="onboardMove"><b>Coming from another app?</b> Drop your StrengthLog or Strong export, your notes or a spreadsheet in the box below, or just tell it about your last weeks. Exodia sorts everything into days and your history and trends are ready in seconds.</p>
+    <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional, you can add it later)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
+    <p class="onboardMove"><b>Have a history?</b> Paste or drop it in the box below, in any format. Exodia turns it into days, sets and trends in seconds.</p>
+    <details class="onboardHow"><summary>How to export from your app</summary>
+      <ul>
+        <li><b>Strong</b><span>Profile → Settings → Export Strong Data</span></li>
+        <li><b>Hevy</b><span>Profile → Settings → Export & Import Data → Export Workouts</span></li>
+        <li><b>Notes</b><span>Copy your notes and paste them in</span></li>
+        <li><b>Spreadsheet</b><span>Excel or Google Sheets → Download as CSV</span></li>
+      </ul>
+      <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
+    </details>
     ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
     <button class="textBtn onboardBlank" data-action="onboard-blank" ${locked ? 'disabled' : ''}>Nothing to bring? Start blank</button>
+    <button class="textBtn onboardBlank" data-action="onboard-demo" ${locked ? 'disabled' : ''}>Just looking? Try it with example data</button>
   </main>
   <div class="dock onboardDock">
     <div class="prompt onboardPrompt${filled ? ' hasText' : ''}${listening ? ' listening' : ''}${file ? ' hasChip' : ''}">
@@ -1793,6 +1863,7 @@ const render = () => {
   if (view.wasHit === false && hit && !view.celebrating) celebrate();
   view.wasHit = hit;
   view.blue = hit && view.celebrating !== 'orange';
+  document.documentElement.classList.toggle('demo', Boolean(state.demo));
   if (onboarding()) {
     const focusedId = document.activeElement?.id;
     app.innerHTML = renderOnboard() + devExtras();
@@ -1825,7 +1896,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${devExtras()}`;
+    </div>` : ''}${devExtras()}${demoPill()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -2415,15 +2486,12 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
+  if (action === 'onboard-demo') return startDemo();
+  if (action === 'end-demo') return endDemo();
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
-    if (!name) {
-      view.onboard.status = 'Add your name first.';
-      render();
-      document.getElementById('onboardName')?.focus();
-      return;
-    }
-    state.name = name.slice(0, 40);
+    if (name) state.name = name.slice(0, 40);
+    state.started = true;
     save();
     const text = action === 'onboard-blank' ? '' : [view.onboard.data.trim(), view.onboard.file?.text].filter(Boolean).join('\n\n');
     if (!text) {
