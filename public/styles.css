@@ -493,9 +493,9 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 
 /* Exodia hit: the bars, the counter and the logos turn blue until a piece drops off the rolling week. */
 :root { --exodiaBlue: #7CA3DD; --exodiaInk: #23508F; }
-.exodiaBlue .fill { background: var(--exodiaBlue); }
-.exodiaBlue .exodiaHits { background: var(--exodiaBlue); color: var(--exodiaInk); }
-.exodiaBlue .logo { background-image: url(/logo-blue.png); }
+.exodiaCard.hit .fill, .exodiaCard.hit .fill.done { background: var(--exodiaBlue); }
+.exodiaCard.hit .exodiaHits { background: var(--exodiaBlue); color: var(--exodiaInk); }
+.logo.blue { background-image: url(/logo-blue.png); }
 .logo.land { animation: land 0.5s cubic-bezier(0.3, 1.6, 0.5, 1); }
 @keyframes land { 0% { transform: scale(1.5); } 100% { transform: none; } }
 .title.reveal { animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -510,7 +510,7 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 @keyframes sweep { to { transform: translateX(100%); } }
 
 .exodiaShow { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; }
-.exodiaShow::before { content: ""; position: absolute; inset: 0; background: rgb(250 249 245 / 0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: fadeIn 0.3s ease-out backwards; transition: opacity 0.4s ease-in 0.15s; }
+.exodiaShow::before { content: ""; position: absolute; inset: 0; background: rgb(250 249 245 / 0.12); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: fadeIn 0.3s ease-out backwards; transition: opacity 0.4s ease-in 0.15s; }
 .exodiaShow.leaving::before { opacity: 0; }
 @keyframes fadeIn { from { opacity: 0; } }
 .exFly { position: relative; will-change: transform; }
@@ -550,8 +550,9 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .rpeTag { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
 .rowPlus { width: 22px; height: 30px; display: inline-flex; align-items: center; justify-content: center; color: var(--text2); flex: none; }
 .exercise { border-top: 0; padding-top: 6px; }
-.setSwipe .setRow { box-shadow: inset var(--hair) 0 0 rgb(var(--clayRgb) / 0.5); }
-.setSwipe .setRow { padding-left: 10px; }
 .dayAdd { display: flex; gap: 22px; margin-right: auto; }
 .dayActions { align-items: center; }
 .logDay { display: block; }
+.exLabel { position: absolute; left: 50%; top: -18%; transform: translateX(-50%); opacity: 0; color: var(--clay); font-size: 22px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none; }
+.exLid { position: absolute; left: 27.5%; top: 50.5%; width: 45%; height: 31%; border-radius: 50%; background: #C96442; }
+.impact .exLid { opacity: 0; }

@@ -64,7 +64,7 @@ const ICONS = {
   mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   clip: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
-  plusThin: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  plusThin: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   trophy: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5.5a2.5 2.5 0 0 0 2.6 3.5M16 6h2.5a2.5 2.5 0 0 1-2.6 3.5"/><path d="M12 13v4M9 20h6M10 17h4"/></svg>'
 };
@@ -571,7 +571,7 @@ const sameSet = (first, second) => first.kg !== '' && first.reps !== '' && ['kg'
 
 const renderExercise = (session, exercise, exerciseIndex) => {
   const editing = view.editDay === session.date;
-  const best = bestBefore(exercise.name, session.date);
+  const best = bestBefore(exercise.name, session.date) || bestOverall(exercise.name);
   const groups = [];
   exercise.sets.forEach((set, index) => {
     const last = groups.at(-1);
@@ -730,8 +730,84 @@ const celebrate = () => {
     view.celebrating = false;
     return;
   }
-  requestAnimationFrame(() => playExodia());
+  requestAnimationFrame(() => (view.exodiaStyle === 'bars' ? playExodia() : playFist()));
 };
+// The hand starts as a fist, opens one finger per piece (slow, then faster), then the eye opens.
+const FIST_LABELS = ['Push', 'Pull', 'Legs', 'Arms', 'Move'];
+const FIST_OPEN = [480, 1000, 1400, 1700, 1920];
+const FIST_TIMES = { eye: 2200, impact: 2480, fly: 3050, done: 3600 };
+// [clip, x % and y % of the knuckle the piece folds into]
+const FIST = [
+  ['0 0, 25% 0, 25% 47%, 28.5% 65%, 0 65%', 26, 60],
+  ['24% 0, 42.5% 0, 42.5% 48%, 24% 48%', 33, 47],
+  ['41.5% 0, 59.5% 0, 59.5% 48%, 41.5% 48%', 50, 47],
+  ['58.5% 0, 77% 0, 77% 48%, 58.5% 48%', 68, 47],
+  ['76% 0, 100% 0, 100% 65%, 71.5% 65%, 76% 47%', 75, 60],
+];
+const playFist = () => {
+  const show = document.createElement('div');
+  show.className = 'exodiaShow';
+  show.setAttribute('aria-hidden', 'true');
+  show.innerHTML = `<div class="exFly"><div class="exHand">
+    <i class="exLid"></i><i class="exPiece exPalm"></i><i class="exPiece exEye"></i>
+    ${FIST.map(([clip, x, y]) => `<i class="exPiece exFinger" style="clip-path:polygon(${clip});transform-origin:${x}% ${y}%"></i>`).join('')}
+    ${FIST_LABELS.map((label) => `<b class="exLabel">${label}</b>`).join('')}
+    <i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
+  </div></div>`;
+  document.body.append(show);
+  const hand = show.querySelector('.exHand');
+  const spring = 'cubic-bezier(0.3, 1.5, 0.5, 1)';
+  hand.animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
+  show.querySelectorAll('.exFinger').forEach((finger, index) => {
+    const thumb = index === 0 || index === 4;
+    const closed = thumb ? `scale(0.2) rotate(${index === 0 ? 40 : -40}deg)` : 'scaleY(0.14)';
+    finger.animate([{ transform: closed }, { transform: 'none' }], { duration: 420, delay: FIST_OPEN[index], easing: spring, fill: 'backwards' });
+  });
+  show.querySelectorAll('.exLabel').forEach((label, index) => {
+    const next = FIST_OPEN[index + 1] ?? FIST_TIMES.eye;
+    label.animate([
+      { opacity: 0, transform: 'translate(-50%, 10px)' },
+      { opacity: 1, transform: 'translate(-50%, 0)', offset: 0.35 },
+      { opacity: 1, transform: 'translate(-50%, 0)', offset: 0.75 },
+      { opacity: 0, transform: 'translate(-50%, -10px)' },
+    ], { duration: next - FIST_OPEN[index] + 80, delay: FIST_OPEN[index], easing: 'ease-out', fill: 'both' });
+  });
+  show.querySelector('.exEye').animate([{ transform: 'scaleY(0.06)', opacity: 0.6 }, { transform: 'scaleY(1.18)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 360, delay: FIST_TIMES.eye, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'backwards' });
+  const timers = [];
+  const finish = () => {
+    timers.forEach(clearTimeout);
+    show.remove();
+    view.celebrating = false;
+    view.reveal = true;
+    render();
+    document.querySelectorAll('.brand .logo, .sideBrand .logo').forEach((logo) => logo.classList.add('land'));
+    if (view.devHit && !fullExodia()) setTimeout(() => {
+      view.devHit = false;
+      render();
+    }, 8000);
+  };
+  show.addEventListener('click', finish);
+  timers.push(setTimeout(() => {
+    view.celebrating = 'blue';
+    view.blue = true;
+    document.querySelector('.exodiaCard')?.classList.add('hit');
+    document.querySelectorAll('.logo').forEach((logo) => logo.classList.add('blue'));
+    show.classList.add('impact');
+    hand.animate([{ filter: 'brightness(2.4)' }, { filter: 'brightness(1)' }], { duration: 480, easing: 'ease-out' });
+    show.querySelectorAll('.exRing').forEach((ring, index) => ring.animate([{ transform: 'scale(0.4)', opacity: 0.9 }, { transform: `scale(${3.2 + index})`, opacity: 0 }], { duration: 720, delay: index * 110, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'backwards' }));
+  }, FIST_TIMES.impact));
+  timers.push(setTimeout(() => {
+    const logo = document.querySelector('.brand .logo, .sideBrand .logo');
+    const fly = show.querySelector('.exFly');
+    show.classList.add('leaving');
+    if (!logo || turn) return;
+    const start = fly.getBoundingClientRect();
+    const end = logo.getBoundingClientRect();
+    fly.animate([{ transform: 'none' }, { transform: `translate(${end.left + end.width / 2 - (start.left + start.width / 2)}px, ${end.top + end.height / 2 - (start.top + start.height / 2)}px) scale(${end.width / start.width})` }], { duration: FIST_TIMES.done - FIST_TIMES.fly, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
+  }, FIST_TIMES.fly));
+  timers.push(setTimeout(finish, FIST_TIMES.done));
+};
+
 const playExodia = () => {
   const sources = turn ? [] : [...document.querySelectorAll('.homePage .bars .track')].map(centre);
   const badge = turn ? null : centre(document.querySelector('.homePage .exodiaHits'));
@@ -776,11 +852,17 @@ const playExodia = () => {
     view.reveal = true;
     render();
     document.querySelectorAll('.brand .logo, .sideBrand .logo').forEach((logo) => logo.classList.add('land'));
+    if (view.devHit && !fullExodia()) setTimeout(() => {
+      view.devHit = false;
+      render();
+    }, 8000);
   };
   show.addEventListener('click', finish);
   timers.push(setTimeout(() => {
     view.celebrating = 'blue';
-    document.documentElement.classList.add('exodiaBlue');
+    view.blue = true;
+    document.querySelector('.exodiaCard')?.classList.add('hit');
+    document.querySelectorAll('.logo').forEach((logo) => logo.classList.add('blue'));
     show.classList.add('impact');
     hand.animate([{ filter: 'brightness(2.6)' }, { filter: 'brightness(1)' }], { duration: 480, easing: 'ease-out' });
     show.querySelectorAll('.exRing').forEach((ring, index) => ring.animate([{ transform: 'scale(0.4)', opacity: 0.9 }, { transform: `scale(${3.2 + index})`, opacity: 0 }], { duration: 720, delay: index * 110, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'backwards' }));
@@ -819,7 +901,8 @@ const exitSandbox = () => {
 };
 const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action="close-dev" aria-label="Close"></button>
   <div class="devMenu" role="menu">
-    <button role="menuitem" data-action="dev-exodia">Play Exodia animation</button>
+    <button role="menuitem" data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
+    <button role="menuitem" data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
     ${view.devHit ? '<button role="menuitem" data-action="dev-normal">Back to normal colors</button>' : ''}
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
@@ -835,7 +918,7 @@ const renderHome = () => {
   return `<main class="page homePage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title${view.reveal ? ' reveal' : ''}">${exodiaHit() && !view.celebrating ? `${esc(state.name || 'You')} hit Exodia` : state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
-    <section class="card${view.exodiaOpen ? ' open' : ''}${view.reveal ? ' reveal' : ''}" style="margin-top:20px">
+    <section class="card exodiaCard${view.exodiaOpen ? ' open' : ''}${view.reveal ? ' reveal' : ''}${view.blue ? ' hit' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
         <span class="headName">Exodia</span>
         <span class="exodiaHits num" aria-label="Exodia hit ${hits} times">${hits}</span>
@@ -960,8 +1043,8 @@ const loadAnatomy = () => {
   anatomy = 'loading';
   fetch('/anatomy.json').then((response) => response.json()).then((data) => { anatomy = data; if (view.route === 'trends') render(); }).catch(() => { anatomy = null; });
 };
-// Big muscles need about three days to recover, small ones about two.
-const RECOVERY_DAYS = { chest: 3, upperBack: 3, quads: 3, hamstrings: 3, glutes: 3, lowerBack: 3, shoulders: 2, biceps: 2, triceps: 2, forearms: 2, calves: 2, abs: 2, adductors: 2 };
+// Days until a muscle is recovered. After that it keeps a light tint until it drops out of the 7 days.
+const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, chest: 3, shoulders: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
 const daysBetween = (from, to) => Math.round((new Date(`${to}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
 const muscleLoad = () => {
   const today = todayIso();
@@ -985,19 +1068,20 @@ const muscleLoad = () => {
   }
   return { sets, fatigue };
 };
-const bodySvg = (side, fatigue) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
-  const amount = key ? Math.min(1, fatigue[key] / 6) : 0;
-  return `<polygon points="${points}" class="${!key ? 'bodyBone' : amount ? 'bodyHit' : 'bodyRest'}"${amount ? ` style="fill-opacity:${(0.18 + 0.82 * amount).toFixed(2)}"` : ''}/>`;
+const bodySvg = (side, { sets, fatigue }) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+  const trained = key && sets[key] > 0;
+  return `<polygon points="${points}" class="${!key ? 'bodyBone' : trained ? 'bodyHit' : 'bodyRest'}"${trained ? ` style="fill-opacity:${(0.16 + 0.84 * Math.min(1, fatigue[key] / 6)).toFixed(2)}"` : ''}/>`;
 }).join('')}</svg>`;
 const renderMuscles = () => {
   loadAnatomy();
   if (!anatomy || anatomy === 'loading' || state.sessions.length === 0) return '';
-  const { sets, fatigue } = muscleLoad();
+  const load = muscleLoad();
+  const { sets } = load;
   return `<p class="section muscleHead">Anatomy<span>Sets · 7 days</span></p>
-    <div class="muscles">${bodySvg('front', fatigue)}${bodySvg('back', fatigue)}
+    <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
-    <p class="muscleNote">Red is still recovering and fades back to grey over two to three days.</p>`;
+    <p class="muscleNote">Red is still recovering: about 6 days for legs, 4 for abs and forearms, 3 for chest and arms. Recovered muscles keep a light tint until 7 days have passed.</p>`;
 };
 
 const renderTrends = () => {
@@ -1377,7 +1461,7 @@ const drawerContent = () => {
 
 const renderDrawer = () => `<div class="overlay">
     <button class="scrim" data-action="close-menu" aria-label="Close menu"></button>
-    <nav class="drawer" aria-label="Exodia"><a class="drawerBrand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
+    <nav class="drawer" aria-label="Exodia"><a class="drawerBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
   </div>`;
 
 const renderPicks = () => {
@@ -1705,7 +1789,7 @@ const render = () => {
   const hit = exodiaHit();
   if (view.wasHit === false && hit && !view.celebrating) celebrate();
   view.wasHit = hit;
-  document.documentElement.classList.toggle('exodiaBlue', hit && view.celebrating !== 'orange');
+  view.blue = hit && view.celebrating !== 'orange';
   if (onboarding()) {
     const focusedId = document.activeElement?.id;
     app.innerHTML = renderOnboard() + devExtras();
@@ -1722,13 +1806,13 @@ const render = () => {
   const dock = `${view.composer ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
-        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
+        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
         <aside class="right" aria-label="Progress">${renderProgress()}</aside>
       </div>`
     : `<header class="topbar"><div class="topbarInner">
         <button class="iconBtn" data-action="open-menu" aria-label="Open menu">${ICONS.menu}</button>
-        <a class="brand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>
+        <a class="brand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>
         ${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
         ${view.route === 'home' ? `<a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>` : `<a class="iconBtn" href="#/" aria-label="Home">${ICONS.home}</a>`}
       </div></header>
@@ -2435,6 +2519,7 @@ document.addEventListener('click', (event) => {
   if (action === 'dev-menu') view.devMenu = !view.devMenu;
   else if (action === 'close-dev') view.devMenu = false;
   else if (action === 'dev-exodia') {
+    view.exodiaStyle = target.dataset.style;
     view.devMenu = false;
     view.devHit = true;
     view.wasHit = false;
