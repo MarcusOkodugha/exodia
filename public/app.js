@@ -63,6 +63,8 @@ const ICONS = {
   stop: '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>',
   mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  clip: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
+  plusThin: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   trophy: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5.5a2.5 2.5 0 0 0 2.6 3.5M16 6h2.5a2.5 2.5 0 0 1-2.6 3.5"/><path d="M12 13v4M9 20h6M10 17h4"/></svg>'
 };
@@ -132,6 +134,7 @@ let lastSaved = localJson();
 let lastMeta = metaJson();
 
 const writeLocal = () => {
+  if (view.sandbox) return;
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
     localStorage.setItem(SYNC_KEY, JSON.stringify(syncState));
@@ -194,6 +197,7 @@ const applyIncoming = (result) => {
 };
 
 const syncNow = () => {
+  if (view.sandbox) return Promise.resolve();
   if (syncing) {
     scheduleSync();
     return syncing;
@@ -460,7 +464,7 @@ const parseWithAi = async (text, audio, hint = '') => {
   const response = await fetch('/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
-    body: JSON.stringify({ text, audio, hint, name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
+    body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'The AI could not read that.');
@@ -521,7 +525,7 @@ const addEntries = (result, date = todayIso()) => {
       exercise = { name, sets: [] };
       session.exercises.push(exercise);
     }
-    for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true });
+    for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true });
     checkPr(name, date);
   }
   if (result.cardioMinutes) session.cardio = (session.cardio || 0) + Number(result.cardioMinutes);
@@ -540,8 +544,8 @@ const pickList = () => {
   }
   const starters = ['Bench Press', 'Squat', 'Deadlift', 'Overhead Press', 'Pull-up', 'Barbell Row'];
   const library = [...starters, ...LIBRARY.map((entry) => entry.name).filter((name) => !starters.includes(name))];
-  const names = [...recent, ...library.filter((name) => !recent.includes(name))];
-  return names.filter((name) => (query ? name.toLowerCase().includes(query) : !inToday.has(name))).slice(0, query ? 12 : 10);
+  const names = [...new Set([...BIG_THREE, ...recent, ...library])];
+  return names.filter((name) => (query ? name.toLowerCase().includes(query) : !inToday.has(name))).slice(0, 12);
 };
 
 const renderBars = (pieces) => pieces.map((piece) => `
@@ -574,19 +578,20 @@ const renderExercise = (session, exercise, exerciseIndex) => {
     if (last && !editing && sameSet(exercise.sets[last.start], set)) last.count += 1;
     else groups.push({ start: index, count: 1 });
   });
-  const rows = groups.map(({ start, count }) => {
+  const rows = groups.map(({ start, count }, groupIndex) => {
     const set = exercise.sets[start];
+    const lastRow = groupIndex === groups.length - 1;
     const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(Number(set.kg), Number(set.reps) + repsInTank(set)) : 0;
     const pr = prKind(exercise.name, session.date, set);
-    const numbers = count > 1 ? `${start + 1}–${start + count}` : `${start + 1}`;
-    const label = `${esc(exercise.name)}, ${count > 1 ? `sets ${numbers}` : `set ${numbers}`}`;
+    const numbers = count > 1 ? `${count}×` : `${start + 1}`;
+    const label = `${esc(exercise.name)}, ${count > 1 ? `${count} sets` : `set ${numbers}`}`;
     const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${start}" data-count="${count}"`;
     return `<div class="swipe setSwipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
       ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${numbers}</span>`}
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" ${where} data-field="kg">
       <span class="unit">kg</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
       <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" ${where} data-field="reps">
-      ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>`}
+      ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num">${lastRow ? `<button class="rowPlus" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Add a ${esc(exercise.name)} set">${ICONS.plusThin}</button>` : ''}${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>`}
       <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${best && value ? `${Math.round((value / best) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
       <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
     </div></div>`;
@@ -595,7 +600,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   return `<div class="exercise${landing ? ' landing' : ''}${glowing(session.date, exercise.name) ? ' glow' : ''}">
     <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button> <div class="exHead swipeFace">${editing ? `<button class="minus" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}"></button>` : ''}<button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}">${esc(exercise.name)}</button>${COLUMN_HEAD}<button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
     ${rows}
-    <button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}">Add set</button>
+    ${editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}">Add set</button>` : ''}
   </div>`;
 };
 
@@ -680,11 +685,11 @@ const renderSession = (session) => {
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
       ${session.cardio ? `<div class="cardio"><span>Cardio</span><span class="meta num">${session.cardio} min</span><button class="textBtn" data-action="remove-cardio" data-date="${session.date}">Remove</button></div>` : ''}
-      <div class="dayActions"><button class="textBtn" data-action="open-composer" data-date="${session.date}">Add exercise</button><button class="textBtn" data-action="log-day" data-date="${session.date}">Open in Log</button></div>
-      <div class="foot">
-        <span class="unit" style="margin-right:auto">Accessories</span>
-        ${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}"><span class="chipFace">${label}</span></button>`).join('')}
+      <div class="dayActions">
+        <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
+        ${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
       </div>
+      ${editing ? `<button class="textBtn logDay" data-action="log-day" data-date="${session.date}">Open in Log</button>` : ''}
       ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<div class="daySummary num" data-action="toggle-session" data-date="${session.date}">${daySummary(session)}</div>`}
   </section>`;
 };
@@ -700,20 +705,140 @@ const listWithGhosts = (sessions) => {
 
 const quickStart = () => `<p class="empty">Tap a lift to log it, or say or type what you did in the box below.</p>${quickAdd()}`;
 
+const fullExodia = () => pieceProgress(todayIso()).every((piece) => piece.complete);
+const exodiaHit = () => Boolean(view.devHit) || fullExodia();
+
+// Exodia assembles like the card: each bar (Push, Pull, Legs, Arms, Move) flies up to become a finger,
+// the counter becomes the eye. Entries are [clip of the piece, its centre x %, centre y %].
+const HAND = [
+  ['0 0, 24% 0, 24% 46%, 27% 64%, 0 64%', 13, 50],
+  ['24% 0, 42% 0, 42% 46%, 24% 46%', 33, 24],
+  ['42% 0, 59% 0, 59% 46%, 42% 46%', 50, 22],
+  ['59% 0, 77% 0, 77% 46%, 59% 46%', 68, 24],
+  ['77% 0, 100% 0, 100% 64%, 73% 64%, 77% 46%', 87, 50],
+];
+const EXODIA_TIMES = { impact: 1750, fly: 2250, done: 2800 };
+const preloadHands = () => ['/hamsa-512.png', '/hamsa-512-blue.png'].forEach((src) => { new Image().src = src; });
+const centre = (el) => {
+  const box = el?.getBoundingClientRect();
+  return box && box.width ? { x: box.left + box.width / 2, y: box.top + box.height / 2, w: box.width } : null;
+};
+
+const celebrate = () => {
+  view.celebrating = 'orange';
+  if (reducedMotion.matches) {
+    view.celebrating = false;
+    return;
+  }
+  requestAnimationFrame(() => playExodia());
+};
+const playExodia = () => {
+  const sources = turn ? [] : [...document.querySelectorAll('.homePage .bars .track')].map(centre);
+  const badge = turn ? null : centre(document.querySelector('.homePage .exodiaHits'));
+  const show = document.createElement('div');
+  show.className = 'exodiaShow';
+  show.setAttribute('aria-hidden', 'true');
+  show.innerHTML = `<div class="exFly"><div class="exHand">
+    ${HAND.map(([clip, x, y]) => `<i class="exPiece" style="clip-path:polygon(${clip});transform-origin:${x}% ${y}%"></i>`).join('')}
+    <i class="exPiece exPalm"></i><i class="exPiece exEye"></i><i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
+  </div></div>`;
+  document.body.append(show);
+  const hand = show.querySelector('.exHand');
+  const box = hand.getBoundingClientRect();
+  const at = (x, y) => ({ x: box.left + (box.width * x) / 100, y: box.top + (box.height * y) / 100 });
+  const ease = 'cubic-bezier(0.45, 0, 0.2, 1)';
+  show.querySelectorAll('.exPiece:not(.exPalm):not(.exEye)').forEach((piece, index) => {
+    const [, x, y] = HAND[index];
+    const to = at(x, y);
+    const from = sources[index] || { x: to.x + (index - 2) * 70, y: box.bottom + 160 };
+    const dx = from.x - to.x;
+    const dy = from.y - to.y;
+    piece.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(0.25)`, opacity: 0 },
+      { opacity: 1, offset: 0.12 },
+      { transform: `translate(${dx * 0.3}px, ${dy * 0.3 - 46}px) scale(1.06) rotate(${(index - 2) * 7}deg)`, offset: 0.62 },
+      { transform: 'none', opacity: 1 },
+    ], { duration: 720, delay: 120 + index * 110, easing: ease, fill: 'backwards' });
+  });
+  show.querySelector('.exPalm').animate([{ opacity: 0, transform: 'scale(0.82)' }, { opacity: 1, transform: 'none' }], { duration: 460, delay: 760, easing: ease, fill: 'backwards' });
+  const eye = at(50, 66);
+  const from = badge || { x: eye.x, y: box.top - 140, w: 24 };
+  show.querySelector('.exEye').animate([
+    { transform: `translate(${from.x - eye.x}px, ${from.y - eye.y}px) scale(${from.w / (box.width * 0.44)}) rotate(-120deg)`, opacity: 0 },
+    { opacity: 1, offset: 0.15 },
+    { transform: 'none', opacity: 1 },
+  ], { duration: 560, delay: EXODIA_TIMES.impact - 560, easing: 'cubic-bezier(0.55, 0, 0.3, 1.15)', fill: 'backwards' });
+  const timers = [];
+  const finish = () => {
+    timers.forEach(clearTimeout);
+    show.remove();
+    view.celebrating = false;
+    view.reveal = true;
+    render();
+    document.querySelectorAll('.brand .logo, .sideBrand .logo').forEach((logo) => logo.classList.add('land'));
+  };
+  show.addEventListener('click', finish);
+  timers.push(setTimeout(() => {
+    view.celebrating = 'blue';
+    document.documentElement.classList.add('exodiaBlue');
+    show.classList.add('impact');
+    hand.animate([{ filter: 'brightness(2.6)' }, { filter: 'brightness(1)' }], { duration: 480, easing: 'ease-out' });
+    show.querySelectorAll('.exRing').forEach((ring, index) => ring.animate([{ transform: 'scale(0.4)', opacity: 0.9 }, { transform: `scale(${3.2 + index})`, opacity: 0 }], { duration: 720, delay: index * 110, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'backwards' }));
+  }, EXODIA_TIMES.impact));
+  timers.push(setTimeout(() => {
+    const logo = document.querySelector('.brand .logo, .sideBrand .logo');
+    const fly = show.querySelector('.exFly');
+    show.classList.add('leaving');
+    if (!logo || turn) return;
+    const start = fly.getBoundingClientRect();
+    const end = logo.getBoundingClientRect();
+    const dx = end.left + end.width / 2 - (start.left + start.width / 2);
+    const dy = end.top + end.height / 2 - (start.top + start.height / 2);
+    fly.animate([{ transform: 'none' }, { transform: `translate(${dx}px, ${dy}px) scale(${end.width / start.width})` }], { duration: EXODIA_TIMES.done - EXODIA_TIMES.fly, easing: 'cubic-bezier(0.55, 0, 0.25, 1)', fill: 'forwards' });
+  }, EXODIA_TIMES.fly));
+  timers.push(setTimeout(finish, EXODIA_TIMES.done));
+};
+
+const enterSandbox = () => {
+  view.sandbox = { state, sync: structuredClone(syncState) };
+  state = { version: 1, deviceId: crypto.randomUUID(), sessions: [], bests: {} };
+  lastSaved = localJson();
+  lastMeta = metaJson();
+  Object.assign(view, { devMenu: false, devHit: false, wasHit: undefined, onboard: null, toast: null, composer: false, draft: '', open: new Set([todayIso()]) });
+  location.hash = '#/';
+  render();
+};
+const exitSandbox = () => {
+  state = view.sandbox.state;
+  syncState = view.sandbox.sync;
+  lastSaved = localJson();
+  lastMeta = metaJson();
+  Object.assign(view, { sandbox: null, devMenu: false, devHit: false, wasHit: undefined, onboard: null, toast: null, composer: false, draft: '' });
+  location.hash = '#/';
+  render();
+};
+const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action="close-dev" aria-label="Close"></button>
+  <div class="devMenu" role="menu">
+    <button role="menuitem" data-action="dev-exodia">Play Exodia animation</button>
+    ${view.devHit ? '<button role="menuitem" data-action="dev-normal">Back to normal colors</button>' : ''}
+    ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
+  </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
+
 const renderHome = () => {
   const pieces = pieceProgress(todayIso());
   const complete = pieces.filter((piece) => piece.complete).length;
+  const hits = exodiaHistory().hits + (view.devHit && complete < 5 ? 1 : 0) - (view.celebrating ? 1 : 0);
   const weekVolume = state.sessions.filter((session) => session.date >= addDays(todayIso(), -6)).reduce((sum, session) => sum + sessionVolume(session), 0);
   const hour = new Date().getHours();
   const greeting = hour < 5 ? 'Late session?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const sessions = sortedSessions().filter((session) => session.exercises.length > 0 || session.cardio > 0);
   return `<main class="page homePage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-    <h1 class="title">${state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
-    <section class="card${view.exodiaOpen ? ' open' : ''}" style="margin-top:20px">
+    <h1 class="title${view.reveal ? ' reveal' : ''}">${exodiaHit() && !view.celebrating ? `${esc(state.name || 'You')} hit Exodia` : state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
+    <section class="card${view.exodiaOpen ? ' open' : ''}${view.reveal ? ' reveal' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
         <span class="headName">Exodia</span>
-        <span class="exodiaHits num" aria-label="Exodia hit ${exodiaHistory().hits} times">${exodiaHistory().hits}</span>
+        <span class="exodiaHits num" aria-label="Exodia hit ${hits} times">${hits}</span>
         <span class="meta num">${complete === 5 ? 'Complete' : complete + ' of 5'} · ${tonnes(weekVolume)}</span>
         ${ICONS.chev}
       </button>
@@ -804,6 +929,77 @@ const chartFor = (allPoints) => {
   <div class="axis num"><span>${dayLabel(rows[0].date)}</span><span>${dayLabel(rows.at(-1).date)}</span></div>`;
 };
 
+const MUSCLES = [
+  ['chest', 'Chest'], ['upperBack', 'Upper back'], ['lowerBack', 'Lower back'], ['quads', 'Quads'], ['hamstrings', 'Hamstrings'], ['shoulders', 'Shoulders'], ['biceps', 'Biceps'],
+  ['triceps', 'Triceps'], ['glutes', 'Glutes'], ['abs', 'Abs'], ['calves', 'Calves'], ['forearms', 'Forearms'], ['adductors', 'Adductors'],
+];
+// First match wins: [name pattern, muscles worked hard, muscles helping (half a set)].
+const MUSCLE_RULES = [
+  [/leg curl|hamstring curl|nordic/, ['hamstrings']],
+  [/leg ext/, ['quads']],
+  [/back ext|hyperext|good morning/, ['lowerBack'], ['glutes', 'hamstrings']],
+  [/romanian|\brdl\b|stiff/, ['hamstrings'], ['glutes', 'lowerBack']],
+  [/deadlift/, ['hamstrings', 'glutes', 'lowerBack'], ['upperBack', 'forearms']],
+  [/hack|leg press|squat|lunge|split|step.?up/, ['quads', 'glutes'], ['adductors']],
+  [/hip thrust|glute|bridge|kickback|abduct/, ['glutes']],
+  [/adduct/, ['adductors']],
+  [/calf|calves/, ['calves']],
+  [/close.?grip|\bdips?\b/, ['triceps'], ['chest']],
+  [/tricep|pushdown|skull|extension|french/, ['triceps']],
+  [/hammer/, ['biceps', 'forearms']],
+  [/curl/, ['biceps'], ['forearms']],
+  [/overhead|ohp|shoulder|military|arnold|lateral|delt|face pull|front raise|upright/, ['shoulders'], ['triceps']],
+  [/bench|chest|push.?up|fly|flye|pec|incline|decline|press/, ['chest'], ['shoulders', 'triceps']],
+  [/pull.?up|chin.?up|pulldown|\blat\b|row|shrug/, ['upperBack'], ['biceps']],
+  [/crunch|sit.?up|plank|\babs?\b|leg raise|core|oblique/, ['abs']],
+  [/wrist|forearm|farmer|grip/, ['forearms']],
+];
+let anatomy = null;
+const loadAnatomy = () => {
+  if (anatomy) return;
+  anatomy = 'loading';
+  fetch('/anatomy.json').then((response) => response.json()).then((data) => { anatomy = data; if (view.route === 'trends') render(); }).catch(() => { anatomy = null; });
+};
+// Big muscles need about three days to recover, small ones about two.
+const RECOVERY_DAYS = { chest: 3, upperBack: 3, quads: 3, hamstrings: 3, glutes: 3, lowerBack: 3, shoulders: 2, biceps: 2, triceps: 2, forearms: 2, calves: 2, abs: 2, adductors: 2 };
+const daysBetween = (from, to) => Math.round((new Date(`${to}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
+const muscleLoad = () => {
+  const today = todayIso();
+  const since = addDays(today, -6);
+  const sets = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
+  const fatigue = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
+  for (const session of state.sessions) {
+    if (session.date < since || session.date > today) continue;
+    const fresh = (key) => Math.max(0, 1 - daysBetween(session.date, today) / RECOVERY_DAYS[key]);
+    for (const exercise of session.exercises) {
+      const rule = MUSCLE_RULES.find(([pattern]) => pattern.test(exercise.name.toLowerCase()));
+      if (!rule) continue;
+      const count = validSets(exercise).filter((set) => !set.warmup).length;
+      for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) {
+        for (const key of keys) {
+          sets[key] += count * share;
+          fatigue[key] += count * share * fresh(key);
+        }
+      }
+    }
+  }
+  return { sets, fatigue };
+};
+const bodySvg = (side, fatigue) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+  const amount = key ? Math.min(1, fatigue[key] / 6) : 0;
+  return `<polygon points="${points}" class="${!key ? 'bodyBone' : amount ? 'bodyHit' : 'bodyRest'}"${amount ? ` style="fill-opacity:${(0.18 + 0.82 * amount).toFixed(2)}"` : ''}/>`;
+}).join('')}</svg>`;
+const renderMuscles = () => {
+  loadAnatomy();
+  if (!anatomy || anatomy === 'loading' || state.sessions.length === 0) return '';
+  const { sets, fatigue } = muscleLoad();
+  return `<p class="section muscleHead">Anatomy<span>Sets · 7 days</span></p>
+    <div class="muscles">${bodySvg('front', fatigue)}${bodySvg('back', fatigue)}
+      <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
+    </div>
+    <p class="muscleNote">Red is still recovering and fades back to grey over two to three days.</p>`;
+};
+
 const renderTrends = () => {
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
@@ -850,6 +1046,7 @@ const renderTrends = () => {
   return `<main class="page trendsPage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
+    ${renderMuscles()}
     ${names.length ? '' : '<p class="empty" style="margin-top:20px">Log a few sessions and your trends show up here.</p>'}
     ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : ''}
     ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
@@ -943,7 +1140,7 @@ const sendFeedback = async (text, voice) => {
   closeTray();
   try {
     const audio = voice ? await wavBase64(voice) : undefined;
-    const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, audio, name: state.name || '' }) });
+    const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, audio, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || 'Could not send that. Try again.');
     state.feedback = [...(state.feedback || []), { at: Date.now(), said: body.said, kind: body.kind, title: body.title }].slice(-50);
@@ -1187,14 +1384,15 @@ const renderPicks = () => {
   const date = view.composerDate || todayIso();
   const picks = pickList();
   const query = !/\d/.test(view.draft) && view.draft.trim();
-  return `${!query || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Cardio</span><span class="pickLast">Cardio or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}
-    ${picks.map((name) => {
-      const last = lastSetsFor(name, date);
-      return `<button class="pick" data-action="pick" data-name="${esc(name)}" aria-label="Add ${esc(name)} to ${dayLabel(date)}"><span style="flex:1;min-width:0"><span class="pickName">${esc(name)}</span><span class="pickLast num">${last ? `Last ${last[0].kg} × ${last[0].reps} · ${setCount(last.length)}` : 'New'}</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>`;
-    }).join('')}
+  const cardio = !query || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Cardio</span><span class="pickLast">Cardio or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : '';
+  const split = picks.filter((name) => BIG_THREE.includes(name)).length;
+  return `${picks.slice(0, split).map((name) => pickButton(name, date)).join('')}${cardio}${picks.slice(split).map((name) => pickButton(name, date)).join('')}
     ${query && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
-
+const pickButton = (name, date) => {
+  const last = lastSetsFor(name, date);
+  return `<button class="pick" data-action="pick" data-name="${esc(name)}" aria-label="Add ${esc(name)} to ${dayLabel(date)}"><span style="flex:1;min-width:0"><span class="pickName">${esc(name)}</span><span class="pickLast num">${last ? `Last ${last[0].kg} × ${last[0].reps} · ${setCount(last.length)}` : 'New'}</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>`;
+};
 const nameQuery = () => {
   const text = view.draft.trim();
   return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
@@ -1202,13 +1400,13 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div></div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section">Quick add</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, a spreadsheet</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, a spreadsheet</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
 
 const sheetBody = () => (nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
-  : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>${view.draft.trim() && !view.showQuick ? '' : quickAdd()}`);
+  : `${view.showQuick ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${view.showQuick || (!view.draft.trim() && !view.quickHidden) ? quickAdd() : ''}`);
 
-const renderSheet = () => `<div class="sheet" role="group" aria-label="Chat">
+const renderSheet = () => `<div class="sheet${view.showQuick && !nameQuery() ? ' quickMode' : ''}" role="group" aria-label="Chat">
   <button class="grabber" data-action="close-chat" aria-label="Close chat"></button>
   <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : 'chat'}">${sheetBody()}</div>
 </div>`;
@@ -1289,6 +1487,7 @@ const syncDock = () => {
     scrollChat();
     animateChat(true);
   } else if (view.composer) {
+    sheet.classList.toggle('quickMode', Boolean(view.showQuick && !nameQuery()));
     const body = sheet.querySelector('.sheetBody');
     const mode = nameQuery() ? `q:${nameQuery()}` : 'chat';
     if (body.dataset.mode !== mode) {
@@ -1313,6 +1512,7 @@ const syncDock = () => {
 const EXAMPLES = ['120 for 3 bench press', '240 deadlift, reps 4-2', 'Squat 140 for 5, 5 and 5', 'Ran 25 min', 'Hack squat 200 for 8 last Friday', 'Curls 20 for 12, 10, 8', 'Walked 40 min'];
 const typewriter = { text: '', index: 0, length: 0, fading: false };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+(window.requestIdleCallback || setTimeout)(preloadHands);
 
 const tickTypewriter = () => {
   const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : EXAMPLES;
@@ -1372,7 +1572,22 @@ turnUi();
 turnQuery.addEventListener('change', turnUi);
 screen.orientation?.addEventListener('change', turnUi);
 window.addEventListener('orientationchange', turnUi);
-window.addEventListener('resize', turnUi);
+window.addEventListener('resize', () => { turnUi(); fitNames(); });
+
+const SHORTER = [[/\bExtensions?\b/, 'Ext.'], [/\b(Single|One)[ -]Arm\b/i, '1-Arm'], [/\bDumbbell\b/, 'DB'], [/\bBarbell\b/, 'BB'], [/\bOverhead\b/, 'OH'], [/\bMachine\b/, 'Mach.'], [/\bIncline\b/, 'Inc.'], [/\bDecline\b/, 'Dec.'], [/\bAbduction\b/, 'Abd.'], [/\bAdduction\b/, 'Add.'], [/\bRomanian Deadlift\b/, 'RDL']];
+const fitNames = () => {
+  for (const el of document.querySelectorAll('.dayLift, .exName, .liftName')) {
+    if (el.childElementCount) continue;
+    if (!el.dataset.full) el.dataset.full = el.textContent;
+    let name = el.dataset.full;
+    el.textContent = name;
+    for (const [pattern, short] of SHORTER) {
+      if (el.scrollWidth <= el.clientWidth + 1) break;
+      if (pattern.test(name)) el.textContent = name = name.replace(pattern, short);
+    }
+    if (name !== el.dataset.full) el.title = el.dataset.full;
+  }
+};
 
 const tuckCards = () => {
   const dock = document.querySelector('.dock');
@@ -1381,7 +1596,7 @@ const tuckCards = () => {
   const box = dock.offsetHeight - (sheet ? sheet.offsetHeight + 8 : 0);
   setVar('--dock-h', `${box}px`);
   const tall = turn ? window.innerWidth : window.visualViewport?.height || window.innerHeight;
-  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, tall - box - (desktopQuery.matches ? 64 : Math.max(120, tall * 0.24)))))}px`);
+  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, tall - box - (desktopQuery.matches ? 64 : view.showQuick ? 110 : Math.max(120, tall * 0.24)))))}px`);
   const line = uiBox(dock).bottom - box;
   for (const card of document.querySelectorAll('.page .card')) {
     const box = uiBox(card);
@@ -1487,9 +1702,13 @@ const stopOnboardMic = () => {
 
 const render = () => {
   const app = document.getElementById('app');
+  const hit = exodiaHit();
+  if (view.wasHit === false && hit && !view.celebrating) celebrate();
+  view.wasHit = hit;
+  document.documentElement.classList.toggle('exodiaBlue', hit && view.celebrating !== 'orange');
   if (onboarding()) {
     const focusedId = document.activeElement?.id;
-    app.innerHTML = renderOnboard();
+    app.innerHTML = renderOnboard() + devExtras();
     if (focusedId) document.getElementById(focusedId)?.focus();
     return;
   }
@@ -1498,7 +1717,7 @@ const render = () => {
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
   const searchFocused = focused && focused.id === 'search';
   const oldBody = document.querySelector('.sheetBody');
-  const chatScroll = oldBody && oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40 ? oldBody.scrollTop : null;
+  const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
   const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
   const dock = `${view.composer ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
@@ -1510,6 +1729,7 @@ const render = () => {
     : `<header class="topbar"><div class="topbarInner">
         <button class="iconBtn" data-action="open-menu" aria-label="Open menu">${ICONS.menu}</button>
         <a class="brand" href="#/"><span class="logo" aria-hidden="true"></span>Exodia</a>
+        ${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
         ${view.route === 'home' ? `<a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>` : `<a class="iconBtn" href="#/" aria-label="Home">${ICONS.home}</a>`}
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
@@ -1518,7 +1738,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}`;
+    </div>` : ''}${devExtras()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -1538,7 +1758,9 @@ const render = () => {
   view.opening = null;
   view.menuEnter = false;
   view.rulesEnter = false;
+  view.reveal = false;
   tuckCards();
+  fitNames();
   const body = document.querySelector('.sheetBody');
   if (body) body.scrollTop = chatScroll ?? body.scrollHeight;
   if (view.trayEnter) animateChat(true);
@@ -1836,7 +2058,7 @@ const applyEdits = (result) => {
     const name = findExerciseName(target.exercise) || titleCase(target.exercise);
     const item = { ...target, date: loggedDay(target.date, name) };
     const session = ensureSession(item.date);
-    const sets = item.sets.map((set) => ({ kg: String(set.kg), reps: String(set.reps), ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true }));
+    const sets = item.sets.map((set) => ({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true }));
     const exercise = session.exercises.find((other) => other.name === name);
     if (exercise) exercise.sets = sets;
     else session.exercises.push({ name, sets });
@@ -1958,9 +2180,13 @@ const land = (result, date) => {
   }, 1800);
 };
 
-const importText = (text) => fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 80) }) })
+const importText = (text) => fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 80) }) })
   .then((response) => response.json().then((body) => (response.ok ? body : Promise.reject(new Error(body.error || 'Could not read that. Try again.')))))
   .then(async (body) => {
+    for (const session of body.sessions || []) {
+      state.sessions = state.sessions.filter((item) => item.date !== session.date);
+      state.sessions.push(session);
+    }
     await syncNow();
     const days = (body.added || []).filter((day) => day.sets > 0);
     const did = [days.length ? `Added ${days.length} ${days.length === 1 ? 'day' : 'days'}, ${days.reduce((sum, day) => sum + day.sets, 0)} sets` : 'Nothing new to add', ...(body.unclear ? [`Didn't understand: ${body.unclear}`] : [])];
@@ -2206,7 +2432,20 @@ document.addEventListener('click', (event) => {
     view.open.add(to);
     view.scrollTarget = to;
   }
-  if (action === 'open-menu') view.menu = true;
+  if (action === 'dev-menu') view.devMenu = !view.devMenu;
+  else if (action === 'close-dev') view.devMenu = false;
+  else if (action === 'dev-exodia') {
+    view.devMenu = false;
+    view.devHit = true;
+    view.wasHit = false;
+    if (view.route !== 'home') location.hash = '#/';
+    scrollPage(0);
+  } else if (action === 'dev-normal') {
+    view.devMenu = false;
+    view.devHit = false;
+  } else if (action === 'dev-newuser') return enterSandbox();
+  else if (action === 'dev-exit') return exitSandbox();
+  else if (action === 'open-menu') view.menu = true;
   else if (action === 'close-menu') view.menu = false;
   else if (action === 'open-composer') {
     view.trayEnter = !view.composer;
@@ -2330,14 +2569,20 @@ document.addEventListener('click', (event) => {
   } else if (action === 'remove-cardio' && session) {
     session.cardio = 0;
     addLog('Remove cardio', [`Removed cardio on ${dayLabel(date)}`], { manual: true });
+  } else if (action === 'hide-quick') {
+    view.showQuick = false;
+    view.quickHidden = true;
+    render();
+    return;
   } else if (action === 'open-quick') {
     openChat();
     view.showQuick = true;
+    view.quickHidden = false;
     if (!desktopQuery.matches) document.activeElement?.blur();
     render();
     const body = document.querySelector('.sheetBody');
     const list = document.querySelector('.sheet .quickAdd');
-    if (body && list) body.scrollTop = list.offsetTop - body.offsetTop - 8;
+    if (body) body.scrollTop = 0;
     return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
@@ -2670,6 +2915,7 @@ const closeTray = () => {
   if (!view.composer) return;
   view.composer = false;
   view.showQuick = false;
+  view.quickHidden = false;
   if (!desktopQuery.matches && document.activeElement?.closest?.('.dock')) document.activeElement.blur();
   syncDock();
 };
