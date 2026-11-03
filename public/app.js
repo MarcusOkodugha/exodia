@@ -744,13 +744,13 @@ const FIST_TIMES = { eye: 3600, impact: 4120, fly: 4750, done: 5350 };
 // [piece, how it starts tucked into the palm].
 const FIST = [
   ['thumb-left', 'translate(22%, 15%)'],
-  ['index', 'translateY(31%)'],
+  ['index', 'translateY(27%)'],
   ['middle', 'translateY(31%)'],
-  ['ring', 'translateY(31%)'],
+  ['ring', 'translateY(27%)'],
   ['thumb-right', 'translate(-22%, 15%)'],
 ];
 // Each side line runs up the palm's cut edge and curves into the first knuckle, so the closed fist has one clean outline.
-const FIST_SIDES = ['M22.46 70.7 C21.72 67.38 22.01 56.64 22.8 49 C23.05 46.9 24.2 45.5 27.9 44.7', 'M77.54 70.7 C78.28 67.38 77.99 56.64 77.2 49 C76.95 46.9 75.8 45.5 72.1 44.7'];
+const FIST_SIDES = ['M22.3 70.7 C21.6 67.38 22.01 56.64 22.8 49 C23.05 46.7 24.3 44.9 27.73 44.14', 'M77.7 70.7 C78.4 67.38 77.99 56.64 77.2 49 C76.95 46.7 75.7 44.9 72.27 44.14'];
 // Wait until every piece is decoded (at most 600 ms) so nothing pops in or stutters on the first frames.
 const decoded = (images) => Promise.race([Promise.all(images.map((image) => image.decode().catch(() => {}))), new Promise((done) => setTimeout(done, 600))]);
 
@@ -772,15 +772,20 @@ const playFist = async () => {
   document.body.append(show);
   const hand = show.querySelector('.exHand');
   hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out', fill: 'backwards' });
+  // The bars' card comes in with the first bar, so it never sits there empty.
+  show.querySelector('.exBars').animate([{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }], { duration: 420, delay: FIST_OPEN[0] - 120, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
   const bars = show.querySelectorAll('.exBars > div');
   show.querySelectorAll('.exLayer[data-piece]').forEach((piece) => {
     const index = Number(piece.dataset.piece);
-    piece.animate([{ transform: FIST[index][1] }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.25, 0.45, 1)', fill: 'backwards' });
+    // Fingers overshoot a touch; thumbs settle without it, so their outline meets the palm's without a step.
+    const easing = index === 0 || index === 4 ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'cubic-bezier(0.3, 1.25, 0.45, 1)';
+    piece.animate([{ transform: FIST[index][1] }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing, fill: 'backwards' });
   });
-  // The palm's side line stays in front while a thumb slides out from behind it, then fades as the thumb lands.
+  // The palm's side line stays in front while a thumb slides out from behind it, then fades as the thumb arrives
+  // (a finger covers most of its way in the first 45% of its time, then settles).
   show.querySelectorAll('.exSides').forEach((side, index) => {
     const piece = index === 0 ? 0 : 4;
-    side.animate([{ opacity: 1 }, { opacity: 1, offset: 0.78 }, { opacity: 0 }], { duration: FIST_DURATION[piece], delay: FIST_OPEN[piece], easing: 'ease-in', fill: 'both' });
+    side.animate([{ opacity: 1 }, { opacity: 1, offset: 0.35, easing: 'ease-in-out' }, { opacity: 0, offset: 0.7 }, { opacity: 0 }], { duration: FIST_DURATION[piece], delay: FIST_OPEN[piece], fill: 'both' });
   });
   bars.forEach((bar, index) => {
     bar.querySelector('b').animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)', fill: 'both' });
