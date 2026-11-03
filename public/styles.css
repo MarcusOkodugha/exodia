@@ -79,7 +79,7 @@ textarea::placeholder, input::placeholder { color: var(--text2); }
 .shimmer.short { width: 40%; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .exName { margin: 0 0 2px; font-size: 17px; line-height: 22px; font-weight: 600; }
-.setRow { display: grid; grid-template-columns: 30px 60px 24px 12px 46px 40px minmax(0, 1fr) 24px; column-gap: 4px; align-items: center; min-height: 44px; }
+.setRow { display: grid; grid-template-columns: 26px 56px 24px 12px 42px 52px minmax(0, 1fr) 24px; column-gap: 4px; align-items: center; min-height: 40px; }
 .pill.rpe { font-size: 13px; font-weight: 400; color: var(--text2); }
 .swipe { position: relative; overflow: hidden; }
 .swipeFace { position: relative; z-index: 1; background: var(--card); transition: transform 0.2s ease; touch-action: pan-y; }
@@ -355,7 +355,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 :root { --hair: 1px; }
 @media (min-resolution: 2dppx) { :root { --hair: 0.5px; } }
 @media (min-resolution: 3dppx) { :root { --hair: 0.34px; } }
-.setSwipe::after { content: ""; position: absolute; z-index: 2; top: 0; right: 0; bottom: 0; width: 76px; border-top: var(--hair) solid rgb(var(--clayRgb) / 0.24); border-right: var(--hair) solid rgb(var(--clayRgb) / 0.24); pointer-events: none; }
+.setSwipe::after { content: ""; position: absolute; z-index: 2; top: 0; right: 0; bottom: 0; width: 76px; border-top: var(--hair) solid rgb(var(--clayRgb) / 0.36); border-right: var(--hair) solid rgb(var(--clayRgb) / 0.36); pointer-events: none; }
 .setSwipe.open::after { display: none; }
 .contextChip { grid-area: 1 / 1; justify-self: start; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 30px; margin: 8px 0 0 -6px; padding: 0 3px 0 10px; border-radius: 15px; background: rgba(20, 20, 19, 0.06); font-size: 14px; line-height: 18px; }
 .contextKind { flex: none; color: var(--text2); }
@@ -419,7 +419,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .toastSets { text-align: right; }
 @keyframes drop { from { transform: translateY(-14px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .toastMore, .toastDetail, .toastChev .chev { transition: none; } }
-.setRow .pct { display: inline-flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.setRow .pct { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .setPct { flex: none; min-width: 44px; text-align: right; font-size: 15px; color: var(--text2); font-weight: 400; }
 .setRow .e1rm, .setRow .prPill { min-width: 3ch; text-align: right; }
 .setRow .pct { justify-self: stretch; }
@@ -427,6 +427,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .setRow .e1rm { display: inline-block; width: 32px; text-align: right; }
 .homePage .session .exercise, .homePage .session .ghost, .homePage .session .deleteDay, .homePage .session .dayMenu, .homePage .session .foot, .homePage .session .cardio, .homePage .session .dayActions { border-top: 0; }
 .homePage .session .exercise { padding-top: 14px; }
+.homePage .session .headRow + .exercise { padding-top: 2px; }
 .onboard { padding-top: calc(var(--top) + 56px); }
 .onboardLogo { display: block; width: 56px; height: 56px; margin: 0 0 18px; }
 .onboardLead { margin: 8px 0 28px; font-size: 17px; line-height: 24px; color: var(--text2); }
@@ -478,7 +479,10 @@ html.turned[data-turn="90"] { --top: env(safe-area-inset-right, 0px); --bottom: 
 html.turned .swipeFace { touch-action: pan-x; }
 html.turned .toastMore > div { max-height: calc(var(--vw) * 0.55); }
 html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
-.exHead .exName { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Exercise names read as a quiet link to the lift's trend, not as a second day heading. */
+.exHead .exName { min-width: 0; display: inline-flex; align-items: center; gap: 3px; font-size: 16px; font-weight: 500; }
+.exNameText { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exChev { flex: none; color: var(--text2); opacity: 0.7; }
 
 .muscles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(118px, 1.25fr); gap: 8px; align-items: start; margin: 4px 0 28px; }
 .bodyFig { display: block; width: 100%; height: auto; }
@@ -546,8 +550,9 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .muscleNote { margin: 0 0 28px; color: var(--text2); font-size: 13px; line-height: 18px; }
 
 /* Open day: + after the last set, one footer row, a thin line holding each lift's sets. */
-.rpeTag { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
-.rowPlus { width: 22px; height: 30px; display: inline-flex; align-items: center; justify-content: center; color: var(--text2); flex: none; }
+/* The @ value gets a fixed slot and the plus always follows it, so every plus lines up. */
+.rpeTag { display: grid; grid-template-columns: 34px 18px; align-items: center; white-space: nowrap; }
+.rowPlus { width: 18px; height: 30px; display: inline-flex; align-items: center; justify-content: center; color: var(--text2); flex: none; }
 .exercise { border-top: 0; padding-top: 6px; }
 .dayAdd { display: flex; gap: 22px; margin-right: auto; }
 .dayActions { align-items: center; }
