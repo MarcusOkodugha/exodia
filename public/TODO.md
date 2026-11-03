@@ -28,6 +28,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Trends: "What you said" next to a lift's name opens the Log with the messages about that lift (v197)
 - Quick add: no "Show all" button; the main picks, then a clear "More exercises" line with the rest in a quieter style (v196)
 - Anatomy legend on a computer: stripes follow whole rows again; every change now gets a full screenshot sweep of all pages (`tools/screens.cjs`) (v197)
 - Squat, Bench, Deadlift buttons sit under the Trends chart, only those three, and now also under the chart on desktop (v197)

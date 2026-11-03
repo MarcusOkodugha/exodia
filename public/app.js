@@ -1208,7 +1208,7 @@ const renderTrends = () => {
     const last = all.at(-1);
     const lastTop = last.sets.reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) || (Number(set.kg) === Number(winner.kg) && Number(set.reps) > Number(winner.reps)) ? set : winner), null);
     return `<section class="card${open ? ' open' : ''}" data-trend="${esc(name)}">
-      <p class="head trendHead"><span class="headName">${esc(name)}</span></p>
+      <p class="head trendHead"><span class="headName">${esc(name)}</span><button class="textBtn trendSource" data-action="log-lift" data-name="${esc(name)}">What you said</button></p>
       ${open ? `
         <div class="tiles">
           <div class="tile"><p class="tileValue num">${lifted ? lifted.kg : '–'}<small>${lifted ? ` × ${lifted.reps}` : ''}</small></p><p class="tileLabel">Best lifted</p><p class="tileSub">All time</p></div>
@@ -1270,6 +1270,8 @@ const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, 
 
 const chatList = (entries, compact) => entries.map(({ entry, index }, position) => chatEntry({ ...entry, stamp: chatStamp(entry.at, entries[position - 1]?.entry.at), fixIndex: index, compact })).join('');
 
+// Messages that added or changed a lift: its name is in what was logged (raw) or in the reply.
+const logMatchesLift = (entry, name) => [entry.raw || '', ...entry.did].some((text) => text.toLowerCase().includes(name.toLowerCase()));
 const logMatchesDay = (entry, date) => (entry.raw || '').includes(date) || entry.did.some((line) => line.includes(dayLabel(date)));
 
 const renderDayNow = (date) => {
@@ -1284,8 +1286,8 @@ const renderDayNow = (date) => {
 const renderLog = () => `<main class="page">
     <p class="eyebrow">What you said, and what Exodia did</p>
     <h1 class="title">Log</h1>
-    ${view.logDate ? `<p class="logFilter">Showing ${dayLabel(view.logDate)}<button class="textBtn" data-action="log-all">Show all</button></p>` : ''}
-    <div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).filter(({ entry }) => !view.logDate || logMatchesDay(entry, view.logDate)).reverse(), false) || '<p class="empty">Say or type something in the box below and it shows up here.</p>'}</div>
+    ${view.logDate || view.logLift ? `<p class="logFilter">Showing ${view.logLift ? `messages about ${esc(view.logLift)}` : dayLabel(view.logDate)}<button class="textBtn" data-action="log-all">Show all</button></p>` : ''}
+    <div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).filter(({ entry }) => (!view.logDate || logMatchesDay(entry, view.logDate)) && (!view.logLift || logMatchesLift(entry, view.logLift))).reverse(), false) || '<p class="empty">Say or type something in the box below and it shows up here.</p>'}</div>
   ${view.logDate ? renderDayNow(view.logDate) : ''}
   </main>`;
 
@@ -3578,8 +3580,14 @@ document.addEventListener('click', (event) => {
     if (session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
     location.hash = '#/log';
     return;
+  } else if (action === 'log-lift') {
+    view.logLift = target.dataset.name;
+    view.logDate = null;
+    location.hash = '#/log';
+    return;
   } else if (action === 'log-all') {
     view.logDate = null;
+    view.logLift = null;
   } else if (action === 'move-day' && session) {
     const to = target.dataset.to;
     view.editDay = null;
@@ -4025,7 +4033,10 @@ const route = () => {
   // Leaving Home remembers how far down you were; coming back puts you there again, not at the top.
   if (view.route === 'home') view.homeScroll = scroller().scrollTop;
   view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import'].includes(name) ? name : 'home';
-  if (view.route !== 'log') view.logDate = null;
+  if (view.route !== 'log') {
+    view.logDate = null;
+    view.logLift = null;
+  }
   if (view.route === 'admin') view.adminRows = null;
   view.menu = false;
   scrollPage(0);

@@ -715,3 +715,7 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 /* Two columns (desktop right panel): stripe whole rows (items 1-2, 5-6, …), not every other item, which striped only the left column. */
 .right .muscleRow:nth-child(odd) { background: none; }
 .right .muscleRow:nth-child(4n+1), .right .muscleRow:nth-child(4n+2) { background: rgb(20 20 19 / 0.022); }
+/* Trends: "What you said" next to the lift name opens the Log with the messages about that lift. */
+.trendHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.trendSource { flex: none; min-height: 36px; font-size: 14px; color: var(--text2); }
+.logFilter .textBtn { flex: none; white-space: nowrap; }
