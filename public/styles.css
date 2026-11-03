@@ -294,7 +294,11 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .weekLabels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 4px; font-size: 11px; line-height: 14px; color: var(--text2); text-align: center; }
 .weekLabels .on { color: var(--text); font-weight: 600; }
 .avgLine { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgb(var(--clayRgb) / 0.45); pointer-events: none; }
-.avgLine span { position: absolute; right: 0; bottom: 2px; padding-left: 4px; font-size: 10px; line-height: 12px; color: var(--text2); }
+/* The chart keeps a right gutter for the average label, so no bar or bar value can ever cover it. */
+.weekChart { --gutter: 40px; }
+.weekChart .weekBars, .weekChart .weekLabels, .weekChart .axis { margin-right: var(--gutter); }
+.weekChart .axis { margin-left: 0; margin-bottom: 0; }
+.avgLine span { position: absolute; right: calc(var(--gutter) * -1); top: -8px; width: calc(var(--gutter) - 4px); font-size: 10px; line-height: 14px; color: var(--text2); text-align: right; white-space: nowrap; }
 
 .desk { display: grid; grid-template-columns: 272px minmax(0, 1fr) 380px; min-height: 100vh; }
 .side { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--drawer); border-right: 1px solid var(--line); padding: 24px 12px; display: flex; flex-direction: column; scrollbar-width: none; }

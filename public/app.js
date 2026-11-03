@@ -1460,10 +1460,10 @@ const renderVolume = () => {
   // Bars fill up to 78% of the chart height (the rest is room for the value labels), so the average line uses the same scale.
   const averageLine = average ? `<i class="avgLine" style="bottom:${((average / maxVolume) * 78).toFixed(1)}%" aria-hidden="true"><span class="num">avg ${(average / 1000).toFixed(1)}</span></i>` : '';
   return `<p class="section">Volume per week · tonnes</p>
-    <section class="card" style="padding:14px 16px">
+    <section class="card weekChart" style="padding:14px 16px">
       <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ${isoWeek(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}${averageLine}</div>
       <div class="weekLabels num" aria-hidden="true">${weeks.map((week, index) => `<span${(view.volumeWeek ?? 5) === index ? ' class="on"' : ''}>W${isoWeek(week.end)}</span>`).join('')}</div>
-      <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? `This week · W${isoWeek(weeks[5].end)}` : `Week ${isoWeek(weeks[view.volumeWeek ?? 5].end)}`}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
+      <div class="axis num" style="margin-top:6px"><span>${(view.volumeWeek ?? 5) === 5 ? `This week · W${isoWeek(weeks[5].end)}` : `Week ${isoWeek(weeks[view.volumeWeek ?? 5].end)}`}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
     </section>`;
 };
 
