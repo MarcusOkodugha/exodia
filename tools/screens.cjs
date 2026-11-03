@@ -51,7 +51,7 @@ const shots = [
   ['feedback', '#/feedback', null],
   ['settings', '#/you', null],
   ['admin', '#/admin', null],
-  ['red-pill-open', '#/', async (page) => { await page.click('.leftPill'); await page.click('[data-action="left-item"] >> nth=0'); }],
+  ['red-pill-open', '#/', async (page) => { if (!(await page.locator('.leftPill').count())) return; await page.click('.leftPill'); await page.click('[data-action="left-item"] >> nth=0'); }],
   ['onboarding', '#/', null, 'all', 'fresh'],
   ['link-offer', 'me/' + 'a'.repeat(32), null, 'all', 'fresh']
 ];

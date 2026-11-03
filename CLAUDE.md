@@ -17,6 +17,7 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
   - `/api/admin`: admin only. Lists commands and feedback, sets feedback status, and starts Claude Code with `{ "claude": "change request" }`.
   - `/join`: the link for everyone, a fresh, empty Exodia. `/me/<key>`: private personal links, still working; in a browser the app asks "is this yours?" first. Marcus reaches his admin profile through his own `/me/` link.
 - `migrations/`: the D1 (SQLite) schema. If you add a migration, say so in your reply. Builds don't run migrations, so it must be applied once with `npx wrangler d1 migrations apply exodia --remote`.
+- The Cloudflare key in this environment can read the D1 database: `npx wrangler d1 execute exodia --remote --command "SELECT …"`. Read only, unless Marcus asks for a data fix, and never copy people's names, profile keys or training into the repo. The `commands` table has what was sent and what happened, errors included.
 - Worker secrets (names only):
   - `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`: the AI providers.
   - `ADMIN_PROFILE`: the profile key that sees Admin.

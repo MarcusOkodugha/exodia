@@ -6,12 +6,10 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] 🔴 **Give the Cloudflare key database (D1) access.** The key can deploy but can't read the database, so Claude can't see what Romy and Adam sent or fix their data.
-  1. Open [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens)
-  2. Next to "Edit Cloudflare Workers", tap ⋯ → Edit
-  3. Under Permissions tap + Add more, choose Account → D1 → Edit
-  4. Tap Continue to summary → Update token
-  5. Tell Claude "D1 is on"
+- [ ] **Tell your two friends who share one log to split it.** One shared link put them on the same profile (no training in it yet). Their file import failed only because of the bug fixed in v188.
+  1. The friend whose name is not on it opens Exodia, taps Menu → Start fresh
+  2. Then imports their app export again with + → Import from a file (FitNotes, Strong, Hevy, Excel and CSV all work now)
+
 
 ## To do (Claude)
 
@@ -21,6 +19,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Trends: Squat · Bench · Deadlift is a switch inside the chart card right under the graph, in kg, no "× 1"; other lifts listed under it, three shown, "Show all N lifts" opens the rest (v202)
+- Cloudflare key has D1 access (Nov 3)
 - Trends: one lift card under the chart: Squat · Bench · Deadlift with kg, your other lifts below, a clear "Show all N lifts" row; the waiting pill sits top right in clay, just the dot and number on a phone (v201)
 - Decided (Nov 3): no name + code for new phones; Exodia stays on the Mpya Claude account; no status page; old Mac Claude memory dropped
 - Lift buttons show the heaviest set you actually lifted (175 × 5), not the estimate; cardio removes like a set (swipe, Edit → minus, × on a computer) with Undo; Edit makes what you can change glow twice; long press no longer starts iPhone text selection; pencil next to your name in Settings; Start blank says you can add old workouts later; red pill moved next to the menu so the dev button is free, dev button top right on a computer too; gap between Try again and Send as feedback (v200)

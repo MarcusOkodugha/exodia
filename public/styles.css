@@ -736,28 +736,24 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 @media (min-width: 1024px) { .leftPill { left: auto; right: 60px; z-index: 2; } }
 /* Two buttons under a reply keep a gap (Try again · Send as feedback). */
 .bubbleOut .textBtn + .textBtn { margin-left: 16px; }
-/* Trends: the lift card under the chart. Big 3 side by side, then the other lifts, then a clear "Show all" row. */
-.liftCard { margin-top: 12px; padding: 0; overflow: hidden; }
-.bigThree { display: grid; grid-template-columns: repeat(var(--picks, 3), minmax(0, 1fr)); }
-.bigLift { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; padding: 12px 14px 11px; text-align: left; }
-.bigLift + .bigLift { border-left: 1px solid var(--sep); }
-.bigLiftName { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
-.liftKg { font-size: 22px; line-height: 28px; font-weight: 600; color: var(--text); white-space: nowrap; }
+/* Trends: the lift switch inside the chart card, right under the graph, then the other lifts and a clear "Show all". */
+.liftSwitch { display: grid; grid-template-columns: repeat(var(--picks, 3), minmax(0, 1fr)); gap: 4px; margin: 10px 0 14px; padding: 4px; border-radius: 14px; background: rgba(20, 20, 19, 0.05); }
+.liftSeg { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; padding: 8px 6px; border-radius: 10px; }
+.liftSegName { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+.liftKg { font-size: 19px; line-height: 24px; font-weight: 600; color: var(--text); white-space: nowrap; }
 .liftKg small { font-size: 13px; font-weight: 500; color: var(--text2); }
-.liftReps { font-size: 13px; line-height: 16px; color: var(--text2); }
-.bigLift[aria-pressed="true"] { background: var(--claySoft); }
-.bigLift[aria-pressed="true"] .bigLiftName { color: var(--clayText); }
-.otherLifts { border-top: 1px solid var(--sep); }
-.otherLift { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 0 16px; text-align: left; }
+.liftReps { font-size: 14px; color: var(--text2); white-space: nowrap; }
+.liftSeg[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12); }
+.liftSeg[aria-pressed="true"] .liftSegName { color: var(--clayText); }
+.otherLifts { margin: 0 0 4px; border-top: 1px solid var(--sep); }
+.otherHead { margin: 12px 0 2px; font-size: 13px; font-weight: 600; color: var(--text2); }
+.otherLift { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; text-align: left; }
 .otherLift + .otherLift { border-top: 1px solid var(--sep); }
 .otherName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
 .otherBest { flex: none; display: flex; align-items: baseline; gap: 6px; }
 .otherBest .liftKg { font-size: 16px; line-height: 20px; }
-.otherLift[aria-pressed="true"] { background: var(--claySoft); }
 .otherLift[aria-pressed="true"] .otherName { color: var(--clayText); font-weight: 600; }
-.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 52px; border-top: 1px solid var(--sep); background: rgb(var(--clayRgb) / 0.05); color: var(--clayText); font-size: 16px; font-weight: 600; }
+.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 4px 0 8px; border-radius: 12px; background: rgb(var(--clayRgb) / 0.08); color: var(--clayText); font-size: 16px; font-weight: 600; }
 .liftExpand[aria-expanded="true"] svg { transform: rotate(180deg); }
-.right .liftCard { margin-top: 10px; }
-.right .liftReps { display: none; }
-.right .liftKg { font-size: 19px; }
+.right .liftSwitch { margin-top: 10px; }
 .trendsPage [data-trend] { scroll-margin-top: calc(var(--top) + 60px); }

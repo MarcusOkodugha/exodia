@@ -1174,22 +1174,22 @@ const prCount = (name, since) => state.sessions.filter((session) => session.date
 // A blank start still shows the real charts and lifts, just with nothing in them yet.
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
-// Under the trend chart: one card. Squat, Bench and Deadlift side by side with the heaviest set you actually lifted,
-// then your other lifts as a list (three shown, "Show all" opens the rest). Tap any of them and the chart switches.
+// Inside the trend card, right under the chart: Squat · Bench · Deadlift as a switch for the chart, with the heaviest
+// weight you lifted in kg. Under it your other lifts, one per row (three shown, "Show all" opens the rest).
+// Reps only show when they are more than one.
 const LIFT_ORDER = ['Squat', 'Bench Press', 'Deadlift'];
-const liftBest = (name) => {
+const liftKg = (name, withReps) => {
   const lifted = heaviestLifted(name);
-  return lifted ? `<span class="liftKg num">${lifted.kg}<small> kg</small></span><span class="liftReps num">× ${lifted.reps}</span>` : '<span class="liftKg num">–</span>';
+  if (!lifted) return '<span class="liftKg num">–</span>';
+  return `<span class="liftKg num">${lifted.kg}<small> kg</small></span>${withReps && Number(lifted.reps) > 1 ? `<span class="liftReps num">× ${lifted.reps}</span>` : ''}`;
 };
 const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
   const shown = LIFT_ORDER.filter((name) => big.includes(name));
   const others = action === 'pick-trend' ? rest : [];
   const visible = view.trendMore ? others : [...others.slice(0, 3), ...(others.indexOf(current) >= 3 ? [current] : [])];
-  return `<section class="card liftCard">
-    ${shown.length ? `<div class="bigThree" style="--picks:${shown.length}">${shown.map((name) => `<button class="bigLift" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="bigLiftName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span>${liftBest(name)}</button>`).join('')}</div>` : ''}
-    ${others.length ? `<div class="otherLifts">${visible.map((name) => `<button class="otherLift" data-action="${action}" data-name="${esc(name)}" data-scroll="1" aria-pressed="${current === name}"><span class="otherName">${esc(name)}</span><span class="otherBest">${liftBest(name)}</span></button>`).join('')}</div>` : ''}
-    ${others.length > 3 ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer lifts' : `Show all ${others.length} lifts`}${ICONS.chev}</button>` : ''}
-  </section>`;
+  return `${shown.length ? `<div class="liftSwitch" style="--picks:${shown.length}" role="group" aria-label="Show lift">${shown.map((name) => `<button class="liftSeg" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="liftSegName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span>${liftKg(name, false)}</button>`).join('')}</div>` : ''}
+    ${others.length ? `<div class="otherLifts"><p class="otherHead">Other lifts</p>${visible.map((name) => `<button class="otherLift" data-action="${action}" data-name="${esc(name)}" data-scroll="1" aria-pressed="${current === name}"><span class="otherName">${esc(name)}</span><span class="otherBest">${liftKg(name, true)}</span></button>`).join('')}
+    ${others.length > 3 ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${others.length} lifts`}${ICONS.chev}</button>` : ''}</div>` : ''}`;
 };
 
 const renderTrends = () => {
@@ -1234,7 +1234,7 @@ const renderTrends = () => {
   return `<main class="page trendsPage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
-    ${names.length ? `<div class="list">${card(view.trendOpen)}</div>${liftPicker(big, rest, history)}` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
+    ${names.length ? `<div class="list">${card(view.trendOpen).replace(/<\/section>\s*$/, `${liftPicker(big, rest, history)}</section>`)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
     ${desktopQuery.matches ? '' : renderVolume()}
   </main>`;
