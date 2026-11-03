@@ -3120,11 +3120,8 @@ tickTypewriter();
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  const hadWorker = Boolean(navigator.serviceWorker.controller);
+  // New versions install quietly in the background and are used from the next open, never by reloading the page.
   navigator.serviceWorker.register('/sw.js').then((registration) => document.addEventListener('visibilitychange', () => {
     if (!document.hidden) registration.update();
   }));
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (hadWorker && !view.listening && !view.draft.trim() && !view.pending.length) location.reload();
-  });
 }
