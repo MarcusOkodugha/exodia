@@ -1432,7 +1432,7 @@ document.addEventListener('pointermove', (event) => {
     const root = document.documentElement.style;
     root.setProperty('--glowX', clamp((event.clientX - (box.left + box.width / 2)) / box.width).toFixed(3));
     root.setProperty('--glowY', clamp((event.clientY - (box.top + box.height / 2)) / box.height).toFixed(3));
-    root.setProperty('--glowNear', Math.max(0, 1 - outside / 420).toFixed(3));
+    root.setProperty('--glowNear', Math.max(0, 1 - outside / 520).toFixed(3));
   });
 }, { passive: true });
 document.addEventListener('pointerleave', () => document.documentElement.style.setProperty('--glowNear', '0'));
@@ -1444,9 +1444,13 @@ const renderVolume = () => {
     return { end, volume };
   });
   const maxVolume = Math.max(1, ...weeks.map((week) => week.volume));
+  const active = weeks.filter((week) => week.volume > 0);
+  const average = active.length >= 2 ? active.reduce((sum, week) => sum + week.volume, 0) / active.length : 0;
+  // Bars fill up to 78% of the chart height (the rest is room for the value labels), so the average line uses the same scale.
+  const averageLine = average ? `<i class="avgLine" style="bottom:${((average / maxVolume) * 78).toFixed(1)}%" aria-hidden="true"><span class="num">avg ${(average / 1000).toFixed(1)}</span></i>` : '';
   return `<p class="section">Volume per week · tonnes</p>
     <section class="card" style="padding:14px 16px">
-      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}</div>
+      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}${averageLine}</div>
       <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? 'This week' : 'Week ending ' + dayLabel(weeks[view.volumeWeek ?? 5].end)}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
     </section>`;
 };
