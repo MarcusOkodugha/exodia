@@ -9,7 +9,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 - [ ] 🔴 **D1 permission on the Cloudflare key.** The key can deploy but can't read the database, so Claude can't look at what Romy and Adam actually sent. Add Account → D1 → Edit to the "Edit Cloudflare Workers" token.
 - [ ] **Decide:** a name on a new phone brings your data back. Names aren't unique (two Adams), so it needs name + a short code. Changes the database; waiting for Marcus.
 - [ ] **Old Claude's memory into CLAUDE.md.** In the Mac Terminal Claude: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md in the repo, then commit and push."
-- [ ] **Decide:** rename the menu item that shows your name ("Marcus") to "Settings"?
+- [ ] **Decide:** remove the long press on a day (hold a closed day → Edit mode)? Claude suggests removing it.
 - [ ] **Decide:** keep `/join` for everyone else, or add `/other`.
 - [ ] **Decide:** keep Exodia on the Mpya Claude account, or move it to a personal Claude account.
 
@@ -22,6 +22,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- Menu item with your name is now "Settings" (sliders icon); the page says Settings above your name (v193)
 - `/marcus` link and its code box removed (v192)
 - Undo and Redo several steps back (up to 30 this visit): in the toast, at the bottom of the menu, ⌘Z / ⇧⌘Z on a computer (v191)
 - UX: Home keeps your place, only the exercise name opens Trends, the box goes back to today, Editing ends with Edit mode, Undo on Quick add and + Set, no reload while reading or typing, Edit away from the arrow, old messages don't overwrite typing, long press 0.7 s, result toast starts small (v190)
