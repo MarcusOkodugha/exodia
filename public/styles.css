@@ -74,7 +74,8 @@ textarea::placeholder, input::placeholder { color: var(--text2); }
 .session.opening .exercise, .session.opening .foot, .session.opening > .textBtn, .session.opening .cardio, .dayMenu.enter, .rules.enter { animation: rise 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes flash { 0%, 35% { background: var(--claySoft); box-shadow: 0 0 0 8px var(--claySoft); } 100% { background: transparent; box-shadow: 0 0 0 8px transparent; } }
 .ghost { border-top: 1px solid var(--sep); padding: 12px 0 14px; display: flex; flex-direction: column; gap: 8px; }
-.ghostText { font-size: 15px; line-height: 20px; color: var(--clayText); }
+.ghostText { font-size: 15px; line-height: 20px; color: var(--clayText); background: linear-gradient(90deg, var(--clayText) 30%, #E9B9A2 50%, var(--clayText) 70%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ghostText { animation: none; -webkit-text-fill-color: currentColor; } }
 .shimmer { display: block; height: 12px; width: 70%; border-radius: 6px; background: linear-gradient(90deg, #EFEDE4 25%, var(--claySoft) 50%, #EFEDE4 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
 .shimmer.short { width: 40%; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
@@ -578,7 +579,7 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 
 /* Example data: a slim pill on every page until the person starts their own log. */
 .demoPill { position: fixed; z-index: 6; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 6px 18px rgba(20, 20, 19, 0.16); }
-.updatePill { position: fixed; z-index: 6; top: calc(var(--top) + 54px); left: 0; right: 0; width: max-content; margin: 0 auto; padding: 7px 14px; border-radius: 999px; background: var(--claySoft); color: var(--clayText); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 14px rgba(20, 20, 19, 0.08); animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.updatePill { display: block; width: max-content; max-width: 100%; margin: 0 auto 8px; padding: 5px 12px; border-radius: 999px; background: var(--claySoft); color: var(--clayText); font-size: 13px; line-height: 18px; font-weight: 600; animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .demoPill button { padding: 7px 14px; border-radius: 999px; background: var(--clay); color: #FFFFFF; font-size: 14px; font-weight: 600; }
 .demo .page { padding-top: calc(var(--top) + 112px); }
 

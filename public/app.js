@@ -602,7 +602,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   </div>`;
 };
 
-const renderPending = (pending) => `<div class="ghost" role="status"><span class="ghostText">Adding “${esc(pending.label)}”</span><span class="shimmer"></span><span class="shimmer short"></span></div>`;
+const renderPending = (pending) => `<div class="ghost" role="status"><span class="ghostText">Adding “${esc(pending.label)}”</span></div>`;
 
 const accessoriesOf = (session) => session.accessories ?? (session.exercises.length ? 30 : 0);
 
@@ -1648,7 +1648,7 @@ const contextChip = () => {
 const renderDock = () => `<div class="dock${view.composer ? ' open' : ''}">
   ${view.composer ? renderSheet() : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${updatePill()}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
@@ -1705,13 +1705,27 @@ const syncDock = () => {
   tuckCards();
 };
 
-const EXAMPLES = ['120 for 3 bench press', '240 deadlift, reps 4-2', 'Squat 140 for 5, 5 and 5', 'Ran 25 min', 'Hack squat 200 for 8 last Friday', 'Curls 20 for 12, 10, 8', 'Walked 40 min'];
+const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Idea: add a rest timer between sets', 'Bench 100 for 5 at RPE 8, then dips 3x10', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8'];
+// After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
+const QUIET_HINT = 'Log training, paste notes or give feedback';
+const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
 const typewriter = { text: '', index: 0, length: 0, fading: false };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 (window.requestIdleCallback || setTimeout)(preloadHands);
 
 const tickTypewriter = () => {
   const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : view.route === 'admin' ? CLAUDE_EXAMPLES : EXAMPLES;
+  if (examples === EXAMPLES && knowsTheBox()) {
+    typewriter.text = QUIET_HINT;
+    typewriter.fading = false;
+    const quiet = document.querySelector('.dock:not(.onboardDock) .prompt .hint:not(.live)');
+    if (quiet && quiet.textContent !== QUIET_HINT) {
+      quiet.classList.remove('fading');
+      quiet.textContent = QUIET_HINT;
+    }
+    setTimeout(tickTypewriter, 1500);
+    return;
+  }
   typewriter.index %= examples.length;
   let delay = 70 + Math.random() * 60;
   if (reducedMotion.matches) {
@@ -1873,6 +1887,13 @@ const endDemo = () => {
   render();
 };
 const updatePill = () => (view.updateReady && !state.demo ? '<button class="updatePill" data-action="reload-app">New version ready · Tap to update</button>' : '');
+// Load a new version straight away unless that would lose something (half-typed text, a log being sent, a recording,
+// a day being edited). Then the pill waits, and the update still happens by itself the next time the app goes to the background.
+const updateQuietly = () => {
+  if (!view.updateReady || view.pending.length || recording) return;
+  if (document.hidden || (!view.draft.trim() && !view.editDay && !view.composer)) location.reload();
+};
+document.addEventListener('visibilitychange', updateQuietly);
 const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
 
 const renderOnboard = () => {
@@ -2006,7 +2027,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${devExtras()}${demoPill()}${updatePill()}`;
+    </div>` : ''}${devExtras()}${demoPill()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -3263,5 +3284,6 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     if (!hadVersion || view.updateReady) return;
     view.updateReady = true;
     render();
+    updateQuietly();
   });
 }
