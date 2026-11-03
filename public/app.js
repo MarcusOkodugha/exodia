@@ -4,7 +4,7 @@ const STORE_KEY = 'exodia.v1';
 const HEAVY_SHARE = 0.85;
 
 const LIBRARY = [
-  { name: 'Bench Press', piece: 'push', heavy: true, aliases: ['bench', 'bench press', 'bp'] },
+  { name: 'Bench Press', piece: 'push', heavy: true, aliases: ['bench', 'bench press', 'bp', 'barbell bench press', 'flat bench', 'flat bench press', 'flat barbell bench press', 'bänkpress'] },
   { name: 'Incline Bench Press', piece: 'push', heavy: true, aliases: ['incline', 'incline bench', 'incline bench press'] },
   { name: 'Incline Dumbbell Press', piece: 'push', heavy: true, aliases: ['incline db', 'incline dumbbell', 'incline dumbbell press'] },
   { name: 'Dumbbell Bench Press', piece: 'push', heavy: true, aliases: ['db bench', 'dumbbell bench', 'dumbbell press'] },
@@ -12,12 +12,12 @@ const LIBRARY = [
   { name: 'Dips', piece: 'push', heavy: false, aliases: ['dips', 'dip'] },
   { name: 'Pause Bench Press', piece: 'push', heavy: true, aliases: ['pause bench', 'pause bench press', 'paused bench'] },
   { name: 'Close-Grip Bench Press', piece: 'push', heavy: true, aliases: ['close grip', 'close grip bench', 'close-grip bench', 'closegrip'] },
-  { name: 'Deadlift', piece: 'pull', heavy: true, aliases: ['deadlift', 'deadlifts', 'dl', 'marklyft'] },
+  { name: 'Deadlift', piece: 'pull', heavy: true, aliases: ['deadlift', 'deadlifts', 'dl', 'marklyft', 'barbell deadlift', 'conventional deadlift'] },
   { name: 'Sumo Deadlift', piece: 'pull', heavy: true, aliases: ['sumo', 'sumo deadlift'] },
   { name: 'Barbell Row', piece: 'pull', heavy: false, aliases: ['row', 'rows', 'barbell row'] },
   { name: 'Pull-up', piece: 'pull', heavy: false, aliases: ['pullup', 'pullups', 'pull-up', 'pull-ups', 'chins', 'chin-ups'] },
   { name: 'Lat Pulldown', piece: 'pull', heavy: false, aliases: ['pulldown', 'lat pulldown', 'lat pull'] },
-  { name: 'Squat', piece: 'legs', heavy: true, aliases: ['squat', 'squats', 'sq', 'knäböj'] },
+  { name: 'Squat', piece: 'legs', heavy: true, aliases: ['squat', 'squats', 'sq', 'knäböj', 'barbell squat', 'back squat', 'barbell back squat'] },
   { name: 'Hack Squat', piece: 'legs', heavy: true, aliases: ['hack', 'hack squat'] },
   { name: 'Front Squat', piece: 'legs', heavy: true, aliases: ['front squat'] },
   { name: 'Romanian Deadlift', piece: 'legs', heavy: false, aliases: ['rdl', 'romanian deadlift'] },
@@ -118,10 +118,28 @@ const PROFILE_KEY = /^[a-f0-9]{32}$/;
 const newProfileKey = () => [...crypto.getRandomValues(new Uint8Array(16))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 const freshSync = (profile) => ({ profile, cursor: 0, synced: {}, stamps: {}, metaSynced: null, metaStamp: 0 });
 
+// What the server last had for a day is kept as a short fingerprint, not a second copy of the day, so ten years
+// of training still fits in the phone's storage.
+const fingerprint = (text) => {
+  if (text === null || text === undefined) return null;
+  let first = 0xdeadbeef;
+  let second = 0x41c6ce57;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    first = Math.imul(first ^ code, 2654435761);
+    second = Math.imul(second ^ code, 1597334677);
+  }
+  first = Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909);
+  second = Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909);
+  return `#${(4294967296 * (2097151 & second) + (first >>> 0)).toString(36)}`;
+};
 const loadSync = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(SYNC_KEY));
-    if (saved && PROFILE_KEY.test(saved.profile)) return saved;
+    if (saved && PROFILE_KEY.test(saved.profile)) {
+      for (const [date, value] of Object.entries(saved.synced || {})) if (typeof value === 'string' && !value.startsWith('#')) saved.synced[date] = fingerprint(value);
+      return saved;
+    }
   } catch (error) {
     console.error('Could not read sync state', error);
   }
@@ -170,9 +188,9 @@ const applyIncoming = (result) => {
   for (const row of result.sessions) {
     const incoming = row.data ? JSON.stringify(row.data) : null;
     const local = lastSaved[row.date] ?? null;
-    const dirty = local !== (syncState.synced[row.date] ?? null);
+    const dirty = fingerprint(local) !== (syncState.synced[row.date] ?? null);
     if (dirty && (syncState.stamps[row.date] || 0) > row.updated) continue;
-    syncState.synced[row.date] = incoming;
+    syncState.synced[row.date] = fingerprint(incoming);
     if (local === incoming) continue;
     state.sessions = state.sessions.filter((session) => session.date !== row.date);
     if (row.data) state.sessions.push(row.data);
@@ -206,7 +224,7 @@ const syncNow = () => {
   if (!navigator.onLine) return Promise.resolve(false);
   const current = { ...lastSaved };
   const changes = [...new Set([...Object.keys(current), ...Object.keys(syncState.synced)])]
-    .filter((date) => (current[date] ?? null) !== (syncState.synced[date] ?? null))
+    .filter((date) => fingerprint(current[date]) !== (syncState.synced[date] ?? null))
     .slice(0, 500)
     .map((date) => ({ date, updated: syncState.stamps[date] || 1, data: current[date] ? JSON.parse(current[date]) : null }));
   const sentMeta = lastMeta;
@@ -218,7 +236,7 @@ const syncNow = () => {
   })
     .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Sync failed'))))
     .then((result) => {
-      for (const change of changes) syncState.synced[change.date] = current[change.date] ?? null;
+      for (const change of changes) syncState.synced[change.date] = fingerprint(current[change.date]);
       if (meta) syncState.metaSynced = sentMeta;
       const changed = applyIncoming(result);
       syncState.cursor = result.cursor;
@@ -464,7 +482,7 @@ const parseWithAi = async (text, audio, hint = '') => {
     body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'The AI could not read that.');
+  if (!response.ok) throw Object.assign(new Error(body.error || 'The AI could not read that.'), { heard: body.transcript || '' });
   return body;
 };
 
@@ -603,7 +621,8 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   </div>`;
 };
 
-const renderPending = (pending) => `<div class="ghost" role="status"><span class="ghostText">Adding “${esc(pending.label)}”</span></div>`;
+// One word while the AI works, whether it is a set, a whole workout or an edit.
+const renderPending = () => '<div class="ghost" role="status"><span class="ghostText">Understanding…</span></div>';
 
 const accessoriesOf = (session) => session.accessories ?? (session.exercises.length ? 30 : 0);
 
@@ -1127,6 +1146,17 @@ const prCount = (name, since) => state.sessions.filter((session) => session.date
 // A blank start still shows the real charts and lifts, just with nothing in them yet.
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
+// Squat, Bench and Deadlift side by side with their e1RM; tap one and the chart below switches to it.
+// More lifts opens the rest underneath; a lift picked from there shows as a fourth button.
+const liftPicker = (big, rest, history) => {
+  const pick = (name) => `<button class="liftPick" data-action="pick-trend" data-name="${esc(name)}" aria-pressed="${view.trendOpen === name}"><span class="liftPickName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span><span class="liftPickValue num">${Math.round(bestOverall(name))}</span></button>`;
+  const shown = [...['Squat', 'Bench Press', 'Deadlift'].filter((name) => big.includes(name)), ...(rest.includes(view.trendOpen) || !big.length ? [view.trendOpen] : [])];
+  const others = rest.filter((name) => !shown.includes(name));
+  return `<div class="liftPicks" style="--picks:${shown.length}">${shown.map(pick).join('')}</div>
+    ${others.length ? `<button class="textBtn liftMore" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Fewer lifts' : `More lifts · ${others.length}`}</button>` : ''}
+    ${view.trendMore && others.length ? `<section class="card liftMoreList">${others.map((name) => `<button class="row liftRow" data-action="pick-trend" data-name="${esc(name)}"><span class="liftName">${esc(name)}</span><span class="muted num">${history.get(name).length} ${history.get(name).length === 1 ? 'session' : 'sessions'}</span><span class="e1Col e1rm num">${Math.round(bestOverall(name))}</span></button>`).join('')}</section>` : ''}`;
+};
+
 const renderTrends = () => {
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
@@ -1139,7 +1169,7 @@ const renderTrends = () => {
   const names = [...history.keys()].sort((first, second) => history.get(second).at(-1).date.localeCompare(history.get(first).at(-1).date));
   const big = BIG_THREE.filter((name) => history.has(name));
   const rest = names.filter((name) => !big.includes(name));
-  if (view.trendOpen === null && names.length) view.trendOpen = big[0] || names[0];
+  if (!history.has(view.trendOpen) && names.length) view.trendOpen = ['Squat', 'Bench Press', 'Deadlift'].find((name) => big.includes(name)) || names[0];
   const card = (name) => {
     const all = history.get(name);
     const open = view.trendOpen === name;
@@ -1150,11 +1180,7 @@ const renderTrends = () => {
     const last = all.at(-1);
     const lastTop = last.sets.reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) || (Number(set.kg) === Number(winner.kg) && Number(set.reps) > Number(winner.reps)) ? set : winner), null);
     return `<section class="card${open ? ' open' : ''}" data-trend="${esc(name)}">
-      <button class="head" data-action="toggle-trend" data-name="${esc(name)}" aria-expanded="${open}">
-        <span class="headName">${esc(name)}</span>
-        <span class="meta num">${Math.round(best)} kg</span>
-        ${ICONS.chev}
-      </button>
+      <p class="head trendHead"><span class="headName">${esc(name)}</span></p>
       ${open ? `
         <div class="tiles">
           <div class="tile"><p class="tileValue num">${lifted ? lifted.kg : '–'}<small>${lifted ? ` × ${lifted.reps}` : ''}</small></p><p class="tileLabel">Best lifted</p><p class="tileSub">All time</p></div>
@@ -1173,10 +1199,10 @@ const renderTrends = () => {
   return `<main class="page trendsPage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
+    ${names.length ? liftPicker(big, rest, history) : ''}
+    ${names.length ? `<div class="list">${card(view.trendOpen)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
-    ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : names.length ? '' : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${desktopQuery.matches ? '' : renderVolume()}
-    ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
   </main>`;
 };
 
@@ -1199,17 +1225,19 @@ const chatStamp = (at, before) => {
   return at - before > 1800000 ? time : '';
 };
 
-const chatEntry = ({ stamp, who, said, heard, did, raw, fixIndex: index, voiceId, compact, manual, theirs }) => {
+const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, voiceId, compact, manual, theirs }) => {
   const fixIndex = manual ? undefined : index;
   const lines = [].concat(did);
   const failed = OFF_LINE.test(lines[0] || '');
   const off = lines.some((line) => OFF_LINE.test(line));
-  const youSaid = `${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}${off && fixIndex !== undefined ? `<span class="bubbleHint">${failed ? 'Didn’t go through' : 'Partly logged'} · tap to edit</span>` : ''}`;
+  // A voice note says so on top, with what was heard under it, so a failed one still shows the words.
+  const spoken = voice || (heard && heard === said) || (voiceId && said !== 'Voice note');
+  const youSaid = `${spoken ? '<span class="bubbleKind">Voice note</span>' : ''}${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}${off && fixIndex !== undefined ? `<span class="bubbleHint">${failed ? 'Didn’t go through' : 'Partly logged'} · tap to edit</span>` : ''}`;
   // In Admin, other people's messages sit on the left under their own name, so they never look like Marcus's.
   return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}">
   ${theirs ? `${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<p class="chatWho">${esc(who || 'Someone')}</p>` : stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
   ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
-  <div class="bubbleOut"><p>${esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}</div>
+  <div class="bubbleOut"><p>${esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}</div>
 </div>`;
 };
 
@@ -1453,14 +1481,14 @@ const renderYou = () => {
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;font-size:15px">Let ChatGPT, Gemini or Claude add your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy instructions'}</button></div>
     </section>
-    <p class="section">Your link</p>
+    <p class="section">Your private link</p>
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(profileLink())}</span><button class="textBtn" data-action="copy-link">${view.copied ? 'Copied' : 'Copy'}</button></div>
       <div class="row"><label class="sr" for="join-link">Link from another device</label><input id="join-link" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" placeholder="Paste a link from another device"><button class="textBtn" data-action="join-link">Use</button></div>
       ${view.linkNote ? `<div class="row"><span class="muted" role="status" style="font-size:15px">${esc(view.linkNote)}</span></div>` : ''}
       <div class="row"><span style="flex:1">Synced</span><span class="muted">${view.syncFailed ? 'Offline, will retry' : view.syncedAt ? 'Up to date' : 'Connecting…'}</span></div>
     </section>
-    <p class="note">Open your link once on a new phone or computer and your lifts are there. Anyone with the link can see and change your lifts, so keep it to yourself.</p>
+    <p class="note">Only for your own phone or computer: open it there once and your lifts are there. Don’t send it to friends, it opens your log. To invite someone, use Share Exodia above.</p>
     <p class="section">Backup</p>
     <section class="card">
       <div class="row"><button class="textBtn" data-action="export">Download a backup</button></div>
@@ -1659,7 +1687,8 @@ const drawerContent = () => {
   const history = exodiaHistory();
   return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
-      <div id="drawerList">${drawerList()}</div>`;
+      <div id="drawerList">${drawerList()}</div>
+      <button class="drawerFresh" data-action="start-fresh">Start fresh</button>`;
 };
 
 // How to get data out of other apps; used on onboarding and on the "Add your data" page.
@@ -1669,7 +1698,7 @@ const exportHelp = (open) => `<details class="onboardHow"${open ? ' open' : ''}>
         <li><b>Strong</b><span>Profile → Settings → Export Strong Data</span></li>
         <li><b>Hevy</b><span>Profile → Settings → Export & Import Data → Export Workouts</span></li>
         <li><b>Notes</b><span>Copy your notes and paste them in</span></li>
-        <li><b>Spreadsheet</b><span>Excel (.xlsx) or CSV, up to about 2000 rows</span></li>
+        <li><b>Spreadsheet</b><span>Excel, CSV or rows copied from a sheet, any length</span></li>
       </ul>
       <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
     </details>`;
@@ -1679,7 +1708,7 @@ const renderImport = () => `<main class="page">
     <p class="eyebrow">Bring your history</p>
     <h1 class="title">Add your data</h1>
     <p class="feedbackLead">Paste or drop any training history in the box below, in any format. Exodia turns it into days and sets.</p>
-    <div class="onboardChoices"><label class="onboardChoice"><b>Choose a file</b><span>CSV, Excel, text or notes</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="import-file"></label></div>
+    <div class="onboardChoices"><label class="onboardChoice"><b>Choose a file</b><span>CSV, Excel, text or notes</span><input type="file" class="sr" data-action="import-file"></label></div>
     ${exportHelp(true)}
   </main>`;
 
@@ -1711,9 +1740,9 @@ const nameQuery = () => {
   return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
 };
 
-const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div></div>`).join('');
+const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>'}</div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="import-file"></label>${renderPicks()}</div>${quickMoreButton()}</div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" data-action="import-file"></label>${renderPicks()}</div>${quickMoreButton()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
@@ -2028,6 +2057,43 @@ const updateQuietly = () => {
 document.addEventListener('visibilitychange', updateQuietly);
 const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
 
+const renderLinkOffer = () => {
+  const { name, days } = view.linkOffer;
+  const whose = name ? `${esc(name)}’s` : 'someone’s';
+  const own = state.sessions.length > 0 || Boolean(state.name);
+  return `<main class="page onboard">
+    <span class="logo onboardLogo" aria-hidden="true"></span>
+    <h1 class="title">This is ${whose} Exodia</h1>
+    <p class="onboardLead">This private link opens ${whose} own log${days ? `, ${days} ${days === 1 ? 'day' : 'days'} of training` : ''}. Open it only if it’s yours.</p>
+    <div class="onboardChoices">
+      <button class="onboardChoice" data-action="link-own"><b>${own ? 'Keep my own Exodia' : 'Start my own Exodia'}</b><span>${own ? `Stay with ${state.name ? esc(state.name) : 'your'}${state.name ? '’s' : ''} log on this device` : 'A fresh, empty log for you'}</span></button>
+      <button class="onboardChoice" data-action="link-open"><b>It’s mine, open it</b><span>${name ? `${esc(name)}’s lifts` : 'These lifts'} on this device${own ? ', together with what is here now' : ''}</span></button>
+    </div>
+  </main>`;
+};
+
+// Start fresh: a new, empty Exodia on this device. The old log stays on the server; its key is remembered here
+// (exodia.previous) so it can still be found if this was a mistake.
+const startFresh = () => {
+  if (!window.confirm('Start a fresh, empty Exodia on this device?\n\nThe log you see now stays saved online, but this device stops showing it.')) return;
+  try {
+    const previous = JSON.parse(localStorage.getItem('exodia.previous') || '[]');
+    localStorage.setItem('exodia.previous', JSON.stringify([{ profile: syncState.profile, name: state.name || '', at: Date.now() }, ...previous].slice(0, 10)));
+  } catch {
+    // storage blocked; the old log is still on the server
+  }
+  syncState = freshSync(newProfileKey());
+  state = { version: 1, deviceId: state.deviceId, sessions: [], bests: {}, log: [] };
+  lastSaved = localJson();
+  lastMeta = metaJson();
+  Object.assign(view, { onboard: { name: '', data: '' }, invited: '', menu: false, toast: null, isAdmin: false, composer: false, draft: '', open: new Set([todayIso()]) });
+  writeLocal();
+  pointManifest();
+  history.replaceState(null, '', '/');
+  location.hash = '#/';
+  render();
+};
+
 const renderOnboard = () => {
   view.onboard ??= { name: '', data: '' };
   const { busy, status, recording: listening, hearing, file } = view.onboard;
@@ -2036,7 +2102,7 @@ const renderOnboard = () => {
   return `<main class="page onboard">
     <span class="logo onboardLogo" aria-hidden="true"></span>
     <h1 class="title">Welcome to Exodia${view.invited ? `, ${esc(view.invited)}` : ''}</h1>
-    <p class="onboardLead">Log your training by talking or typing. No account, no setup.</p>
+    <p class="onboardLead">Log your training by talking or typing. No account, no setup.${view.invited ? ` Not ${esc(view.invited)}? Change the name below.` : ''}</p>
     <label class="sr" for="onboardName">Your name</label>
     <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional, you can add it later)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
     <p class="onboardMove"><b>Have a history?</b> Paste or drop it in the box below, in any format. Exodia turns it into days, sets and trends in seconds.</p>
@@ -2054,7 +2120,7 @@ const renderOnboard = () => {
       <label for="onboardData" class="sr">Your training so far</label>
       <textarea id="onboardData" class="promptInput onboardData" rows="3" ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
       ${listening ? '<span class="hint live" aria-hidden="true"><span class="liveText">Listening… tap stop when you are done</span></span>' : hearing ? '<span class="hint live" aria-hidden="true"><span class="liveText">Writing down what you said…</span></span>' : busy ? '<span class="hint live" aria-hidden="true"><span class="liveText">Reading your training…</span></span>' : `<span class="hint onboardHint${onboardExample.fading ? ' fading' : ''}" aria-hidden="true">${esc(ONBOARD_EXAMPLES[onboardExample.index])}</span>`}
-      <div class="promptBar"><label class="roundBtn soft onboardFile" aria-label="Add a file">${ICONS.plus}<input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="onboard-file" ${locked ? 'disabled' : ''}></label><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
+      <div class="promptBar"><label class="roundBtn soft onboardFile" aria-label="Add a file">${ICONS.plus}<input type="file" class="sr" data-action="onboard-file" ${locked ? 'disabled' : ''}></label><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
     </div>
   </div>`;
 };
@@ -2122,6 +2188,10 @@ const render = () => {
   view.wasHit = hit;
   view.blue = hit && view.celebrating !== 'orange';
   document.documentElement.classList.toggle('demo', Boolean(state.demo));
+  if (view.linkOffer) {
+    app.innerHTML = renderLinkOffer();
+    return;
+  }
   if (onboarding()) {
     const focusedId = document.activeElement?.id;
     app.innerHTML = renderOnboard() + devExtras();
@@ -2501,7 +2571,13 @@ const addLog = (said, did, extra = {}) => {
   view.replacing = null;
   const previous = (state.log || [])[0];
   const merged = extra.merge && previous?.merge === extra.merge && Date.now() - previous.at < 120000 ? previous.at : null;
-  state.log = [{ at: Date.now(), said: String(said || '').slice(0, 300), did, ...extra }, ...(state.log || []).filter((entry) => entry.at !== replaced && entry.at !== merged)].slice(0, 80);
+  const words = String(said || '').slice(0, 2000);
+  // A voice note's words are the "said"; keep a flag instead of a second copy.
+  const { heard, ...rest } = extra;
+  const voice = heard && heard === words ? { voice: true } : heard ? { heard } : {};
+  state.log = [{ at: Date.now(), said: words, did, ...rest, ...voice }, ...(state.log || []).filter((entry) => entry.at !== replaced && entry.at !== merged)].slice(0, 80);
+  // The log syncs as one record; keep it well under the server's size limit by dropping the oldest entries.
+  while (state.log.length > 10 && JSON.stringify(state.log).length > 200000) state.log.pop();
   save();
 };
 
@@ -2531,7 +2607,8 @@ const applyResult = (result, date, said, heard = '') => {
     save();
     did.push(`Accessories ${result.accessoriesMinutes} min on ${dayLabel(day)}`);
   }
-  if (did.length === 0) throw new Error(result.unclear ? `Didn't understand: ${result.unclear}.` : 'Nothing to log in that. Fix it and send again.');
+  // When the AI only echoes the whole note back, say it plainly instead of repeating it: the words are already in the bubble.
+  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true });
   if (result.unclear) {
     did.push(`Didn't understand: ${result.unclear}`);
   }
@@ -2543,7 +2620,7 @@ const applyResult = (result, date, said, heard = '') => {
     }),
     ...(result.move || []).map((target) => ({ date: target.to, name: target.exercise ? findExerciseName(target.exercise) || titleCase(target.exercise) : null }))
   ], before);
-  addLog(said, did, { heard: heard.slice(0, 300), raw: JSON.stringify(result).slice(0, 1500) });
+  addLog(said, did, { heard: heard.slice(0, 2000), raw: JSON.stringify(result).slice(0, 1500) });
 };
 
 const YES = /^(yes|yeah|yep|ja|japp|sure|do it|confirm|ok)\b/i;
@@ -2575,13 +2652,16 @@ const land = (result, date) => {
   }, 1800);
 };
 
-const FILE_LIMIT = 320000;
-const unzip = async (buffer) => {
+// Import. Tables (CSV, TSV, Excel, OpenDocument, JSON, rows pasted from a spreadsheet, zips of those) are read right here
+// on the phone: no AI and no size worries. Only free text (notes, messages) goes to the AI, in parts.
+const FILE_BYTES = 50 * 1024 * 1024;
+const AI_TEXT_LIMIT = 400000;
+const unzip = async (buffer, wanted) => {
   const bytes = new Uint8Array(buffer);
   const view32 = new DataView(buffer);
   let end = bytes.length - 22;
   while (end >= 0 && view32.getUint32(end, true) !== 0x06054b50) end -= 1;
-  if (end < 0) throw new Error('Not a spreadsheet');
+  if (end < 0) throw new Error('Could not open that file. Try CSV or Excel.');
   const count = view32.getUint16(end + 10, true);
   let at = view32.getUint32(end + 16, true);
   const files = {};
@@ -2595,7 +2675,7 @@ const unzip = async (buffer) => {
     const local = view32.getUint32(at + 42, true);
     const name = decoder.decode(bytes.subarray(at + 46, at + 46 + nameLength));
     at += 46 + nameLength + extra + comment;
-    if (!/^xl\/(workbook\.xml|styles\.xml|sharedStrings\.xml|worksheets\/[^/]+\.xml)$/.test(name)) continue;
+    if (!wanted(name)) continue;
     const start = local + 30 + view32.getUint16(local + 26, true) + view32.getUint16(local + 28, true);
     const data = bytes.subarray(start, start + size);
     files[name] = method === 0 ? decoder.decode(data) : await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
@@ -2603,8 +2683,7 @@ const unzip = async (buffer) => {
   return files;
 };
 const xmlText = (xml) => xml.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
-const xlsxToText = async (file) => {
-  const files = await unzip(await file.arrayBuffer());
+const xlsxToText = (files) => {
   const strings = [...(files['xl/sharedStrings.xml'] || '').matchAll(/<si[ >][\s\S]*?<\/si>/g)].map((match) => xmlText([...match[0].matchAll(/<t[^>]*>[\s\S]*?<\/t>/g)].map((part) => part[0]).join('')));
   const styles = files['xl/styles.xml'] || '';
   const custom = {};
@@ -2637,21 +2716,431 @@ const xlsxToText = async (file) => {
   }
   return out.join('\n');
 };
-const readFileText = (file) => (/\.xlsx$/i.test(file.name) ? xlsxToText(file) : file.text());
-
-const importText = (text) => fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 80) }) })
-  .then((response) => response.json().then((body) => (response.ok ? body : Promise.reject(new Error(body.error || 'Could not read that. Try again.')))))
-  .then(async (body) => {
-    for (const session of body.sessions || []) {
-      state.sessions = state.sessions.filter((item) => item.date !== session.date);
-      state.sessions.push(session);
+// OpenDocument (.ods, from LibreOffice or Google Sheets): one content.xml with the rows.
+const odsToText = (xml) => {
+  const out = [];
+  for (const row of xml.matchAll(/<table:table-row[^>]*>([\s\S]*?)<\/table:table-row>/g)) {
+    const cells = [];
+    for (const cell of row[1].matchAll(/<table:(?:covered-)?table-cell([^>]*?)(?:\/>|>([\s\S]*?)<\/table:(?:covered-)?table-cell>)/g)) {
+      const attrs = cell[1];
+      const date = (attrs.match(/office:date-value="(\d{4}-\d{2}-\d{2})/) || [])[1];
+      const number = (attrs.match(/office:value="([^"]*)"/) || [])[1];
+      const value = date || number || xmlText((cell[2] || '').replace(/<\/text:p>/g, ' ')).trim();
+      const repeat = Math.min(Number((attrs.match(/table:number-columns-repeated="(\d+)"/) || [])[1] || 1), value ? 50 : 1);
+      for (let index = 0; index < repeat; index += 1) cells.push(value.replace(/[\t\r\n]+/g, ' '));
     }
-    await syncNow();
-    const days = (body.added || []).filter((day) => day.sets > 0);
-    const did = [days.length ? `Added ${days.length} ${days.length === 1 ? 'day' : 'days'}, ${days.reduce((sum, day) => sum + day.sets, 0)} sets` : 'Nothing new to add', ...(body.unclear ? [`Didn't understand: ${body.unclear}`] : [])];
-    showResult(did, days.map((day) => ({ date: day.date, name: null })));
-    return did;
-  });
+    if (cells.some(Boolean)) out.push(cells.join('\t').replace(/\t+$/, ''));
+  }
+  return out.join('\n');
+};
+// Text files can be UTF-8, UTF-16 (Excel's "Unicode text") or old Windows text.
+const decodeText = (buffer) => {
+  const bytes = new Uint8Array(buffer);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes);
+  if (bytes.length > 3 && bytes[1] === 0 && bytes[3] === 0) return new TextDecoder('utf-16le').decode(bytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+};
+const readFileText = async (file) => {
+  const name = file.name.toLowerCase();
+  if (file.size > FILE_BYTES) throw new Error(`That file is ${Math.round(file.size / 1048576)} MB. Exodia takes files up to 50 MB.`);
+  if (/\.numbers$/.test(name)) throw new Error('Numbers files can’t be opened here. In Numbers, tap ··· → Export → Excel, then add that file.');
+  if (/\.xls$/.test(name)) throw new Error('That is an old Excel file. Save it as .xlsx or CSV, then add it.');
+  if (/\.(pdf|heic|jpe?g|png|gif|mov|mp4)$/.test(name) || /^(image|video)\//.test(file.type)) throw new Error('Exodia can’t read PDFs or pictures yet. Export CSV or Excel from your app.');
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) return decodeText(buffer);
+  const files = await unzip(buffer, (entry) => /^xl\/(workbook\.xml|styles\.xml|sharedStrings\.xml|worksheets\/[^/]+\.xml)$/.test(entry) || entry === 'content.xml' || (/\.(csv|tsv|txt|json)$/i.test(entry) && !entry.startsWith('__MACOSX')));
+  if (Object.keys(files).some((entry) => entry.startsWith('xl/worksheets/'))) return xlsxToText(files);
+  if (files['content.xml']) return odsToText(files['content.xml']);
+  const inner = Object.entries(files).filter(([entry]) => /\.(csv|tsv|txt|json)$/i.test(entry));
+  if (inner.length) return inner.map(([, text]) => text).join('\n');
+  throw new Error('Could not find training in that file. Try CSV or Excel.');
+};
+
+// Which character splits the columns: the one that shows up the same number of times on most lines.
+const tableDelimiter = (text) => {
+  const lines = text.slice(0, 40000).split(/\r?\n/).filter((line) => line.trim()).slice(0, 60);
+  if (lines.length < 2) return '';
+  let best = { delimiter: '', score: 0 };
+  for (const delimiter of ['\t', ';', ',', '|']) {
+    const counts = lines.map((line) => line.split(delimiter).length - 1).filter((count) => count > 0);
+    const tally = {};
+    for (const count of counts) tally[count] = (tally[count] || 0) + 1;
+    const score = Math.max(0, ...Object.values(tally));
+    if (score > best.score) best = { delimiter, score };
+  }
+  return best.score >= Math.min(3, lines.length - 1) ? best.delimiter : '';
+};
+const parseDelimited = (text, delimiter) => {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character !== '"') cell += character;
+      else if (text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else quoted = false;
+    } else if (character === '"' && !cell.trim()) {
+      quoted = true;
+      cell = '';
+    } else if (character === delimiter) {
+      row.push(cell.trim());
+      cell = '';
+    } else if (character === '\n' || character === '\r') {
+      if (character === '\r' && text[index + 1] === '\n') index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = '';
+    } else cell += character;
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+};
+// JSON exports: every innermost list item becomes a row that also carries its parents' fields (workout date, exercise name).
+const jsonRows = (root) => {
+  const rows = [];
+  const visit = (node, fields, label) => {
+    if (rows.length > 300000) return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, fields, label);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    const own = { ...fields };
+    const lists = [];
+    const take = (object, prefix) => {
+      for (const [key, value] of Object.entries(object)) {
+        const name = `${prefix}${key}`;
+        if (Array.isArray(value)) {
+          if (value.some((item) => item && typeof item === 'object')) lists.push([value, key]);
+          else own[name] = value.join(' ');
+        } else if (value && typeof value === 'object') take(value, `${name} `);
+        else own[name] = value ?? '';
+      }
+    };
+    take(node, label ? `${label} ` : '');
+    if (!lists.length) rows.push(own);
+    for (const [list, key] of lists) visit(list, own, key);
+  };
+  visit(root, {}, '');
+  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  return [keys, ...rows.map((row) => keys.map((key) => String(row[key] ?? '')))];
+};
+
+const headName = (value) => String(value ?? '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[_\-./()[\]:#]+/g, ' ').replace(/\s+/g, ' ').trim();
+const COLUMN_RULES = [
+  ['exercise', /^(exercise|exercise name|exercise title|exercises name|exercises title|exercise names|övning|ovning|övningar|movement|lift)$/],
+  ['exercise', /\b(exercises?|övning|movement)\b/, /\b(notes?|id|type|category|superset|order|count|number|index|group|muscle|template)\b/],
+  ['date', /^(date|datum|workout date|session date|date time|datetime|workouts date|start date)$/],
+  ['date', /\b(date|datum|start time|start|started|performed|timestamp|time)\b/, /\b(end|ended|finish|duration|update|updated|modified|birth|created|rest)\b/],
+  ['date', /\bcreated\b|^(day|dag)$/],
+  ['weight', /^(weight|weight kg|weight kgs|weight lbs|weight lb|kg|kgs|lbs|lb|load|vikt|vikt kg|sets weight|sets weight kg)$/],
+  ['weight', /\b(weight|kg|kgs|lbs?|load|vikt)\b/, /\b(body|bodyweight|unit|bw|total|volume|distance)\b/],
+  ['reps', /^(reps|rep|repetitions|repetitioner|reps count|antal reps|reps done|sets reps)$/],
+  ['reps', /\b(reps?|repetitions?|repetitioner)\b/, /\b(in reserve|rir|target|goal|planned|min|max)\b/],
+  ['sets', /^(sets|set count|number of sets|antal set|num sets|set)$/],
+  ['rpe', /\brpe\b/],
+  ['rir', /\brir\b|reps in reserve/],
+  ['warmup', /warm ?up|uppvärmning|set type|sets type|^type$/],
+  ['warmup', /set order|set index|sets index/],
+  ['label', /^(workout name|workout title|workout|title|routine|routine name|session|session name|pass|program day|workouts name|workouts title|name)$/],
+  ['unit', /\bunit\b/, /distance|time/]
+];
+const findColumns = (row) => {
+  const heads = row.map(headName);
+  if (heads.filter(Boolean).length < 2) return null;
+  const columns = { date: -1, exercise: -1, weight: -1, reps: -1, sets: -1, rpe: -1, rir: -1, warmup: -1, label: -1, unit: -1 };
+  const used = new Set();
+  for (const [field, test, skip] of COLUMN_RULES) {
+    if (columns[field] >= 0) continue;
+    const index = heads.findIndex((head, at) => head && !used.has(at) && test.test(head) && !(skip && skip.test(head)));
+    if (index < 0) continue;
+    columns[field] = index;
+    used.add(index);
+  }
+  // A "set" column that counts 1, 2, 3 is the set number, not how many sets the row stands for.
+  if (columns.sets >= 0 && heads[columns.sets] === 'set') columns.sets = -1;
+  if (columns.exercise < 0 || (columns.weight < 0 && columns.reps < 0 && columns.date < 0)) return null;
+  columns.lb = columns.weight >= 0 && /\blbs?\b/.test(heads[columns.weight]);
+  columns.warmHeader = columns.warmup >= 0 && /warm|uppv/.test(heads[columns.warmup]);
+  return columns;
+};
+const IMPORT_MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, maj: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, okt: 10, nov: 11, dec: 12 };
+const readDate = (raw, order = 'dmy') => {
+  const value = String(raw ?? '').trim().toLowerCase();
+  if (!value) return '';
+  let year;
+  let month;
+  let day;
+  let match;
+  if ((match = value.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) [, year, month, day] = match;
+  else if ((match = value.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})\b/))) {
+    [month, day] = order === 'mdy' ? [match[1], match[2]] : [match[2], match[1]];
+    year = match[3].length === 2 ? `20${match[3]}` : match[3];
+  } else if ((match = value.match(/^(?:[a-zåäö]+,?\s+)?(\d{1,2})(?:st|nd|rd|th)?\.?\s+([a-zåäö]{3})[a-zåäö]*\.?,?\s+(\d{4})/))) [, day, month, year] = [match[0], match[1], IMPORT_MONTHS[match[2]], match[3]];
+  else if ((match = value.match(/^(?:[a-z]+,?\s+)?([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/))) [, month, day, year] = [match[0], IMPORT_MONTHS[match[1]], match[2], match[3]];
+  else if (/^\d{5}(\.\d+)?$/.test(value) && Number(value) > 32000 && Number(value) < 80000) return new Date(Math.round((Number(value) - 25569) * 86400000)).toISOString().slice(0, 10);
+  else if (/^\d{10}(\.\d+)?$|^\d{13}$/.test(value)) return isoDate(new Date(value.length === 13 ? Number(value) : Number(value) * 1000));
+  else return '';
+  [year, month, day] = [Number(year), Number(month), Number(day)];
+  if (!(month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1990 && year <= 2100)) return '';
+  return `${year}-${pad(month)}-${pad(day)}`;
+};
+// 05/06/2024: day first unless the file shows otherwise (a second number above 12 means month first).
+const dateOrderFor = (rows, start, column) => {
+  if (column < 0) return 'dmy';
+  let order = 'dmy';
+  for (const row of rows.slice(start, start + 3000)) {
+    const match = String(row[column] ?? '').match(/^(\d{1,2})[-/.](\d{1,2})[-/.]\d{2,4}/);
+    if (!match) continue;
+    if (Number(match[1]) > 12) return 'dmy';
+    if (Number(match[2]) > 12) order = 'mdy';
+  }
+  return order;
+};
+const readNumber = (raw) => {
+  let value = String(raw ?? '').replace(/\s/g, '');
+  value = value.includes(',') && value.includes('.') ? value.replace(/,/g, '') : value.replace(',', '.');
+  const match = value.match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : NaN;
+};
+const SAFE_ALIASES = new Set(['squat', 'squats', 'deadlift', 'deadlifts', 'bench', 'dips', 'dip', 'pullup', 'pullups', 'chins', 'marklyft', 'knäböj']);
+const importNames = new Map();
+const importName = (raw) => {
+  const name = String(raw).replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (importNames.has(name)) return importNames.get(name);
+  const plain = name.match(/^(.*?)\s*\((barbell|skivstång|stång)\)$/i);
+  const base = (plain ? plain[1] : name).toLowerCase().replace(/[^\p{L}\s-]/gu, '').trim();
+  const entry = LIBRARY.find((item) => item.name.toLowerCase() === base || item.aliases.some((alias) => alias === base && (alias.includes(' ') || SAFE_ALIASES.has(alias))));
+  const known = state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)).find((item) => item.toLowerCase() === name.toLowerCase());
+  const result = entry?.name || (/^bänk(press)?$/.test(base) ? 'Bench Press' : known || (name === name.toLowerCase() ? titleCase(name) : name));
+  importNames.set(name, result);
+  return result;
+};
+const SET_PATTERN = /(\d+(?:[.,]\d+)?)\s*(kg|kgs|kilo|lbs?)?\s*[x×*]\s*(\d+)(?:\s*[x×*]\s*(\d+))?/gi;
+// Turn table rows into days. Headers are found by their names; a new header row (another sheet) switches the columns.
+const tableDays = (rows, given = null) => {
+  const today = todayIso();
+  const days = new Map();
+  let columns = given;
+  let order = given?.dateOrder || (given ? dateOrderFor(rows, given.headerRow + 1, given.date) : 'dmy');
+  let date = '';
+  let exercise = '';
+  let label = '';
+  for (let index = given ? given.headerRow + 1 : 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (!given && row.filter((value) => /^[\d\s.,:/-]+$/.test(value)).length <= 1) {
+      const found = findColumns(row);
+      if (found && [found.weight, found.reps].every((column) => column < 0 || Number.isNaN(readNumber(row[column])))) {
+        columns = found;
+        order = dateOrderFor(rows, index + 1, found.date);
+        if (found.date >= 0) date = '';
+        exercise = '';
+        continue;
+      }
+    }
+    // A row that is only a date ("1 Oct 2025") starts that day, for logs written as blocks.
+    const filled = row.filter(Boolean);
+    const dayRow = filled.length <= 2 && (!columns || columns.date < 0) ? readDate(filled[0], order) : '';
+    if (dayRow) {
+      date = dayRow;
+      label = '';
+      continue;
+    }
+    if (!columns) {
+      if (index > 60) return [];
+      continue;
+    }
+    const cell = (field) => (columns[field] >= 0 ? String(row[columns[field]] ?? '').trim() : '');
+    if (columns.date >= 0) {
+      const raw = cell('date');
+      if (raw) {
+        const parsed = readDate(raw, order);
+        if (!parsed) continue;
+        if (parsed !== date) label = '';
+        date = parsed;
+      }
+    }
+    const named = cell('exercise');
+    if (/\p{L}/u.test(named)) exercise = importName(named);
+    if (cell('label')) label = cell('label').slice(0, 40);
+    if (!date || !exercise || date > today) continue;
+    const pounds = columns.lb || /^lbs?$/i.test(cell('unit'));
+    const found = [];
+    if (columns.weight >= 0 || columns.reps >= 0) {
+      const kg = columns.weight >= 0 ? readNumber(cell('weight')) : 0;
+      const reps = Math.round(readNumber(cell('reps')));
+      const count = columns.sets >= 0 ? Math.round(readNumber(cell('sets'))) : 1;
+      if (reps > 0) for (let set = 0; set < Math.min(20, count > 0 ? count : 1); set += 1) found.push({ kg: Number.isNaN(kg) ? 0 : kg, reps });
+    } else {
+      row.forEach((value, at) => {
+        if ([columns.date, columns.exercise, columns.label].includes(at)) return;
+        for (const match of String(value).matchAll(SET_PATTERN)) {
+          for (let set = 0; set < Math.min(20, Number(match[4]) || 1); set += 1) found.push({ kg: readNumber(match[1]), reps: Number(match[3]), pounds: /lb/i.test(match[2] || '') });
+        }
+      });
+    }
+    if (!found.length) continue;
+    const rpe = readNumber(cell('rpe'));
+    const rir = readNumber(cell('rir'));
+    const effort = rpe >= 1 && rpe <= 10 ? rpe : rir >= 0 && rir <= 10 ? 10 - rir : 0;
+    const marker = cell('warmup');
+    const warmup = /warm|uppv|^w$/i.test(marker) || (columns.warmHeader && /^(1|true|yes|ja|x)$/i.test(marker));
+    if (!days.has(date)) days.set(date, { date, label, exercises: new Map() });
+    const day = days.get(date);
+    if (label && !day.label) day.label = label;
+    if (!day.exercises.has(exercise)) day.exercises.set(exercise, []);
+    for (const set of found) {
+      const kg = Math.min(1000, Math.max(0, pounds || set.pounds ? Math.round(set.kg * 0.45359237 * 2) / 2 : set.kg));
+      day.exercises.get(exercise).push({ kg: String(Math.round(kg * 100) / 100), reps: String(Math.min(100, set.reps)), ...(effort ? { rpe: effort } : {}), ...(warmup ? { warmup: true } : {}), edited: true });
+    }
+  }
+  return [...days.values()].map((day) => ({ date: day.date, label: day.label, exercises: [...day.exercises].map(([name, sets]) => ({ name, sets })) }));
+};
+const tableRows = (text) => {
+  const trimmed = text.trim();
+  if (/^[[{]/.test(trimmed)) {
+    try {
+      return jsonRows(JSON.parse(trimmed));
+    } catch {
+      // not JSON after all
+    }
+  }
+  const delimiter = tableDelimiter(trimmed);
+  return delimiter ? parseDelimited(trimmed, delimiter) : null;
+};
+const sameImportSets = (first, second) => first.length === second.length && first.every((set, index) => Number(set.kg) === Number(second[index].kg) && Number(set.reps) === Number(second[index].reps));
+const mergeImported = (days) => {
+  const touched = [];
+  let sets = 0;
+  for (const day of days) {
+    const session = sessionFor(day.date) || { date: day.date, exercises: [], cardio: 0 };
+    let added = 0;
+    for (const exercise of day.exercises) {
+      const same = session.exercises.find((item) => item.name.toLowerCase() === exercise.name.toLowerCase());
+      if (same && sameImportSets(same.sets, exercise.sets)) continue;
+      if (same) same.sets.push(...exercise.sets);
+      else session.exercises.push({ name: exercise.name, sets: exercise.sets });
+      added += exercise.sets.length;
+    }
+    if (!added) continue;
+    if (day.label && !session.label) session.label = day.label;
+    if (!sessionFor(day.date)) state.sessions.push(session);
+    sets += added;
+    touched.push(day.date);
+  }
+  return { touched, sets };
+};
+const importSummary = (count, sets) => (count ? `Added ${count} ${count === 1 ? 'day' : 'days'}, ${sets} sets` : 'Nothing new to add, it was all in already');
+const askColumns = (rows) => fetch('/api/columns', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ rows }) })
+  .then((response) => (response.ok ? response.json() : null))
+  .then((body) => (body && body.exercise >= 0 && (body.weight >= 0 || body.reps >= 0) ? { ...body, headerRow: Math.max(-1, Number(body.headerRow) || 0), lb: body.weightUnit === 'lb', warmHeader: true } : null))
+  .catch(() => null);
+const sendImportPart = async (text) => {
+  const response = await fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(body.error || 'Could not read that. Try again.'), { busy: response.status === 429 || response.status >= 500 });
+  return body;
+};
+// Free text goes to the AI in parts of about 24,000 characters, one after the other, so a long history never times out.
+const aiImport = async (text, progress) => {
+  const pieces = [];
+  let piece = '';
+  for (const line of text.slice(0, AI_TEXT_LIMIT).split('\n')) {
+    if (piece.length + line.length > 24000 && piece.trim()) {
+      pieces.push(piece);
+      piece = '';
+    }
+    piece += `${line.slice(0, 24000)}\n`;
+  }
+  if (piece.trim()) pieces.push(piece);
+  const added = new Map();
+  const unclear = [];
+  let failed = 0;
+  let lastError = null;
+  for (const [index, part] of pieces.entries()) {
+    progress(index, pieces.length);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const body = await sendImportPart(part);
+        for (const session of body.sessions || []) {
+          state.sessions = state.sessions.filter((item) => item.date !== session.date);
+          state.sessions.push(session);
+        }
+        for (const day of body.added || []) if (day.sets > 0) added.set(day.date, (added.get(day.date) || 0) + day.sets);
+        if (body.unclear) unclear.push(body.unclear);
+        if (body.failed) failed += 1;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2 || !error.busy) {
+          failed += 1;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, attempt ? 30000 : 12000));
+      }
+    }
+  }
+  if (!added.size && lastError && failed >= pieces.length) throw lastError;
+  await syncNow();
+  const did = [importSummary(added.size, [...added.values()].reduce((sum, sets) => sum + sets, 0)), ...(failed ? ['Some parts could not be read. Send them again to fill the gaps.'] : []), ...(text.length > AI_TEXT_LIMIT ? ['Only the first 400,000 characters were read. A CSV or Excel export brings everything.'] : []), ...(unclear.length ? [`Didn't understand: ${unclear.join(' ').slice(0, 300)}`] : [])];
+  showResult(did, [...added.keys()].slice(-30).map((date) => ({ date, name: null })));
+  return did;
+};
+const importText = async (text, progress = () => {}) => {
+  const rows = tableRows(text);
+  if (rows && rows.length >= 2) {
+    let days = tableDays(rows);
+    if (!days.length && rows.length >= 3 && navigator.onLine) {
+      progress(0, 1, 'Reading the columns…');
+      const mapping = await askColumns(rows.slice(0, 15));
+      if (mapping) days = tableDays(rows, mapping);
+    }
+    if (days.length) {
+      const before = JSON.stringify(state.sessions);
+      const { touched, sets } = mergeImported(days);
+      save();
+      syncNow();
+      const did = [importSummary(touched.length, sets)];
+      showResult(did, touched.slice(-30).map((date) => ({ date, name: null })), touched.length ? before : null);
+      return did;
+    }
+  }
+  return aiImport(text.trim(), progress);
+};
+
+// One import at a time, with a bubble that says how far it got.
+const runImport = async (text, said, onFail = () => {}) => {
+  const pending = { date: todayIso(), label: 'your training', text: said };
+  view.pending.push(pending);
+  render();
+  closeTray();
+  try {
+    const did = await importText(text, (index, total, note) => {
+      pending.progress = note || (total > 1 ? `Reading part ${index + 1} of ${total}…` : '');
+      render();
+    });
+    addLog(said.slice(0, 300), did);
+  } catch (error) {
+    onFail();
+    openChat();
+    addLog(said.slice(0, 300), [`Not logged: ${error.message}`]);
+  } finally {
+    view.pending = view.pending.filter((item) => item !== pending);
+    render();
+  }
+};
 
 const send = async () => {
   const recorded = recording ? await stopRecording() : view.voiceBlob;
@@ -2671,24 +3160,15 @@ const send = async () => {
   if (view.route === 'feedback') return sendFeedback(text, voice);
   if (view.route === 'admin') return sendToClaude(text, voice);
   const date = view.composerDate || todayIso();
-  if (!voice && text.length > 600 && !view.fixing && !view.editContext) {
-    const pending = { date, label: 'your training', text: text.slice(0, 120) + '…' };
-    view.pending.push(pending);
+  // Long text, or rows pasted from a spreadsheet (they come with tabs), is a history to import.
+  if (!voice && (text.length > 600 || (/\t/.test(view.draft) && view.draft.trim().includes('\n'))) && !view.fixing && !view.editContext) {
+    const pasted = view.draft;
     view.draft = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
-    render();
-    closeTray();
-    try {
-      addLog(text.slice(0, 300), await importText(text));
-    } catch (error) {
-      view.draft = text;
-      openChat();
-      addLog(text.slice(0, 300), [`Not logged: ${error.message}`]);
-    } finally {
-      view.pending = view.pending.filter((item) => item !== pending);
-      render();
-    }
-    return;
+    const rows = pasted.trim().split('\n').length;
+    return runImport(pasted.trim(), /\t/.test(pasted) ? `Pasted from a spreadsheet · ${rows} rows` : `${text.slice(0, 120)}${text.length > 120 ? '…' : ''}`, () => {
+      view.draft = pasted;
+    });
   }
   if (!voice && view.confirm && (YES.test(text) || NO.test(text))) {
     answerConfirm(YES.test(text));
@@ -2750,7 +3230,9 @@ const send = async () => {
     openChat();
     const voiceId = voice ? `voice-${Date.now()}` : null;
     if (voiceId) keepVoice(voiceId, voice);
-    addLog(text || heard || live || 'Voice note', [`Not logged: ${error.message}${voice ? ' The recording is kept.' : ''}`], voiceId ? { voiceId } : {});
+    const words = text || heard || error.heard || live || 'Voice note';
+    const kept = voice && !error.unclear ? (words !== 'Voice note' ? ' Your words are saved, tap Try again.' : ' Your recording is saved, tap Try again.') : '';
+    addLog(words, [`Not logged: ${error.message}${kept}`], { ...(voiceId ? { voiceId } : {}), ...(voice && !text && words !== 'Voice note' ? { heard: words } : {}) });
   } finally {
     view.pending = view.pending.filter((item) => item !== pending);
     if (done && !desktopQuery.matches) document.activeElement?.blur();
@@ -2793,6 +3275,21 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
+  if (action === 'link-own' && view.linkOffer) {
+    view.linkOffer = null;
+    history.replaceState(null, '', `/${location.hash}`);
+    pointManifest();
+    render();
+    return;
+  }
+  if (action === 'link-open' && view.linkOffer) {
+    const { key } = view.linkOffer;
+    view.linkOffer = null;
+    render();
+    joinProfile(key).then(render);
+    return;
+  }
+  if (action === 'start-fresh') return startFresh();
   if (action === 'onboard-demo') return startDemo();
   if (action === 'end-demo') return endDemo();
   if (action === 'reload-app') return location.reload();
@@ -2801,8 +3298,9 @@ document.addEventListener('click', (event) => {
     if (name) state.name = name.slice(0, 40);
     state.started = true;
     save();
-    const text = action === 'onboard-blank' ? '' : [view.onboard.data.trim(), view.onboard.file?.text].filter(Boolean).join('\n\n');
-    if (!text) {
+    // A file and typed notes are read on their own: a table is read on the phone, notes go to the AI.
+    const parts = action === 'onboard-blank' ? [] : [view.onboard.file?.text, view.onboard.data.trim()].filter((part) => part?.trim());
+    if (!parts.length) {
       view.onboard = null;
       render();
       return;
@@ -2810,7 +3308,10 @@ document.addEventListener('click', (event) => {
     view.onboard.busy = true;
     view.onboard.status = '';
     render();
-    importText(text)
+    parts.reduce((done, part) => done.then(() => importText(part, (index, total, note) => {
+      view.onboard.status = note || (total > 1 ? `Reading part ${index + 1} of ${total}…` : '');
+      render();
+    })), Promise.resolve())
       .then(() => {
         view.onboard = null;
       })
@@ -2955,6 +3456,12 @@ document.addEventListener('click', (event) => {
     view.draft = entry.said;
     return send();
   }
+  else if (action === 'said-feedback') {
+    const entry = state.log?.[Number(target.dataset.index)];
+    if (!entry) return;
+    view.replacing = entry.at;
+    return routeFeedback(entry.said, entry.said).catch((error) => addLog(entry.said, [`Feedback not sent: ${error.message}`])).finally(render);
+  }
   else if (action === 'retry-voice') {
     const voiceId = target.dataset.voice;
     return loadVoice(voiceId).then((blob) => {
@@ -3043,6 +3550,10 @@ document.addEventListener('click', (event) => {
       return;
     }
   } else if (action === 'toggle-trend') view.trendOpen = view.trendOpen === target.dataset.name ? '' : target.dataset.name;
+  else if (action === 'pick-trend') {
+    view.trendOpen = target.dataset.name;
+    view.trendMore = false;
+  } else if (action === 'trend-more') view.trendMore = !view.trendMore;
   else if (action === 'range') view.range = Number(target.dataset.days);
   else if (action === 'accessories' && session) {
     session.accessories = accessoriesOf(session) === Number(target.dataset.minutes) ? 0 : Number(target.dataset.minutes);
@@ -3258,22 +3769,23 @@ document.addEventListener('change', (event) => {
     save();
     render();
   } else if (target.dataset.action === 'import-file' && target.files[0]) {
-    readFileText(target.files[0]).then((text) => {
-      view.draft = text.slice(0, FILE_LIMIT);
-      view.showQuick = false;
-      send();
-    }).catch(() => {
-      view.status = 'Could not read that file. Try saving it as CSV.';
+    const picked = target.files[0];
+    target.value = '';
+    view.showQuick = false;
+    readFileText(picked).then((text) => runImport(text, `File: ${picked.name}`)).catch((error) => {
+      openChat();
+      addLog(`File: ${picked.name}`, [`Not logged: ${error.message || 'Could not read that file. Try saving it as CSV.'}`]);
       render();
     });
   } else if (target.dataset.action === 'onboard-file' && target.files[0] && view.onboard) {
     const picked = target.files[0];
+    target.value = '';
     readFileText(picked).then((text) => {
-      view.onboard.file = { name: picked.name, text: text.slice(0, FILE_LIMIT) };
-      view.onboard.status = text.length > FILE_LIMIT ? 'That file is very long; the first part is used.' : '';
+      view.onboard.file = { name: picked.name, text };
+      view.onboard.status = '';
       render();
-    }).catch(() => {
-      view.onboard.status = 'Could not read that file. Try saving it as CSV.';
+    }).catch((error) => {
+      view.onboard.status = error.message || 'Could not read that file. Try saving it as CSV.';
       render();
     });
   } else if (target.dataset.action === 'import' && target.files[0]) {
@@ -3366,8 +3878,23 @@ if (invitedName) {
 }
 announceBuilds();
 watchBuilds();
+// A private /me/ link. From the home screen it is the owner's own app, so it opens straight away. In a browser it may
+// be a link someone passed on (Romy's link sent to Adam), so ask first and say whose it is.
 const linkedProfile = location.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
-if (linkedProfile && linkedProfile[1] !== syncState.profile) joinProfile(linkedProfile[1]).then(render);
+const standalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+if (linkedProfile && linkedProfile[1] !== syncState.profile) {
+  if (standalone) joinProfile(linkedProfile[1]).then(render);
+  else {
+    view.linkOffer = { key: linkedProfile[1], name: '', days: 0 };
+    fetch('/api/sync', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': linkedProfile[1] }, body: JSON.stringify({ peek: true }) })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (body && view.linkOffer) Object.assign(view.linkOffer, { name: body.name || '', days: body.days || 0 });
+        render();
+      })
+      .catch(() => null);
+  }
+}
 applyFlavor();
 route();
 pointManifest();

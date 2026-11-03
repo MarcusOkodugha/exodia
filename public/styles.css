@@ -658,3 +658,17 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .chartPrs { margin-left: 6px; color: var(--text2); font-size: 13px; font-weight: 400; }
 
 .shareBtn { display: inline-flex; align-items: center; gap: 6px; color: var(--clay); }
+/* Start fresh sits quietly at the bottom of the menu. */
+.drawerFresh { display: block; margin: 20px 12px 12px; padding: 8px 0; font-size: 15px; line-height: 20px; color: var(--text2); text-align: left; }
+/* "Voice note" above the words that were heard. */
+.bubbleKind { display: block; margin-bottom: 2px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+/* Trends: the lift picker at the top. Big 3 side by side, the picked one in clay. */
+.liftPicks { display: grid; grid-template-columns: repeat(var(--picks, 3), minmax(0, 1fr)); gap: 8px; margin: 8px 0 4px; }
+.liftPick { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; text-align: left; }
+.liftPickName { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+.liftPickValue { font-size: 22px; line-height: 28px; font-weight: 600; color: var(--text); }
+.liftPick[aria-pressed="true"] { border-color: var(--clay); background: var(--claySoft); }
+.liftPick[aria-pressed="true"] .liftPickName { color: var(--clayText); }
+.liftMore { display: block; margin: 4px 0 8px; min-height: 36px; font-size: 15px; }
+.liftMoreList { margin-bottom: 12px; }
+.trendHead { min-height: 48px; }

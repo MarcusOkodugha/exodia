@@ -177,14 +177,26 @@ const chunksOf = (text, size = 8000) => {
 
 const readDays = async (env, text, today, known) => {
   const system = `${IMPORT_PROMPT}\nToday is ${today}.\nCalendar, newest first:\n${calendarFor(today)}\nKnown exercises: ${known.join(', ') || 'none yet'}`;
-  const chunks = chunksOf(text);
+  // At most 6 pieces per request (the app sends big imports in parts): Workers Free allows 50 outside calls per request.
+  const chunks = chunksOf(text).slice(0, 6);
   const parts = [];
-  for (let start = 0; start < chunks.length; start += 4) parts.push(...await Promise.all(chunks.slice(start, start + 4).map((chunk) => askAi(env, system, chunk, DAY_SCHEMA))));
+  let failed = 0;
+  let lastError = null;
+  for (let start = 0; start < chunks.length; start += 3) {
+    for (const outcome of await Promise.allSettled(chunks.slice(start, start + 3).map((chunk) => askAi(env, system, chunk, DAY_SCHEMA)))) {
+      if (outcome.status === 'fulfilled') parts.push(outcome.value);
+      else {
+        failed += 1;
+        lastError = outcome.reason;
+      }
+    }
+  }
+  if (!parts.length && lastError) throw lastError;
   const days = parts.flatMap((part) => Array.isArray(part?.days) ? part.days : [])
     .filter((day) => DATE.test(day?.date ?? '') && day.date <= today)
     .map((day) => ({ ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today), date: day.date }));
   const unclear = parts.map((part) => part?.unclear).filter(Boolean).join(' ').slice(0, 500);
-  return { days, unclear };
+  return { days, unclear, failed };
 };
 
 const sameSets = (first, second) => first.length === second.length && first.every((set, index) => Number(set.kg) === Number(second[index].kg) && Number(set.reps) === Number(second[index].reps));
@@ -214,7 +226,12 @@ const mergeDays = (sessions, days) => {
 const addDays = async (env, key, days) => {
   if (!days.length) return [];
   const dates = [...new Set(days.map((day) => day.date))];
-  const rows = (await env.DB.prepare(`SELECT date, data FROM sessions WHERE profile = ? AND date IN (${dates.map(() => '?').join(', ')})`).bind(key, ...dates).all()).results;
+  // D1 takes at most 100 values per query, so look the days up 90 at a time.
+  const rows = [];
+  for (let start = 0; start < dates.length; start += 90) {
+    const group = dates.slice(start, start + 90);
+    rows.push(...(await env.DB.prepare(`SELECT date, data FROM sessions WHERE profile = ? AND date IN (${group.map(() => '?').join(', ')})`).bind(key, ...group).all()).results);
+  }
   const sessions = new Map(rows.filter((row) => row.data).map((row) => [row.date, JSON.parse(row.data)]));
   const summary = mergeDays(sessions, days);
   const now = Date.now();
@@ -225,6 +242,33 @@ const addDays = async (env, key, days) => {
     ...changed.map((session) => env.DB.prepare('INSERT INTO sessions (profile, date, data, updated, seq) VALUES (?1, ?2, ?3, ?4, (SELECT seq FROM profiles WHERE id = ?1)) ON CONFLICT (profile, date) DO UPDATE SET data = excluded.data, updated = excluded.updated, seq = excluded.seq').bind(key, session.date, JSON.stringify(session), now))
   ]);
   return summary;
+};
+
+// Import of a table the app could not read by itself: the AI only says which column holds what (from the first rows),
+// and the app reads every row on the phone. One small call, whatever the file size.
+const COLUMNS_PROMPT = `You get the first rows of a lifting log table. Each line is "row N:" then the cells, numbered [0], [1], ... Say which row is the header (-1 if there is none) and which column index holds each thing, or -1 if no column does.
+date: the day of the workout. exercise: the exercise name. weight: the load lifted. reps: repetitions. sets: a number of sets when one row stands for several sets (not a set number or order). rpe: RPE. rir: reps in reserve. warmup: a column that marks warm-up sets or the set type. label: the workout or session name. unit: a column with the weight unit.
+weightUnit is "lb" if weights are in pounds, otherwise "kg". dateOrder is "dmy", "mdy" or "ymd" for how dates are written.`;
+const COLUMNS_SCHEMA = {
+  type: 'OBJECT',
+  properties: Object.fromEntries([...['headerRow', 'date', 'exercise', 'weight', 'reps', 'sets', 'rpe', 'rir', 'warmup', 'label', 'unit'].map((name) => [name, { type: 'INTEGER' }]), ['weightUnit', { type: 'STRING' }], ['dateOrder', { type: 'STRING' }]]),
+  required: ['headerRow', 'date', 'exercise', 'weight', 'reps']
+};
+const columns = async (request, env) => {
+  const key = request.headers.get('x-exodia-key') ?? '';
+  if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
+  if (env.PARSE_LIMITER) {
+    const { success } = await env.PARSE_LIMITER.limit({ key: `columns:${key}` });
+    if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+  }
+  const body = await request.json().catch(() => null);
+  const rows = Array.isArray(body?.rows) ? body.rows.slice(0, 15).map((row, index) => `row ${index}: ${(Array.isArray(row) ? row : []).slice(0, 40).map((cell, column) => `[${column}] ${String(cell ?? '').slice(0, 60)}`).join(' | ')}`) : [];
+  if (!rows.length) return json({ error: 'No rows.' }, 400);
+  try {
+    return json(await askAi(env, COLUMNS_PROMPT, rows.join('\n'), COLUMNS_SCHEMA));
+  } catch (error) {
+    return json({ error: error.message }, 503);
+  }
 };
 
 const speechToText = async (request, env) => {
@@ -249,25 +293,27 @@ const add = async (request, env, ctx) => {
     if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
   }
   const body = await request.json().catch(() => null);
-  const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 320000) : '';
+  const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 48000) : '';
   if (!text) return json({ error: 'Send your training as text.' }, 400);
   const today = typeof body?.today === 'string' && DATE.test(body.today) ? body.today : new Date().toISOString().slice(0, 10);
   const existing = (await env.DB.prepare('SELECT data FROM sessions WHERE profile = ? AND data IS NOT NULL ORDER BY date DESC LIMIT 200').bind(key).all()).results;
   const sent = Array.isArray(body?.known) ? body.known.filter((name) => typeof name === 'string').map((name) => name.slice(0, 60)) : [];
   const known = [...new Set([...existing.flatMap((row) => JSON.parse(row.data).exercises.map((exercise) => exercise.name)), ...sent])].slice(0, 100);
   try {
-    const { days, unclear } = await readDays(env, text, today, known);
+    const { days, unclear, failed } = await readDays(env, text, today, known);
     if (body.dry === true) {
       const sessions = new Map();
       const added = mergeDays(sessions, days);
-      return json({ added, unclear, sessions: [...sessions.values()] });
+      return json({ added, unclear, failed, sessions: [...sessions.values()] });
     }
     const added = await addDays(env, key, days);
-    logCommand(request, env, ctx, body, text.slice(0, 500), { added, unclear, engine: 'add' });
-    return json({ added, unclear });
+    logCommand(request, env, ctx, body, text.slice(0, 500), { added: added.slice(0, 40), days: added.length, unclear, failed, engine: 'add' });
+    return json({ added, unclear, failed });
   } catch (error) {
     logCommand(request, env, ctx, body, text.slice(0, 500), { error: String(error.message) });
-    return json({ error: error.message }, 503);
+    // Say plainly what went wrong; the technical reason stays in the admin log.
+    const saving = /D1|SQL|database/i.test(String(error.message));
+    return json({ error: saving ? 'Saving to the database failed, so nothing was added. Marcus can see why in Admin.' : error.message }, 503);
   }
 };
 
@@ -304,7 +350,7 @@ const clean = (raw, today) => {
     .slice(0, 10)
     .map((item) => ({ from: item.from, to: item.to, ...(typeof item.exercise === 'string' && item.exercise.trim() ? { exercise: item.exercise.trim().slice(0, 60) } : {}) }));
   const accessoriesMinutes = Math.min(300, Math.max(0, Math.round(Number(raw?.accessoriesMinutes) || 0)));
-  const unclear = typeof raw?.unclear === 'string' ? raw.unclear.trim().slice(0, 300) : '';
+  const unclear = typeof raw?.unclear === 'string' ? raw.unclear.trim().slice(0, 1000) : '';
   const feedback = typeof raw?.feedback === 'string' ? raw.feedback.trim().slice(0, 2000) : '';
   return { exercises, cardioMinutes, transcript, remove, replace, move, ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
@@ -313,7 +359,7 @@ const logCommand = (request, env, ctx, body, said, result) => {
   if (body?.dry === true) return;
   const profile = request.headers.get('x-exodia-key') ?? '';
   ctx.waitUntil(env.DB.prepare('INSERT INTO commands (at, profile, name, said, result) VALUES (?, ?, ?, ?, ?)')
-    .bind(Date.now(), PROFILE_KEY.test(profile) ? profile.slice(0, 6) : 'unknown', typeof body?.name === 'string' ? body.name.slice(0, 40) : '', String(said || '').slice(0, 500), JSON.stringify(result).slice(0, 4000))
+    .bind(Date.now(), PROFILE_KEY.test(profile) ? profile.slice(0, 6) : 'unknown', typeof body?.name === 'string' ? body.name.slice(0, 40) : '', String(said || '').slice(0, 2000), JSON.stringify(result).slice(0, 4000))
     .run()
     .catch(() => {}));
 };
@@ -438,12 +484,12 @@ const parse = async (request, env, ctx) => {
       return json(result);
     } catch {
       logCommand(request, env, ctx, body, text || 'Voice note', { error: 'AI answer could not be read' });
-      return json({ error: 'Could not read that. Try “bench 120 for 4, 4 and 7”.' }, 422);
+      return json({ error: 'Could not read that. Try “bench 120 for 4, 4 and 7”.', transcript: heard }, 422);
     }
   }
   logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}` });
-  if (busy) return json({ error: 'Google’s AI was busy. Your note is fine, try again in a minute.' }, 503);
-  return json({ error: 'The AI could not read that note. Try again, or type it.' }, 502);
+  if (busy) return json({ error: 'Google’s AI was busy. Your note is fine, try again in a minute.', transcript: heard }, 503);
+  return json({ error: 'The AI could not read that note. Try again, or type it.', transcript: heard }, 502);
 };
 
 const sync = async (request, env) => {
@@ -454,6 +500,13 @@ const sync = async (request, env) => {
     if (!success) return json({ error: 'Slow down a little.' }, 429);
   }
   const body = await request.json().catch(() => null);
+  // Someone opened a private /me/ link: only say whose it is and whether it has a log, so the app can ask before opening it.
+  if (body?.peek === true) {
+    const row = await env.DB.prepare('SELECT meta, (SELECT count(*) FROM sessions WHERE profile = ?1 AND data IS NOT NULL) AS days FROM profiles WHERE id = ?1').bind(key).first();
+    let name = '';
+    try { name = String(JSON.parse(row?.meta || '{}').name || '').slice(0, 40); } catch { name = ''; }
+    return json({ name, days: row?.days || 0 });
+  }
   const since = Number.isInteger(body?.since) && body.since >= 0 ? body.since : 0;
   const changes = (Array.isArray(body?.changes) ? body.changes : [])
     .slice(0, MAX_CHANGES)
@@ -635,6 +688,10 @@ export default {
     if (url.pathname === '/api/transcribe') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return speechToText(request, env);
+    }
+    if (url.pathname === '/api/columns') {
+      if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+      return columns(request, env);
     }
     if (url.pathname === '/api/add') {
       if (request.method !== 'POST') return json({ error: 'Use POST with {"text": "your training"} and your x-exodia-key header.' }, 405);

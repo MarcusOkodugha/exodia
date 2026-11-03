@@ -6,6 +6,8 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 - [x] **Make sure Cloudflare can never charge the card.** Marcus confirmed billing is off (Nov 3). Check [Workers plans](https://dash.cloudflare.com/379fa967eba06ef21141519c2922cfcc/workers/plans) says Free and [Billing](https://dash.cloudflare.com/379fa967eba06ef21141519c2922cfcc/billing) has no subscriptions; remove the card if one is saved. Keep R2 out of the API token. Also check the Google AI key is on the free tier (no billing).
 - [x] **Cloudflare key for this Claude environment.** Added Nov 3; network to api.cloudflare.com and the live site works. Next: a new chat confirms the key with `npx wrangler whoami`. Lets Claude deploy in about 15 seconds instead of 1–3 minutes, check the live site, and set secrets itself. Steps: create an "Edit Cloudflare Workers" API token (+ Account → D1 → Edit), then in claude.ai/code → my-cloud-env → Edit add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, and allow `api.cloudflare.com` and `exodia.marcusokodugha.workers.dev` under Network access.
+- [ ] 🔴 **D1 permission on the Cloudflare key.** The key can deploy but can't read the database, so Claude can't look at what Romy and Adam actually sent. Add Account → D1 → Edit to the "Edit Cloudflare Workers" token.
+- [ ] **Decide:** a name on a new phone brings your data back. Names aren't unique (two Adams), so it needs name + a short code. Changes the database; waiting for Marcus.
 - [ ] **`/marcus` code.** Set `MARCUS_CODE` (Claude can do it once the Cloudflare key is in; otherwise `cd ~/code/exodia && npx wrangler secret put MARCUS_CODE` in Terminal on the Mac).
 - [ ] **Old Claude's memory into CLAUDE.md.** In the Mac Terminal Claude: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md in the repo, then commit and push."
 - [ ] **Decide:** keep `/join` for everyone else, or add `/other`.
@@ -13,11 +15,17 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## To do (Claude)
 
+- [ ] UX check of the whole app: where one accidental tap loses your place.
+- [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
 - [ ] New Exodia Status page for this account (waiting for Marcus's go-ahead).
 - [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
+- Import reads tables on the phone: CSV, TSV, Excel, OpenDocument, JSON, zip, rows pasted from a sheet; Strong, Hevy, FitNotes and Swedish columns; 10+ years in about a second; over 99 days no longer fails; notes go to the AI in parts (v188)
+- Private /me/ links ask "This is Romy's Exodia, is it yours?"; Start fresh in the menu; clearer "Your private link" (v188)
+- Trends: Squat / Bench / Deadlift buttons on top, More lifts, tap switches the chart (v188)
+- Voice: full text kept (was cut at 300 characters), "Voice note" label with the words, "Send as feedback" when not understood, "Understanding…" while working (v188)
 - Voice: phone's own speech-to-text removed, only the recording → Whisper + Gemini Flash; mangled numbers handled (v187)
 - Feedback only when you say "feedback"/"feature" in the main box; builds only from Admin (v186)
 - Admin log: names, other people on the left (v185)
