@@ -64,7 +64,11 @@ const toJsonSchema = (node) => {
 };
 const JSON_SCHEMA = toJsonSchema(SCHEMA);
 
-const RAMBLE = `Spoken numbers come out mangled: "220 for 2" can arrive as "224 2", "2:24 2", "220 42" or "two twenty four two", because "for" sounds like 4 and gets glued to the numbers. Weight comes first, then reps; if a number looks like weight and reps glued together, split it, and prefer weights close to what this person lifted on that exercise in the recent log.\nSpeech-to-text garbles gym words badly, so read for what was meant: "tricep pusha down" is Triceps Pushdown, "bench pres" or "bench breast" is Bench Press, "dead lift" or "that lift" is Deadlift, "squad" is Squat, "for" or "four" can be the number 4 or the word for, "times" or "x" separates weight and reps, "kilo" and "kg" are kilograms. Match to the closest exercise in the known list or the recent log when the sounds fit, work out the numbers from context (weight first, then reps, then sets), and log it. Use unclear only when you truly cannot tell.\nThe note is often a long spoken ramble. It can repeat itself, correct itself ("70, no, 100"), jump between exercises, and include talk that has nothing to do with training. Ignore the unrelated talk, use the latest correction, and put each set under the right exercise and day. If they describe the same sets twice, log them once.`;
+const RAMBLE = `Spoken numbers come out mangled: "220 for 2" can arrive as "224 2", "2:24 2", "220 42", "220 4-2", "220 4 2" or "two twenty four two", because "for" sounds like 4 and gets glued to the numbers. Weight comes first, then reps; if a number looks like weight and reps glued together, split it, and prefer weights close to what this person lifted on that exercise in the recent log.\nSpeech-to-text garbles gym words badly, so read for what was meant: "tricep pusha down" is Triceps Pushdown, "bench pres" or "bench breast" is Bench Press, "dead lift" or "that lift" is Deadlift, "squad" is Squat, "for" or "four" can be the number 4 or the word for, "times" or "x" separates weight and reps, "kilo" and "kg" are kilograms. Match to the closest exercise in the known list or the recent log when the sounds fit, work out the numbers from context (weight first, then reps, then sets), and log it. Use unclear only when you truly cannot tell.\nThe note is often a long spoken ramble. It can repeat itself, correct itself ("70, no, 100"), jump between exercises, and include talk that has nothing to do with training. Ignore the unrelated talk, use the latest correction, and put each set under the right exercise and day. If they describe the same sets twice, log them once.`;
+
+// Speech-to-text writes "220 for 2" as "220 4-2" or "220 4/2". After a weight, a 4 glued to the reps by a dash or slash
+// is the word "for": read it as "220 for 2" before the AI sees it.
+const unglue = (text) => String(text || '').replace(/\b(\d{2,3}(?:[.,]\d{1,2})?)(\s*(?:kg|kgs|kilos?|kilo)?)\s+4\s*[-–—/]\s*(\d{1,2})\b/gi, '$1$2 for $3');
 
 const transcribe = async (env, audio, known = []) => {
   if (!env.AI) return '';
@@ -442,8 +446,8 @@ const parse = async (request, env, ctx) => {
   const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
   const hint = typeof body?.hint === 'string' ? body.hint.slice(0, MAX_TEXT) : '';
   const context = `Today is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}`;
-  const heard = audio ? await transcribe(env, audio, known) : '';
-  const words = text || heard || (audio ? hint : '');
+  const heard = audio ? unglue(await transcribe(env, audio, known)) : '';
+  const words = unglue(text) || heard || (audio ? hint : '');
   if (env.ANTHROPIC_API_KEY && words) {
     try {
       const result = clean({ ...(await askClaude(env, context, `${words}${heard && hint && !text ? `\n\n(The phone's own speech-to-text heard: "${hint}". Use it only for unclear words.)` : ''}`)), transcript: heard || text }, today);
