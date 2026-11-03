@@ -1598,7 +1598,14 @@ const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><
 
 const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, a spreadsheet</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
 
-const sheetBody = () => (nameQuery()
+// On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
+const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
+const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>Sent to Claude${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
+const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
+
+const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeChat()}</div>`
+  : view.route === 'feedback' ? `<div class="chat">${feedbackChat()}</div>`
+  : nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
   : `${view.showQuick ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${view.showQuick || (!view.draft.trim() && !view.quickHidden) ? quickAdd() : ''}`);
 
