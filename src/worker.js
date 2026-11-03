@@ -493,10 +493,26 @@ const describe = (raw) => {
   ].join(' · ') || 'Nothing understood';
 };
 
+// Starts a Claude Code cloud session (a scheduled task with an API trigger) that changes the app and deploys it.
+const startClaudeTask = async (text, env) => {
+  const ask = text.trim().slice(0, 4000);
+  if (!ask) return json({ error: 'Say what to change.' }, 400);
+  if (!env.CLAUDE_TASK_URL || !env.CLAUDE_TASK_TOKEN) return json({ error: 'Claude is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
+  const response = await fetch(env.CLAUDE_TASK_URL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.CLAUDE_TASK_TOKEN}`, 'anthropic-beta': 'experimental-cc-routine-2026-04-01', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ text: ask })
+  }).catch(() => null);
+  const data = response ? await response.json().catch(() => ({})) : {};
+  if (!response?.ok) return json({ error: data.error?.message || `Claude did not start${response ? ` (${response.status})` : ''}. Try again.` }, 502);
+  return json({ ok: true, url: data.claude_code_session_url || '' });
+};
+
 const admin = async (request, env) => {
   if (!env.ADMIN_PROFILE || request.headers.get('x-exodia-key') !== env.ADMIN_PROFILE) return json({ error: 'Not found' }, 404);
   if (request.method === 'POST') {
     const body = await request.json().catch(() => null);
+    if (typeof body?.claude === 'string') return startClaudeTask(body.claude, env);
     if (!Number.isInteger(body?.id) || !['new', 'planned', 'done', 'declined'].includes(body?.status)) return json({ error: 'Bad request' }, 400);
     await env.DB.prepare('UPDATE feedback SET status = ? WHERE id = ?').bind(body.status, body.id).run();
     return json({ ok: true });

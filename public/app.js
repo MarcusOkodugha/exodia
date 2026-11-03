@@ -1270,6 +1270,44 @@ const sendFeedback = async (text, voice) => {
   }
 };
 
+const CLAUDE_EXAMPLES = ['Make the red lines a bit stronger', 'Show e1RM only once per day', 'Add a rest timer between sets', 'Fix the mic stopping after a minute'];
+
+// Admin only: sends a change request to Claude Code, which edits the app, pushes to main and Cloudflare deploys it.
+const askClaude = async (text) => {
+  const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Claude did not start. Try again.');
+  state.claudeRuns = [{ at: Date.now(), said: text, url: body.url }, ...(state.claudeRuns || [])].slice(0, 20);
+  save();
+  view.toast = { kind: 'rep', title: 'Claude is on it', text: text.slice(0, 80) };
+  clearTimeout(view.toastTimer);
+  view.toastTimer = setTimeout(clearToast, 5000);
+};
+
+const sendToClaude = async (text, voice) => {
+  view.draft = '';
+  view.claudeSending = true;
+  if (!desktopQuery.matches) document.activeElement?.blur();
+  render();
+  closeTray();
+  try {
+    let ask = text;
+    if (voice) {
+      const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Could not hear that. Try again.');
+      ask = [text, body.text].filter(Boolean).join(' ');
+    }
+    await askClaude(ask);
+  } catch (error) {
+    view.draft = text;
+    view.status = error.message;
+  } finally {
+    view.claudeSending = false;
+    render();
+  }
+};
+
 const FEEDBACK_STATUS = [['new', 'New'], ['planned', 'Planned'], ['done', 'Done'], ['declined', 'No']];
 
 const renderAdmin = () => {
@@ -1285,12 +1323,16 @@ const renderAdmin = () => {
   return `<main class="page">
     <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
+    <p class="section">Change the app</p>
+    <p class="feedbackLead">Say or type a change in the box below. Claude builds it, and it goes live in a few minutes.</p>
+    ${view.claudeSending ? '<p class="feedbackMeta">Starting Claude…</p>' : ''}
+    ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Claude</a>` : ''}</p></div>`).join('')}
     <p class="section">Feedback</p>
     ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
       <p class="feedbackHead"><span class="${item.kind === 'bug' ? 'prPill' : 'prPill est'}">${item.kind === 'bug' ? 'Bug' : 'Idea'}</span><b>${esc(item.title)}</b></p>
       <p class="feedbackDetails">${esc(item.details)}</p>
       <p class="feedbackMeta">${esc(item.who)} · ${new Date(item.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
-      <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}</div>
+      <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}<button class="chip" data-action="feedback-claude" data-id="${item.id}"><span class="chipFace">Build it</span></button></div>
     </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
     <p class="section">Every command</p>
     <div class="chat">${view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at) })).join('') || '<p class="empty">No commands yet.</p>'}</div>
@@ -1633,7 +1675,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 (window.requestIdleCallback || setTimeout)(preloadHands);
 
 const tickTypewriter = () => {
-  const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : EXAMPLES;
+  const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : view.route === 'admin' ? CLAUDE_EXAMPLES : EXAMPLES;
   typewriter.index %= examples.length;
   let delay = 70 + Math.random() * 60;
   if (reducedMotion.matches) {
@@ -2399,6 +2441,7 @@ const send = async () => {
     return;
   }
   if (view.route === 'feedback') return sendFeedback(text, voice);
+  if (view.route === 'admin') return sendToClaude(text, voice);
   const date = view.composerDate || todayIso();
   if (!voice && text.length > 600 && !view.fixing && !view.editContext) {
     const pending = { date, label: 'your training', text: text.slice(0, 120) + '…' };
@@ -2553,6 +2596,25 @@ document.addEventListener('click', (event) => {
         render();
       }, 1600);
     });
+    return;
+  }
+  if (action === 'feedback-claude') {
+    const item = view.adminFeedback?.find((entry) => entry.id === Number(target.dataset.id));
+    if (!item || view.claudeSending) return;
+    view.claudeSending = true;
+    render();
+    askClaude(`${item.kind === 'bug' ? 'Fix this bug' : 'Build this idea'} from Exodia feedback: ${item.title}. ${item.details}`)
+      .then(() => {
+        item.status = 'planned';
+        fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ id: item.id, status: 'planned' }) });
+      })
+      .catch((error) => {
+        view.status = error.message;
+      })
+      .finally(() => {
+        view.claudeSending = false;
+        render();
+      });
     return;
   }
   if (action === 'feedback-status') {
