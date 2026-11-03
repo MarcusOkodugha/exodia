@@ -599,7 +599,7 @@ const admin = async (request, env) => {
     env.DB.prepare('SELECT id, at, profile, name, kind, title, details, said, status FROM feedback ORDER BY at DESC LIMIT 200')
   ]);
   return json({
-    commands: commands.results.map((row) => ({ at: row.at, who: row.name || row.profile, said: row.said, did: describe(row.result), raw: row.result })),
+    commands: commands.results.map((row) => ({ at: row.at, who: row.name || row.profile, mine: row.profile === env.ADMIN_PROFILE, said: row.said, did: describe(row.result), raw: row.result })),
     feedback: feedback.results.map(({ profile, ...row }) => ({ ...row, who: row.name || profile.slice(0, 6) }))
   });
 };

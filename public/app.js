@@ -1527,7 +1527,7 @@ const renderAdmin = () => {
     ${shareCard()}
     <p class="section">Change the app</p>
     <p class="feedbackLead">Say or type a change in the box below. Exodia builds it, and it goes live in a few minutes.</p>
-    ${view.claudeSending ? '<p class="feedbackMeta">Starting Exodia…</p>' : ''}
+    ${view.claudeSending ? '<p class="feedbackMeta"><span class="ghostText">Exodia is working on it…</span></p>' : ''}
     ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Feedback</p>
     ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
@@ -1537,7 +1537,7 @@ const renderAdmin = () => {
       <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}<button class="chip" data-action="feedback-claude" data-id="${item.id}"><span class="chipFace">Build it</span></button></div>
     </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
     <p class="section">Every command</p>
-    <div class="chat">${view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at), theirs: true })).join('') || '<p class="empty">No commands yet.</p>'}</div>
+    <div class="chat">${view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at), theirs: !row.mine })).join('') || '<p class="empty">No commands yet.</p>'}</div>
   </main>`;
 };
 
@@ -1911,7 +1911,7 @@ const showSheet = () => view.composer && view.route !== 'admin' && view.route !=
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${updatePill()}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${updatePill()}${view.route === 'admin' ? `<p class="dockStatus" role="status">${view.claudeSending ? '<span class="ghostText">Exodia is working on it…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
