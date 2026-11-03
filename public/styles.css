@@ -296,6 +296,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .avgLine { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgb(var(--clayRgb) / 0.45); pointer-events: none; }
 /* The chart keeps a right gutter for the average label, so no bar or bar value can ever cover it. */
 .weekChart { --gutter: 40px; }
+.weekChart .weekBars { border-bottom: 1px solid var(--sep); }
 .weekChart .weekBars, .weekChart .weekLabels, .weekChart .axis { margin-right: var(--gutter); }
 .weekChart .axis { margin-left: 0; margin-bottom: 0; }
 .avgLine span { position: absolute; right: calc(var(--gutter) * -1); top: -8px; width: calc(var(--gutter) - 4px); font-size: 10px; line-height: 14px; color: var(--text2); text-align: right; white-space: nowrap; }

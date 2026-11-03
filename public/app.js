@@ -1105,7 +1105,7 @@ const bodySvg = (side, load) => `<svg class="bodyFig" viewBox="0 0 100 200" aria
 }).join('')}</svg>`;
 const renderMuscles = () => {
   loadAnatomy();
-  if (!anatomy || anatomy === 'loading' || state.sessions.length === 0) return '';
+  if (!anatomy || anatomy === 'loading') return '';
   const load = muscleLoad();
   const { sets } = load;
   return `<p class="section muscleHead">Anatomy<span>Sets · 7 days</span></p>
@@ -1117,6 +1117,9 @@ const renderMuscles = () => {
 
 // Days in the range where this lift set a PR (a heavier single or a new estimated max).
 const prCount = (name, since) => state.sessions.filter((session) => session.date >= since && session.exercises.some((exercise) => exercise.name === name && validSets(exercise).some((set) => prKind(name, session.date, set)))).length;
+
+// A blank start still shows the real charts and lifts, just with nothing in them yet.
+const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
 const renderTrends = () => {
   const history = new Map();
@@ -1165,10 +1168,9 @@ const renderTrends = () => {
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
     ${renderMuscles()}
-    ${names.length ? '' : '<p class="empty" style="margin-top:20px">Log a few sessions and your trends show up here.</p>'}
-    ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : ''}
+    ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : names.length ? '' : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
-    ${names.length && !desktopQuery.matches ? renderVolume() : ''}
+    ${desktopQuery.matches ? '' : renderVolume()}
   </main>`;
 };
 
