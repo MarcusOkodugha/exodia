@@ -39,6 +39,10 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 4. **Run syntax checks:** `node --check public/app.js && node --check src/worker.js`.
 5. **Commit straight to `main`** with a short, plain commit message in the style of `git log`, such as "Plus after the @, tighter rows". Then push.
 
+## Money
+
+Everything runs on free tiers (Cloudflare Workers Free, Gemini free tier). Never create R2 buckets, enable paid Cloudflare products, add a payment method or upgrade any plan, even if the API token would allow it. If a change would need a paid feature, say so and stop.
+
 ## Deploying
 
 Cloudflare Workers Builds is connected to this repo. **Every push to `main` deploys automatically** in about a minute. There's no manual deploy step.
