@@ -350,7 +350,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .dayKg { text-align: right; color: var(--text); white-space: nowrap; }
 .dayX { text-align: center; color: var(--text2); }
 .dayReps { text-align: left; color: var(--text); white-space: nowrap; }
-.dayOthers { display: block; margin-top: 2px; font-size: 13px; line-height: 18px; color: #8E8C85; white-space: nowrap; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 75%, transparent); mask-image: linear-gradient(90deg, #000 75%, transparent); }
+.dayOthers { display: block; margin-top: 2px; font-size: 13px; line-height: 18px; color: #7A7973; white-space: nowrap; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 75%, transparent); mask-image: linear-gradient(90deg, #000 75%, transparent); }
 .prPill { padding: 1px 8px; border-radius: 10px; background: var(--clay); color: #FFFFFF; font-weight: 600; font-size: 13px; line-height: 18px; white-space: nowrap; }
 :root { --hair: 1px; }
 @media (min-resolution: 2dppx) { :root { --hair: 0.5px; } }
