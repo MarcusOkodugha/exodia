@@ -18,6 +18,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- Excel (.xlsx) import, file limit raised to ~320k characters (about 2000+ rows) (v181)
 - Phone: weekly volume sits under Big 3, above other lifts (v179)
 - Blank start shows empty charts and Big 3 (v176)
 - Smoother fist: clean closed fist, whole finger outlines (v175)

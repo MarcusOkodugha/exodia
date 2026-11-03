@@ -170,7 +170,7 @@ const chunksOf = (text, size = 8000) => {
     if (chunks.at(-1).length + line.length > size && chunks.at(-1)) chunks.push('');
     chunks[chunks.length - 1] += `${line}\n`;
   }
-  return chunks.filter((chunk) => chunk.trim()).slice(0, 20);
+  return chunks.filter((chunk) => chunk.trim()).slice(0, 40);
 };
 
 const readDays = async (env, text, today, known) => {
@@ -247,7 +247,7 @@ const add = async (request, env, ctx) => {
     if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
   }
   const body = await request.json().catch(() => null);
-  const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 150000) : '';
+  const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 320000) : '';
   if (!text) return json({ error: 'Send your training as text.' }, 400);
   const today = typeof body?.today === 'string' && DATE.test(body.today) ? body.today : new Date().toISOString().slice(0, 10);
   const existing = (await env.DB.prepare('SELECT data FROM sessions WHERE profile = ? AND data IS NOT NULL ORDER BY date DESC LIMIT 200').bind(key).all()).results;

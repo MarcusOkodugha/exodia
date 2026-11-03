@@ -1685,7 +1685,7 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div></div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, a spreadsheet</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
@@ -2013,7 +2013,7 @@ const renderOnboard = () => {
         <li><b>Strong</b><span>Profile → Settings → Export Strong Data</span></li>
         <li><b>Hevy</b><span>Profile → Settings → Export & Import Data → Export Workouts</span></li>
         <li><b>Notes</b><span>Copy your notes and paste them in</span></li>
-        <li><b>Spreadsheet</b><span>Excel or Google Sheets → Download as CSV</span></li>
+        <li><b>Spreadsheet</b><span>Excel (.xlsx) or CSV, up to about 2000 rows</span></li>
       </ul>
       <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
     </details>
@@ -2030,7 +2030,7 @@ const renderOnboard = () => {
       <label for="onboardData" class="sr">Your training so far</label>
       <textarea id="onboardData" class="promptInput onboardData" rows="3" ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
       ${listening ? '<span class="hint live" aria-hidden="true"><span class="liveText">Listening… tap stop when you are done</span></span>' : hearing ? '<span class="hint live" aria-hidden="true"><span class="liveText">Writing down what you said…</span></span>' : busy ? '<span class="hint live" aria-hidden="true"><span class="liveText">Reading your training…</span></span>' : `<span class="hint onboardHint${onboardExample.fading ? ' fading' : ''}" aria-hidden="true">${esc(ONBOARD_EXAMPLES[onboardExample.index])}</span>`}
-      <div class="promptBar"><label class="roundBtn soft onboardFile" aria-label="Add a file">${ICONS.plus}<input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,text/*" data-action="onboard-file" ${locked ? 'disabled' : ''}></label><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
+      <div class="promptBar"><label class="roundBtn soft onboardFile" aria-label="Add a file">${ICONS.plus}<input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="onboard-file" ${locked ? 'disabled' : ''}></label><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
     </div>
   </div>`;
 };
@@ -2571,6 +2571,70 @@ const land = (result, date) => {
     if (view.fresh && view.fresh.names === names) view.fresh = null;
   }, 1800);
 };
+
+const FILE_LIMIT = 320000;
+const unzip = async (buffer) => {
+  const bytes = new Uint8Array(buffer);
+  const view32 = new DataView(buffer);
+  let end = bytes.length - 22;
+  while (end >= 0 && view32.getUint32(end, true) !== 0x06054b50) end -= 1;
+  if (end < 0) throw new Error('Not a spreadsheet');
+  const count = view32.getUint16(end + 10, true);
+  let at = view32.getUint32(end + 16, true);
+  const files = {};
+  const decoder = new TextDecoder();
+  for (let index = 0; index < count; index += 1) {
+    const method = view32.getUint16(at + 10, true);
+    const size = view32.getUint32(at + 20, true);
+    const nameLength = view32.getUint16(at + 28, true);
+    const extra = view32.getUint16(at + 30, true);
+    const comment = view32.getUint16(at + 32, true);
+    const local = view32.getUint32(at + 42, true);
+    const name = decoder.decode(bytes.subarray(at + 46, at + 46 + nameLength));
+    at += 46 + nameLength + extra + comment;
+    if (!/^xl\/(workbook\.xml|styles\.xml|sharedStrings\.xml|worksheets\/[^/]+\.xml)$/.test(name)) continue;
+    const start = local + 30 + view32.getUint16(local + 26, true) + view32.getUint16(local + 28, true);
+    const data = bytes.subarray(start, start + size);
+    files[name] = method === 0 ? decoder.decode(data) : await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  }
+  return files;
+};
+const xmlText = (xml) => xml.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+const xlsxToText = async (file) => {
+  const files = await unzip(await file.arrayBuffer());
+  const strings = [...(files['xl/sharedStrings.xml'] || '').matchAll(/<si[ >][\s\S]*?<\/si>/g)].map((match) => xmlText([...match[0].matchAll(/<t[^>]*>[\s\S]*?<\/t>/g)].map((part) => part[0]).join('')));
+  const styles = files['xl/styles.xml'] || '';
+  const custom = {};
+  for (const match of styles.matchAll(/<numFmt [^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g)) custom[match[1]] = match[2];
+  const isDateFormat = (id) => (id >= 14 && id <= 22) || (id >= 45 && id <= 47) || (custom[id] !== undefined && /[dmy]/i.test(custom[id].replace(/"[^"]*"|\[[^\]]*\]|\\./g, '')));
+  const xfs = (styles.match(/<cellXfs[\s\S]*?<\/cellXfs>/) || [''])[0];
+  const dateStyle = [...xfs.matchAll(/<xf [^>]*numFmtId="(\d+)"/g)].map((match) => isDateFormat(Number(match[1])));
+  const out = [];
+  for (const name of Object.keys(files).filter((key) => key.startsWith('xl/worksheets/')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))) {
+    for (const row of files[name].matchAll(/<row[ >][\s\S]*?<\/row>/g)) {
+      const cells = [];
+      for (const cell of row[0].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const attrs = cell[1];
+        const ref = (attrs.match(/r="([A-Z]+)\d+"/) || [])[1];
+        const type = (attrs.match(/t="(\w+)"/) || [])[1];
+        const style = Number((attrs.match(/s="(\d+)"/) || [])[1] || 0);
+        const raw = (cell[2]?.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+        let value = '';
+        if (type === 's') value = strings[Number(raw)] ?? '';
+        else if (type === 'inlineStr') value = xmlText(cell[2] || '');
+        else if (raw !== undefined) value = type === 'str' || type === 'e' ? xmlText(raw) : dateStyle[style] && Number(raw) > 1 ? new Date(Math.round((Number(raw) - 25569) * 86400000)).toISOString().slice(0, 10) : raw;
+        if (ref) {
+          const column = [...ref].reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+          while (cells.length < column) cells.push('');
+        }
+        cells.push(String(value).replace(/[\t\r\n]+/g, ' ').trim());
+      }
+      if (cells.some(Boolean)) out.push(cells.join('\t').replace(/\t+$/, ''));
+    }
+  }
+  return out.join('\n');
+};
+const readFileText = (file) => (/\.xlsx$/i.test(file.name) ? xlsxToText(file) : file.text());
 
 const importText = (text) => fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 80) }) })
   .then((response) => response.json().then((body) => (response.ok ? body : Promise.reject(new Error(body.error || 'Could not read that. Try again.')))))
@@ -3182,16 +3246,22 @@ document.addEventListener('change', (event) => {
     save();
     render();
   } else if (target.dataset.action === 'import-file' && target.files[0]) {
-    target.files[0].text().then((text) => {
-      view.draft = text.slice(0, 150000);
+    readFileText(target.files[0]).then((text) => {
+      view.draft = text.slice(0, FILE_LIMIT);
       view.showQuick = false;
       send();
+    }).catch(() => {
+      view.status = 'Could not read that file. Try saving it as CSV.';
+      render();
     });
   } else if (target.dataset.action === 'onboard-file' && target.files[0] && view.onboard) {
     const picked = target.files[0];
-    picked.text().then((text) => {
-      view.onboard.file = { name: picked.name, text: text.slice(0, 150000) };
-      view.onboard.status = text.length > 150000 ? 'That file is very long; the first part is used.' : '';
+    readFileText(picked).then((text) => {
+      view.onboard.file = { name: picked.name, text: text.slice(0, FILE_LIMIT) };
+      view.onboard.status = text.length > FILE_LIMIT ? 'That file is very long; the first part is used.' : '';
+      render();
+    }).catch(() => {
+      view.onboard.status = 'Could not read that file. Try saving it as CSV.';
       render();
     });
   } else if (target.dataset.action === 'import' && target.files[0]) {
