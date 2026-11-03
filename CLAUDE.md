@@ -44,6 +44,11 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 
 - Marcus often writes fast from his phone, sometimes at the gym, so expect typos. Work out what he means, and ask only when it's genuinely unclear.
 - Reply in short, plain language. Say what changed and whether it's live. Skip the code details unless he asks.
+- Format: short main lines first, then optional detail in a quote starting with "> More:". `<details>` tags show as raw text in his app, so don't use them.
+- Always give links as clickable markdown links, never as bare text to copy.
+- When he has to run a command, say exactly where: "Terminal on your Mac", and start it with `cd ~/code/exodia &&` when it needs the project folder. Give one command per code block, and say what he should see when it worked.
+- Never use clipboard tricks like `pbpaste |`. Copying the command overwrites what he copied before. Use commands that prompt for the value instead (for example `npx wrangler secret put NAME`, then he pastes with ⌘V).
+- Anything only he can do (logins, dashboards, tokens) goes as numbered taps with the exact button names. Never ask him to paste tokens or passwords in chat.
 - Do the whole thing end to end: edit, check, commit, push, then confirm it's live. Don't hand him steps you can do yourself.
 - Design taste: calm and subtle, with the clay/orange accent (`--clay`). Small, precise visual changes are better than redesigns. When he asks for a visual tweak, change only that.
 
