@@ -322,8 +322,8 @@ const topEstimate = (exercise) => Math.max(0, ...validSets(exercise).map(setEsti
 const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
 const countsFor = (name) => [name, ...(HARDER_VARIANTS[name] || [])];
 
-const bestBefore = (name, date) => {
-  let best = Number(state.bests?.[name]) || 0;
+const bestBefore = (name, date, logged = false) => {
+  let best = logged ? 0 : Number(state.bests?.[name]) || 0;
   for (const session of state.sessions) {
     if (session.date >= date) continue;
     for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) best = Math.max(best, topEstimate(exercise));
@@ -472,7 +472,7 @@ const priorSets = (name, date) => state.sessions
   .filter((session) => session.date < date)
   .flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets))
   .map((set) => ({ kg: Number(set.kg), reps: Number(set.reps) }));
-const singleBefore = (name, date) => Math.max(Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg));
+const singleBefore = (name, date, logged = false) => Math.max(logged ? 0 : Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg));
 
 const earlierToday = (name, date, set) => {
   const sets = (sessionFor(date)?.exercises || []).filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets);
@@ -489,8 +489,9 @@ const prKind = (name, date, set) => {
   if (set.warmup || set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
   if (earlierDays(name, date) < 3) return null;
   const today = earlierToday(name, date, set);
-  if (reps === 1 && kg > Math.max(singleBefore(name, date), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)))) return 'max';
-  return setEstimate(set) > Math.max(bestBefore(name, date), ...today.map(setEstimate)) + 0.01 ? 'est' : null;
+  // PRs compare against logged history only; imported all-time bests would hide every climb up to them.
+  if (reps === 1 && kg > Math.max(singleBefore(name, date, true), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)))) return 'max';
+  return setEstimate(set) > Math.max(bestBefore(name, date, true), ...today.map(setEstimate)) + 0.01 ? 'est' : null;
 };
 
 const checkPr = (name, date = todayIso()) => {
@@ -636,7 +637,7 @@ const dayPrKind = (session, name) => {
 };
 const hasPr = (session, name) => Boolean(dayPrKind(session, name));
 
-const dayRow = (lift, pr, kg, reps, e1rm) => `<span class="dayRow">${kg && reps !== 'min' ? `<button class="dayLift" data-action="open-trend" data-name="${esc(lift)}">${esc(lift)}</button>` : `<span class="dayLift">${esc(lift)}</span>`}<span class="dayPr">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}</span><span class="dayKg">${kg}</span><span class="dayX">${kg && reps !== 'min' ? '×' : ''}</span><span class="dayReps">${reps}</span><span class="dayE1rm">${e1rm}</span></span>`;
+const dayRow = (lift, pr, kg, reps, e1rm) => `<span class="dayRow"><span class="dayLift">${esc(lift)}</span><span class="dayPr">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}</span><span class="dayKg">${kg}</span><span class="dayX">${kg && reps !== 'min' ? '×' : ''}</span><span class="dayReps">${reps}</span><span class="dayE1rm">${e1rm}</span></span>`;
 
 const daySummary = (session) => {
   const [first, ...rest] = topSets(session);
@@ -1107,6 +1108,9 @@ const renderMuscles = () => {
     <p class="muscleNote">Red means still recovering.</p>`;
 };
 
+// Days in the range where this lift set a PR (a heavier single or a new estimated max).
+const prCount = (name, since) => state.sessions.filter((session) => session.date >= since && session.exercises.some((exercise) => exercise.name === name && validSets(exercise).some((set) => prKind(name, session.date, set)))).length;
+
 const renderTrends = () => {
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
@@ -1143,7 +1147,7 @@ const renderTrends = () => {
         </div>
         ${view.info ? ESTIMATE_INFO : ''}
         <div class="chartHead">
-          <p class="chartTitle">Trend</p>
+          <p class="chartTitle">Trend <span class="chartPrs">${prCount(name, view.range ? since : '') || 'No'} ${prCount(name, view.range ? since : '') === 1 ? 'PR' : 'PRs'}</span></p>
           ${[[90, '3M'], [180, '6M'], [365, '1Y'], [0, 'All']].map(([days, label]) => `<button class="chip" data-action="range" data-days="${days}" aria-pressed="${view.range === days}"><span class="chipFace">${label}</span></button>`).join('')}
         </div>
         ${points.length ? chartFor(points) : '<p class="empty">No sessions in this range.</p>'}

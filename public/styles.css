@@ -616,3 +616,4 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .muscleRow:nth-child(odd) { background: rgb(20 20 19 / 0.022); }
 .muscleSwatch { width: 8px; height: 8px; border-radius: 2px; background: var(--clay); }
 .muscleRow.muted .muscleSwatch { background: var(--line); }
+.chartPrs { margin-left: 6px; color: var(--text2); font-size: 13px; font-weight: 400; }
