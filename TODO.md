@@ -4,6 +4,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Waiting on Marcus
 
+- [ ] **Make sure Cloudflare can never charge the card.** Check [Workers plans](https://dash.cloudflare.com/379fa967eba06ef21141519c2922cfcc/workers/plans) says Free and [Billing](https://dash.cloudflare.com/379fa967eba06ef21141519c2922cfcc/billing) has no subscriptions; remove the card if one is saved. Keep R2 out of the API token. Also check the Google AI key is on the free tier (no billing).
 - [ ] **Cloudflare key for this Claude environment.** Lets Claude deploy in about 15 seconds instead of 1–3 minutes, check the live site, and set secrets itself. Steps: create an "Edit Cloudflare Workers" API token (+ Account → D1 → Edit), then in claude.ai/code → my-cloud-env → Edit add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, and allow `api.cloudflare.com` and `exodia.marcusokodugha.workers.dev` under Network access.
 - [ ] **`/marcus` code.** Set `MARCUS_CODE` (Claude can do it once the Cloudflare key is in; otherwise `cd ~/code/exodia && npx wrangler secret put MARCUS_CODE` in Terminal on the Mac).
 - [ ] **Old Claude's memory into CLAUDE.md.** In the Mac Terminal Claude: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md in the repo, then commit and push."
