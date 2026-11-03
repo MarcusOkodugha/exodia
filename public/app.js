@@ -1655,10 +1655,31 @@ const runAiSearch = () => {
 
 const drawerContent = () => {
   const history = exodiaHistory();
-  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>`;
 };
+
+// How to get data out of other apps; used on onboarding and on the "Add your data" page.
+const exportHelp = (open) => `<details class="onboardHow"${open ? ' open' : ''}><summary>How to export from your app</summary>
+      <ul>
+        <li><b>StrengthLog</b><span>Profile → Settings → Export data → save the CSV file</span></li>
+        <li><b>Strong</b><span>Profile → Settings → Export Strong Data</span></li>
+        <li><b>Hevy</b><span>Profile → Settings → Export & Import Data → Export Workouts</span></li>
+        <li><b>Notes</b><span>Copy your notes and paste them in</span></li>
+        <li><b>Spreadsheet</b><span>Excel (.xlsx) or CSV, up to about 2000 rows</span></li>
+      </ul>
+      <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
+    </details>`;
+
+// Always reachable from the menu: bring in history from another app, a file or notes.
+const renderImport = () => `<main class="page">
+    <p class="eyebrow">Bring your history</p>
+    <h1 class="title">Add your data</h1>
+    <p class="feedbackLead">Paste or drop any training history in the box below, in any format. Exodia turns it into days and sets.</p>
+    <div class="onboardChoices"><label class="onboardChoice"><b>Choose a file</b><span>CSV, Excel, text or notes</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="import-file"></label></div>
+    ${exportHelp(true)}
+  </main>`;
 
 const renderDrawer = () => `<div class="overlay">
     <button class="scrim" data-action="close-menu" aria-label="Close menu"></button>
@@ -2008,15 +2029,7 @@ const renderOnboard = () => {
     <label class="sr" for="onboardName">Your name</label>
     <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional, you can add it later)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
     <p class="onboardMove"><b>Have a history?</b> Paste or drop it in the box below, in any format. Exodia turns it into days, sets and trends in seconds.</p>
-    <details class="onboardHow"><summary>How to export from your app</summary>
-      <ul>
-        <li><b>Strong</b><span>Profile → Settings → Export Strong Data</span></li>
-        <li><b>Hevy</b><span>Profile → Settings → Export & Import Data → Export Workouts</span></li>
-        <li><b>Notes</b><span>Copy your notes and paste them in</span></li>
-        <li><b>Spreadsheet</b><span>Excel (.xlsx) or CSV, up to about 2000 rows</span></li>
-      </ul>
-      <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
-    </details>
+    ${exportHelp(false)}
     ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
     <div class="onboardChoices">
       <p class="onboardOr">Nothing to bring?</p>
@@ -2110,7 +2123,7 @@ const render = () => {
   const searchFocused = focused && focused.id === 'search';
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
-  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
+  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : view.route === 'import' ? renderImport() : renderHome();
   const dock = `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
@@ -3307,7 +3320,7 @@ const route = () => {
     render();
     return;
   }
-  view.route = ['trends', 'you', 'log', 'admin', 'feedback'].includes(name) ? name : 'home';
+  view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import'].includes(name) ? name : 'home';
   if (view.route !== 'log') view.logDate = null;
   if (view.route === 'admin') view.adminRows = null;
   view.menu = false;
