@@ -1414,11 +1414,12 @@ const inviteLink = (name = '') => {
   return `${location.origin}/${clean ? `${encodeURIComponent(clean.charAt(0).toUpperCase() + clean.slice(1))}` : 'join'}`;
 };
 const SHARE_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/></svg>';
+// Everyone shares the plain /join link (a fresh, empty Exodia). Only Marcus can put a name in it.
 const shareCard = () => {
-  const link = inviteLink(view.shareName || '');
-  const named = Boolean((view.shareName || '').trim());
+  const link = inviteLink(view.isAdmin ? view.shareName || '' : '');
+  const named = view.isAdmin && Boolean((view.shareName || '').trim());
   return `<section class="card">
-    <div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name (optional)" value="${esc(view.shareName || '')}" data-share-name></div>
+    ${view.isAdmin ? `<div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name (optional)" value="${esc(view.shareName || '')}" data-share-name></div>` : ''}
     <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(link)}</span><button class="textBtn" data-action="copy-invite">${view.copiedInvite ? 'Copied' : 'Copy'}</button><button class="textBtn shareBtn" data-action="share-invite" aria-label="Share">${SHARE_ICON}Share</button></div>
   </section>
   <p class="note">${named ? 'Opens Exodia with their name already in.' : 'Anyone who opens it gets their own empty Exodia.'}</p>`;
@@ -1481,14 +1482,14 @@ const renderYou = () => {
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;font-size:15px">Let ChatGPT, Gemini or Claude add your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy instructions'}</button></div>
     </section>
-    <p class="section">Your private link</p>
+    <p class="section">${view.isAdmin ? 'Your private link' : 'Sync'}</p>
     <section class="card">
-      <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(profileLink())}</span><button class="textBtn" data-action="copy-link">${view.copied ? 'Copied' : 'Copy'}</button></div>
-      <div class="row"><label class="sr" for="join-link">Link from another device</label><input id="join-link" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" placeholder="Paste a link from another device"><button class="textBtn" data-action="join-link">Use</button></div>
+      ${view.isAdmin ? `<div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(profileLink())}</span><button class="textBtn" data-action="copy-link">${view.copied ? 'Copied' : 'Copy'}</button></div>
+      <div class="row"><label class="sr" for="join-link">Link from another device</label><input id="join-link" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" placeholder="Paste a link from another device"><button class="textBtn" data-action="join-link">Use</button></div>` : ''}
       ${view.linkNote ? `<div class="row"><span class="muted" role="status" style="font-size:15px">${esc(view.linkNote)}</span></div>` : ''}
       <div class="row"><span style="flex:1">Synced</span><span class="muted">${view.syncFailed ? 'Offline, will retry' : view.syncedAt ? 'Up to date' : 'Connecting…'}</span></div>
     </section>
-    <p class="note">Only for your own phone or computer: open it there once and your lifts are there. Don’t send it to friends, it opens your log. To invite someone, use Share Exodia above.</p>
+    <p class="note">${view.isAdmin ? 'Only for your own phone or computer: open it there once and your lifts are there. Don’t send it to anyone, it opens your log.' : 'Your lifts are saved online as you log them.'}</p>
     <p class="section">Backup</p>
     <section class="card">
       <div class="row"><button class="textBtn" data-action="export">Download a backup</button></div>
@@ -3616,7 +3617,7 @@ document.addEventListener('click', (event) => {
     });
   } else if (action === 'send') return send();
   else if (action === 'copy-invite') {
-    navigator.clipboard.writeText(inviteLink(view.shareName || '')).then(() => {
+    navigator.clipboard.writeText(inviteLink(view.isAdmin ? view.shareName || '' : '')).then(() => {
       view.copiedInvite = true;
       render();
       setTimeout(() => {
@@ -3626,7 +3627,7 @@ document.addEventListener('click', (event) => {
     });
     return;
   } else if (action === 'share-invite') {
-    const link = inviteLink(view.shareName || '');
+    const link = inviteLink(view.isAdmin ? view.shareName || '' : '');
     if (navigator.share) navigator.share({ title: 'Exodia', text: 'Try Exodia, a training log you talk to.', url: link }).catch(() => {});
     else navigator.clipboard.writeText(link).then(() => {
       view.copiedInvite = true;

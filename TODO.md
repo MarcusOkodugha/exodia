@@ -22,6 +22,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- Friends only share the plain /join link; name in the link and the private link are Marcus-only (v189)
 - Import reads tables on the phone: CSV, TSV, Excel, OpenDocument, JSON, zip, rows pasted from a sheet; Strong, Hevy, FitNotes and Swedish columns; 10+ years in about a second; over 99 days no longer fails; notes go to the AI in parts (v188)
 - Private /me/ links ask "This is Romy's Exodia, is it yours?"; Start fresh in the menu; clearer "Your private link" (v188)
 - Trends: Squat / Bench / Deadlift buttons on top, More lifts, tap switches the chart (v188)
