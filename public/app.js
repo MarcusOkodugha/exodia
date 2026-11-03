@@ -1070,9 +1070,10 @@ const muscleLoad = () => {
   const since = addDays(today, -6);
   const sets = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   const fatigue = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
+  const fresh = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   for (const session of state.sessions) {
     if (session.date < since || session.date > today) continue;
-    const fresh = (key) => Math.max(0, 1 - daysBetween(session.date, today) / RECOVERY_DAYS[key]);
+    const left = (key) => Math.max(0, 1 - daysBetween(session.date, today) / RECOVERY_DAYS[key]);
     for (const exercise of session.exercises) {
       const rule = MUSCLE_RULES.find(([pattern]) => pattern.test(exercise.name.toLowerCase()));
       if (!rule) continue;
@@ -1080,16 +1081,19 @@ const muscleLoad = () => {
       for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) {
         for (const key of keys) {
           sets[key] += count * share;
-          fatigue[key] += count * share * fresh(key);
+          fatigue[key] += count * share * left(key);
+          if (count * share >= 1) fresh[key] = Math.max(fresh[key], left(key) * (share < 1 ? 0.75 : 1));
         }
       }
     }
   }
-  return { sets, fatigue };
+  return { sets, fatigue, fresh };
 };
-const bodySvg = (side, { sets, fatigue }) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
-  const trained = key && sets[key] > 0;
-  return `<polygon points="${points}" class="${!key ? 'bodyBone' : trained ? 'bodyHit' : 'bodyRest'}"${trained ? ` style="fill-opacity:${(0.16 + 0.84 * Math.min(1, fatigue[key] / 6)).toFixed(2)}"` : ''}/>`;
+// Strong while a muscle recovers and only fading near the end, then a light tint until 7 days have passed.
+const muscleStrength = ({ sets, fresh }, key) => (!sets[key] ? 0 : fresh[key] > 0 ? 0.32 + 0.68 * fresh[key] ** 0.35 : 0.16);
+const bodySvg = (side, load) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+  const strength = key ? muscleStrength(load, key) : 0;
+  return `<polygon points="${points}" class="${!key ? 'bodyBone' : strength ? 'bodyHit' : 'bodyRest'}"${strength ? ` style="fill-opacity:${strength.toFixed(2)}"` : ''}/>`;
 }).join('')}</svg>`;
 const renderMuscles = () => {
   loadAnatomy();
@@ -1098,7 +1102,7 @@ const renderMuscles = () => {
   const { sets } = load;
   return `<p class="section muscleHead">Anatomy<span>Sets · 7 days</span></p>
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
-      <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
+      <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><i class="muscleSwatch" style="opacity:${muscleStrength(load, key) || 1}"></i><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
     <p class="muscleNote">Red means still recovering.</p>`;
 };

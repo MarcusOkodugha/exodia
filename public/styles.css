@@ -607,3 +607,14 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .muscleRow { grid-template-columns: minmax(0, 1fr) 22px; }
 .muscleNote { margin: 0 0 18px; font-size: 12.5px; }
 .right .bodyFig { height: auto; width: 100%; }
+
+/* Muscle list: a swatch in the body's colour, the count right after the name, soft zebra rows to follow across. */
+.muscles { grid-template-columns: auto auto minmax(0, 150px); justify-content: space-between; }
+.bodyFig { height: 196px; }
+.muscleList { font-size: 13px; line-height: 15px; }
+.muscleRow { grid-template-columns: 10px minmax(0, 1fr) 20px; align-items: center; column-gap: 7px; padding: 0.5px 8px; border-radius: 6px; }
+.muscleRow:nth-child(odd) { background: rgb(20 20 19 / 0.045); }
+.muscleSwatch { width: 8px; height: 8px; border-radius: 2px; background: var(--clay); }
+.muscleRow.muted .muscleSwatch { background: var(--line); }
+.muscleRow .num { color: var(--text); font-weight: 600; }
+.muscleRow.muted .num { color: var(--text2); font-weight: 400; }
