@@ -28,6 +28,10 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 
 `TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
 
+## Plan panel
+
+Marcus sends several messages in a row and misses replies higher up in the chat. So every request also goes in the session's task list (the Plan panel): add it when he asks, tick it when it's live (with the version, like "✓ … (v187)"), and prefix anything only he can do with "You:". Answer questions in the chat as usual.
+
 ## Rules for every change
 
 1. **Bump the cache version** in `public/sw.js` (`exodia-vNNN`) by one on every change that touches `public/`. Otherwise phones keep the old version.

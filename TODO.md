@@ -18,6 +18,12 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- Voice: phone's own speech-to-text removed, only the recording → Whisper + Gemini Flash; mangled numbers handled (v187)
+- Feedback only when you say "feedback"/"feature" in the main box; builds only from Admin (v186)
+- Admin log: names, other people on the left (v185)
+- Quick add: Bench always there, Show all, opens higher (v183–184)
+- Add your data in the menu, StrengthLog export steps (v182)
+- Admin: Building… → "Exodia update deployed"; no zoom on phone; "Exodia is on it" (v178–180)
 - Excel (.xlsx) import, file limit raised to ~320k characters (about 2000+ rows) (v181)
 - Phone: weekly volume sits under Big 3, above other lifts (v179)
 - Blank start shows empty charts and Big 3 (v176)
