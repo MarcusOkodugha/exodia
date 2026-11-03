@@ -672,3 +672,6 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .liftMore { display: block; margin: 4px 0 8px; min-height: 36px; font-size: 15px; }
 .liftMoreList { margin-bottom: 12px; }
 .trendHead { min-height: 48px; }
+/* Only the exercise name opens its trend, not the whole row; Edit keeps a gap from the collapse arrow. */
+.exHead .exName { flex: 0 1 auto; margin-right: auto; }
+.editBtn { margin-right: 12px; }

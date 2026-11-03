@@ -2053,7 +2053,9 @@ const updatePill = () => (view.updateReady && !state.demo ? '<button class="upda
 // a day being edited). Then the pill waits, and the update still happens by itself the next time the app goes to the background.
 const updateQuietly = () => {
   if (!view.updateReady || view.pending.length || recording) return;
-  if (document.hidden || (!view.draft.trim() && !view.editDay && !view.composer)) location.reload();
+  // Only when nothing is typed or being edited: in the background, or right at the top of Home where nothing is lost.
+  if (view.draft.trim() || view.editDay || view.composer) return;
+  if (document.hidden || (view.route === 'home' && scroller().scrollTop < 40)) location.reload();
 };
 document.addEventListener('visibilitychange', updateQuietly);
 const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
@@ -2266,6 +2268,7 @@ const render = () => {
 
 const closeComposer = () => {
   view.composer = false;
+  view.composerDate = null;
   view.draft = '';
   view.voiceBlob = null;
   view.status = '';
@@ -2481,7 +2484,7 @@ const showResult = (did, touched, before = null) => {
   const named = touched.filter((item) => item.name);
   const edit = named.length ? { date: named[0].date, names: [...new Set(named.filter((item) => item.date === named[0].date).map((item) => item.name))] } : null;
   if (view.toast?.name && ['max', 'rep'].includes(view.toast.kind)) Object.assign(view.toast, { detail, edit });
-  else view.toast = { kind: 'result', title: did[0], text: did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices', detail, edit, undo: before, open: Boolean(detail) };
+  else view.toast = { kind: 'result', title: did[0], text: did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices', detail, edit, undo: before, open: false };
   if (before && view.toast) view.toast.undo = before;
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(clearToast, 12000);
@@ -3244,6 +3247,7 @@ const send = async () => {
 
 document.addEventListener('click', (event) => {
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
+    if (view.editContext?.date === view.editDay) view.editContext = null;
     view.editDay = null;
     if (!event.target.closest('[data-action]')) {
       render();
@@ -3497,6 +3501,11 @@ document.addEventListener('click', (event) => {
       target.closest('.chatItem').querySelector('[data-action="retry-voice"]')?.click();
       return;
     }
+    if (view.draft.trim() && view.draft !== entry.said) {
+      view.status = 'Send or clear what you are typing first.';
+      render();
+      return;
+    }
     view.fixing = failed ? null : { said: entry.said, did: entry.did.join('; ') };
     view.replacing = failed ? entry.at : null;
     view.editContext = null;
@@ -3562,8 +3571,7 @@ document.addEventListener('click', (event) => {
   } else if (action === 'add-set' && session) {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
-    exercise.sets.push({ kg: last.kg, reps: last.reps, edited: false });
-    addLog('Add set', [`Added a ${exercise.name} set on ${dayLabel(date)}`], { manual: true });
+    changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: false }), 'Add set');
   } else if (action === 'remove-cardio' && session) {
     session.cardio = 0;
     addLog('Remove cardio', [`Removed cardio on ${dayLabel(date)}`], { manual: true });
@@ -3592,13 +3600,13 @@ document.addEventListener('click', (event) => {
     return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
-    const last = lastSetsFor(name, view.composerDate || todayIso());
-    addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps })) : [{ kg: '', reps: '' }] }] }, view.composerDate || todayIso());
-    addLog(`Add ${name}`, [`Added ${name} to ${dayLabel(view.composerDate || todayIso())}`], { manual: true });
+    const day = view.composerDate || todayIso();
+    const last = lastSetsFor(name, day);
+    changeWithUndo(`Added ${name} to ${dayLabel(day)}`, () => addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps })) : [{ kg: '', reps: '' }] }] }, day), `Add ${name}`);
     closeComposer();
   } else if (action === 'pick-cardio') {
-    addEntries({ exercises: [], cardioMinutes: 30 }, view.composerDate || todayIso());
-    addLog('Add cardio', [`Added cardio 30 min to ${dayLabel(view.composerDate || todayIso())}`], { manual: true });
+    const day = view.composerDate || todayIso();
+    changeWithUndo(`Added cardio 30 min to ${dayLabel(day)}`, () => addEntries({ exercises: [], cardioMinutes: 30 }, day), 'Add cardio');
     closeComposer();
   } else if (action === 'mic') {
     return view.listening ? send() : startListening();
@@ -3832,12 +3840,15 @@ const route = () => {
     render();
     return;
   }
+  // Leaving Home remembers how far down you were; coming back puts you there again, not at the top.
+  if (view.route === 'home') view.homeScroll = scroller().scrollTop;
   view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import'].includes(name) ? name : 'home';
   if (view.route !== 'log') view.logDate = null;
   if (view.route === 'admin') view.adminRows = null;
   view.menu = false;
   scrollPage(0);
   render();
+  if (view.route === 'home' && view.homeScroll && !view.trendScroll) scrollPage(view.homeScroll);
   if (view.route === 'log') scrollPage(scroller().scrollHeight);
 };
 window.addEventListener('hashchange', route);
@@ -3934,7 +3945,7 @@ document.addEventListener('pointerdown', (event) => {
     view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
     held = true;
     render();
-  }, 450) };
+  }, 700) };
 });
 for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => {
   if (hold) clearTimeout(hold.timer);
@@ -4005,6 +4016,8 @@ document.addEventListener('click', (event) => {
 const closeTray = () => {
   if (!view.composer) return;
   view.composer = false;
+  // Nothing typed: the next log goes to today again, not to the old day the box was pointed at.
+  if (!view.draft.trim() && !view.editDay) view.composerDate = null;
   view.showQuick = false;
   view.quickHidden = false;
   if (!desktopQuery.matches && document.activeElement?.closest?.('.dock')) document.activeElement.blur();

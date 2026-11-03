@@ -15,13 +15,14 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## To do (Claude)
 
-- [ ] UX check of the whole app: where one accidental tap loses your place.
+- [ ] UX, not done yet: tapping anywhere on the bottom box opens the panel; Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
 - [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
 - [ ] New Exodia Status page for this account (waiting for Marcus's go-ahead).
 - [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
+- UX: Home keeps your place, only the exercise name opens Trends, the box goes back to today, Editing ends with Edit mode, Undo on Quick add and + Set, no reload while reading or typing, Edit away from the arrow, old messages don't overwrite typing, long press 0.7 s, result toast starts small (v190)
 - Friends only share the plain /join link; name in the link and the private link are Marcus-only (v189)
 - Import reads tables on the phone: CSV, TSV, Excel, OpenDocument, JSON, zip, rows pasted from a sheet; Strong, Hevy, FitNotes and Swedish columns; 10+ years in about a second; over 99 days no longer fails; notes go to the AI in parts (v188)
 - Private /me/ links ask "This is Romy's Exodia, is it yours?"; Start fresh in the menu; clearer "Your private link" (v188)
