@@ -291,6 +291,8 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .weekBar[aria-pressed="true"] .barValue { color: var(--text); font-weight: 600; }
 .weekBar div { width: 100%; background: var(--clay); border-radius: 6px 6px 2px 2px; }
 .weekBars { position: relative; }
+.weekLabels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 4px; font-size: 11px; line-height: 14px; color: var(--text2); text-align: center; }
+.weekLabels .on { color: var(--text); font-weight: 600; }
 .avgLine { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgb(var(--clayRgb) / 0.45); pointer-events: none; }
 .avgLine span { position: absolute; right: 0; bottom: 2px; padding-left: 4px; font-size: 10px; line-height: 12px; color: var(--text2); }
 

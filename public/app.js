@@ -1437,21 +1437,33 @@ document.addEventListener('pointermove', (event) => {
 }, { passive: true });
 document.addEventListener('pointerleave', () => document.documentElement.style.setProperty('--glowNear', '0'));
 
+// ISO week number (weeks start on Monday), shown under the weekly volume bars.
+const isoWeek = (iso) => {
+  const date = new Date(`${iso}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  return Math.ceil(((date - Date.UTC(date.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+};
+
 const renderVolume = () => {
+  // Calendar weeks, Monday to Sunday, so each bar matches its week number. The last bar is the current week so far.
+  const monday = addDays(todayIso(), -((new Date(`${todayIso()}T12:00:00Z`).getUTCDay() + 6) % 7));
   const weeks = Array.from({ length: 6 }, (unused, index) => {
-    const end = addDays(todayIso(), -7 * (5 - index));
-    const volume = state.sessions.filter((session) => session.date > addDays(end, -7) && session.date <= end).reduce((sum, session) => sum + sessionVolume(session), 0);
+    const start = addDays(monday, -7 * (5 - index));
+    const end = addDays(start, 6);
+    const volume = state.sessions.filter((session) => session.date >= start && session.date <= end).reduce((sum, session) => sum + sessionVolume(session), 0);
     return { end, volume };
   });
   const maxVolume = Math.max(1, ...weeks.map((week) => week.volume));
-  const active = weeks.filter((week) => week.volume > 0);
+  // Average of the finished weeks that have training; the current week is still filling up.
+  const active = weeks.slice(0, 5).filter((week) => week.volume > 0);
   const average = active.length >= 2 ? active.reduce((sum, week) => sum + week.volume, 0) / active.length : 0;
   // Bars fill up to 78% of the chart height (the rest is room for the value labels), so the average line uses the same scale.
   const averageLine = average ? `<i class="avgLine" style="bottom:${((average / maxVolume) * 78).toFixed(1)}%" aria-hidden="true"><span class="num">avg ${(average / 1000).toFixed(1)}</span></i>` : '';
   return `<p class="section">Volume per week · tonnes</p>
     <section class="card" style="padding:14px 16px">
-      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ending ${dayLabel(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}${averageLine}</div>
-      <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? 'This week' : 'Week ending ' + dayLabel(weeks[view.volumeWeek ?? 5].end)}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
+      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ${isoWeek(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}${averageLine}</div>
+      <div class="weekLabels num" aria-hidden="true">${weeks.map((week, index) => `<span${(view.volumeWeek ?? 5) === index ? ' class="on"' : ''}>W${isoWeek(week.end)}</span>`).join('')}</div>
+      <div class="axis num" style="margin:6px 0 0"><span>${(view.volumeWeek ?? 5) === 5 ? `This week · W${isoWeek(weeks[5].end)}` : `Week ${isoWeek(weeks[view.volumeWeek ?? 5].end)}`}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
     </section>`;
 };
 
