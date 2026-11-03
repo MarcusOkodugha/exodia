@@ -749,22 +749,26 @@ const FIST = [
   ['ring', 'translateY(31%)'],
   ['thumb-right', 'translate(-22%, 15%)'],
 ];
-const FIST_SIDES = ['M21.9 69 C22.2 62 22.5 55 22.8 49 C22.9 47.3 23.3 46.2 24 45.4', 'M78.1 69 C77.8 62 77.5 55 77.2 49 C77.1 47.3 76.7 46.2 76 45.4'];
+// Each side line runs up the palm's cut edge and curves into the first knuckle, so the closed fist has one clean outline.
+const FIST_SIDES = ['M22.46 70.7 C21.72 67.38 22.01 56.64 22.8 49 C23.05 46.9 24.2 45.5 27.9 44.7', 'M77.54 70.7 C78.28 67.38 77.99 56.64 77.2 49 C76.95 46.9 75.8 45.5 72.1 44.7'];
+// Wait until every piece is decoded (at most 600 ms) so nothing pops in or stutters on the first frames.
+const decoded = (images) => Promise.race([Promise.all(images.map((image) => image.decode().catch(() => {}))), new Promise((done) => setTimeout(done, 600))]);
 
-const playFist = () => {
+const playFist = async () => {
   const show = document.createElement('div');
   show.className = 'exodiaShow';
   show.setAttribute('aria-hidden', 'true');
-  const layer = (name, kind, index) => `<i class="exLayer" ${index === undefined ? '' : `data-piece="${index}"`} style="background-image:url(/fist/${name}-${kind}.png)"></i>`;
+  const layer = (name, kind, index) => `<img class="exLayer" ${index === undefined ? '' : `data-piece="${index}"`} src="/fist/${name}-${kind}.png" alt="" draggable="false">`;
   show.innerHTML = `<div class="exFly"><div class="exHand">
     ${FIST.map(([name], index) => layer(name, 'line', index)).join('')}${layer('palm', 'line')}
     ${layer(FIST[0][0], 'fill', 0)}${layer(FIST[4][0], 'fill', 4)}${layer('palm', 'fill')}
-    <svg class="exSides" viewBox="0 0 100 100" preserveAspectRatio="none">${FIST_SIDES.map((side) => `<path d="${side}"/>`).join('')}</svg>
+    ${FIST_SIDES.map((side) => `<svg class="exSides" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${side}"/></svg>`).join('')}
     ${[1, 2, 3].map((index) => layer(FIST[index][0], 'fill', index)).join('')}
     <i class="exLid"></i>
-    <i class="exBlue"></i><i class="exRing"></i><i class="exRing"></i>
+    <i class="exBlue"></i><i class="exFlash"></i><i class="exRing"></i><i class="exRing"></i>
   </div>
-  <div class="exBars">${FIST_LABELS.map((label) => `<div><span>${label}</span><i><b></b></i></div>`).join('')}</div></div>`;
+  <div class="exBars">${FIST_LABELS.map((label) => `<div><span>${label}<em>${label}</em></span><i><b></b></i></div>`).join('')}</div></div>`;
+  await decoded([...show.querySelectorAll('img')]);
   document.body.append(show);
   const hand = show.querySelector('.exHand');
   hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out', fill: 'backwards' });
@@ -774,14 +778,16 @@ const playFist = () => {
     piece.animate([{ transform: FIST[index][1] }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 1.25, 0.45, 1)', fill: 'backwards' });
   });
   // The palm's side line stays in front while a thumb slides out from behind it, then fades as the thumb lands.
-  show.querySelectorAll('.exSides path').forEach((side, index) => {
+  show.querySelectorAll('.exSides').forEach((side, index) => {
     const piece = index === 0 ? 0 : 4;
     side.animate([{ opacity: 1 }, { opacity: 1, offset: 0.78 }, { opacity: 0 }], { duration: FIST_DURATION[piece], delay: FIST_OPEN[piece], easing: 'ease-in', fill: 'both' });
   });
   bars.forEach((bar, index) => {
     bar.querySelector('b').animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: FIST_DURATION[index], delay: FIST_OPEN[index], easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)', fill: 'both' });
     bar.animate([{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: FIST_OPEN[index] - 80, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
-    bar.querySelector('span').animate([{ transform: 'none', color: 'var(--text)' }, { transform: 'scale(1.18)', color: 'var(--clay)', offset: 0.35 }, { transform: 'none', color: 'var(--text)' }], { duration: Math.max(560, FIST_DURATION[index]), delay: FIST_OPEN[index], easing: 'ease-out' });
+    const pulse = { duration: Math.max(560, FIST_DURATION[index]), delay: FIST_OPEN[index], easing: 'ease-out' };
+    bar.querySelector('span').animate([{ transform: 'none' }, { transform: 'scale(1.18)', offset: 0.35 }, { transform: 'none' }], pulse);
+    bar.querySelector('em').animate([{ opacity: 0 }, { opacity: 1, offset: 0.35 }, { opacity: 0 }], pulse);
   });
   show.querySelector('.exLid').animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.9)' }], { duration: 480, delay: FIST_TIMES.eye, easing: 'ease-in-out', fill: 'both' });
   const timers = [];
@@ -804,7 +810,7 @@ const playFist = () => {
     document.querySelector('.exodiaCard')?.classList.add('hit');
     document.querySelectorAll('.logo').forEach((logo) => logo.classList.add('blue'));
     show.classList.add('impact');
-    hand.animate([{ filter: 'brightness(2.4)' }, { filter: 'brightness(1)' }], { duration: 480, easing: 'ease-out' });
+    show.querySelector('.exFlash').animate([{ opacity: 1 }, { opacity: 0 }], { duration: 480, easing: 'ease-out' });
     show.querySelectorAll('.exRing').forEach((ring, index) => ring.animate([{ transform: 'scale(0.4)', opacity: 0.9 }, { transform: `scale(${3.2 + index})`, opacity: 0 }], { duration: 720, delay: index * 110, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'backwards' }));
   }, FIST_TIMES.impact));
   timers.push(setTimeout(() => {

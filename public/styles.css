@@ -604,8 +604,13 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .setRow .pct .prPill { margin-left: 6px; }
 
 .exSides { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.exSides path { fill: none; stroke: #F1AE8C; stroke-width: 4.6; stroke-linecap: round; }
-.exLayer { position: absolute; inset: 0; background: center / 100% no-repeat; }
+.exSides path { fill: none; stroke: #F1AE8C; stroke-width: 5; stroke-linecap: round; }
+.exLayer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
+.exLayer[data-piece] { will-change: transform; }
+.exSides { will-change: opacity; }
+.exFlash { position: absolute; inset: 0; background: url(/hamsa-512-blue.png) center / 100% no-repeat; filter: brightness(2.4); opacity: 0; will-change: opacity; }
+.exBars span { position: relative; }
+.exBars em { position: absolute; inset: 0; color: var(--clay); font-style: normal; opacity: 0; }
 
 .dot::after { content: ''; position: absolute; inset: -11px; border-radius: 50%; }
 .right .muscles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
