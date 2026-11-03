@@ -569,7 +569,15 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .quickAdd .pick:nth-child(2) { border-top: 0; }
 .quickAdd .pickLast { display: none; }
 .quickAdd .pickName { font-size: 16px; line-height: 20px; }
-.quickMore { display: block; margin: 2px auto 6px; min-height: 36px; font-size: 14px; color: var(--text2); }
+/* Below the main picks: a clear line with "More exercises", then the rest in a quieter style. The panel snaps back to
+   the main picks after a small scroll, so you only get to the rest on purpose. */
+.quickDivider { display: flex; align-items: center; gap: 12px; margin: 28px 0 2px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--text2); scroll-snap-align: start; scroll-margin-top: 8px; }
+.quickDivider::before, .quickDivider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.quickAdd .quickExtra .pickName { font-size: 15px; color: var(--text2); }
+.quickAdd .quickExtra .plusDot { color: var(--text2); }
+.quickAdd .quickExtra .pick:first-child { border-top: 0; }
+.sheet.quickMode .sheetBody { scroll-snap-type: y proximity; }
+.sheet.quickMode .quickAdd { scroll-snap-align: start; }
 .sheet.quickMode { height: auto; max-height: var(--sheet-h, 60vh); }
 .sheet.quickMode .sheetBody > * { margin-top: 0; }
 .muscleHead { display: flex; justify-content: space-between; }
@@ -704,3 +712,6 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .sheet.peek .sheetBody { overflow: hidden; visibility: hidden; }
 body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .sheet.peek .grabber::after { animation: none; } }
+/* Two columns (desktop right panel): stripe whole rows (items 1-2, 5-6, …), not every other item, which striped only the left column. */
+.right .muscleRow:nth-child(odd) { background: none; }
+.right .muscleRow:nth-child(4n+1), .right .muscleRow:nth-child(4n+2) { background: rgb(20 20 19 / 0.022); }

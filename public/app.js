@@ -583,8 +583,14 @@ const pickList = () => {
   const names = [...new Set([...BIG_THREE, ...recent, ...library])];
   // Lifts already logged today stay in the list too, so Bench Press is always one tap away.
   const matches = names.filter((name) => !query || name.toLowerCase().includes(query));
-  // Quick add shows 12 at first; "Show all" lists every lift you've logged plus the library.
-  return query || view.quickAll ? matches : matches.slice(0, 12);
+  // Quick add shows the 12 you most likely want; the rest sit below a divider (morePicks).
+  return query ? matches : matches.slice(0, 12);
+};
+const morePicks = () => {
+  if (/\S/.test(view.draft)) return [];
+  const shown = new Set(pickList());
+  const logged = sortedSessions().flatMap((session) => session.exercises.map((exercise) => exercise.name));
+  return [...new Set([...logged, ...LIBRARY.map((entry) => entry.name)])].filter((name) => !shown.has(name));
 };
 
 const renderBars = (pieces) => pieces.map((piece) => `
@@ -1807,10 +1813,11 @@ const renderPicks = () => {
   return `${picks.slice(0, split).map((name) => pickButton(name, date)).join('')}${cardio}${picks.slice(split).map((name) => pickButton(name, date)).join('')}
     ${query && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
-const quickMoreButton = () => {
-  if (/\S/.test(view.draft)) return '';
-  const all = new Set([...BIG_THREE, ...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)]).size;
-  return all > 12 ? `<button class="textBtn quickMore" data-action="quick-all">${view.quickAll ? 'Show fewer' : `Show all ${all}`}</button>` : '';
+// Below the main picks: a clear line, then every other lift, quieter, so nobody lands there by accident.
+const quickExtras = () => {
+  const extras = morePicks();
+  const date = view.composerDate || todayIso();
+  return extras.length ? `<p class="quickDivider"><span>More exercises · ${extras.length}</span></p><div class="picks quickExtra">${extras.map((name) => pickButton(name, date)).join('')}</div>` : '';
 };
 const pickButton = (name, date) => {
   const last = lastSetsFor(name, date);
@@ -1823,7 +1830,7 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>'}</div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" data-action="import-file"></label>${renderPicks()}</div>${quickMoreButton()}</div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" data-action="import-file"></label>${renderPicks()}</div>${quickExtras()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
