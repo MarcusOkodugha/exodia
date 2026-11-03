@@ -66,10 +66,12 @@ const JSON_SCHEMA = toJsonSchema(SCHEMA);
 
 const RAMBLE = `Speech-to-text garbles gym words badly, so read for what was meant: "tricep pusha down" is Triceps Pushdown, "bench pres" or "bench breast" is Bench Press, "dead lift" or "that lift" is Deadlift, "squad" is Squat, "for" or "four" can be the number 4 or the word for, "times" or "x" separates weight and reps, "kilo" and "kg" are kilograms. Match to the closest exercise in the known list or the recent log when the sounds fit, work out the numbers from context (weight first, then reps, then sets), and log it. Use unclear only when you truly cannot tell.\nThe note is often a long spoken ramble. It can repeat itself, correct itself ("70, no, 100"), jump between exercises, and include talk that has nothing to do with training. Ignore the unrelated talk, use the latest correction, and put each set under the right exercise and day. If they describe the same sets twice, log them once.`;
 
-const transcribe = async (env, audio) => {
+const transcribe = async (env, audio, known = []) => {
   if (!env.AI) return '';
   try {
-    const result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, initial_prompt: 'Gym log: bench press, paused bench, pause squat, hack squat, deadlift, incline, close-grip, lat pulldown, reps, sets, RPE, reps in reserve, warm-up, kilos, per side, top set.' });
+    // Whisper gets the gym words plus the lifts this person has logged, so it hears "pushdown", not "push down town".
+    const vocabulary = ['bench press', 'paused bench', 'pause squat', 'hack squat', 'deadlift', 'incline', 'close-grip', 'lat pulldown', ...known.map((name) => name.toLowerCase())];
+    const result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, initial_prompt: `Gym log, kilos, sets and reps: ${[...new Set(vocabulary)].slice(0, 40).join(', ')}, RPE, reps in reserve, warm-up, per side, top set.` });
     return String(result?.text ?? '').trim();
   } catch {
     return '';
@@ -394,7 +396,7 @@ const parse = async (request, env, ctx) => {
   const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
   const hint = typeof body?.hint === 'string' ? body.hint.slice(0, MAX_TEXT) : '';
   const context = `Today is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}`;
-  const heard = audio ? await transcribe(env, audio) : '';
+  const heard = audio ? await transcribe(env, audio, known) : '';
   const words = text || heard || (audio ? hint : '');
   if (env.ANTHROPIC_API_KEY && words) {
     try {
@@ -407,8 +409,10 @@ const parse = async (request, env, ctx) => {
   }
   let lastError = '';
   let busy = false;
-  for (const [attempt, model] of [...models, ...models].entries()) {
-    if (attempt === models.length) {
+  // Voice notes try the full Flash model first: it hears noisy gym audio better than the Lite ones, which stay as fallback.
+  const tries = audio ? [...new Set([env.GEMINI_VOICE_MODEL || 'gemini-3.5-flash', ...models])] : models;
+  for (const [attempt, model] of [...tries, ...tries].entries()) {
+    if (attempt === tries.length) {
       if (!busy) break;
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
@@ -416,7 +420,7 @@ const parse = async (request, env, ctx) => {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: `${PROMPT}\n${RAMBLE}${hint ? `\nThe phone's own speech-to-text heard: "${hint}". Use it only to help with unclear words; the audio is the truth.` : ''}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}` }] },
+        systemInstruction: { parts: [{ text: `${PROMPT}\n${RAMBLE}${heard ? `\nWhisper, a strong speech-to-text tuned to gym words, heard: "${heard}". Use it together with the audio; when they disagree on a word, pick what makes sense for lifting.` : ''}${hint ? `\nThe phone's own live speech-to-text heard: "${hint}". It is often wrong, use it only as a last resort for unclear words.` : ''}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}` }] },
         contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
         generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA }
       })
