@@ -13,7 +13,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   4. Tap Continue to summary → Update token
   5. Tell Claude "D1 is on"
 - [ ] **Decide: name + a 4-digit code brings your data to a new phone?** Names aren't unique (two Adams), so a short code makes it safe. Changes the database.
-- [ ] **Decide: remove the long press on a day?** Holding a closed day opens Edit mode by accident. Every open day already has an Edit button.
 - [ ] **Decide: make an Exodia status page?** One page with what's live, what's left and the latest version.
 - [ ] **Decide: keep Exodia on the Mpya Claude account?** No means moving it to a personal Claude account.
 - [ ] **Move the old Claude's memory into CLAUDE.md.** Only you can reach the Mac Terminal Claude.
@@ -28,6 +27,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Lift buttons show the heaviest set you actually lifted (175 × 5), not the estimate; cardio removes like a set (swipe, Edit → minus, × on a computer) with Undo; Edit makes what you can change glow twice; long press no longer starts iPhone text selection; pencil next to your name in Settings; Start blank says you can add old workouts later; red pill moved next to the menu so the dev button is free, dev button top right on a computer too; gap between Try again and Send as feedback (v200)
+- Decided: keep the long press (Nov 3)
 - Trends: "What you said" next to a lift's name opens the Log with the messages about that lift (v197)
 - Quick add: no "Show all" button; the main picks, then a clear "More exercises" line with the rest in a quieter style (v196)
 - Anatomy legend on a computer: stripes follow whole rows again; every change now gets a full screenshot sweep of all pages (`tools/screens.cjs`) (v197)

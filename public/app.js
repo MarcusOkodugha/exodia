@@ -722,7 +722,7 @@ const renderSession = (session) => {
       ${open ? `<button class="editBtn" data-action="edit-day" data-date="${session.date}">${editing ? 'Done' : 'Edit'}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
-    ${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
+    ${open && editing && view.menuEnter ? '<span class="editHint" aria-hidden="true"></span>' : ''}${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
       <p class="dayMenuLabel">Move to</p>
       <div class="days scroll">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
       <button class="textBtn danger" data-action="delete-day" data-date="${session.date}">Delete day</button>
@@ -730,7 +730,7 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${session.cardio ? `<div class="cardio"><span>Cardio</span><span class="meta num">${session.cardio} min</span><button class="textBtn" data-action="remove-cardio" data-date="${session.date}">Remove</button></div>` : ''}
+      ${session.cardio ? `<div class="swipe"><button class="swipeDel" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>Cardio</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
         <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
@@ -1174,10 +1174,10 @@ const prCount = (name, since) => state.sessions.filter((session) => session.date
 // A blank start still shows the real charts and lifts, just with nothing in them yet.
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
-// Squat, Bench and Deadlift side by side with their e1RM; tap one and the chart below switches to it.
+// Squat, Bench and Deadlift side by side with the heaviest set actually lifted (not the estimate); tap one and the chart switches to it.
 // More lifts opens the rest underneath. Always just these three buttons.
 const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
-  const pick = (name) => `<button class="liftPick" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="liftPickName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span><span class="liftPickValue num">${Math.round(bestOverall(name))}</span></button>`;
+  const pick = (name) => `<button class="liftPick" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="liftPickName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span><span class="liftPickValue num">${heaviestLifted(name) ? `${heaviestLifted(name).kg}<small> × ${heaviestLifted(name).reps}</small>` : '–'}</span></button>`;
   const shown = ['Squat', 'Bench Press', 'Deadlift'].filter((name) => big.includes(name));
   const others = action === 'pick-trend' ? rest : [];
   return `<div class="liftPicks" style="--picks:${shown.length}">${shown.map(pick).join('')}</div>
@@ -1553,7 +1553,7 @@ const renderYou = () => {
   const lifts = [...big, ...loggedLifts().filter((name) => !big.includes(name)).sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 7)];
   return `<main class="page youPage">
     <p class="eyebrow">Settings</p>
-    <h1 class="title"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="You" data-name-input></h1>
+    <h1 class="title nameTitle"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="Your name" data-name-input><label for="name" class="nameEdit" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg></label></h1>
     <p class="section liftHead"><span>Best lifts</span><span class="colHead liftCol">Best lifted</span><span class="colHead e1Col">e1RM ${infoButton()}</span></p>
     ${view.info ? ESTIMATE_INFO : ''}
     <section class="card">
@@ -2219,7 +2219,7 @@ const renderOnboard = () => {
     ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
     <div class="onboardChoices">
       <p class="onboardOr">Nothing to bring?</p>
-      <button class="onboardChoice" data-action="onboard-blank" ${locked ? 'disabled' : ''}><b>Start blank</b><span>Log your next workout as you go</span></button>
+      <button class="onboardChoice" data-action="onboard-blank" ${locked ? 'disabled' : ''}><b>Start blank</b><span>Log as you go. Add or upload old workouts any time from the menu</span></button>
       <button class="onboardChoice" data-action="onboard-demo" ${locked ? 'disabled' : ''}><b>Try it with example data</b><span>Look around with sample workouts first</span></button>
     </div>
   </main>
@@ -2320,6 +2320,7 @@ const render = () => {
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
         <aside class="right" aria-label="Progress">${renderProgress()}</aside>
+        ${view.isAdmin ? '<button class="devBtn deskDev" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
       </div>`
     : `<header class="topbar"><div class="topbarInner">
         <button class="iconBtn" data-action="open-menu" aria-label="Open menu">${ICONS.menu}</button>
@@ -3753,8 +3754,9 @@ document.addEventListener('click', (event) => {
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
     changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: false }), 'Add set');
   } else if (action === 'remove-cardio' && session) {
-    session.cardio = 0;
-    addLog('Remove cardio', [`Removed cardio on ${dayLabel(date)}`], { manual: true });
+    changeWithUndo(`Removed cardio on ${dayLabel(date)}`, () => {
+      session.cardio = 0;
+    }, 'Remove cardio');
   } else if (action === 'quick-all') {
     view.quickAll = !view.quickAll;
     const body = document.querySelector('.sheetBody');
