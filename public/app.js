@@ -1688,8 +1688,11 @@ const contextChip = () => {
   return kind ? `<div class="contextChip"><span class="contextKind">${kind}</span><span class="contextLabel">${esc(label)}</span><button class="contextX" data-action="${action}" aria-label="${aria}">${ICONS.close}</button></div>` : '';
 };
 
-const renderDock = () => `<div class="dock${view.composer ? ' open' : ''}">
-  ${view.composer ? renderSheet() : ''}
+// Admin and Feedback show everything on the page itself, so the box never opens a panel over them.
+const showSheet = () => view.composer && view.route !== 'admin' && view.route !== 'feedback';
+
+const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
+  ${showSheet() ? renderSheet() : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${updatePill()}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
@@ -1715,7 +1718,7 @@ const syncDock = () => {
   prompt.classList.toggle('hasText', view.draft.trim().length > 0);
   prompt.querySelector('.promptButtons').outerHTML = promptButtons();
   const sheet = dock.querySelector('.sheet');
-  if (view.composer && (!sheet || sheet.classList.contains('leaving'))) {
+  if (showSheet() && (!sheet || sheet.classList.contains('leaving'))) {
     sheet?.remove();
     document.querySelector('.chatScrim')?.remove();
     dock.getAnimations().forEach((animation) => animation.cancel());
@@ -1725,7 +1728,7 @@ const syncDock = () => {
     tuckCards();
     scrollChat();
     animateChat(true);
-  } else if (view.composer) {
+  } else if (showSheet()) {
     sheet.classList.toggle('quickMode', Boolean(view.showQuick && !nameQuery()));
     const body = sheet.querySelector('.sheetBody');
     const mode = nameQuery() ? `q:${nameQuery()}` : 'chat';
@@ -2051,7 +2054,7 @@ const render = () => {
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
   const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : renderHome();
-  const dock = `${view.composer ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
+  const dock = `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
