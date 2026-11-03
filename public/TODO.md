@@ -29,7 +29,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 ## Done (recent)
 
 - Quick add: no "Show all" button; the main picks, then a clear "More exercises" line with the rest in a quieter style (v196)
-- Anatomy legend on a computer: stripes follow whole rows again; every change now gets a full screenshot sweep of all pages (`tools/screens.cjs`) (v196)
+- Anatomy legend on a computer: stripes follow whole rows again; every change now gets a full screenshot sweep of all pages (`tools/screens.cjs`) (v197)
+- Squat, Bench, Deadlift buttons sit under the Trends chart, only those three, and now also under the chart on desktop (v197)
+
 - Box panel opens as just a bar that bounces twice; drag it to any height, flick up for the usual size, flick down or tap to close it again; + and errors still open it fully (v195)
 - Red "N left" pill for Marcus at the top: opens to what's waiting on him, with steps, links and Yes / No for decisions (v194)
 - Friends share only `/join` (decided Nov 3); Cloudflare billing off and Cloudflare key added (Nov 3)

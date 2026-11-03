@@ -1175,11 +1175,11 @@ const prCount = (name, since) => state.sessions.filter((session) => session.date
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
 // Squat, Bench and Deadlift side by side with their e1RM; tap one and the chart below switches to it.
-// More lifts opens the rest underneath; a lift picked from there shows as a fourth button.
-const liftPicker = (big, rest, history) => {
-  const pick = (name) => `<button class="liftPick" data-action="pick-trend" data-name="${esc(name)}" aria-pressed="${view.trendOpen === name}"><span class="liftPickName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span><span class="liftPickValue num">${Math.round(bestOverall(name))}</span></button>`;
-  const shown = [...['Squat', 'Bench Press', 'Deadlift'].filter((name) => big.includes(name)), ...(rest.includes(view.trendOpen) || !big.length ? [view.trendOpen] : [])];
-  const others = rest.filter((name) => !shown.includes(name));
+// More lifts opens the rest underneath. Always just these three buttons.
+const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
+  const pick = (name) => `<button class="liftPick" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="liftPickName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span><span class="liftPickValue num">${Math.round(bestOverall(name))}</span></button>`;
+  const shown = ['Squat', 'Bench Press', 'Deadlift'].filter((name) => big.includes(name));
+  const others = action === 'pick-trend' ? rest : [];
   return `<div class="liftPicks" style="--picks:${shown.length}">${shown.map(pick).join('')}</div>
     ${others.length ? `<button class="textBtn liftMore" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Fewer lifts' : `More lifts · ${others.length}`}</button>` : ''}
     ${view.trendMore && others.length ? `<section class="card liftMoreList">${others.map((name) => `<button class="row liftRow" data-action="pick-trend" data-name="${esc(name)}"><span class="liftName">${esc(name)}</span><span class="muted num">${history.get(name).length} ${history.get(name).length === 1 ? 'session' : 'sessions'}</span><span class="e1Col e1rm num">${Math.round(bestOverall(name))}</span></button>`).join('')}</section>` : ''}`;
@@ -1227,8 +1227,7 @@ const renderTrends = () => {
   return `<main class="page trendsPage">
     <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
     <h1 class="title">Trends</h1>
-    ${names.length ? liftPicker(big, rest, history) : ''}
-    ${names.length ? `<div class="list">${card(view.trendOpen)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
+    ${names.length ? `<div class="list">${card(view.trendOpen)}</div>${liftPicker(big, rest, history)}` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
     ${desktopQuery.matches ? '' : renderVolume()}
   </main>`;
@@ -1653,6 +1652,7 @@ const renderProgress = () => {
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
       ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
+    ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), [], history, 'focus-lift', focus) : ''}
     ${renderVolume()}
     ${view.route === 'trends' ? '' : renderMuscles()}
     <p class="section">Best lifts</p>
