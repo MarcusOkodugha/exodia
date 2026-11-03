@@ -1853,6 +1853,7 @@ const endDemo = () => {
   location.hash = '#/';
   render();
 };
+const updatePill = () => (view.updateReady && !state.demo ? '<button class="updatePill" data-action="reload-app">New version ready · Tap to update</button>' : '');
 const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
 
 const renderOnboard = () => {
@@ -1986,7 +1987,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${devExtras()}${demoPill()}`;
+    </div>` : ''}${devExtras()}${demoPill()}${updatePill()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -2582,6 +2583,7 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'onboard-demo') return startDemo();
   if (action === 'end-demo') return endDemo();
+  if (action === 'reload-app') return location.reload();
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
     if (name) state.name = name.slice(0, 40);
@@ -3215,4 +3217,11 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('/sw.js').then((registration) => document.addEventListener('visibilitychange', () => {
     if (!document.hidden) registration.update();
   }));
+  // When a new version takes over in the background, offer a quiet tap to load it now.
+  const hadVersion = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadVersion || view.updateReady) return;
+    view.updateReady = true;
+    render();
+  });
 }

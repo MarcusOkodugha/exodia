@@ -575,6 +575,7 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 
 /* Example data: a slim pill on every page until the person starts their own log. */
 .demoPill { position: fixed; z-index: 6; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 6px 18px rgba(20, 20, 19, 0.16); }
+.updatePill { position: fixed; z-index: 6; top: calc(var(--top) + 54px); left: 0; right: 0; width: max-content; margin: 0 auto; padding: 7px 14px; border-radius: 999px; background: var(--claySoft); color: var(--clayText); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 14px rgba(20, 20, 19, 0.08); animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .demoPill button { padding: 7px 14px; border-radius: 999px; background: var(--clay); color: #FFFFFF; font-size: 14px; font-weight: 600; }
 .demo .page { padding-top: calc(var(--top) + 112px); }
 
