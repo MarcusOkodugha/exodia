@@ -18,6 +18,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- Phone: weekly volume sits under Big 3, above other lifts (v178)
 - Blank start shows empty charts and Big 3 (v176)
 - Smoother fist: clean closed fist, whole finger outlines (v175)
 - Onboarding: two clear choices, example data without a made-up name (v175)

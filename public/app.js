@@ -1174,8 +1174,8 @@ const renderTrends = () => {
     <h1 class="title">Trends</h1>
     ${renderMuscles()}
     ${big.length ? `<p class="section">Big 3</p><div class="list">${big.map(card).join('')}</div>` : names.length ? '' : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
-    ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
     ${desktopQuery.matches ? '' : renderVolume()}
+    ${rest.length ? `<p class="section">${big.length ? 'Other lifts' : 'Lifts'}</p><div class="list">${rest.map(card).join('')}</div>` : ''}
   </main>`;
 };
 
