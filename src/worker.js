@@ -498,10 +498,13 @@ const startClaudeTask = async (text, env) => {
   const ask = text.trim().slice(0, 4000);
   if (!ask) return json({ error: 'Say what to change.' }, 400);
   // Pasted secrets often carry a trailing newline or spaces, which break the URL or the auth header.
-  const taskUrl = (env.CLAUDE_TASK_URL || '').trim();
+  // Accept the Fire URL, or any link or text that contains the task id (trig_…), and build the Fire URL from it.
+  const rawUrl = (env.CLAUDE_TASK_URL || '').trim();
+  const taskId = rawUrl.match(/trig_[A-Za-z0-9]+/)?.[0];
+  const taskUrl = /\/fire$/.test(rawUrl) ? rawUrl : taskId ? `https://api.anthropic.com/v1/claude_code/routines/${taskId}/fire` : rawUrl;
   const token = (env.CLAUDE_TASK_TOKEN || '').trim().replace(/^Bearer\s+/i, '');
   if (!taskUrl || !token) return json({ error: 'Claude is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
-  if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: 'CLAUDE_TASK_URL should be the Fire URL ending in /fire.' }, 503);
+  if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: `CLAUDE_TASK_URL should be the Fire URL ending in /fire (it starts with “${rawUrl.slice(0, 24)}”).` }, 503);
   let response;
   try {
     response = await fetch(taskUrl, {
