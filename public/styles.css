@@ -371,7 +371,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .prompt.hasChip .promptBar { grid-area: 3 / 1; }
 .desk .prompt.hasChip { grid-template-rows: auto 1fr auto; }
 .homePage .section { margin-left: 0; margin-right: 0; }
-.searchBox { display: flex; align-items: center; gap: 8px; height: 40px; margin: 16px 0 0; padding: 0 12px; border-radius: 12px; background: rgba(20, 20, 19, 0.06); color: var(--text2); }
+.searchBox { display: flex; align-items: center; gap: 8px; height: 48px; margin: 16px 0 0; padding: 0 12px; border-radius: 12px; background: rgba(20, 20, 19, 0.06); color: var(--text2); }
 .searchBox svg { flex: none; }
 .searchBox input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; outline: none; -webkit-appearance: none; appearance: none; }
 .searchBox input::-webkit-search-cancel-button { -webkit-appearance: none; }
