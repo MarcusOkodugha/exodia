@@ -534,8 +534,6 @@ const addEntries = (result, date = todayIso()) => {
 
 const pickList = () => {
   const query = /\d/.test(view.draft) ? '' : view.draft.trim().toLowerCase();
-  const today = sessionFor(view.composerDate || todayIso());
-  const inToday = new Set(today ? today.exercises.map((exercise) => exercise.name) : []);
   const recent = [];
   for (const session of sortedSessions()) {
     for (const exercise of session.exercises) if (!recent.includes(exercise.name)) recent.push(exercise.name);
@@ -543,7 +541,8 @@ const pickList = () => {
   const starters = ['Bench Press', 'Squat', 'Deadlift', 'Overhead Press', 'Pull-up', 'Barbell Row'];
   const library = [...starters, ...LIBRARY.map((entry) => entry.name).filter((name) => !starters.includes(name))];
   const names = [...new Set([...BIG_THREE, ...recent, ...library])];
-  return names.filter((name) => (query ? name.toLowerCase().includes(query) : !inToday.has(name))).slice(0, 12);
+  // Lifts already logged today stay in the list too, so Bench Press is always one tap away.
+  return names.filter((name) => !query || name.toLowerCase().includes(query)).slice(0, 12);
 };
 
 const renderBars = (pieces) => pieces.map((piece) => `
@@ -1359,9 +1358,9 @@ const sendToClaude = async (text, voice) => {
   }
 };
 
-// Feedback said in any box: Marcus's goes straight to Claude to build, everyone else's goes to the feedback list.
+// Feedback said in any box goes to the feedback list. Only the Admin page's box starts a build.
 const routeFeedback = async (text, said) => {
-  if (view.isAdmin) {
+  if (view.isAdmin && view.route === 'admin') {
     await askClaude(text);
     addLog(said, [`Sent to Exodia: ${text}`], { manual: true });
     return;
@@ -1713,15 +1712,18 @@ const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Wo
 const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
+// Quick add gets the whole panel when it shows; the log stays on the Log page.
+const quickShown = () => !nameQuery() && (view.showQuick || (!view.draft.trim() && !view.quickHidden));
+
 const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeChat()}</div>`
   : view.route === 'feedback' ? `<div class="chat">${feedbackChat()}</div>`
   : nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
-  : `${view.showQuick ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${view.showQuick || (!view.draft.trim() && !view.quickHidden) ? quickAdd() : ''}`);
+  : `${quickShown() ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${quickShown() ? quickAdd() : ''}`);
 
-const renderSheet = () => `<div class="sheet${view.showQuick && !nameQuery() ? ' quickMode' : ''}" role="group" aria-label="Chat">
+const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}" role="group" aria-label="Chat">
   <button class="grabber" data-action="close-chat" aria-label="Close chat"></button>
-  <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : 'chat'}">${sheetBody()}</div>
+  <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : quickShown() ? 'quick' : 'chat'}">${sheetBody()}</div>
 </div>`;
 
 const openChat = () => {
@@ -1803,9 +1805,9 @@ const syncDock = () => {
     scrollChat();
     animateChat(true);
   } else if (showSheet()) {
-    sheet.classList.toggle('quickMode', Boolean(view.showQuick && !nameQuery()));
+    sheet.classList.toggle('quickMode', quickShown());
     const body = sheet.querySelector('.sheetBody');
-    const mode = nameQuery() ? `q:${nameQuery()}` : 'chat';
+    const mode = nameQuery() ? `q:${nameQuery()}` : quickShown() ? 'quick' : 'chat';
     if (body.dataset.mode !== mode) {
       body.dataset.mode = mode;
       body.innerHTML = sheetBody();
@@ -1926,7 +1928,7 @@ const tuckCards = () => {
   const box = dock.offsetHeight - (sheet ? sheet.offsetHeight + 8 : 0);
   setVar('--dock-h', `${box}px`);
   const tall = turn ? window.innerWidth : window.visualViewport?.height || window.innerHeight;
-  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, tall - box - (desktopQuery.matches ? 64 : view.showQuick ? 110 : Math.max(120, tall * 0.24)))))}px`);
+  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, tall - box - (desktopQuery.matches ? 64 : quickShown() ? 80 : Math.max(120, tall * 0.24)))))}px`);
   const line = uiBox(dock).bottom - box;
   for (const card of document.querySelectorAll('.page .card')) {
     const box = uiBox(card);
