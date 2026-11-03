@@ -1308,6 +1308,23 @@ const sendToClaude = async (text, voice) => {
   }
 };
 
+// Feedback said in any box: Marcus's goes straight to Claude to build, everyone else's goes to the feedback list.
+const routeFeedback = async (text, said) => {
+  if (view.isAdmin) {
+    await askClaude(text);
+    addLog(said, [`Sent to Claude: ${text}`], { manual: true });
+    return;
+  }
+  const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Could not send that feedback. Try again.');
+  state.feedback = [...(state.feedback || []), { at: Date.now(), said: body.said || text, kind: body.kind, title: body.title }].slice(-50);
+  addLog(said, [`Sent feedback to Marcus: ${body.title}`], { manual: true });
+  view.toast = { kind: 'rep', title: 'Sent to Marcus', text: body.title };
+  clearTimeout(view.toastTimer);
+  view.toastTimer = setTimeout(clearToast, 5000);
+};
+
 const FEEDBACK_STATUS = [['new', 'New'], ['planned', 'Planned'], ['done', 'Done'], ['declined', 'No']];
 
 const renderAdmin = () => {
@@ -2502,11 +2519,14 @@ const send = async () => {
     const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '');
     heard = result.transcript || '';
     const said = fixing ? `Fix: ${text}` : heard || text;
-    if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
+    const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
+    if (result.feedback && !logsSomething) await routeFeedback(result.feedback, said);
+    else if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
     else if (result.remove?.length && voice) {
       view.confirm = { result, date, said, heard, text: describeRemoval(result) };
       view.scrollTarget = null;
     } else applyResult(result, date, said, voice ? heard : '');
+    if (result.feedback && logsSomething) routeFeedback(result.feedback, said).catch((error) => addLog(said, [`Feedback not sent: ${error.message}`]));
     if (view.editDay !== view.editContext?.date) view.editContext = null;
     view.fixing = null;
     if (view.retryVoice) dropVoice(view.retryVoice);

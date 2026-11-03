@@ -9,6 +9,7 @@ const MAX_RECORD = 80000;
 const DEFAULT_MODELS = 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite';
 
 const PROMPT = `You turn a lifter's spoken or typed workout note into JSON.
+If the note, or part of it, is about the Exodia app itself instead of training (a bug, an idea, or how they want the app to work or look), put that part in feedback in their own words and log nothing for it. Training talk is never feedback.
 Weights are kilograms. Return only sets that were actually done.
 "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps.
 "warm up 100 6, 140 4" means warm-up sets; keep them and set warmup true. Never invent warm-up sets: add them only when the user says they warmed up or worked up. If they say they warmed up or worked up plate by plate without exact numbers, add warm-up sets below the first working weight in steps of one 20 kg plate per side (40 kg), starting at 60 kg, with fewer reps as it gets heavier (60x6, 100x4, 140x2, 180x1 style), and copy their usual warm-ups from the recent log if it has any. Reps in reserve N means rpe 10 minus N, never rpe N: "3 in reserve" is rpe 7, "8 reps in reserve" is rpe 2. Accessory work in minutes ("30 minutes of accessories") goes in accessoriesMinutes. For lifts measured in lengths, distance or time (sled drag, sled push, farmer's walk, carries), log kg as the load and reps as the number of lengths or rounds. If part of the note cannot be logged at all, put that part, in the user's words, in unclear, and still log everything else. Unclear holds only the user's own words or a short question to them, never your reasoning. A number said with "kg" or "kilos" is always the weight, never reps: "two sets of 12 kg curls" is two sets at kg 12. Never invent a number the user did not say. If the sets or weight are known but the reps are not ("two sets of 12 kg curls", "three sets reps"), still log those sets with reps 0, which means reps unknown, and put a short question in unclear, like "Dumbbell Curl 12 kg: how many reps?". If the weight is unknown, use kg 0 only for bodyweight lifts; otherwise ask in unclear.
@@ -44,6 +45,7 @@ const SCHEMA = {
     cardioMinutes: { type: 'INTEGER' },
     accessoriesMinutes: { type: 'INTEGER' },
     unclear: { type: 'STRING' },
+    feedback: { type: 'STRING' },
     date: { type: 'STRING' },
     transcript: { type: 'STRING' },
     label: { type: 'STRING' },
@@ -301,7 +303,8 @@ const clean = (raw, today) => {
     .map((item) => ({ from: item.from, to: item.to, ...(typeof item.exercise === 'string' && item.exercise.trim() ? { exercise: item.exercise.trim().slice(0, 60) } : {}) }));
   const accessoriesMinutes = Math.min(300, Math.max(0, Math.round(Number(raw?.accessoriesMinutes) || 0)));
   const unclear = typeof raw?.unclear === 'string' ? raw.unclear.trim().slice(0, 300) : '';
-  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
+  const feedback = typeof raw?.feedback === 'string' ? raw.feedback.trim().slice(0, 2000) : '';
+  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
 
 const logCommand = (request, env, ctx, body, said, result) => {
@@ -488,6 +491,7 @@ const describe = (raw) => {
     ...(result.label ? [`Name day “${result.label}”`] : []),
     ...(result.accessoriesMinutes ? [`Accessories ${result.accessoriesMinutes} min`] : []),
     ...(result.unclear ? [`Did not understand: ${result.unclear}`] : []),
+    ...(result.feedback ? [`Feedback: ${result.feedback}`] : []),
     ...(result.error ? [`Failed: ${result.error}`] : []),
     ...(result.date ? [`Day ${result.date}`] : [])
   ].join(' · ') || 'Nothing understood';
@@ -504,7 +508,7 @@ const startClaudeTask = async (text, env) => {
   const taskUrl = /\/fire$/.test(rawUrl) ? rawUrl : taskId ? `https://api.anthropic.com/v1/claude_code/routines/${taskId}/fire` : rawUrl;
   const token = (env.CLAUDE_TASK_TOKEN || '').trim().replace(/^Bearer\s+/i, '');
   if (!taskUrl || !token) return json({ error: 'Claude is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
-  if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: `CLAUDE_TASK_URL should be the Fire URL ending in /fire (it starts with “${rawUrl.slice(0, 24)}”).` }, 503);
+  if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: `CLAUDE_TASK_URL should be the Fire URL ending in /fire (it starts with “${rawUrl.slice(0, 16)}”).` }, 503);
   let response;
   try {
     response = await fetch(taskUrl, {
