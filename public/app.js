@@ -1073,7 +1073,7 @@ const muscleLoad = () => {
   const fresh = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   for (const session of state.sessions) {
     if (session.date < since || session.date > today) continue;
-    const left = (key) => Math.max(0, 1 - daysBetween(session.date, today) / RECOVERY_DAYS[key]);
+    const left = (key) => Math.max(0, 1 - Math.max(0, daysBetween(session.date, today) - 0.5) / RECOVERY_DAYS[key]);
     for (const exercise of session.exercises) {
       const rule = MUSCLE_RULES.find(([pattern]) => pattern.test(exercise.name.toLowerCase()));
       if (!rule) continue;
@@ -1090,7 +1090,7 @@ const muscleLoad = () => {
   return { sets, fatigue, fresh };
 };
 // Strong while a muscle recovers and only fading near the end, then a light tint until 7 days have passed.
-const muscleStrength = ({ sets, fresh }, key) => (!sets[key] ? 0 : fresh[key] > 0 ? 0.32 + 0.68 * fresh[key] ** 0.35 : 0.16);
+const muscleStrength = ({ sets, fresh }, key) => (!sets[key] ? 0 : fresh[key] > 0 ? 0.22 + 0.78 * fresh[key] : 0.14);
 const bodySvg = (side, load) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
   const strength = key ? muscleStrength(load, key) : 0;
   return `<polygon points="${points}" class="${!key ? 'bodyBone' : strength ? 'bodyHit' : 'bodyRest'}"${strength ? ` style="fill-opacity:${strength.toFixed(2)}"` : ''}/>`;
