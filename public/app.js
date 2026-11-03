@@ -1835,7 +1835,7 @@ const syncDock = () => {
   tuckCards();
 };
 
-const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Idea: add a rest timer between sets', 'Bench 100 for 5 at RPE 8, then dips 3x10', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8'];
+const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Feedback: add a rest timer between sets', 'Bench 100 for 5 at RPE 8, then dips 3x10', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8'];
 // After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
 const QUIET_HINT = 'Log training, paste notes or give feedback';
 const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
@@ -2750,6 +2750,8 @@ const send = async () => {
     const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '');
     heard = result.transcript || '';
     const said = fixing ? `Fix: ${text}` : heard || text;
+    // Feedback only when they say "feedback" or "feature"; everything else in this box is training.
+    if (result.feedback && !/\b(feedback|feature)\b/i.test(`${text} ${result.transcript || ''}`)) delete result.feedback;
     const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
     if (result.feedback && !logsSomething) await routeFeedback(result.feedback, said);
     else if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
