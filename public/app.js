@@ -1289,10 +1289,10 @@ const CLAUDE_EXAMPLES = ['Make the red lines a bit stronger', 'Show e1RM only on
 const askClaude = async (text) => {
   const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Claude did not start. Try again.');
+  if (!response.ok) throw new Error(body.error || 'Exodia did not start. Try again.');
   state.claudeRuns = [{ at: Date.now(), said: text, url: body.url }, ...(state.claudeRuns || [])].slice(0, 20);
   save();
-  view.toast = { kind: 'rep', title: 'Claude is on it', text: text.slice(0, 80) };
+  view.toast = { kind: 'rep', title: 'Exodia is on it', text: text.slice(0, 80) };
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(clearToast, 5000);
 };
@@ -1325,7 +1325,7 @@ const sendToClaude = async (text, voice) => {
 const routeFeedback = async (text, said) => {
   if (view.isAdmin) {
     await askClaude(text);
-    addLog(said, [`Sent to Claude: ${text}`], { manual: true });
+    addLog(said, [`Sent to Exodia: ${text}`], { manual: true });
     return;
   }
   const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
@@ -1372,9 +1372,9 @@ const renderAdmin = () => {
     <p class="section">Invite someone</p>
     ${shareCard()}
     <p class="section">Change the app</p>
-    <p class="feedbackLead">Say or type a change in the box below. Claude builds it, and it goes live in a few minutes.</p>
-    ${view.claudeSending ? '<p class="feedbackMeta">Starting Claude…</p>' : ''}
-    ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Claude</a>` : ''}</p></div>`).join('')}
+    <p class="feedbackLead">Say or type a change in the box below. Exodia builds it, and it goes live in a few minutes.</p>
+    ${view.claudeSending ? '<p class="feedbackMeta">Starting Exodia…</p>' : ''}
+    ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Feedback</p>
     ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
       <p class="feedbackHead"><span class="${item.kind === 'bug' ? 'prPill' : 'prPill est'}">${item.kind === 'bug' ? 'Bug' : 'Idea'}</span><b>${esc(item.title)}</b></p>
@@ -1649,7 +1649,7 @@ const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
-const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>Sent to Claude${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
+const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>Sent to Exodia${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeChat()}</div>`

@@ -507,7 +507,7 @@ const startClaudeTask = async (text, env) => {
   const taskId = rawUrl.match(/trig_[A-Za-z0-9]+/)?.[0];
   const taskUrl = /\/fire$/.test(rawUrl) ? rawUrl : taskId ? `https://api.anthropic.com/v1/claude_code/routines/${taskId}/fire` : rawUrl;
   const token = (env.CLAUDE_TASK_TOKEN || '').trim().replace(/^Bearer\s+/i, '');
-  if (!taskUrl || !token) return json({ error: 'Claude is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
+  if (!taskUrl || !token) return json({ error: 'Exodia builder is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
   if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: `CLAUDE_TASK_URL should be the Fire URL ending in /fire (it starts with “${rawUrl.slice(0, 16)}”).` }, 503);
   let response;
   try {
@@ -517,10 +517,10 @@ const startClaudeTask = async (text, env) => {
       body: JSON.stringify({ text: ask })
     });
   } catch (error) {
-    return json({ error: `Claude did not start: ${error.message}` }, 502);
+    return json({ error: `Exodia did not start: ${error.message}` }, 502);
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) return json({ error: `Claude did not start (${response.status}): ${data.error?.message || 'no details'}` }, 502);
+  if (!response.ok) return json({ error: `Exodia did not start (${response.status}): ${data.error?.message || 'no details'}` }, 502);
   return json({ ok: true, url: data.claude_code_session_url || '' });
 };
 
