@@ -84,6 +84,8 @@ textarea::placeholder, input::placeholder { color: var(--text2); }
 .setRow { display: grid; grid-template-columns: 26px 56px 24px 12px 42px 52px minmax(0, 1fr) 24px; column-gap: 4px; align-items: center; min-height: 40px; }
 .pill.rpe { font-size: 13px; font-weight: 400; color: var(--text2); }
 .swipe { position: relative; overflow: hidden; }
+/* No zooming: no double-tap zoom anywhere (pinch is blocked in app.js, focus zoom by the viewport). */
+html { touch-action: manipulation; }
 .swipeFace { position: relative; z-index: 1; background: var(--card); transition: transform 0.2s ease; touch-action: pan-y; }
 .swipe.open .swipeFace { transform: translateX(-76px); }
 .swipeDel { position: absolute; top: 0; right: 0; bottom: 0; width: 76px; background: var(--clay); color: #FFFFFF; font-size: 15px; font-weight: 500; }

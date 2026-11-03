@@ -1286,12 +1286,50 @@ const sendFeedback = async (text, voice) => {
 const CLAUDE_EXAMPLES = ['Make the red lines a bit stronger', 'Show e1RM only once per day', 'Add a rest timer between sets', 'Fix the mic stopping after a minute'];
 
 // Admin only: sends a change request to Claude Code, which edits the app, pushes to main and Cloudflare deploys it.
+// Build tracking: remember the live version when a change is sent, then watch /sw.js until a newer version is live.
+const liveVersion = () => fetch('/sw.js', { cache: 'no-store' }).then((response) => response.text()).then((text) => Number(text.match(/exodia-v(\d+)/)?.[1]) || 0).catch(() => 0);
+const runStatus = (run) => (run.status === 'live' ? `Live in v${run.version}` : run.status === 'stalled' ? 'No update came out of this one' : run.from ? '<span class="ghostText">Building…</span>' : 'Sent');
+let buildWatch = 0;
+const watchBuilds = () => {
+  clearTimeout(buildWatch);
+  const building = (state.claudeRuns || []).filter((run) => run.from && !run.status);
+  if (!building.length) return;
+  buildWatch = setTimeout(async () => {
+    if (document.hidden) return watchBuilds();
+    const version = await liveVersion();
+    let landed = false;
+    for (const run of building) {
+      if (version > run.from) Object.assign(run, { status: 'live', version, doneAt: Date.now() }), (landed = true);
+      else if (Date.now() - run.at > 45 * 60000) run.status = 'stalled';
+    }
+    save();
+    if (landed) {
+      announceBuilds();
+      navigator.serviceWorker?.getRegistration().then((registration) => registration?.update());
+    }
+    render();
+    watchBuilds();
+  }, 20000);
+};
+// Says "Exodia update deployed" once per finished change, also after the app reloaded itself for the new version.
+const announceBuilds = () => {
+  const fresh = (state.claudeRuns || []).filter((run) => run.status === 'live' && !run.announced);
+  if (!fresh.length) return;
+  fresh.forEach((run) => (run.announced = true));
+  addLog(fresh[0].said, [`Exodia update deployed · v${fresh[0].version}`], { manual: true });
+  view.toast = { kind: 'rep', title: 'Exodia update deployed', text: fresh[0].said.slice(0, 80) };
+  clearTimeout(view.toastTimer);
+  view.toastTimer = setTimeout(clearToast, 6000);
+};
+
 const askClaude = async (text) => {
+  const from = await liveVersion();
   const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'Exodia did not start. Try again.');
-  state.claudeRuns = [{ at: Date.now(), said: text, url: body.url }, ...(state.claudeRuns || [])].slice(0, 20);
+  state.claudeRuns = [{ at: Date.now(), said: text, url: body.url, from }, ...(state.claudeRuns || [])].slice(0, 20);
   save();
+  watchBuilds();
   view.toast = { kind: 'rep', title: 'Exodia is on it', text: text.slice(0, 80) };
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(clearToast, 5000);
@@ -1374,7 +1412,7 @@ const renderAdmin = () => {
     <p class="section">Change the app</p>
     <p class="feedbackLead">Say or type a change in the box below. Exodia builds it, and it goes live in a few minutes.</p>
     ${view.claudeSending ? '<p class="feedbackMeta">Starting Exodia…</p>' : ''}
-    ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
+    ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Feedback</p>
     ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
       <p class="feedbackHead"><span class="${item.kind === 'bug' ? 'prPill' : 'prPill est'}">${item.kind === 'bug' ? 'Bug' : 'Idea'}</span><b>${esc(item.title)}</b></p>
@@ -1432,6 +1470,8 @@ const renderYou = () => {
 const desktopQuery = window.matchMedia('(min-width: 1024px)');
 
 // Desktop: the prompt glow follows the mouse. Variables live on <html> so they survive re-renders.
+// iOS ignores user-scalable=no in Safari, so block pinch zoom directly.
+document.addEventListener('gesturestart', (event) => event.preventDefault());
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 let glowFrame = 0;
 document.addEventListener('pointermove', (event) => {
@@ -1649,7 +1689,7 @@ const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
-const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>Sent to Exodia${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
+const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeChat()}</div>`
@@ -3242,6 +3282,8 @@ if (invitedName) {
     view.onboard = { name: invitedName, data: '' };
   }
 }
+announceBuilds();
+watchBuilds();
 const linkedProfile = location.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
 if (linkedProfile && linkedProfile[1] !== syncState.profile) joinProfile(linkedProfile[1]).then(render);
 applyFlavor();
