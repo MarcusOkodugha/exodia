@@ -24,6 +24,10 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
   - `CLAUDE_TASK_URL`, `CLAUDE_TASK_TOKEN`: the API trigger of the "Exodia change" Claude Code scheduled task, used by the admin "Change the app" box.
   - `CLAUDE_MODEL`, `GEMINI_MODELS`: optional.
 
+## Open list
+
+`TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
+
 ## Rules for every change
 
 1. **Bump the cache version** in `public/sw.js` (`exodia-vNNN`) by one on every change that touches `public/`. Otherwise phones keep the old version.
