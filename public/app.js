@@ -542,7 +542,9 @@ const pickList = () => {
   const library = [...starters, ...LIBRARY.map((entry) => entry.name).filter((name) => !starters.includes(name))];
   const names = [...new Set([...BIG_THREE, ...recent, ...library])];
   // Lifts already logged today stay in the list too, so Bench Press is always one tap away.
-  return names.filter((name) => !query || name.toLowerCase().includes(query)).slice(0, 12);
+  const matches = names.filter((name) => !query || name.toLowerCase().includes(query));
+  // Quick add shows 12 at first; "Show all" lists every lift you've logged plus the library.
+  return query || view.quickAll ? matches : matches.slice(0, 12);
 };
 
 const renderBars = (pieces) => pieces.map((piece) => `
@@ -1694,6 +1696,11 @@ const renderPicks = () => {
   return `${picks.slice(0, split).map((name) => pickButton(name, date)).join('')}${cardio}${picks.slice(split).map((name) => pickButton(name, date)).join('')}
     ${query && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
+const quickMoreButton = () => {
+  if (/\S/.test(view.draft)) return '';
+  const all = new Set([...BIG_THREE, ...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)]).size;
+  return all > 12 ? `<button class="textBtn quickMore" data-action="quick-all">${view.quickAll ? 'Show fewer' : `Show all ${all}`}</button>` : '';
+};
 const pickButton = (name, date) => {
   const last = lastSetsFor(name, date);
   return `<button class="pick" data-action="pick" data-name="${esc(name)}" aria-label="Add ${esc(name)} to ${dayLabel(date)}"><span style="flex:1;min-width:0"><span class="pickName">${esc(name)}</span><span class="pickLast num">${last ? `Last ${last[0].kg} × ${last[0].reps} · ${setCount(last.length)}` : 'New'}</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>`;
@@ -1705,7 +1712,7 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div></div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="import-file"></label>${renderPicks()}</div></div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" accept=".csv,.txt,.tsv,.json,.md,.xlsx,text/*" data-action="import-file"></label>${renderPicks()}</div>${quickMoreButton()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
@@ -3065,6 +3072,14 @@ document.addEventListener('click', (event) => {
   } else if (action === 'remove-cardio' && session) {
     session.cardio = 0;
     addLog('Remove cardio', [`Removed cardio on ${dayLabel(date)}`], { manual: true });
+  } else if (action === 'quick-all') {
+    view.quickAll = !view.quickAll;
+    const body = document.querySelector('.sheetBody');
+    if (body) {
+      body.innerHTML = sheetBody();
+      if (!view.quickAll) body.scrollTop = 0;
+    } else render();
+    return;
   } else if (action === 'hide-quick') {
     view.showQuick = false;
     view.quickHidden = true;
