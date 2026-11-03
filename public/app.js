@@ -162,12 +162,31 @@ const writeLocal = () => {
   }
 };
 
+// Undo and redo, several steps back. Each step keeps only the days it changed (as they were before), so even a big
+// import is one small step. Kept in memory for this visit; changes that arrive from other devices are not steps.
+let undoSteps = [];
+let redoSteps = [];
+let replaying = false;
+const recordStep = (before, now) => {
+  const last = undoSteps.at(-1);
+  // Typing a number fires many saves; changes within a moment of each other are one step.
+  if (last && now - last.at < 1500) {
+    for (const [date, json] of Object.entries(before)) if (!(date in last.before)) last.before[date] = json;
+    last.at = now;
+  } else undoSteps = [...undoSteps, { at: now, title: '', before }].slice(-30);
+  redoSteps = [];
+};
 const save = () => {
   const now = Date.now();
   const current = localJson();
+  const before = {};
   for (const date of new Set([...Object.keys(current), ...Object.keys(lastSaved)])) {
-    if ((current[date] ?? null) !== (lastSaved[date] ?? null)) syncState.stamps[date] = now;
+    if ((current[date] ?? null) !== (lastSaved[date] ?? null)) {
+      syncState.stamps[date] = now;
+      before[date] = lastSaved[date] ?? null;
+    }
   }
+  if (!replaying && !view.sandbox && Object.keys(before).length) recordStep(before, now);
   lastSaved = current;
   const meta = metaJson();
   if (meta !== lastMeta) syncState.metaStamp = now;
@@ -1689,7 +1708,7 @@ const drawerContent = () => {
   return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', state.name || 'You', ICONS.you]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>
-      <button class="drawerFresh" data-action="start-fresh">Start fresh</button>`;
+      <div class="drawerTools"><button class="drawerTool" data-action="undo-change" ${undoSteps.length ? '' : 'disabled'}>Undo</button><button class="drawerTool" data-action="redo-change" ${redoSteps.length ? '' : 'disabled'}>Redo</button><button class="drawerTool fresh" data-action="start-fresh">Start fresh</button></div>`;
 };
 
 // How to get data out of other apps; used on onboarding and on the "Add your data" page.
@@ -2225,7 +2244,7 @@ const render = () => {
   app.innerHTML = `
     ${layout}
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
-      <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
+      <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${devExtras()}${demoPill()}`;
   const draft = document.getElementById('draft');
@@ -2424,6 +2443,38 @@ const guessDate = (text, fallback) => {
 
 const EDIT_WORDS = /\b(remove|delete|undo|change|edit|fix|wrong|instead|ta bort|radera|ändra|byt)\b/i;
 
+// Put the days of one step back the way it stored them, and return how they look now (for the opposite step).
+const replay = (step) => {
+  const now = {};
+  for (const [date, json] of Object.entries(step.before)) {
+    now[date] = lastSaved[date] ?? null;
+    state.sessions = state.sessions.filter((item) => item.date !== date);
+    if (json) state.sessions.push(JSON.parse(json));
+  }
+  replaying = true;
+  save();
+  replaying = false;
+  glowFor(Object.keys(step.before).filter((date) => view.open.has(date)).map((date) => ({ date, name: null })));
+  return { at: Date.now(), title: step.title, before: now };
+};
+const stepToast = (title, text) => {
+  view.toast = { kind: 'rep', title, text, undo: undoSteps.length > 0, redo: redoSteps.length > 0 };
+  clearTimeout(view.toastTimer);
+  view.toastTimer = setTimeout(clearToast, 8000);
+};
+const undoStep = () => {
+  const step = undoSteps.pop();
+  if (!step) return stepToast('Nothing to undo', 'Changes from this visit can be undone');
+  redoSteps.push(replay(step));
+  stepToast(`Undid${step.title ? `: ${step.title}` : ' the last change'}`, undoSteps.length ? 'Undo again to go further back' : 'That was the oldest change');
+};
+const redoStep = () => {
+  const step = redoSteps.pop();
+  if (!step) return stepToast('Nothing to redo', '');
+  undoSteps.push(replay(step));
+  stepToast(`Redid${step.title ? `: ${step.title}` : ' the change'}`, redoSteps.length ? 'Redo again for the next one' : 'Back to the latest');
+};
+
 const changeWithUndo = (title, change, tapped = title) => {
   const before = JSON.stringify(state.sessions);
   change();
@@ -2583,6 +2634,9 @@ const addLog = (said, did, extra = {}) => {
   // The log syncs as one record; keep it well under the server's size limit by dropping the oldest entries.
   while (state.log.length > 10 && JSON.stringify(state.log).length > 200000) state.log.pop();
   save();
+  // The log line names the undo step that was just made ("Added Squat to Today").
+  const step = undoSteps.at(-1);
+  if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
 const describeAdd = (result, day) => `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`cardio ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
@@ -3376,13 +3430,12 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'dismiss-toast') {
     view.toast = null;
-  } else if (action === 'undo-change' && view.toast?.undo) {
-    state.sessions = JSON.parse(view.toast.undo);
-    glowFor(state.sessions.map((item) => ({ date: item.date, name: null })).filter((item) => view.open.has(item.date)));
-    addLog('Undo', [`Undid: ${view.toast.title}`], { manual: true });
-    view.toast = { kind: 'rep', title: 'Undone', text: view.toast.title };
-    clearTimeout(view.toastTimer);
-    view.toastTimer = setTimeout(clearToast, 3500);
+  } else if (action === 'undo-change') {
+    view.menu = false;
+    undoStep();
+  } else if (action === 'redo-change') {
+    view.menu = false;
+    redoStep();
   } else if (action === 'delete-set' && session) {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const set = exercise.sets[Number(target.dataset.set)];
@@ -3818,6 +3871,14 @@ document.addEventListener('keydown', (event) => {
   if (event.target.id === 'draft' && event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
     send();
+  }
+  // ⌘Z / Ctrl+Z undoes, with Shift it redoes, when you are not typing in a field.
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.target.closest('input, textarea, [contenteditable]')) {
+    event.preventDefault();
+    if (event.shiftKey) redoStep();
+    else undoStep();
+    render();
+    return;
   }
   if (event.key === 'Escape' && (view.menu || view.composer)) {
     view.menu = false;

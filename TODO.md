@@ -10,6 +10,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 - [ ] **Decide:** a name on a new phone brings your data back. Names aren't unique (two Adams), so it needs name + a short code. Changes the database; waiting for Marcus.
 - [ ] **`/marcus` code.** Set `MARCUS_CODE` (Claude can do it once the Cloudflare key is in; otherwise `cd ~/code/exodia && npx wrangler secret put MARCUS_CODE` in Terminal on the Mac).
 - [ ] **Old Claude's memory into CLAUDE.md.** In the Mac Terminal Claude: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md in the repo, then commit and push."
+- [ ] **Decide:** rename the menu item that shows your name ("Marcus") to "Settings"?
 - [ ] **Decide:** keep `/join` for everyone else, or add `/other`.
 - [ ] **Decide:** keep Exodia on the Mpya Claude account, or move it to a personal Claude account.
 
@@ -22,6 +23,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- Undo and Redo several steps back (up to 30 this visit): in the toast, at the bottom of the menu, ⌘Z / ⇧⌘Z on a computer (v191)
 - UX: Home keeps your place, only the exercise name opens Trends, the box goes back to today, Editing ends with Edit mode, Undo on Quick add and + Set, no reload while reading or typing, Edit away from the arrow, old messages don't overwrite typing, long press 0.7 s, result toast starts small (v190)
 - Friends only share the plain /join link; name in the link and the private link are Marcus-only (v189)
 - Import reads tables on the phone: CSV, TSV, Excel, OpenDocument, JSON, zip, rows pasted from a sheet; Strong, Hevy, FitNotes and Swedish columns; 10+ years in about a second; over 99 days no longer fails; notes go to the AI in parts (v188)
