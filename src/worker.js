@@ -497,14 +497,23 @@ const describe = (raw) => {
 const startClaudeTask = async (text, env) => {
   const ask = text.trim().slice(0, 4000);
   if (!ask) return json({ error: 'Say what to change.' }, 400);
-  if (!env.CLAUDE_TASK_URL || !env.CLAUDE_TASK_TOKEN) return json({ error: 'Claude is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
-  const response = await fetch(env.CLAUDE_TASK_URL, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env.CLAUDE_TASK_TOKEN}`, 'anthropic-beta': 'experimental-cc-routine-2026-04-01', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ text: ask })
-  }).catch(() => null);
-  const data = response ? await response.json().catch(() => ({})) : {};
-  if (!response?.ok) return json({ error: data.error?.message || `Claude did not start${response ? ` (${response.status})` : ''}. Try again.` }, 502);
+  // Pasted secrets often carry a trailing newline or spaces, which break the URL or the auth header.
+  const taskUrl = (env.CLAUDE_TASK_URL || '').trim();
+  const token = (env.CLAUDE_TASK_TOKEN || '').trim().replace(/^Bearer\s+/i, '');
+  if (!taskUrl || !token) return json({ error: 'Claude is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
+  if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: 'CLAUDE_TASK_URL should be the Fire URL ending in /fire.' }, 503);
+  let response;
+  try {
+    response = await fetch(taskUrl, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'anthropic-beta': 'experimental-cc-routine-2026-04-01', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ text: ask })
+    });
+  } catch (error) {
+    return json({ error: `Claude did not start: ${error.message}` }, 502);
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) return json({ error: `Claude did not start (${response.status}): ${data.error?.message || 'no details'}` }, 502);
   return json({ ok: true, url: data.claude_code_session_url || '' });
 };
 
