@@ -1919,7 +1919,8 @@ const demoSessions = () => {
   return [...byDate.values()];
 };
 const startDemo = () => {
-  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(), bests: {}, name: 'Alex', demo: true };
+  // Example workouts, but never a made-up name: use the one they typed, or none.
+  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(), bests: {}, name: (view.onboard?.name || '').trim(), demo: true };
   view.onboard = null;
   view.open = new Set();
   lastSaved = localJson();
@@ -1970,8 +1971,11 @@ const renderOnboard = () => {
       <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
     </details>
     ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
-    <button class="textBtn onboardBlank" data-action="onboard-blank" ${locked ? 'disabled' : ''}>Nothing to bring? Start blank</button>
-    <button class="textBtn onboardBlank" data-action="onboard-demo" ${locked ? 'disabled' : ''}>Just looking? Try it with example data</button>
+    <div class="onboardChoices">
+      <p class="onboardOr">Nothing to bring?</p>
+      <button class="onboardChoice" data-action="onboard-blank" ${locked ? 'disabled' : ''}><b>Start blank</b><span>Log your next workout as you go</span></button>
+      <button class="onboardChoice" data-action="onboard-demo" ${locked ? 'disabled' : ''}><b>Try it with example data</b><span>Look around with sample workouts first</span></button>
+    </div>
   </main>
   <div class="dock onboardDock">
     <div class="prompt onboardPrompt${filled ? ' hasText' : ''}${listening ? ' listening' : ''}${file ? ' hasChip' : ''}">

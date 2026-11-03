@@ -450,7 +450,14 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .onboard { padding-bottom: calc(var(--bottom) + 220px); }
 .onboardMove { margin: 28px 0 0; font-size: 15px; line-height: 22px; color: var(--text2); }
 .onboardMove b { color: var(--text); font-weight: 600; }
-.onboardBlank { margin-top: 10px; padding: 0; color: var(--text2); font-weight: 500; }
+.onboardChoices { margin-top: 18px; }
+.onboardOr { margin: 0 0 4px; font-size: 13px; line-height: 18px; color: var(--text2); }
+.onboardChoice { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 9px 24px 9px 0; border-top: 1px solid var(--sep); text-align: left; position: relative; }
+.onboardChoice:last-child { border-bottom: 1px solid var(--sep); }
+.onboardChoice b { font-size: 16px; line-height: 22px; font-weight: 600; color: var(--text); }
+.onboardChoice span { font-size: 13px; line-height: 18px; color: var(--text2); }
+.onboardChoice::after { content: '›'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--text2); }
+.onboardChoice:disabled { opacity: 0.5; }
 .onboardDock::before { display: none; }
 .onboardPrompt .onboardData { min-height: 66px; max-height: 40vh; }
 .onboardHint { white-space: pre-line; overflow: visible; text-overflow: clip; transition: opacity 0.6s ease; }
