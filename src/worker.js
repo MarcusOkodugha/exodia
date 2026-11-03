@@ -532,7 +532,15 @@ const sync = async (request, env) => {
   const results = await env.DB.batch(statements);
   const rows = results.at(-2).results;
   const profile = results.at(-1).results[0];
+  // Logs two people ended up sharing: SPLIT_PROFILES (a secret) maps the profile key to the names, owner first.
+  let split = null;
+  try {
+    split = JSON.parse(env.SPLIT_PROFILES || '{}')[key] || null;
+  } catch {
+    split = null;
+  }
   return json({
+    ...(split ? { split } : {}),
     admin: Boolean(env.ADMIN_PROFILE) && key === env.ADMIN_PROFILE,
     cursor: profile.seq,
     sessions: rows.map((row) => ({ date: row.date, updated: row.updated, data: row.data ? JSON.parse(row.data) : null })),

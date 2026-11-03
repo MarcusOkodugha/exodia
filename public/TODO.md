@@ -6,20 +6,20 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Tell your two friends who share one log to split it.** One shared link put them on the same profile (no training in it yet). Their file import failed only because of the bug fixed in v188.
-  1. The friend whose name is not on it opens Exodia, taps Menu → Start fresh
-  2. Then imports their app export again with + → Import from a file (FitNotes, Strong, Hevy, Excel and CSV all work now)
-
 
 ## To do (Claude)
 
-- [ ] Decide with Marcus: Return on iPhone adds a new line instead of sending? For new users, + as a paperclip that opens the file picker?
+- [ ] Decide with Marcus: Return on iPhone adds a new line instead of sending?
+- [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 - [ ] UX, not done yet: Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
 - [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
 - [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
+- Trends list: "Best lifts" heading with air after the chart, row lines start after the dot, a thin clay line on the lift on the chart, × 1 shown, Show all in plain text (v205)
+- New users: the box's + is a paperclip that opens the file picker; with lifts it's + → Quick add (Import from a file first) (v205)
+- Two friends on one shared log: each phone asks once "Who's using Exodia on this phone?"; the owner keeps the log, the other gets their own under their name (v205)
 - After an update, a quiet "Exodia updated" pill at the top for about a minute; × or a swipe closes it, no tap needed for the update (v204)
 - Trends: one list of lifts under the graph, no grey; the lift on the chart gets a clay dot and "On chart"; weights, kg and reps in straight columns; Show all / Show fewer (v203)
 - Updates load by themselves again whenever nothing is being typed, and come back to the same page, scroll and lift; if one has to wait, the notice sits at the top in clay (v203)

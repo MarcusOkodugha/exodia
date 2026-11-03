@@ -23,6 +23,7 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
   - `ADMIN_PROFILE`: the profile key that sees Admin.
   - `CLAUDE_TASK_URL`, `CLAUDE_TASK_TOKEN`: the API trigger of the "Exodia change" Claude Code scheduled task, used by the admin "Change the app" box.
   - `CLAUDE_MODEL`, `GEMINI_MODELS`: optional.
+  - `SPLIT_PROFILES`: optional JSON `{ "<profile key>": ["Owner name", "Other name"] }` for a log two people ended up sharing. Each phone on it is asked once who uses it; the first name keeps the log, the others get their own. Delete the secret once they've answered.
 
 ## Open list
 

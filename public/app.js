@@ -269,6 +269,18 @@ const syncNow = () => {
       }
       view.syncFailed = false;
       if (view.isAdmin) loadLeft();
+      if (Array.isArray(result.split) && result.split.length > 1 && !view.splitAsk) {
+        let answered = '';
+        try {
+          answered = localStorage.getItem(SPLIT_KEY) || '';
+        } catch {
+          answered = '';
+        }
+        if (answered !== syncState.profile) {
+          view.splitAsk = result.split.map((name) => String(name).slice(0, 40));
+          render();
+        }
+      }
       if (changed) renderSoon();
       else if (view.route === 'you') renderSoon();
       if (changes.length === 500) scheduleSync(0);
@@ -1176,18 +1188,18 @@ const emptyLift = (name) => `<section class="card"><div class="head"><span class
 
 // Inside the trend card, right under the chart: one list of your lifts. Squat, Bench and Deadlift first, then the rest
 // by when you last did them. Tap one and the chart above shows it; that one is marked in clay ("On chart").
-// Six show at first, "Show all" opens the rest. Weights are the heaviest you lifted, in kg; reps only when more than one.
+// Six show at first, "Show all" opens the rest. Weights are the heaviest you lifted, in kg, with the reps.
 const LIFT_ORDER = ['Squat', 'Bench Press', 'Deadlift'];
 // Three fixed columns, so weights, "kg" and "× reps" line up from row to row.
 const liftKg = (name) => {
   const lifted = heaviestLifted(name);
-  return `<span class="liftNum num">${lifted ? lifted.kg : '–'}</span><span class="liftUnit">${lifted ? 'kg' : ''}</span><span class="liftReps num">${lifted && Number(lifted.reps) > 1 ? `× ${lifted.reps}` : ''}</span>`;
+  return `<span class="liftNum num">${lifted ? lifted.kg : '–'}</span><span class="liftUnit">${lifted ? 'kg' : ''}</span><span class="liftReps num">${lifted ? `× ${lifted.reps}` : ''}</span>`;
 };
 const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
   const all = [...LIFT_ORDER.filter((name) => big.includes(name)), ...(action === 'pick-trend' ? rest : [])];
   const first = 6;
   const visible = view.trendMore || all.length <= first ? all : [...all.slice(0, first), ...(all.indexOf(current) >= first ? [current] : [])];
-  return `<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
+  return `${action === 'pick-trend' ? '<p class="liftHead"><span>Best lifts</span><span class="liftHint">Tap one to show it on the chart</span></p>' : ''}<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
     ${all.length > first ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${all.length} lifts`}${ICONS.chev}</button>` : ''}`;
 };
 
@@ -1928,7 +1940,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : view.voiceBlob && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Voice note ready · tap ↑ to log it</span></span>'
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
-    <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">${ICONS.plus}</button><span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
+    <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `${state.sessions.length ? '<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">' + ICONS.plus + '</button>' : `<label class="roundBtn soft plusBtn" aria-label="Add a file with your training">${ICONS.clip}<input type="file" class="sr" data-action="import-file"></label>`}<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
 </div>`;
 
@@ -2231,6 +2243,38 @@ setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
 const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
 
+// Two people ended up on one log (a shared private link). The server lists those logs in SPLIT_PROFILES; each phone on
+// one is asked once who uses it. The first name keeps the log; anyone else gets their own, empty, with their name.
+const SPLIT_KEY = 'exodia.splitAnswered';
+const renderSplit = () => `<main class="page onboard">
+    <span class="logo onboardLogo" aria-hidden="true"></span>
+    <h1 class="title">Who's using Exodia on this phone?</h1>
+    <p class="onboardLead">Two of you were on the same log by mistake. Pick your name and you get your own.</p>
+    <div class="onboardChoices">${view.splitAsk.map((name) => `<button class="onboardChoice" data-action="split-pick" data-name="${esc(name)}"><b>${esc(name)}</b><span>This is me</span></button>`).join('')}</div>
+  </main>`;
+const pickSplit = (name) => {
+  const [owner] = view.splitAsk;
+  const shared = syncState.profile;
+  view.splitAsk = null;
+  try {
+    localStorage.setItem(SPLIT_KEY, shared);
+  } catch {
+    // asked again next time; harmless
+  }
+  if (name === owner) state.name = name;
+  else {
+    syncState = freshSync(newProfileKey());
+    state = { version: 1, deviceId: state.deviceId, sessions: [], bests: {}, log: [], name, started: true };
+    lastSaved = localJson();
+    lastMeta = metaJson();
+    pointManifest();
+  }
+  state.started = true;
+  save();
+  syncNow();
+  render();
+};
+
 const renderLinkOffer = () => {
   const { name, days } = view.linkOffer;
   const whose = name ? `${esc(name)}’s` : 'someone’s';
@@ -2362,6 +2406,10 @@ const render = () => {
   view.wasHit = hit;
   view.blue = hit && view.celebrating !== 'orange';
   document.documentElement.classList.toggle('demo', Boolean(state.demo));
+  if (view.splitAsk) {
+    app.innerHTML = renderSplit();
+    return;
+  }
   if (view.linkOffer) {
     app.innerHTML = renderLinkOffer();
     return;
@@ -3504,6 +3552,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'start-fresh') return startFresh();
+  if (action === 'split-pick' && view.splitAsk) return pickSplit(target.dataset.name);
   if (action === 'toggle-left') {
     view.leftOpen = !view.leftOpen;
     render();

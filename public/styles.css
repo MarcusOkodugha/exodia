@@ -738,9 +738,15 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .bubbleOut .textBtn + .textBtn { margin-left: 16px; }
 /* Trends: one list of lifts inside the chart card, under the graph. The one on the chart gets a clay dot (like the
    chart's own legend dot), clay name and "On chart". No grey backgrounds. */
-.liftList { margin-top: 8px; border-top: 1px solid var(--sep); }
-.liftItem { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; text-align: left; }
-.liftItem + .liftItem { border-top: 1px solid var(--sep); }
+/* A heading and some air after the chart; row lines start after the dot so they never read as chart grid lines;
+   a thin clay line marks the lift on the chart. */
+.liftHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid var(--sep); }
+.liftHead span:first-child { font-size: 15px; font-weight: 600; color: var(--text); }
+.liftHint { font-size: 13px; color: var(--text2); }
+.liftList { margin-top: 0; }
+.liftItem { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding-left: 10px; text-align: left; }
+.liftItem + .liftItem { background: linear-gradient(var(--sep), var(--sep)) 30px 0 / calc(100% - 30px) 1px no-repeat; }
+.liftItem[aria-pressed="true"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 1px; background: var(--clay); }
 .liftDot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); }
 .liftItemName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; color: var(--text); }
 .liftItemBest { flex: none; display: grid; grid-template-columns: 54px 24px 38px; align-items: baseline; font-variant-numeric: tabular-nums; }
@@ -750,9 +756,10 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .onChart { flex: none; font-size: 12px; font-weight: 600; color: var(--clay); }
 .liftItem[aria-pressed="true"] .liftDot { border-color: var(--clay); background: var(--clay); }
 .liftItem[aria-pressed="true"] .liftItemName { color: var(--clayText); font-weight: 600; }
-.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 4px 0 10px; border-top: 1px solid var(--sep); color: var(--clayText); font-size: 16px; font-weight: 600; }
+.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 4px 0 10px; border-top: 1px solid var(--sep); color: var(--text); font-size: 15px; font-weight: 600; }
+.liftExpand svg { color: var(--text2); }
 .liftExpand[aria-expanded="true"] svg { transform: rotate(180deg); }
-.right .liftList { margin-top: 10px; border-top: 0; }
+.right .liftList { margin-top: 10px; }
 /* A new version that has to wait (you're typing) says so at the top, where you see it. */
 .updatePill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); margin: 0; padding: 7px 14px; background: var(--clay); color: #FFFFFF; font-weight: 600; box-shadow: 0 6px 18px rgb(var(--clayRgb) / 0.3); }
 @media (min-width: 1024px) { .updatePill { top: 16px; } }
