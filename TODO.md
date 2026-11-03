@@ -8,7 +8,6 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 - [x] **Cloudflare key for this Claude environment.** Added Nov 3; network to api.cloudflare.com and the live site works. Next: a new chat confirms the key with `npx wrangler whoami`. Lets Claude deploy in about 15 seconds instead of 1–3 minutes, check the live site, and set secrets itself. Steps: create an "Edit Cloudflare Workers" API token (+ Account → D1 → Edit), then in claude.ai/code → my-cloud-env → Edit add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, and allow `api.cloudflare.com` and `exodia.marcusokodugha.workers.dev` under Network access.
 - [ ] 🔴 **D1 permission on the Cloudflare key.** The key can deploy but can't read the database, so Claude can't look at what Romy and Adam actually sent. Add Account → D1 → Edit to the "Edit Cloudflare Workers" token.
 - [ ] **Decide:** a name on a new phone brings your data back. Names aren't unique (two Adams), so it needs name + a short code. Changes the database; waiting for Marcus.
-- [ ] **`/marcus` code.** Set `MARCUS_CODE` (Claude can do it once the Cloudflare key is in; otherwise `cd ~/code/exodia && npx wrangler secret put MARCUS_CODE` in Terminal on the Mac).
 - [ ] **Old Claude's memory into CLAUDE.md.** In the Mac Terminal Claude: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md in the repo, then commit and push."
 - [ ] **Decide:** rename the menu item that shows your name ("Marcus") to "Settings"?
 - [ ] **Decide:** keep `/join` for everyone else, or add `/other`.
@@ -23,6 +22,7 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Done (recent)
 
+- `/marcus` link and its code box removed (v192)
 - Undo and Redo several steps back (up to 30 this visit): in the toast, at the bottom of the menu, ⌘Z / ⇧⌘Z on a computer (v191)
 - UX: Home keeps your place, only the exercise name opens Trends, the box goes back to today, Editing ends with Edit mode, Undo on Quick add and + Set, no reload while reading or typing, Edit away from the arrow, old messages don't overwrite typing, long press 0.7 s, result toast starts small (v190)
 - Friends only share the plain /join link; name in the link and the private link are Marcus-only (v189)
@@ -46,7 +46,6 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 - Stronger mouse glow on desktop (v171)
 - Updates load by themselves; pill above the box only as a fallback (v167)
 - Shimmer on the "Adding…" text, varied box examples, quiet hint after 5 days (v167)
-- `/marcus` link with one-time code (needs the code set)
 - Feedback from any box: users → feedback list, Marcus → Claude builds it
 - Admin "Change the app" box, auto-deploy from GitHub
 - Day view polish: plus after @, e1RM once per day, quieter exercise names, tighter rows, stronger red lines, darker summary line

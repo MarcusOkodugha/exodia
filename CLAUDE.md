@@ -15,12 +15,11 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
   - `/api/search`: searches exercises.
   - `/api/feedback`: saves feedback.
   - `/api/admin`: admin only. Lists commands and feedback, sets feedback status, and starts Claude Code with `{ "claude": "change request" }`.
-  - `/join`: the link for everyone else. `/marcus`: Marcus's link. It asks his code once per device (`/api/claim` checks it against `MARCUS_CODE`), then switches to his admin profile. `/me/<key>`: old personal links, still working.
+  - `/join`: the link for everyone, a fresh, empty Exodia. `/me/<key>`: private personal links, still working; in a browser the app asks "is this yours?" first. Marcus reaches his admin profile through his own `/me/` link.
 - `migrations/`: the D1 (SQLite) schema. If you add a migration, say so in your reply. Builds don't run migrations, so it must be applied once with `npx wrangler d1 migrations apply exodia --remote`.
 - Worker secrets (names only):
   - `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`: the AI providers.
   - `ADMIN_PROFILE`: the profile key that sees Admin.
-  - `MARCUS_CODE`: the code Marcus types once per device on `/marcus`.
   - `CLAUDE_TASK_URL`, `CLAUDE_TASK_TOKEN`: the API trigger of the "Exodia change" Claude Code scheduled task, used by the admin "Change the app" box.
   - `CLAUDE_MODEL`, `GEMINI_MODELS`: optional.
 

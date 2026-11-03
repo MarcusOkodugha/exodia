@@ -3915,27 +3915,6 @@ const route = () => {
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);
 view.focusDraft = desktopQuery.matches;
-// /marcus: ask for Marcus's code once on this device, then switch to his (admin) profile.
-const claimMarcus = async () => {
-  const code = window.prompt('Your Exodia code');
-  if (!code) return;
-  const response = await fetch('/api/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) }).catch(() => null);
-  const body = response ? await response.json().catch(() => ({})) : {};
-  if (!response?.ok || !body.profile) {
-    window.alert(body.error || 'Could not check the code. Try again.');
-    return;
-  }
-  await joinProfile(body.profile);
-  pointManifest();
-  view.toast = { kind: 'rep', title: 'Welcome back, Marcus', text: 'Admin is on in the menu.' };
-  clearTimeout(view.toastTimer);
-  view.toastTimer = setTimeout(clearToast, 5000);
-  render();
-};
-if (/^\/marcus\/?$/.test(location.pathname)) {
-  history.replaceState(null, '', `/${location.hash}`);
-  syncNow().then(() => (view.isAdmin ? null : claimMarcus()));
-}
 // /Patrik: an invite with a name. Fill it in on a fresh device and say hello by name.
 const invitedName = (() => {
   let name = '';

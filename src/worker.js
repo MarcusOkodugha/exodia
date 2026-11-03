@@ -633,22 +633,7 @@ const feedback = async (request, env, ctx) => {
   return json({ kind, title, details, said });
 };
 
-// /marcus: Marcus types his code once per device and gets his own profile, which is the admin one.
-const claim = async (request, env) => {
-  const code = (env.MARCUS_CODE || '').trim();
-  if (!code || !env.ADMIN_PROFILE) return json({ error: 'The Marcus code is not set up yet.' }, 503);
-  if (env.PARSE_LIMITER) {
-    const { success } = await env.PARSE_LIMITER.limit({ key: `claim:${request.headers.get('cf-connecting-ip') || 'local'}` });
-    if (!success) return json({ error: 'Too many tries. Wait a minute.' }, 429);
-  }
-  const body = await request.json().catch(() => null);
-  const given = typeof body?.code === 'string' ? body.code.trim() : '';
-  const encoder = new TextEncoder();
-  const [a, b] = await Promise.all([given, code].map((value) => crypto.subtle.digest('SHA-256', encoder.encode(value))));
-  if (!crypto.subtle.timingSafeEqual(a, b)) return json({ error: 'Wrong code.' }, 403);
-  return json({ profile: env.ADMIN_PROFILE });
-};
-
+// 'marcus' stays reserved so /marcus is never a named invite; it is simply not a page any more.
 const RESERVED_PATHS = ['join', 'marcus', 'api', 'me', 'fist', 'splash'];
 const personalInvite = (pathname) => {
   let name = '';
@@ -678,13 +663,9 @@ export default {
       return feedback(request, env, ctx);
     }
     const personal = url.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
-    if (url.pathname === '/api/claim') {
-      if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
-      return claim(request, env);
-    }
     // /Patrik: an invite with the person's name in it. The app reads the name from the address.
     const invited = personalInvite(url.pathname);
-    if (personal || invited || /^\/(join|marcus)\/?$/.test(url.pathname)) {
+    if (personal || invited || /^\/join\/?$/.test(url.pathname)) {
       let html = await (await env.ASSETS.fetch(new Request(new URL('/', url), request))).text();
       if (personal) html = html.replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?k=${personal[1]}"`);
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
