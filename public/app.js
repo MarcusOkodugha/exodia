@@ -1839,8 +1839,24 @@ const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeCha
   ? `<div class="picks">${renderPicks()}</div>`
   : `${quickShown() ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${quickShown() ? quickAdd() : ''}`);
 
-const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}" role="group" aria-label="Chat">
-  <button class="grabber" data-action="close-chat" aria-label="Close chat"></button>
+// The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".
+// Drag the bar: let go anywhere and it stays that tall; a quick flick up snaps to the usual size, a flick down closes.
+const SHEET_PEEK = 30;
+const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:none"` : '');
+const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
+const preferredSheet = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-h')) || window.innerHeight * 0.6;
+const setSheet = (height, animate = false) => {
+  view.sheetH = height;
+  const sheet = document.querySelector('.dock .sheet');
+  if (!sheet) return;
+  sheet.classList.toggle('peek', sheetPeek());
+  sheet.style.transition = animate && !reducedMotion.matches ? 'height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
+  sheet.style.height = typeof height === 'number' ? `${height}px` : '';
+  sheet.style.maxHeight = typeof height === 'number' ? 'none' : '';
+  if (!sheetPeek()) scrollChat();
+};
+const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}${sheetPeek() ? ' peek' : ''}" role="group" aria-label="Chat"${sheetStyle()}>
+  <button class="grabber" data-action="sheet-toggle" aria-label="${sheetPeek() ? 'Show more' : 'Show less'}"></button>
   <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : quickShown() ? 'quick' : 'chat'}">${sheetBody()}</div>
 </div>`;
 
@@ -1928,6 +1944,7 @@ const syncDock = () => {
     const body = sheet.querySelector('.sheetBody');
     const mode = nameQuery() ? `q:${nameQuery()}` : quickShown() ? 'quick' : 'chat';
     if (body.dataset.mode !== mode) {
+      if (mode.startsWith('q:') && sheetPeek()) setSheet(null);
       body.dataset.mode = mode;
       body.innerHTML = sheetBody();
       scrollChat();
@@ -2688,6 +2705,7 @@ const addLog = (said, did, extra = {}) => {
   const previous = (state.log || [])[0];
   const merged = extra.merge && previous?.merge === extra.merge && Date.now() - previous.at < 120000 ? previous.at : null;
   const words = String(said || '').slice(0, 2000);
+  if (OFF_LINE.test(did?.[0] || '') && sheetPeek()) view.sheetH = null;
   // A voice note's words are the "said"; keep a flag instead of a second copy.
   const { heard, ...rest } = extra;
   const voice = heard && heard === words ? { voice: true } : heard ? { heard } : {};
@@ -3377,6 +3395,7 @@ document.addEventListener('click', (event) => {
   if (view.composer && !insideDock) view.composer = false;
   if (insideDock && !event.target.closest('[data-action]') && !view.composer) {
     view.composer = true;
+    view.sheetH = SHEET_PEEK;
     if (!view.composerDate) view.composerDate = todayIso();
     syncDock();
     document.getElementById('draft')?.focus();
@@ -3659,6 +3678,10 @@ document.addEventListener('click', (event) => {
   else if (action === 'close-chat') {
     closeTray();
     return;
+  } else if (action === 'sheet-toggle') {
+    if (Date.now() - (view.sheetDragged || 0) < 400) return;
+    setSheet(sheetPeek() ? Math.round(preferredSheet()) : SHEET_PEEK, true);
+    return;
   }
   else if (action === 'confirm-no') answerConfirm(false);
   else if (action === 'pick-point') view.chartPick = view.chartPick === date ? null : date;
@@ -3732,6 +3755,7 @@ document.addEventListener('click', (event) => {
     return;
   } else if (action === 'open-quick') {
     openChat();
+    view.sheetH = null;
     view.showQuick = true;
     view.quickHidden = false;
     if (!desktopQuery.matches) document.activeElement?.blur();
@@ -3855,6 +3879,7 @@ document.addEventListener('input', (event) => {
     view.draft = target.value;
     if (!view.composer) {
       view.composer = true;
+      view.sheetH = SHEET_PEEK;
       if (!view.composerDate) view.composerDate = todayIso();
     }
     fitDraft(target);
@@ -4053,6 +4078,40 @@ document.addEventListener('focusin', (event) => {
   setTimeout(() => {
     if (document.activeElement === input) input.setSelectionRange(input.value.length, input.value.length);
   }, 60);
+});
+
+let sheetDrag = null;
+document.addEventListener('pointerdown', (event) => {
+  const grab = event.target.closest('.dock .grabber');
+  if (!grab) return;
+  sheetDrag = { y: event.clientY, h: grab.closest('.sheet').offsetHeight, moved: false, samples: [[event.timeStamp, event.clientY]] };
+  grab.setPointerCapture?.(event.pointerId);
+});
+document.addEventListener('pointermove', (event) => {
+  if (!sheetDrag) return;
+  const pulled = sheetDrag.y - event.clientY;
+  if (Math.abs(pulled) > 5) sheetDrag.moved = true;
+  if (!sheetDrag.moved) return;
+  const dockBox = document.querySelector('.dock .prompt')?.getBoundingClientRect();
+  const most = Math.max(SHEET_PEEK, (dockBox ? dockBox.top : window.innerHeight) - 72);
+  setSheet(Math.round(Math.max(SHEET_PEEK, Math.min(most, sheetDrag.h + pulled))));
+  sheetDrag.samples = [...sheetDrag.samples.slice(-5), [event.timeStamp, event.clientY]];
+});
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => {
+  const drag = sheetDrag;
+  sheetDrag = null;
+  if (!drag?.moved) return;
+  view.sheetDragged = Date.now();
+  const [first, last] = [drag.samples[0], drag.samples.at(-1)];
+  const speed = (first[1] - last[1]) / Math.max(1, last[0] - first[0]);
+  const now = document.querySelector('.dock .sheet')?.offsetHeight || SHEET_PEEK;
+  const usual = Math.round(preferredSheet());
+  if (speed > 0.5) setSheet(Math.max(now, usual), true);
+  else if (speed < -0.5) {
+    if (now > usual + 24) setSheet(usual, true);
+    else if (drag.h <= SHEET_PEEK + 4) closeTray();
+    else setSheet(SHEET_PEEK, true);
+  }
 });
 
 let hold = null;

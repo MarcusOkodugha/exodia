@@ -696,3 +696,11 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .leftAnswer { display: flex; gap: 8px; margin-top: 8px; }
 .leftAnswer .chipFace { height: 34px; padding: 0 18px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 14px; }
 @media (min-width: 1024px) { .leftPill { top: 16px; right: 20px; } .leftPanel { top: 52px; right: 20px; left: auto; width: 400px; } }
+/* The panel above the box: a bigger bar to grab, a small bounce while it's a peek, no dimming until it's pulled up. */
+.grabber { height: 28px; margin-top: -12px; touch-action: none; cursor: grab; }
+.grabber::after { top: 12px; }
+.sheet.peek .grabber::after { animation: grabHint 1.4s ease-in-out 0.4s 2; background: rgba(20, 20, 19, 0.28); }
+@keyframes grabHint { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 55% { transform: translateY(1px); } }
+.sheet.peek .sheetBody { overflow: hidden; visibility: hidden; }
+body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .sheet.peek .grabber::after { animation: none; } }

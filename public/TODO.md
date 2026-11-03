@@ -22,12 +22,13 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## To do (Claude)
 
-- [ ] UX, not done yet: tapping anywhere on the bottom box opens the panel; Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
+- [ ] UX, not done yet: Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
 - [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
 - [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
+- Box panel opens as just a bar that bounces twice; drag it to any height, flick up for the usual size, flick down or tap to close it again; + and errors still open it fully (v195)
 - Red "N left" pill for Marcus at the top: opens to what's waiting on him, with steps, links and Yes / No for decisions (v194)
 - Friends share only `/join` (decided Nov 3); Cloudflare billing off and Cloudflare key added (Nov 3)
 - Menu item with your name is now "Settings" (sliders icon); the page says Settings above your name (v193)
