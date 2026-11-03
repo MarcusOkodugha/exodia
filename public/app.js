@@ -1174,15 +1174,22 @@ const prCount = (name, since) => state.sessions.filter((session) => session.date
 // A blank start still shows the real charts and lifts, just with nothing in them yet.
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
-// Squat, Bench and Deadlift side by side with the heaviest set actually lifted (not the estimate); tap one and the chart switches to it.
-// More lifts opens the rest underneath. Always just these three buttons.
+// Under the trend chart: one card. Squat, Bench and Deadlift side by side with the heaviest set you actually lifted,
+// then your other lifts as a list (three shown, "Show all" opens the rest). Tap any of them and the chart switches.
+const LIFT_ORDER = ['Squat', 'Bench Press', 'Deadlift'];
+const liftBest = (name) => {
+  const lifted = heaviestLifted(name);
+  return lifted ? `<span class="liftKg num">${lifted.kg}<small> kg</small></span><span class="liftReps num">× ${lifted.reps}</span>` : '<span class="liftKg num">–</span>';
+};
 const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
-  const pick = (name) => `<button class="liftPick" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="liftPickName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span><span class="liftPickValue num">${heaviestLifted(name) ? `${heaviestLifted(name).kg}<small> × ${heaviestLifted(name).reps}</small>` : '–'}</span></button>`;
-  const shown = ['Squat', 'Bench Press', 'Deadlift'].filter((name) => big.includes(name));
+  const shown = LIFT_ORDER.filter((name) => big.includes(name));
   const others = action === 'pick-trend' ? rest : [];
-  return `<div class="liftPicks" style="--picks:${shown.length}">${shown.map(pick).join('')}</div>
-    ${others.length ? `<button class="textBtn liftMore" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Fewer lifts' : `More lifts · ${others.length}`}</button>` : ''}
-    ${view.trendMore && others.length ? `<section class="card liftMoreList">${others.map((name) => `<button class="row liftRow" data-action="pick-trend" data-name="${esc(name)}"><span class="liftName">${esc(name)}</span><span class="muted num">${history.get(name).length} ${history.get(name).length === 1 ? 'session' : 'sessions'}</span><span class="e1Col e1rm num">${Math.round(bestOverall(name))}</span></button>`).join('')}</section>` : ''}`;
+  const visible = view.trendMore ? others : [...others.slice(0, 3), ...(others.indexOf(current) >= 3 ? [current] : [])];
+  return `<section class="card liftCard">
+    ${shown.length ? `<div class="bigThree" style="--picks:${shown.length}">${shown.map((name) => `<button class="bigLift" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="bigLiftName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span>${liftBest(name)}</button>`).join('')}</div>` : ''}
+    ${others.length ? `<div class="otherLifts">${visible.map((name) => `<button class="otherLift" data-action="${action}" data-name="${esc(name)}" data-scroll="1" aria-pressed="${current === name}"><span class="otherName">${esc(name)}</span><span class="otherBest">${liftBest(name)}</span></button>`).join('')}</div>` : ''}
+    ${others.length > 3 ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer lifts' : `Show all ${others.length} lifts`}${ICONS.chev}</button>` : ''}
+  </section>`;
 };
 
 const renderTrends = () => {
@@ -1429,7 +1436,7 @@ const leftItems = () => {
 const renderLeft = () => {
   const items = view.isAdmin ? leftItems() : [];
   if (!items.length) return '';
-  return `<button class="leftPill" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot" aria-hidden="true"></span>${items.length} left</button>
+  return `<button class="leftPill" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot" aria-hidden="true"></span>${items.length}<span class="leftWord"> left</span></button>
     ${view.leftOpen ? `<button class="leftScrim" data-action="toggle-left" aria-label="Close"></button><section class="leftPanel" aria-label="Waiting on you">
       <p class="leftHead">Waiting on you</p>
       ${items.map((item, index) => `<div class="leftItem${view.leftItem === index ? ' open' : ''}">
@@ -3743,7 +3750,8 @@ document.addEventListener('click', (event) => {
   } else if (action === 'toggle-trend') view.trendOpen = view.trendOpen === target.dataset.name ? '' : target.dataset.name;
   else if (action === 'pick-trend') {
     view.trendOpen = target.dataset.name;
-    view.trendMore = false;
+    // Picked from the list further down: bring the chart into view so you see it switch.
+    if (target.dataset.scroll) view.trendScroll = target.dataset.name;
   } else if (action === 'trend-more') view.trendMore = !view.trendMore;
   else if (action === 'range') view.range = Number(target.dataset.days);
   else if (action === 'accessories' && session) {

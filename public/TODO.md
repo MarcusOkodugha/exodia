@@ -12,12 +12,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   3. Under Permissions tap + Add more, choose Account → D1 → Edit
   4. Tap Continue to summary → Update token
   5. Tell Claude "D1 is on"
-- [ ] **Decide: name + a 4-digit code brings your data to a new phone?** Names aren't unique (two Adams), so a short code makes it safe. Changes the database.
-- [ ] **Decide: make an Exodia status page?** One page with what's live, what's left and the latest version.
-- [ ] **Decide: keep Exodia on the Mpya Claude account?** No means moving it to a personal Claude account.
-- [ ] **Move the old Claude's memory into CLAUDE.md.** Only you can reach the Mac Terminal Claude.
-  1. Open Terminal on your Mac and start Claude in the project: `cd ~/code/exodia && claude`
-  2. Say: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md, then commit and push."
 
 ## To do (Claude)
 
@@ -27,6 +21,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Trends: one lift card under the chart: Squat · Bench · Deadlift with kg, your other lifts below, a clear "Show all N lifts" row; the waiting pill sits top right in clay, just the dot and number on a phone (v201)
+- Decided (Nov 3): no name + code for new phones; Exodia stays on the Mpya Claude account; no status page; old Mac Claude memory dropped
 - Lift buttons show the heaviest set you actually lifted (175 × 5), not the estimate; cardio removes like a set (swipe, Edit → minus, × on a computer) with Undo; Edit makes what you can change glow twice; long press no longer starts iPhone text selection; pencil next to your name in Settings; Start blank says you can add old workouts later; red pill moved next to the menu so the dev button is free, dev button top right on a computer too; gap between Try again and Send as feedback (v200)
 - Decided: keep the long press (Nov 3)
 - Trends: "What you said" next to a lift's name opens the Log with the messages about that lift (v197)

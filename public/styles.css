@@ -673,22 +673,13 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .drawerTool.fresh { margin-left: auto; font-weight: 400; color: var(--text2); }
 /* "Voice note" above the words that were heard. */
 .bubbleKind { display: block; margin-bottom: 2px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
-/* Trends: the lift picker at the top. Big 3 side by side, the picked one in clay. */
-.liftPicks { display: grid; grid-template-columns: repeat(var(--picks, 3), minmax(0, 1fr)); gap: 8px; margin: 8px 0 4px; }
-.liftPick { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; text-align: left; }
-.liftPickName { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
-.liftPickValue { font-size: 22px; line-height: 28px; font-weight: 600; color: var(--text); }
-.liftPick[aria-pressed="true"] { border-color: var(--clay); background: var(--claySoft); }
-.liftPick[aria-pressed="true"] .liftPickName { color: var(--clayText); }
-.liftMore { display: block; margin: 4px 0 8px; min-height: 36px; font-size: 15px; }
-.liftMoreList { margin-bottom: 12px; }
 .trendHead { min-height: 48px; }
 /* Only the exercise name opens its trend, not the whole row; Edit keeps a gap from the collapse arrow. */
 .exHead .exName { flex: 0 1 auto; margin-right: auto; }
 .editBtn { margin-right: 12px; }
 /* Marcus only: the red "what's left" pill, top right, and the list it opens. */
 .leftPill { position: fixed; z-index: 6; top: calc(var(--top) + 12px); right: 56px; height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); }
-.leftDot { width: 8px; height: 8px; border-radius: 50%; background: #D8392B; }
+.leftDot { width: 8px; height: 8px; border-radius: 50%; background: var(--clay); }
 .leftScrim { position: fixed; z-index: 21; inset: 0; }
 .leftPanel { position: fixed; z-index: 22; top: calc(var(--top) + 48px); right: 12px; left: 12px; max-width: 400px; margin-left: auto; max-height: calc(100vh - var(--top) - 140px); overflow-y: auto; padding: 6px 16px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 32px rgba(20, 20, 19, 0.12); }
 .leftHead { margin: 8px 0 2px; font-size: 13px; font-weight: 600; color: var(--text2); }
@@ -737,12 +728,36 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .titleInput:focus + .nameEdit { color: var(--clay); }
 /* The red pill sits next to the menu button on a phone, so the dev button top right is free. On a computer the dev
    button sits top right, as on the phone, with the pill beside it. */
-.leftPill { right: auto; left: 56px; }
+/* Phone: just the dot and the number, right of the logo and left of the dev button; "left" shows on a computer. */
+.leftPill { left: auto; right: 98px; padding: 0 9px; }
+.leftWord { display: none; }
+@media (min-width: 1024px) { .leftWord { display: inline; } }
 .deskDev { position: fixed; z-index: 7; top: 4px; right: 8px; }
 @media (min-width: 1024px) { .leftPill { left: auto; right: 60px; z-index: 2; } }
 /* Two buttons under a reply keep a gap (Try again · Send as feedback). */
 .bubbleOut .textBtn + .textBtn { margin-left: 16px; }
-.liftPickValue small { font-size: 14px; font-weight: 500; color: var(--text2); }
-.liftPickValue { white-space: nowrap; }
-.right .liftPickValue small { display: none; }
-@media (max-width: 380px) { .liftPickValue { font-size: 20px; } .liftPickValue small { font-size: 13px; } }
+/* Trends: the lift card under the chart. Big 3 side by side, then the other lifts, then a clear "Show all" row. */
+.liftCard { margin-top: 12px; padding: 0; overflow: hidden; }
+.bigThree { display: grid; grid-template-columns: repeat(var(--picks, 3), minmax(0, 1fr)); }
+.bigLift { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; padding: 12px 14px 11px; text-align: left; }
+.bigLift + .bigLift { border-left: 1px solid var(--sep); }
+.bigLiftName { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+.liftKg { font-size: 22px; line-height: 28px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.liftKg small { font-size: 13px; font-weight: 500; color: var(--text2); }
+.liftReps { font-size: 13px; line-height: 16px; color: var(--text2); }
+.bigLift[aria-pressed="true"] { background: var(--claySoft); }
+.bigLift[aria-pressed="true"] .bigLiftName { color: var(--clayText); }
+.otherLifts { border-top: 1px solid var(--sep); }
+.otherLift { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 0 16px; text-align: left; }
+.otherLift + .otherLift { border-top: 1px solid var(--sep); }
+.otherName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.otherBest { flex: none; display: flex; align-items: baseline; gap: 6px; }
+.otherBest .liftKg { font-size: 16px; line-height: 20px; }
+.otherLift[aria-pressed="true"] { background: var(--claySoft); }
+.otherLift[aria-pressed="true"] .otherName { color: var(--clayText); font-weight: 600; }
+.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 52px; border-top: 1px solid var(--sep); background: rgb(var(--clayRgb) / 0.05); color: var(--clayText); font-size: 16px; font-weight: 600; }
+.liftExpand[aria-expanded="true"] svg { transform: rotate(180deg); }
+.right .liftCard { margin-top: 10px; }
+.right .liftReps { display: none; }
+.right .liftKg { font-size: 19px; }
+.trendsPage [data-trend] { scroll-margin-top: calc(var(--top) + 60px); }
