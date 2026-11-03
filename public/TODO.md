@@ -13,12 +13,15 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## To do (Claude)
 
+- [ ] Decide with Marcus: Return on iPhone adds a new line instead of sending? For new users, + as a paperclip that opens the file picker?
 - [ ] UX, not done yet: Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
 - [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
 - [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
+- Trends: one list of lifts under the graph, no grey; the lift on the chart gets a clay dot and "On chart"; weights, kg and reps in straight columns; Show all / Show fewer (v203)
+- Updates load by themselves again whenever nothing is being typed, and come back to the same page, scroll and lift; if one has to wait, the notice sits at the top in clay (v203)
 - Trends: Squat · Bench · Deadlift is a switch inside the chart card right under the graph, in kg, no "× 1"; other lifts listed under it, three shown, "Show all N lifts" opens the rest (v202)
 - Cloudflare key has D1 access (Nov 3)
 - Trends: one lift card under the chart: Squat · Bench · Deadlift with kg, your other lifts below, a clear "Show all N lifts" row; the waiting pill sits top right in clay, just the dot and number on a phone (v201)

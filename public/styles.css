@@ -736,24 +736,24 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 @media (min-width: 1024px) { .leftPill { left: auto; right: 60px; z-index: 2; } }
 /* Two buttons under a reply keep a gap (Try again · Send as feedback). */
 .bubbleOut .textBtn + .textBtn { margin-left: 16px; }
-/* Trends: the lift switch inside the chart card, right under the graph, then the other lifts and a clear "Show all". */
-.liftSwitch { display: grid; grid-template-columns: repeat(var(--picks, 3), minmax(0, 1fr)); gap: 4px; margin: 10px 0 14px; padding: 4px; border-radius: 14px; background: rgba(20, 20, 19, 0.05); }
-.liftSeg { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; padding: 8px 6px; border-radius: 10px; }
-.liftSegName { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
-.liftKg { font-size: 19px; line-height: 24px; font-weight: 600; color: var(--text); white-space: nowrap; }
-.liftKg small { font-size: 13px; font-weight: 500; color: var(--text2); }
+/* Trends: one list of lifts inside the chart card, under the graph. The one on the chart gets a clay dot (like the
+   chart's own legend dot), clay name and "On chart". No grey backgrounds. */
+.liftList { margin-top: 8px; border-top: 1px solid var(--sep); }
+.liftItem { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; text-align: left; }
+.liftItem + .liftItem { border-top: 1px solid var(--sep); }
+.liftDot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); }
+.liftItemName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; color: var(--text); }
+.liftItemBest { flex: none; display: grid; grid-template-columns: 54px 24px 38px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.liftNum { text-align: right; font-size: 16px; line-height: 20px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.liftUnit { padding-left: 4px; font-size: 13px; font-weight: 500; color: var(--text2); }
 .liftReps { font-size: 14px; color: var(--text2); white-space: nowrap; }
-.liftSeg[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12); }
-.liftSeg[aria-pressed="true"] .liftSegName { color: var(--clayText); }
-.otherLifts { margin: 0 0 4px; border-top: 1px solid var(--sep); }
-.otherHead { margin: 12px 0 2px; font-size: 13px; font-weight: 600; color: var(--text2); }
-.otherLift { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; text-align: left; }
-.otherLift + .otherLift { border-top: 1px solid var(--sep); }
-.otherName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
-.otherBest { flex: none; display: flex; align-items: baseline; gap: 6px; }
-.otherBest .liftKg { font-size: 16px; line-height: 20px; }
-.otherLift[aria-pressed="true"] .otherName { color: var(--clayText); font-weight: 600; }
-.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 4px 0 8px; border-radius: 12px; background: rgb(var(--clayRgb) / 0.08); color: var(--clayText); font-size: 16px; font-weight: 600; }
+.onChart { flex: none; font-size: 12px; font-weight: 600; color: var(--clay); }
+.liftItem[aria-pressed="true"] .liftDot { border-color: var(--clay); background: var(--clay); }
+.liftItem[aria-pressed="true"] .liftItemName { color: var(--clayText); font-weight: 600; }
+.liftExpand { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 4px 0 10px; border-top: 1px solid var(--sep); color: var(--clayText); font-size: 16px; font-weight: 600; }
 .liftExpand[aria-expanded="true"] svg { transform: rotate(180deg); }
-.right .liftSwitch { margin-top: 10px; }
+.right .liftList { margin-top: 10px; border-top: 0; }
+/* A new version that has to wait (you're typing) says so at the top, where you see it. */
+.updatePill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); margin: 0; padding: 7px 14px; background: var(--clay); color: #FFFFFF; font-weight: 600; box-shadow: 0 6px 18px rgb(var(--clayRgb) / 0.3); }
+@media (min-width: 1024px) { .updatePill { top: 16px; } }
 .trendsPage [data-trend] { scroll-margin-top: calc(var(--top) + 60px); }

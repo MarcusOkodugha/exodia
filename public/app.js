@@ -1174,22 +1174,21 @@ const prCount = (name, since) => state.sessions.filter((session) => session.date
 // A blank start still shows the real charts and lifts, just with nothing in them yet.
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
 
-// Inside the trend card, right under the chart: Squat · Bench · Deadlift as a switch for the chart, with the heaviest
-// weight you lifted in kg. Under it your other lifts, one per row (three shown, "Show all" opens the rest).
-// Reps only show when they are more than one.
+// Inside the trend card, right under the chart: one list of your lifts. Squat, Bench and Deadlift first, then the rest
+// by when you last did them. Tap one and the chart above shows it; that one is marked in clay ("On chart").
+// Six show at first, "Show all" opens the rest. Weights are the heaviest you lifted, in kg; reps only when more than one.
 const LIFT_ORDER = ['Squat', 'Bench Press', 'Deadlift'];
-const liftKg = (name, withReps) => {
+// Three fixed columns, so weights, "kg" and "× reps" line up from row to row.
+const liftKg = (name) => {
   const lifted = heaviestLifted(name);
-  if (!lifted) return '<span class="liftKg num">–</span>';
-  return `<span class="liftKg num">${lifted.kg}<small> kg</small></span>${withReps && Number(lifted.reps) > 1 ? `<span class="liftReps num">× ${lifted.reps}</span>` : ''}`;
+  return `<span class="liftNum num">${lifted ? lifted.kg : '–'}</span><span class="liftUnit">${lifted ? 'kg' : ''}</span><span class="liftReps num">${lifted && Number(lifted.reps) > 1 ? `× ${lifted.reps}` : ''}</span>`;
 };
 const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
-  const shown = LIFT_ORDER.filter((name) => big.includes(name));
-  const others = action === 'pick-trend' ? rest : [];
-  const visible = view.trendMore ? others : [...others.slice(0, 3), ...(others.indexOf(current) >= 3 ? [current] : [])];
-  return `${shown.length ? `<div class="liftSwitch" style="--picks:${shown.length}" role="group" aria-label="Show lift">${shown.map((name) => `<button class="liftSeg" data-action="${action}" data-name="${esc(name)}" aria-pressed="${current === name}"><span class="liftSegName">${esc(name === 'Bench Press' ? 'Bench' : name)}</span>${liftKg(name, false)}</button>`).join('')}</div>` : ''}
-    ${others.length ? `<div class="otherLifts"><p class="otherHead">Other lifts</p>${visible.map((name) => `<button class="otherLift" data-action="${action}" data-name="${esc(name)}" data-scroll="1" aria-pressed="${current === name}"><span class="otherName">${esc(name)}</span><span class="otherBest">${liftKg(name, true)}</span></button>`).join('')}
-    ${others.length > 3 ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${others.length} lifts`}${ICONS.chev}</button>` : ''}</div>` : ''}`;
+  const all = [...LIFT_ORDER.filter((name) => big.includes(name)), ...(action === 'pick-trend' ? rest : [])];
+  const first = 6;
+  const visible = view.trendMore || all.length <= first ? all : [...all.slice(0, first), ...(all.indexOf(current) >= first ? [current] : [])];
+  return `<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
+    ${all.length > first ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${all.length} lifts`}${ICONS.chev}</button>` : ''}`;
 };
 
 const renderTrends = () => {
@@ -1920,7 +1919,7 @@ const showSheet = () => view.composer && view.route !== 'admin' && view.route !=
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${updatePill()}${view.route === 'admin' ? `<p class="dockStatus" role="status">${view.claudeSending ? '<span class="ghostText">Exodia is working on it…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' ? `<p class="dockStatus" role="status">${view.claudeSending ? '<span class="ghostText">Exodia is working on it…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
@@ -2162,14 +2161,23 @@ const endDemo = () => {
   render();
 };
 const updatePill = () => (view.updateReady && !state.demo ? '<button class="updatePill" data-action="reload-app">New version ready · Tap to update</button>' : '');
-// Load a new version straight away unless that would lose something (half-typed text, a log being sent, a recording,
-// a day being edited). Then the pill waits, and the update still happens by itself the next time the app goes to the background.
+// A new version loads by itself as soon as nothing would be lost (no text typed, nothing being sent, recorded or edited).
+// The page, scroll position, open days and the lift on the chart are kept, so you land where you were.
+const RESUME_KEY = 'exodia.resume';
+const reloadInPlace = () => {
+  try {
+    sessionStorage.setItem(RESUME_KEY, JSON.stringify({ at: Date.now(), scroll: scroller().scrollTop, open: [...view.open], trendOpen: view.trendOpen, trendMore: view.trendMore }));
+  } catch {
+    // no session storage: reload anyway
+  }
+  location.reload();
+};
 const updateQuietly = () => {
   if (!view.updateReady || view.pending.length || recording) return;
-  // Only when nothing is typed or being edited: in the background, or right at the top of Home where nothing is lost.
-  if (view.draft.trim() || view.editDay || view.composer) return;
-  if (document.hidden || (view.route === 'home' && scroller().scrollTop < 40)) location.reload();
+  if (view.draft.trim() || view.editDay || view.composer || view.onboard?.busy || view.leftOpen || view.menu) return;
+  reloadInPlace();
 };
+setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
 const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
 
@@ -2341,7 +2349,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${renderLeft()}${devExtras()}${demoPill()}`;
+    </div>` : ''}${renderLeft()}${updatePill()}${devExtras()}${demoPill()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -3476,7 +3484,7 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'onboard-demo') return startDemo();
   if (action === 'end-demo') return endDemo();
-  if (action === 'reload-app') return location.reload();
+  if (action === 'reload-app') return reloadInPlace();
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
     if (name) state.name = name.slice(0, 40);
@@ -4090,7 +4098,18 @@ if (linkedProfile && linkedProfile[1] !== syncState.profile) {
   }
 }
 applyFlavor();
+const resume = (() => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null');
+    sessionStorage.removeItem(RESUME_KEY);
+    return saved && Date.now() - saved.at < 60000 ? saved : null;
+  } catch {
+    return null;
+  }
+})();
+if (resume) Object.assign(view, { open: new Set(resume.open || []), trendOpen: resume.trendOpen ?? view.trendOpen, trendMore: Boolean(resume.trendMore) });
 route();
+if (resume) requestAnimationFrame(() => scrollPage(resume.scroll || 0));
 pointManifest();
 syncNow();
 setInterval(() => {
