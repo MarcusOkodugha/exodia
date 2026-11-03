@@ -4,24 +4,32 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 ## Waiting on Marcus
 
-- [x] **Make sure Cloudflare can never charge the card.** Marcus confirmed billing is off (Nov 3). Check [Workers plans](https://dash.cloudflare.com/379fa967eba06ef21141519c2922cfcc/workers/plans) says Free and [Billing](https://dash.cloudflare.com/379fa967eba06ef21141519c2922cfcc/billing) has no subscriptions; remove the card if one is saved. Keep R2 out of the API token. Also check the Google AI key is on the free tier (no billing).
-- [x] **Cloudflare key for this Claude environment.** Added Nov 3; network to api.cloudflare.com and the live site works. Next: a new chat confirms the key with `npx wrangler whoami`. Lets Claude deploy in about 15 seconds instead of 1–3 minutes, check the live site, and set secrets itself. Steps: create an "Edit Cloudflare Workers" API token (+ Account → D1 → Edit), then in claude.ai/code → my-cloud-env → Edit add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, and allow `api.cloudflare.com` and `exodia.marcusokodugha.workers.dev` under Network access.
-- [ ] 🔴 **D1 permission on the Cloudflare key.** The key can deploy but can't read the database, so Claude can't look at what Romy and Adam actually sent. Add Account → D1 → Edit to the "Edit Cloudflare Workers" token.
-- [ ] **Decide:** a name on a new phone brings your data back. Names aren't unique (two Adams), so it needs name + a short code. Changes the database; waiting for Marcus.
-- [ ] **Old Claude's memory into CLAUDE.md.** In the Mac Terminal Claude: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md in the repo, then commit and push."
-- [ ] **Decide:** remove the long press on a day (hold a closed day → Edit mode)? Claude suggests removing it.
-- [ ] **Decide:** keep `/join` for everyone else, or add `/other`.
-- [ ] **Decide:** keep Exodia on the Mpya Claude account, or move it to a personal Claude account.
+Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
+
+- [ ] 🔴 **Give the Cloudflare key database (D1) access.** The key can deploy but can't read the database, so Claude can't see what Romy and Adam sent or fix their data.
+  1. Open [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens)
+  2. Next to "Edit Cloudflare Workers", tap ⋯ → Edit
+  3. Under Permissions tap + Add more, choose Account → D1 → Edit
+  4. Tap Continue to summary → Update token
+  5. Tell Claude "D1 is on"
+- [ ] **Decide: name + a 4-digit code brings your data to a new phone?** Names aren't unique (two Adams), so a short code makes it safe. Changes the database.
+- [ ] **Decide: remove the long press on a day?** Holding a closed day opens Edit mode by accident. Every open day already has an Edit button.
+- [ ] **Decide: make an Exodia status page?** One page with what's live, what's left and the latest version.
+- [ ] **Decide: keep Exodia on the Mpya Claude account?** No means moving it to a personal Claude account.
+- [ ] **Move the old Claude's memory into CLAUDE.md.** Only you can reach the Mac Terminal Claude.
+  1. Open Terminal on your Mac and start Claude in the project: `cd ~/code/exodia && claude`
+  2. Say: "Add the useful, non-secret parts of your Exodia memory to CLAUDE.md, then commit and push."
 
 ## To do (Claude)
 
 - [ ] UX, not done yet: tapping anywhere on the bottom box opens the panel; Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
 - [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
-- [ ] New Exodia Status page for this account (waiting for Marcus's go-ahead).
 - [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
+- Red "N left" pill for Marcus at the top: opens to what's waiting on him, with steps, links and Yes / No for decisions (v194)
+- Friends share only `/join` (decided Nov 3); Cloudflare billing off and Cloudflare key added (Nov 3)
 - Menu item with your name is now "Settings" (sliders icon); the page says Settings above your name (v193)
 - `/marcus` link and its code box removed (v192)
 - Undo and Redo several steps back (up to 30 this visit): in the toast, at the bottom of the menu, ⌘Z / ⇧⌘Z on a computer (v191)

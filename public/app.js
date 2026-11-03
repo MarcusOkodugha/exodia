@@ -264,9 +264,11 @@ const syncNow = () => {
       view.syncedAt = Date.now();
       if (Boolean(result.admin) !== Boolean(view.isAdmin)) {
         view.isAdmin = Boolean(result.admin);
+        loadLeft();
         renderSoon();
       }
       view.syncFailed = false;
+      if (view.isAdmin) loadLeft();
       if (changed) renderSoon();
       else if (view.route === 'you') renderSoon();
       if (changes.length === 500) scheduleSync(0);
@@ -1372,6 +1374,64 @@ const announceBuilds = () => {
   view.toastTimer = setTimeout(clearToast, 6000);
 };
 
+// Marcus only: the red pill with what is still waiting on him, read from the "Waiting on Marcus" part of public/TODO.md.
+// Each item opens to its steps and links; a "Decide:" item gets Yes / No, which start a change session with his answer.
+const inlineMd = (text) => esc(text)
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (all, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`)
+  .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  .replace(/`([^`]+)`/g, '<code>$1</code>');
+const parseLeft = (markdown) => {
+  const start = markdown.indexOf('## Waiting on Marcus');
+  if (start < 0) return [];
+  const section = markdown.slice(start).split('\n').slice(1);
+  const items = [];
+  for (const line of section) {
+    if (/^## /.test(line)) break;
+    const item = line.match(/^- \[ \] (?:🔴 )?\*\*(.+?)\*\*\s*(.*)$/);
+    if (item) items.push({ title: item[1].replace(/[.:]$/, ''), why: item[2], steps: [], decide: /^Decide:/i.test(item[1]) });
+    else if (/^- \[x\]/i.test(line)) items.push(null);
+    else if (items.at(-1) && /^\s+(\d+\.|-)\s+/.test(line)) items.at(-1).steps.push(line.replace(/^\s+(\d+\.|-)\s+/, ''));
+  }
+  return items.filter(Boolean);
+};
+const answeredLeft = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('exodia.answered') || '{}');
+    return Object.fromEntries(Object.entries(saved).filter(([, at]) => Date.now() - at < 6 * 3600000));
+  } catch {
+    return {};
+  }
+};
+let leftLoaded = 0;
+const loadLeft = () => {
+  if (!view.isAdmin || Date.now() - leftLoaded < 300000) return;
+  leftLoaded = Date.now();
+  fetch('/TODO.md', { cache: 'no-store' })
+    .then((response) => (response.ok ? response.text() : ''))
+    .then((markdown) => {
+      view.left = parseLeft(markdown);
+      // Add the pill straight away, even while the text box is focused (a full render would wait for blur).
+      if (!document.querySelector('.leftPill') && !onboarding() && !view.linkOffer) document.getElementById('app')?.insertAdjacentHTML('beforeend', renderLeft());
+    })
+    .catch(() => null);
+};
+const leftItems = () => {
+  const answered = answeredLeft();
+  return (view.left || []).filter((item) => !answered[item.title]);
+};
+const renderLeft = () => {
+  const items = view.isAdmin ? leftItems() : [];
+  if (!items.length) return '';
+  return `<button class="leftPill" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot" aria-hidden="true"></span>${items.length} left</button>
+    ${view.leftOpen ? `<button class="leftScrim" data-action="toggle-left" aria-label="Close"></button><section class="leftPanel" aria-label="Waiting on you">
+      <p class="leftHead">Waiting on you</p>
+      ${items.map((item, index) => `<div class="leftItem${view.leftItem === index ? ' open' : ''}">
+        <button class="leftTitle" data-action="left-item" data-index="${index}" aria-expanded="${view.leftItem === index}">${inlineMd(item.title.replace(/^Decide:\s*/i, '').replace(/^\p{Ll}/u, (letter) => letter.toUpperCase()))}${item.decide ? '<span class="leftTag">Decide</span>' : ''}</button>
+        ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}${item.decide ? `<div class="leftAnswer"><button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button></div>` : ''}</div>` : ''}
+      </div>`).join('')}
+    </section>` : ''}`;
+};
+
 const askClaude = async (text) => {
   const from = await liveVersion();
   const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
@@ -2247,7 +2307,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${devExtras()}${demoPill()}`;
+    </div>` : ''}${renderLeft()}${devExtras()}${demoPill()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -3350,6 +3410,34 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'start-fresh') return startFresh();
+  if (action === 'toggle-left') {
+    view.leftOpen = !view.leftOpen;
+    render();
+    return;
+  }
+  if (action === 'left-item') {
+    const index = Number(target.dataset.index);
+    view.leftItem = view.leftItem === index ? null : index;
+    render();
+    return;
+  }
+  if (action === 'left-answer') {
+    const item = leftItems()[Number(target.dataset.index)];
+    if (!item) return;
+    const answer = target.dataset.answer === 'yes' ? 'Yes' : 'No';
+    askClaude(`Marcus decided: ${answer} to "${item.title.replace(/^Decide:\s*/i, '')}" (${item.why}). Do what that answer means, and update public/TODO.md: take this item off "Waiting on Marcus".`)
+      .then(() => {
+        try {
+          localStorage.setItem('exodia.answered', JSON.stringify({ ...answeredLeft(), [item.title]: Date.now() }));
+        } catch {
+          // storage blocked: the item stays until TODO.md drops it
+        }
+        view.leftItem = null;
+        render();
+      })
+      .catch((error) => note('Answer not sent', error.message));
+    return;
+  }
   if (action === 'onboard-demo') return startDemo();
   if (action === 'end-demo') return endDemo();
   if (action === 'reload-app') return location.reload();

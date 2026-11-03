@@ -1,4 +1,4 @@
-const CACHE = 'exodia-v193';
+const CACHE = 'exodia-v194';
 const PIECES = ['palm', 'thumb-left', 'index', 'middle', 'ring', 'thumb-right'].flatMap((name) => [`/fist/${name}-line.png`, `/fist/${name}-fill.png`]);
 const SHELL = ['/', '/styles.css', '/app.js', '/manifest.webmanifest', '/anatomy.json', '/favicon-64.png', '/logo.png', '/logo-blue.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/hamsa-512.png', '/hamsa-512-blue.png', ...PIECES];
 
@@ -14,7 +14,7 @@ self.addEventListener('activate', (event) => {
 // A new deploy installs a new worker with a fresh copy, which the next open uses, so the page never reloads.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  if (event.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname === '/TODO.md') return;
   const key = event.request.mode === 'navigate' ? '/' : event.request;
   event.respondWith(caches.open(CACHE).then(async (cache) => {
     const cached = await cache.match(key, { ignoreSearch: event.request.mode === 'navigate' });

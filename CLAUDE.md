@@ -25,7 +25,9 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 
 ## Open list
 
-`TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
+`public/TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
+
+Its "Waiting on Marcus" section is also the red pill in the app that only Marcus sees: it opens to each item's steps and links, and `Decide:` items get Yes / No buttons that start a change session with his answer. Keep that section current and in its format (title, one line why, numbered steps with links), and do everything you can yourself so the list only holds what truly needs him.
 
 ## Plan panel
 
@@ -57,6 +59,7 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 - Marcus often writes fast from his phone, sometimes at the gym, so expect typos. Work out what he means, and ask only when it's genuinely unclear.
 - Reply in short, plain language. Say what changed and whether it's live. Skip the code details unless he asks.
 - Format: short main lines first, then optional detail in a quote starting with "> More:". `<details>` tags show as raw text in his app, so don't use them.
+- End every reply with one short line starting with 🔴 that names what's still waiting on him (open decisions and his to-dos), and point to the red pill in the app for the steps. Keep reminding him until each one is done.
 - Always give links as clickable markdown links, never as bare text to copy.
 - When he has to run a command, say exactly where: "Terminal on your Mac", and start it with `cd ~/code/exodia &&` when it needs the project folder. Give one command per code block, and say what he should see when it worked.
 - Never use clipboard tricks like `pbpaste |`. Copying the command overwrites what he copied before. Use commands that prompt for the value instead (for example `npx wrangler secret put NAME`, then he pastes with ⌘V).
