@@ -300,6 +300,9 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .desk .prompt, .desk .sheet, .desk .dockStatus { max-width: 608px; }
 .desk .prompt { min-height: 112px; grid-template-rows: 1fr auto; padding: 8px 8px 8px 16px; }
 .desk .prompt::before { box-shadow: 0 -4px 30px rgb(var(--clayRgb) / 0.24); }
+/* Desktop: a soft glow that leans toward the mouse and warms up as it comes closer. Values come from app.js. */
+.desk .prompt::after { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: calc(var(--glowX, 0) * 14px) calc(var(--glowY, -0.3) * 10px) 34px rgb(var(--clayRgb) / 0.26); opacity: var(--glowNear, 0); transition: opacity 0.5s ease, box-shadow 0.25s ease-out; }
+@media (prefers-reduced-motion: reduce) { .desk .prompt::after { display: none; } }
 .desk .dock { padding-bottom: 30px; }
 .right { position: sticky; top: 0; height: 100vh; overflow-y: auto; border-left: 1px solid var(--line); padding: 48px 24px 32px; scrollbar-width: none; }
 .right::-webkit-scrollbar, .side::-webkit-scrollbar { display: none; }

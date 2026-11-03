@@ -1398,6 +1398,25 @@ const renderYou = () => {
 
 const desktopQuery = window.matchMedia('(min-width: 1024px)');
 
+// Desktop: the prompt glow follows the mouse. Variables live on <html> so they survive re-renders.
+const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+let glowFrame = 0;
+document.addEventListener('pointermove', (event) => {
+  if (!finePointer.matches || !desktopQuery.matches || glowFrame) return;
+  glowFrame = requestAnimationFrame(() => {
+    glowFrame = 0;
+    const box = document.querySelector('.dock .prompt')?.getBoundingClientRect();
+    if (!box) return;
+    const clamp = (value) => Math.max(-1, Math.min(1, value));
+    const outside = Math.hypot(Math.max(box.left - event.clientX, 0, event.clientX - box.right), Math.max(box.top - event.clientY, 0, event.clientY - box.bottom));
+    const root = document.documentElement.style;
+    root.setProperty('--glowX', clamp((event.clientX - (box.left + box.width / 2)) / box.width).toFixed(3));
+    root.setProperty('--glowY', clamp((event.clientY - (box.top + box.height / 2)) / box.height).toFixed(3));
+    root.setProperty('--glowNear', Math.max(0, 1 - outside / 420).toFixed(3));
+  });
+}, { passive: true });
+document.addEventListener('pointerleave', () => document.documentElement.style.setProperty('--glowNear', '0'));
+
 const renderVolume = () => {
   const weeks = Array.from({ length: 6 }, (unused, index) => {
     const end = addDays(todayIso(), -7 * (5 - index));
