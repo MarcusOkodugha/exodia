@@ -1785,6 +1785,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
     <textarea id="draft" class="promptInput" rows="1" enterkeyhint="send" autocomplete="off">${esc(view.draft)}</textarea>
     ${view.listening
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
+      : view.voiceBlob && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Voice note ready · tap ↑ to log it</span></span>'
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
     <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">${ICONS.plus}</button><span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
@@ -2218,30 +2219,9 @@ const loadVoice = (id) => voiceStore('readonly', (store) => store.get(id)).catch
 const dropVoice = (id) => voiceStore('readwrite', (store) => store.delete(id)).catch(() => null);
 const liveLine = () => view.live || (view.speaking ? 'Hearing you…' : 'Listening…');
 
-const startLiveText = () => {
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition || !recording) return;
-  const recognizer = new Recognition();
-  recognizer.lang = navigator.language || 'en-US';
-  recognizer.continuous = true;
-  recognizer.interimResults = true;
-  const before = view.live ? `${view.live} ` : '';
-  recognizer.onresult = (event) => {
-    view.live = before + [...event.results].map((result) => result[0].transcript).join(' ').trim();
-    const line = document.querySelector('.prompt .liveText');
-    if (line) line.textContent = liveLine();
-  };
-  recognizer.onerror = () => {};
-  recognizer.onend = () => {
-    if (recording && recording.recognizer === recognizer) startLiveText();
-  };
-  recording.recognizer = recognizer;
-  try {
-    recognizer.start();
-  } catch {
-    recording.recognizer = null;
-  }
-};
+// The phone's own speech-to-text is not used at all: it garbles gym talk, and it used to land in the box as if it were
+// the user's own correction. Only the recording counts; Whisper and Gemini listen to it on the server.
+const startLiveText = () => {};
 
 const stopRecording = async () => {
   if (!recording) return null;
@@ -3113,7 +3093,6 @@ document.addEventListener('click', (event) => {
   } else if (action === 'stop-mic') {
     return stopRecording().then((blob) => {
       view.voiceBlob = blob?.size > 4000 ? blob : null;
-      if (view.live) view.draft = [view.draft.trim(), view.live].filter(Boolean).join(' ');
       view.live = '';
       view.focusDraft = desktopQuery.matches;
       render();
