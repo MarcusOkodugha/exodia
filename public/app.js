@@ -1327,6 +1327,22 @@ const routeFeedback = async (text, said) => {
 
 const FEEDBACK_STATUS = [['new', 'New'], ['planned', 'Planned'], ['done', 'Done'], ['declined', 'No']];
 
+// Sharing: the plain invite link, or one with the person's name in it (/Patrik) so it feels made for them.
+const inviteLink = (name = '') => {
+  const clean = name.trim().replace(/\s+/g, '-').replace(/[^\p{L}-]/gu, '').slice(0, 30);
+  return `${location.origin}/${clean ? `${encodeURIComponent(clean.charAt(0).toUpperCase() + clean.slice(1))}` : 'join'}`;
+};
+const SHARE_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/></svg>';
+const shareCard = () => {
+  const link = inviteLink(view.shareName || '');
+  const named = Boolean((view.shareName || '').trim());
+  return `<section class="card">
+    <div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name (optional)" value="${esc(view.shareName || '')}" data-share-name></div>
+    <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(link)}</span><button class="textBtn" data-action="copy-invite">${view.copiedInvite ? 'Copied' : 'Copy'}</button><button class="textBtn shareBtn" data-action="share-invite" aria-label="Share">${SHARE_ICON}Share</button></div>
+  </section>
+  <p class="note">${named ? 'Opens Exodia with their name already in.' : 'Anyone who opens it gets their own empty Exodia.'}</p>`;
+};
+
 const renderAdmin = () => {
   if (!view.adminRows) {
     if (!view.adminLoading) {
@@ -1340,6 +1356,8 @@ const renderAdmin = () => {
   return `<main class="page">
     <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
+    <p class="section">Invite someone</p>
+    ${shareCard()}
     <p class="section">Change the app</p>
     <p class="feedbackLead">Say or type a change in the box below. Claude builds it, and it goes live in a few minutes.</p>
     ${view.claudeSending ? '<p class="feedbackMeta">Starting Claude…</p>' : ''}
@@ -1376,6 +1394,8 @@ const renderYou = () => {
       }).join('')}
     </section>
     <p class="note">Best lifted is the heaviest set you have done. e1RM is your estimated one-rep max. Paused and other variations count as their own lift.</p>
+    <p class="section">Share Exodia</p>
+    ${shareCard()}
     <p class="section">Add from any AI</p>
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;font-size:15px">Let ChatGPT, Gemini or Claude add your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy instructions'}</button></div>
@@ -1910,7 +1930,7 @@ const renderOnboard = () => {
   const locked = busy || listening || hearing;
   return `<main class="page onboard">
     <span class="logo onboardLogo" aria-hidden="true"></span>
-    <h1 class="title">Welcome to Exodia</h1>
+    <h1 class="title">Welcome to Exodia${view.invited ? `, ${esc(view.invited)}` : ''}</h1>
     <p class="onboardLead">Log your training by talking or typing. No account, no setup.</p>
     <label class="sr" for="onboardName">Your name</label>
     <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional, you can add it later)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
@@ -2932,7 +2952,29 @@ document.addEventListener('click', (event) => {
       render();
     });
   } else if (action === 'send') return send();
-  else if (action === 'copy-link') {
+  else if (action === 'copy-invite') {
+    navigator.clipboard.writeText(inviteLink(view.shareName || '')).then(() => {
+      view.copiedInvite = true;
+      render();
+      setTimeout(() => {
+        view.copiedInvite = false;
+        render();
+      }, 1600);
+    });
+    return;
+  } else if (action === 'share-invite') {
+    const link = inviteLink(view.shareName || '');
+    if (navigator.share) navigator.share({ title: 'Exodia', text: 'Try Exodia, a training log you talk to.', url: link }).catch(() => {});
+    else navigator.clipboard.writeText(link).then(() => {
+      view.copiedInvite = true;
+      render();
+      setTimeout(() => {
+        view.copiedInvite = false;
+        render();
+      }, 1600);
+    });
+    return;
+  } else if (action === 'copy-link') {
     navigator.clipboard.writeText(profileLink()).then(() => {
       view.copied = true;
       render();
@@ -2968,6 +3010,12 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('input', (event) => {
   const target = event.target;
+  if (target.hasAttribute('data-share-name')) {
+    view.shareName = target.value.slice(0, 30);
+    const linkText = target.closest('.card').querySelector('.muted');
+    if (linkText) linkText.textContent = inviteLink(view.shareName);
+    return;
+  }
   if (target.id === 'onboardName' || target.id === 'onboardData') {
     view.onboard[target.id === 'onboardName' ? 'name' : 'data'] = target.value;
     const prompt = document.querySelector('.onboardPrompt');
@@ -3144,6 +3192,19 @@ const claimMarcus = async () => {
 if (/^\/marcus\/?$/.test(location.pathname)) {
   history.replaceState(null, '', `/${location.hash}`);
   syncNow().then(() => (view.isAdmin ? null : claimMarcus()));
+}
+// /Patrik: an invite with a name. Fill it in on a fresh device and say hello by name.
+const invitedName = (() => {
+  let name = '';
+  try { name = decodeURIComponent(location.pathname.slice(1)).replace(/\/$/, ''); } catch { return ''; }
+  return /^\p{L}[\p{L}\- ]{0,29}$/u.test(name) && !['join', 'marcus', 'api', 'me'].includes(name.toLowerCase()) ? name.replace(/-/g, ' ') : '';
+})();
+if (invitedName) {
+  history.replaceState(null, '', `/${location.hash}`);
+  if (!state.name && !state.started && state.sessions.length === 0) {
+    view.invited = invitedName;
+    view.onboard = { name: invitedName, data: '' };
+  }
 }
 const linkedProfile = location.pathname.match(/^\/me\/([a-f0-9]{32})\/?$/);
 if (linkedProfile && linkedProfile[1] !== syncState.profile) joinProfile(linkedProfile[1]).then(render);

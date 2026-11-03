@@ -588,6 +588,13 @@ const claim = async (request, env) => {
   return json({ profile: env.ADMIN_PROFILE });
 };
 
+const RESERVED_PATHS = ['join', 'marcus', 'api', 'me', 'fist', 'splash'];
+const personalInvite = (pathname) => {
+  let name = '';
+  try { name = decodeURIComponent(pathname.slice(1)).replace(/\/$/, ''); } catch { return ''; }
+  return /^\p{L}[\p{L}\- ]{0,29}$/u.test(name) && !RESERVED_PATHS.includes(name.toLowerCase()) ? name : '';
+};
+
 const manifest = async (request, env, url) => {
   const response = await env.ASSETS.fetch(new Request(new URL('/manifest.webmanifest', url), request));
   const data = await response.json();
@@ -614,7 +621,9 @@ export default {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return claim(request, env);
     }
-    if (personal || /^\/(join|marcus)\/?$/.test(url.pathname)) {
+    // /Patrik: an invite with the person's name in it. The app reads the name from the address.
+    const invited = personalInvite(url.pathname);
+    if (personal || invited || /^\/(join|marcus)\/?$/.test(url.pathname)) {
       let html = await (await env.ASSETS.fetch(new Request(new URL('/', url), request))).text();
       if (personal) html = html.replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?k=${personal[1]}"`);
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
