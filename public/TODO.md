@@ -20,6 +20,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- After an update, a quiet "Exodia updated" pill at the top for about a minute; × or a swipe closes it, no tap needed for the update (v204)
 - Trends: one list of lifts under the graph, no grey; the lift on the chart gets a clay dot and "On chart"; weights, kg and reps in straight columns; Show all / Show fewer (v203)
 - Updates load by themselves again whenever nothing is being typed, and come back to the same page, scroll and lift; if one has to wait, the notice sits at the top in clay (v203)
 - Trends: Squat · Bench · Deadlift is a switch inside the chart card right under the graph, in kg, no "× 1"; other lifts listed under it, three shown, "Show all N lifts" opens the rest (v202)

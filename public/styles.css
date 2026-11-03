@@ -757,3 +757,12 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .updatePill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); margin: 0; padding: 7px 14px; background: var(--clay); color: #FFFFFF; font-weight: 600; box-shadow: 0 6px 18px rgb(var(--clayRgb) / 0.3); }
 @media (min-width: 1024px) { .updatePill { top: 16px; } }
 .trendsPage [data-trend] { scroll-margin-top: calc(var(--top) + 60px); }
+/* "Exodia updated": a quiet pill at the top for about a minute after an update. × or a swipe closes it. */
+.updatedPill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 0 4px 0 14px; height: 36px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(20, 20, 19, 0.1); font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; touch-action: none; animation: updatedIn 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); transition: opacity 0.2s ease; }
+.updatedPill.gone { opacity: 0; }
+.updatedDot { width: 8px; height: 8px; border-radius: 50%; background: var(--clay); }
+.updatedX { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 15px; color: var(--text2); }
+.updatedX svg { width: 14px; height: 14px; }
+@keyframes updatedIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
+@media (min-width: 1024px) { .updatedPill { top: 16px; } }
+@media (prefers-reduced-motion: reduce) { .updatedPill { animation: none; } }

@@ -2160,6 +2160,56 @@ const endDemo = () => {
   location.hash = '#/';
   render();
 };
+// After an update a small pill says so for about a minute. Tap × or swipe it away; the update itself needs no tap.
+const VERSION_KEY = 'exodia.version';
+const updatedPill = () => (view.updated && !view.updateReady ? `<div class="updatedPill" role="status"><span class="updatedDot" aria-hidden="true"></span>Exodia updated${view.isAdmin ? ` · v${view.updated.version}` : ''}<button class="updatedX" data-action="close-updated" aria-label="Close">${ICONS.close}</button></div>` : '');
+const hideUpdated = () => {
+  view.updated = null;
+  const pill = document.querySelector('.updatedPill');
+  if (!pill) return;
+  pill.classList.add('gone');
+  setTimeout(() => pill.remove(), 220);
+};
+const noteUpdate = async () => {
+  if (!window.caches) return;
+  const keys = await caches.keys().catch(() => []);
+  const version = Math.max(0, ...keys.map((key) => Number(key.match(/^exodia-v(\d+)$/)?.[1]) || 0));
+  if (!version) return;
+  let seen = 0;
+  try {
+    seen = Number(localStorage.getItem(VERSION_KEY)) || 0;
+    localStorage.setItem(VERSION_KEY, String(version));
+  } catch {
+    return;
+  }
+  if (!seen || seen >= version) return;
+  view.updated = { version };
+  render();
+  setTimeout(() => {
+    if (view.updated?.version === version) hideUpdated();
+  }, 60000);
+};
+let updatedSwipe = null;
+document.addEventListener('pointerdown', (event) => {
+  updatedSwipe = event.target.closest('.updatedPill') && !event.target.closest('.updatedX') ? { x: event.clientX, y: event.clientY } : null;
+});
+document.addEventListener('pointermove', (event) => {
+  if (!updatedSwipe) return;
+  const dx = event.clientX - updatedSwipe.x;
+  const dy = event.clientY - updatedSwipe.y;
+  const pill = document.querySelector('.updatedPill');
+  if (pill) pill.style.transform = `translate(calc(-50% + ${dx}px), ${Math.min(0, dy)}px)`;
+  if (Math.abs(dx) > 60 || dy < -30) {
+    updatedSwipe = null;
+    hideUpdated();
+  }
+});
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => {
+  if (!updatedSwipe) return;
+  updatedSwipe = null;
+  const pill = document.querySelector('.updatedPill');
+  if (pill) pill.style.transform = '';
+});
 const updatePill = () => (view.updateReady && !state.demo ? '<button class="updatePill" data-action="reload-app">New version ready · Tap to update</button>' : '');
 // A new version loads by itself as soon as nothing would be lost (no text typed, nothing being sent, recorded or edited).
 // The page, scroll position, open days and the lift on the chart are kept, so you land where you were.
@@ -2349,7 +2399,7 @@ const render = () => {
     ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${renderLeft()}${updatePill()}${devExtras()}${demoPill()}`;
+    </div>` : ''}${renderLeft()}${updatePill()}${updatedPill()}${devExtras()}${demoPill()}`;
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -3485,6 +3535,7 @@ document.addEventListener('click', (event) => {
   if (action === 'onboard-demo') return startDemo();
   if (action === 'end-demo') return endDemo();
   if (action === 'reload-app') return reloadInPlace();
+  if (action === 'close-updated') return hideUpdated();
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
     if (name) state.name = name.slice(0, 40);
@@ -4110,6 +4161,7 @@ const resume = (() => {
 if (resume) Object.assign(view, { open: new Set(resume.open || []), trendOpen: resume.trendOpen ?? view.trendOpen, trendMore: Boolean(resume.trendMore) });
 route();
 if (resume) requestAnimationFrame(() => scrollPage(resume.scroll || 0));
+noteUpdate();
 pointManifest();
 syncNow();
 setInterval(() => {
