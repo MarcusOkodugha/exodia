@@ -4954,9 +4954,15 @@ tickTypewriter();
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // New versions install quietly in the background and are used from the next open, never by reloading the page.
-  navigator.serviceWorker.register('/sw.js').then((registration) => document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) registration.update();
-  }));
+  // Looks for a new version when the app opens, when you come back to it, and every 2 minutes while it's on screen.
+  navigator.serviceWorker.register('/sw.js').then((registration) => {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) registration.update();
+    });
+    setInterval(() => {
+      if (!document.hidden) registration.update();
+    }, 120000);
+  });
   // When a new version takes over in the background, offer a quiet tap to load it now.
   const hadVersion = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {

@@ -1,4 +1,7 @@
 {
+  "239": [
+    "Updates arrive by themselves within about 2 minutes while the app is open, no need to close it"
+  ],
   "238": [
     "The box stays above the keyboard: the app no longer thinks the phone turned sideways when the keyboard opens",
     "+ and Import from a file work with the keyboard up, even on small phones",
