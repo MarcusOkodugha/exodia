@@ -65,6 +65,8 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 ## Working with Marcus
 
 - Marcus often writes fast from his phone, sometimes at the gym, so expect typos. Work out what he means, and ask only when it's genuinely unclear.
+- Half the words, all the facts. Name things exactly ("Gemini 3.5 Flash-Lite read it", "Claude Sonnet 5.5 is what we used"), never vague ("a weaker model"). No fluff, but it must still be understandable.
+- When he says something more than once, it matters: act on it fully, and do more than asked when it comes to the app working well. Only bring him what he truly has to do himself.
 - Reply in short, plain language. Say what changed and whether it's live. Skip the code details unless he asks.
 - Format: short main lines first, then optional detail in a quote starting with "> More:". `<details>` tags show as raw text in his app, so don't use them.
 - End every reply with one short line starting with 🔴 that names what's still waiting on him (open decisions and his to-dos), and point to the red pill in the app for the steps. Keep reminding him until each one is done.

@@ -3590,17 +3590,27 @@ const tableRows = (text) => {
   return delimiter ? parseDelimited(trimmed, delimiter) : null;
 };
 const sameImportSets = (first, second) => first.length === second.length && first.every((set, index) => Number(set.kg) === Number(second[index].kg) && Number(set.reps) === Number(second[index].reps));
+// Adding a file again never doubles a day: a lift that is already on that day with the same sets is left alone,
+// with other sets the file's version replaces it (the newest file wins). Within one file, sets of the same lift on
+// the same day are kept together. Lifts on that day that the file doesn't mention stay as they are.
 const mergeImported = (days) => {
   const touched = [];
   let sets = 0;
+  const fromThisFile = new Set();
   for (const day of days) {
     const session = sessionFor(day.date) || { date: day.date, exercises: [], cardio: 0 };
     let added = 0;
     for (const exercise of day.exercises) {
+      const key = `${day.date}|${exercise.name.toLowerCase()}`;
       const same = session.exercises.find((item) => item.name.toLowerCase() === exercise.name.toLowerCase());
-      if (same && sameImportSets(same.sets, exercise.sets)) continue;
-      if (same) same.sets.push(...exercise.sets);
+      if (same && sameImportSets(same.sets, exercise.sets)) {
+        fromThisFile.add(key);
+        continue;
+      }
+      if (same && fromThisFile.has(key)) same.sets.push(...exercise.sets);
+      else if (same) same.sets = exercise.sets.map((set) => ({ ...set }));
       else session.exercises.push({ name: exercise.name, sets: exercise.sets });
+      fromThisFile.add(key);
       added += exercise.sets.length;
     }
     if (day.cardio && !session.cardio) {

@@ -137,7 +137,9 @@ const calendarFor = (today) => Array.from({ length: 14 }, (unused, index) => {
 }).join('\n');
 
 // Imports are read by stronger models that think first (a whole program needs reasoning); the light ones are the fallback.
-const IMPORT_MODELS = 'gemini-3.5-flash,gemini-3.1-flash,gemini-2.5-flash';
+const IMPORT_MODELS = 'gemini-pro-latest,gemini-3.1-pro-preview,gemini-3.8-flash,gemini-3.7-flash,gemini-flash-latest,gemini-3.5-flash';
+// Why each import model said no (quota, busy, not found), so the import can say which AI really read it.
+let refusals = [];
 const askAi = async (env, system, user, schema, strong = false) => {
   if (env.ANTHROPIC_API_KEY) {
     try {
@@ -156,12 +158,20 @@ const askAi = async (env, system, user, schema, strong = false) => {
     }
   }
   const light = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
-  const models = strong ? [...new Set([...(env.GEMINI_IMPORT_MODELS || IMPORT_MODELS).split(',').map((model) => model.trim()).filter(Boolean), ...light])] : light;
+  const strongOnes = (env.GEMINI_IMPORT_MODELS || IMPORT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
+  // Imports: the strong models get three rounds (they are often busy for a few seconds) before a light one may answer.
+  const order = strong ? [...strongOnes, 'wait', ...strongOnes, 'wait', ...strongOnes, 'wait', ...light] : [...light, 'wait', ...light];
   let busy = false;
-  for (const [attempt, model] of [...models, ...models].entries()) {
-    if (attempt === models.length) {
-      if (!busy) break;
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+  const dead = new Set();
+  for (const model of order) {
+    if (dead.has(model)) continue;
+    if (model === 'wait') {
+      if (!busy) {
+        if (strong) continue;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, strong ? 4000 : 1500));
+      continue;
     }
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
@@ -169,12 +179,18 @@ const askAi = async (env, system, user, schema, strong = false) => {
       body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0, maxOutputTokens: strong ? 65536 : 8192, responseMimeType: 'application/json', responseSchema: schema } })
     });
     if (!response.ok) {
-      busy = busy || response.status === 429 || response.status >= 500;
+      const reason = strong || response.status === 404 ? await response.text().catch(() => '') : '';
+      // A model that doesn't exist or has no free quota won't answer on the next round either.
+      if (response.status === 404 || /quota/i.test(reason)) dead.add(model);
+      else busy = busy || response.status === 429 || response.status >= 500;
+      if (strong) refusals.push(`${model} ${response.status} ${reason.replace(/\s+/g, ' ').slice(0, 160)}`);
       continue;
     }
     const data = await response.json();
     try {
-      return JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
+      const parsed = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
+      if (parsed && typeof parsed === 'object' && strong) Object.defineProperty(parsed, 'model', { value: model });
+      return parsed;
     } catch {
       continue;
     }
@@ -196,6 +212,7 @@ const chunksOf = (text, size = 8000) => {
 };
 
 const readDays = async (env, text, today, known, context = '') => {
+  refusals = [];
   const system = `${IMPORT_PROMPT}\nToday is ${today}.\nCalendar, newest first:\n${calendarFor(today)}\nKnown exercises: ${known.join(', ') || 'none yet'}${context ? `\nThe user's note about this data (use it for dates, the program's start and length, and anything else it says): "${context}"` : ''}`;
   // At most 6 pieces per request (the app sends big imports in parts): Workers Free allows 50 outside calls per request.
   const chunks = chunksOf(text).slice(0, 6);
@@ -243,22 +260,31 @@ const readDays = async (env, text, today, known, context = '') => {
     .filter((day) => DATE.test(day?.date ?? '') && day.date <= today)
     .map((day) => ({ ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today), date: day.date }));
   const unclear = [guessed, ...parts.map((part) => part?.unclear)].filter(Boolean).join(' ').slice(0, 500);
-  return { days, unclear, failed };
+  return { days, unclear, failed, models: [...new Set(parts.map((part) => part?.model).filter(Boolean))], refused: [...new Set(refusals)].slice(0, 8) };
 };
 
 const sameSets = (first, second) => first.length === second.length && first.every((set, index) => Number(set.kg) === Number(second[index].kg) && Number(set.reps) === Number(second[index].reps));
 
+// Same rule as the app: the same lift with the same sets is left alone; a lift already on that day from before is
+// replaced by this import (newest wins); within one import, sets of the same lift on the same day are kept together.
 const mergeDays = (sessions, days) => {
   const summary = [];
+  const fromThis = new Set();
   for (const day of days) {
     const session = sessions.get(day.date) ?? { date: day.date, exercises: [], cardio: 0 };
     let added = 0;
     for (const exercise of day.exercises) {
       const sets = exercise.sets.map((set) => ({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: set.rpe } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true }));
+      const key = `${day.date}|${exercise.name.toLowerCase()}`;
       const same = session.exercises.find((item) => item.name.toLowerCase() === exercise.name.toLowerCase());
-      if (same && sameSets(same.sets, sets)) continue;
-      if (same) same.sets.push(...sets);
+      if (same && sameSets(same.sets, sets)) {
+        fromThis.add(key);
+        continue;
+      }
+      if (same && fromThis.has(key)) same.sets.push(...sets);
+      else if (same) same.sets = sets;
       else session.exercises.push({ name: exercise.name, sets });
+      fromThis.add(key);
       added += sets.length;
     }
     if (day.cardioMinutes && !session.cardio) session.cardio = day.cardioMinutes;
@@ -348,11 +374,11 @@ const add = async (request, env, ctx) => {
   const known = [...new Set([...existing.flatMap((row) => JSON.parse(row.data).exercises.map((exercise) => exercise.name)), ...sent])].slice(0, 100);
   try {
     const context = typeof body?.context === 'string' ? body.context.trim().slice(0, 1500) : '';
-    const { days, unclear, failed } = await readDays(env, text, today, known, context);
+    const { days, unclear, failed, models, refused } = await readDays(env, text, today, known, context);
     if (body.dry === true) {
       const sessions = new Map();
       const added = mergeDays(sessions, days);
-      return json({ added, unclear, failed, sessions: [...sessions.values()] });
+      return json({ added, unclear, failed, models, refused, sessions: [...sessions.values()] });
     }
     const added = await addDays(env, key, days);
     logCommand(request, env, ctx, body, text.slice(0, 500), { added: added.slice(0, 40), days: added.length, unclear, failed, engine: 'add' });
@@ -736,6 +762,12 @@ export default {
     }
     if (url.pathname === '/manifest.webmanifest') return manifest(request, env, url);
     if (url.pathname === '/api/admin') return admin(request, env, ctx);
+    if (url.pathname === '/api/models') {
+      if (!env.ADMIN_PROFILE || request.headers.get('x-exodia-key') !== env.ADMIN_PROFILE) return json({ error: 'Not found' }, 404);
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': env.GEMINI_API_KEY } });
+      const data = await response.json().catch(() => ({}));
+      return json((data.models || []).filter((model) => (model.supportedGenerationMethods || []).includes('generateContent')).map((model) => model.name.replace('models/', '')));
+    }
     if (url.pathname === '/api/feedback') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return feedback(request, env, ctx);

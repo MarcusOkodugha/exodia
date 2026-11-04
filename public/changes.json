@@ -1,4 +1,8 @@
 {
+  "243": [
+    "Adding the same file again never doubles a day: same sets are left alone, changed ones are replaced by the newest file",
+    "A program only needs its start date; the weeks and days are worked out from the file"
+  ],
   "242": [
     "Best lifts live on Trends only; Settings is shorter",
     "Pages show right away instead of waiting on a loading line"
