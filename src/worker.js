@@ -581,13 +581,26 @@ const describe = (raw) => {
     ...(result.accessoriesMinutes ? [`Accessories ${result.accessoriesMinutes} min`] : []),
     ...(result.unclear ? [`Did not understand: ${result.unclear}`] : []),
     ...(result.feedback ? [`Feedback: ${result.feedback}`] : []),
+    ...(result.build === 'started' ? ['Change request started'] : []),
     ...(result.error ? [`Failed: ${result.error}`] : []),
     ...(result.date ? [`Day ${result.date}`] : [])
   ].join(' · ') || 'Nothing understood';
 };
 
+// Every change request is kept in the commands table with how it went, so nothing sent from the admin panel is lost.
+const logChange = (env, ctx, ask, result) => {
+  const write = env.DB.prepare('INSERT INTO commands (at, profile, name, said, result) VALUES (?, ?, ?, ?, ?)').bind(Date.now(), env.ADMIN_PROFILE, 'Change request', ask, JSON.stringify(result)).run().catch(() => {});
+  if (ctx) ctx.waitUntil(write);
+};
+const startClaudeTask = async (text, env, ctx) => {
+  const ask = text.trim().slice(0, 4000);
+  const response = await startClaudeTaskNow(ask, env);
+  const body = await response.clone().json().catch(() => ({}));
+  if (ask) logChange(env, ctx, ask, response.ok ? { build: 'started', url: body.url || '' } : { build: 'failed', error: body.error || `HTTP ${response.status}` });
+  return response;
+};
 // Starts a Claude Code cloud session (a scheduled task with an API trigger) that changes the app and deploys it.
-const startClaudeTask = async (text, env) => {
+const startClaudeTaskNow = async (text, env) => {
   const ask = text.trim().slice(0, 4000);
   if (!ask) return json({ error: 'Say what to change.' }, 400);
   // Pasted secrets often carry a trailing newline or spaces, which break the URL or the auth header.
@@ -613,11 +626,11 @@ const startClaudeTask = async (text, env) => {
   return json({ ok: true, url: data.claude_code_session_url || '' });
 };
 
-const admin = async (request, env) => {
+const admin = async (request, env, ctx) => {
   if (!env.ADMIN_PROFILE || request.headers.get('x-exodia-key') !== env.ADMIN_PROFILE) return json({ error: 'Not found' }, 404);
   if (request.method === 'POST') {
     const body = await request.json().catch(() => null);
-    if (typeof body?.claude === 'string') return startClaudeTask(body.claude, env);
+    if (typeof body?.claude === 'string') return startClaudeTask(body.claude, env, ctx);
     if (!Number.isInteger(body?.id) || !['new', 'planned', 'done', 'declined'].includes(body?.status)) return json({ error: 'Bad request' }, 400);
     await env.DB.prepare('UPDATE feedback SET status = ? WHERE id = ?').bind(body.status, body.id).run();
     return json({ ok: true });
@@ -685,7 +698,7 @@ export default {
       return sync(request, env);
     }
     if (url.pathname === '/manifest.webmanifest') return manifest(request, env, url);
-    if (url.pathname === '/api/admin') return admin(request, env);
+    if (url.pathname === '/api/admin') return admin(request, env, ctx);
     if (url.pathname === '/api/feedback') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return feedback(request, env, ctx);

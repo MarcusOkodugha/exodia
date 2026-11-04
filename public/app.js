@@ -1439,7 +1439,7 @@ const CLAUDE_EXAMPLES = ['Make the red lines a bit stronger', 'Show e1RM only on
 // Admin only: sends a change request to Claude Code, which edits the app, pushes to main and Cloudflare deploys it.
 // Build tracking: remember the live version when a change is sent, then watch /sw.js until a newer version is live.
 const liveVersion = () => fetch('/sw.js', { cache: 'no-store' }).then((response) => response.text()).then((text) => Number(text.match(/exodia-v(\d+)/)?.[1]) || 0).catch(() => 0);
-const runStatus = (run) => (run.status === 'live' ? `Live in v${run.version}${run.built ? ` · ${esc(run.built)}` : ''}` : run.status === 'stalled' ? 'No update came out of this one' : run.from ? '<span class="ghostText">Building…</span>' : 'Sent');
+const runStatus = (run) => (run.status === 'sending' ? '<span class="ghostText">Sending…</span>' : run.status === 'failed' ? `<span class="runFailed">Didn’t go through: ${esc(run.error || 'unknown error')}</span> <button class="textBtn" data-action="claude-retry" data-at="${run.at}">Try again</button>` : run.status === 'live' ? `Live in v${run.version}${run.built ? ` · ${esc(run.built)}` : ''}` : run.status === 'stalled' ? 'No update came out of this one' : run.from ? '<span class="ghostText">Building…</span>' : 'Sent');
 // Asks GitHub (public repo) for the newest commit line, so the admin log can say what was built.
 const builtNote = async (run) => {
   try {
@@ -1580,44 +1580,80 @@ const renderLeft = () => {
     </section>` : ''}`;
 };
 
-const askClaude = async (text) => {
-  const from = await liveVersion();
-  const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Exodia did not start. Try again.');
-  state.claudeRuns = [{ at: Date.now(), said: text, url: body.url, from }, ...(state.claudeRuns || [])].slice(0, 20);
+// Every change request shows at once (here, on the Admin page and in the Log) and keeps its state:
+// Sending… → Started → Live in vN, or exactly why it didn't go through, with Try again.
+const askClaude = async (text, run = null) => {
+  if (!run) {
+    run = { at: Date.now(), said: text, status: 'sending' };
+    state.claudeRuns = [run, ...(state.claudeRuns || [])].slice(0, 20);
+    addLog(text, ['Sending to Exodia builder…'], { manual: true, merge: `claude-${run.at}` });
+    save();
+    render();
+  }
+  run.said = text;
+  run.status = 'sending';
+  delete run.error;
+  let body = {};
+  try {
+    const from = await liveVersion();
+    const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
+    body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Exodia builder did not start (${response.status}).`);
+    Object.assign(run, { url: body.url, from, at: run.at });
+    delete run.status;
+  } catch (error) {
+    run.status = 'failed';
+    run.error = navigator.onLine === false ? 'No internet. Try again when you are online.' : error.message || 'Exodia builder did not start.';
+  }
+  const entry = (state.log || []).find((item) => item.merge === `claude-${run.at}`);
+  if (entry) entry.did = [run.status === 'failed' ? `Not sent to Exodia builder: ${run.error}` : 'Sent to Exodia builder. It goes live in a few minutes.'];
   save();
+  render();
+  if (run.status === 'failed') throw new Error(run.error);
   watchBuilds();
   view.toast = { kind: 'rep', title: 'Exodia is on it', text: text.slice(0, 80) };
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(clearToast, 5000);
+  return run;
 };
 
 const sendToClaude = async (text, voice) => {
   view.draft = '';
-  view.claudeText = text;
-  view.claudeSending = true;
   if (!desktopQuery.matches) document.activeElement?.blur();
-  render();
   closeTray();
+  // The request is on screen before anything is sent; a voice note shows as "Voice note" until its words are in.
+  const run = { at: Date.now(), said: text || 'Voice note…', status: 'sending' };
+  state.claudeRuns = [run, ...(state.claudeRuns || [])].slice(0, 20);
+  addLog(run.said, ['Sending to Exodia builder…'], { manual: true, merge: `claude-${run.at}` });
+  save();
+  render();
+  let ask = text;
   try {
-    let ask = text;
     if (voice) {
       const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || 'Could not hear that. Try again.');
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.text) throw new Error(body.error || 'Could not hear that. Try again.');
       ask = [text, body.text].filter(Boolean).join(' ');
+      run.said = ask;
+      const entry = (state.log || []).find((item) => item.merge === `claude-${run.at}`);
+      if (entry) entry.said = ask;
+      render();
     }
     if (view.replyTo) {
       ask = `Marcus replies to "${view.replyTo.title}" (${view.replyTo.why}): ${ask}. Do what he asks, and update public/TODO.md if the item is settled.`;
       view.replyTo = null;
     }
-    await askClaude(ask);
+    await askClaude(ask, run);
+    run.said = text || run.said;
   } catch (error) {
-    view.draft = text;
-    view.status = error.message;
+    if (run.status !== 'failed') {
+      run.status = 'failed';
+      run.error = error.message;
+      const entry = (state.log || []).find((item) => item.merge === `claude-${run.at}`);
+      if (entry) entry.did = [`Not sent to Exodia builder: ${run.error}`];
+    }
   } finally {
-    view.claudeSending = false;
+    save();
     render();
   }
 };
@@ -1626,7 +1662,6 @@ const sendToClaude = async (text, voice) => {
 const routeFeedback = async (text, said) => {
   if (view.isAdmin && view.route === 'admin') {
     await askClaude(text);
-    addLog(said, [`Sent to Exodia: ${text}`], { manual: true });
     return;
   }
   const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
@@ -1675,7 +1710,6 @@ const renderAdmin = () => {
     ${shareCard()}
     <p class="section">Change the app</p>
     <p class="feedbackLead">Say or type a change in the box below. Exodia builds it, and it goes live in a few minutes.</p>
-    ${view.claudeSending ? '<p class="feedbackMeta"><span class="ghostText">Exodia is working on it…</span></p>' : ''}
     ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Feedback</p>
     ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
@@ -2010,7 +2044,7 @@ const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
-const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${view.claudeText ? `<div class="bubbleIn">${esc(view.claudeText)}</div>` : ''}${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
+const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}` || '<p class="empty">Say or type what to change in the app.</p>';
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 // Quick add gets the whole panel when it shows; the log stays on the Log page.
@@ -2116,7 +2150,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' ? `<p class="dockStatus" role="status">${view.claudeSending ? '<span class="ghostText">Exodia is working on it…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
   <button class="slashSuggest" data-action="slash-admin"${slashSuggest() ? '' : ' hidden'}><b>/admin</b> Send this to Exodia</button>
   <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
@@ -4141,21 +4175,18 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'feedback-claude') {
     const item = view.adminFeedback?.find((entry) => entry.id === Number(target.dataset.id));
-    if (!item || view.claudeSending) return;
-    view.claudeSending = true;
-    render();
+    if (!item) return;
     askClaude(`${item.kind === 'bug' ? 'Fix this bug' : 'Build this idea'} from Exodia feedback: ${item.title}. ${item.details}`)
       .then(() => {
         item.status = 'planned';
         fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ id: item.id, status: 'planned' }) });
       })
-      .catch((error) => {
-        view.status = error.message;
-      })
-      .finally(() => {
-        view.claudeSending = false;
-        render();
-      });
+      .catch(() => {});
+    return;
+  }
+  if (action === 'claude-retry') {
+    const run = (state.claudeRuns || []).find((entry) => String(entry.at) === target.dataset.at);
+    if (run && run.status === 'failed' && run.said && !/^Voice note/.test(run.said)) askClaude(run.said, run).catch(() => {});
     return;
   }
   if (action === 'feedback-status') {

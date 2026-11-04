@@ -489,6 +489,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .feedbackHead { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; line-height: 22px; }
 .feedbackDetails { margin: 6px 0 0; font-size: 15px; line-height: 21px; }
 .feedbackMeta { margin: 4px 0 0; font-size: 13px; color: var(--text2); }
+.runFailed { color: var(--clay); font-weight: 600; }
 .feedbackMeta a { color: var(--clayText); font-weight: 600; }
 .feedbackStatus { display: flex; gap: 2px; margin: 4px -10px 0; }
 .quickAdd .section { margin: 12px 0 0; }
