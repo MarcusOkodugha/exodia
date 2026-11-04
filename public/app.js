@@ -1367,7 +1367,27 @@ const CLAUDE_EXAMPLES = ['Make the red lines a bit stronger', 'Show e1RM only on
 // Admin only: sends a change request to Claude Code, which edits the app, pushes to main and Cloudflare deploys it.
 // Build tracking: remember the live version when a change is sent, then watch /sw.js until a newer version is live.
 const liveVersion = () => fetch('/sw.js', { cache: 'no-store' }).then((response) => response.text()).then((text) => Number(text.match(/exodia-v(\d+)/)?.[1]) || 0).catch(() => 0);
-const runStatus = (run) => (run.status === 'live' ? `Live in v${run.version}` : run.status === 'stalled' ? 'No update came out of this one' : run.from ? '<span class="ghostText">Building…</span>' : 'Sent');
+const runStatus = (run) => (run.status === 'live' ? `Live in v${run.version}${run.built ? ` · ${esc(run.built)}` : ''}` : run.status === 'stalled' ? 'No update came out of this one' : run.from ? '<span class="ghostText">Building…</span>' : 'Sent');
+// Asks GitHub (public repo) for the newest commit line, so the admin log can say what was built.
+const builtNote = async (run) => {
+  try {
+    const response = await fetch('https://api.github.com/repos/marcusokodugha/exodia/commits/main');
+    const commit = await response.json();
+    run.built = String(commit.commit?.message || '').split('\n')[0].slice(0, 120);
+    save();
+    render();
+  } catch {}
+};
+const BUILD_MAX = 8 * 60000;
+const buildingNow = () => (state.claudeRuns || []).find((run) => run.from && !run.status && Date.now() - run.at < BUILD_MAX);
+let bannerTimer = 0;
+const buildBanner = () => {
+  const run = buildingNow();
+  clearTimeout(bannerTimer);
+  if (!run) return '';
+  bannerTimer = setTimeout(render, run.at + BUILD_MAX - Date.now() + 500);
+  return `<div class="buildBanner" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText">${esc(run.said.slice(0, 80))}</p></div></div>`;
+};
 let buildWatch = 0;
 const watchBuilds = () => {
   clearTimeout(buildWatch);
@@ -1378,7 +1398,7 @@ const watchBuilds = () => {
     const version = await liveVersion();
     let landed = false;
     for (const run of building) {
-      if (version > run.from) Object.assign(run, { status: 'live', version, doneAt: Date.now() }), (landed = true);
+      if (version > run.from) Object.assign(run, { status: 'live', version, doneAt: Date.now() }), (landed = true), builtNote(run);
       else if (Date.now() - run.at > 45 * 60000) run.status = 'stalled';
     }
     save();
@@ -2468,7 +2488,7 @@ const render = () => {
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
   app.innerHTML = `
     ${layout}
-    ${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
+    ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${renderLeft()}${updatePill()}${updatedPill()}${devExtras()}${demoPill()}`;
