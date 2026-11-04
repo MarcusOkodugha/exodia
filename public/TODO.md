@@ -16,6 +16,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Est. 1RM counts each day's strongest set of 1–10 reps (12+ rep sets only when nothing heavier); the chart readout says which set it came from; (i) next to "Est. 1RM" in every chart legend explains it, also on the computer's Progress panel (v218)
 - Trends: removed "What you said"; picking a lift scrolls the chart up under the header so the list stays in view and you can pick another (v217)
 - Files wait in the box as chips so a note can go with them; a table with dates is added straight away (Undo); a program without dates or with gaps is placed by the AI using the note, missing values filled in, and shown first: "Add 21 days (Sat 7 Mar – Wed 22 Apr), 380 sets? · Add it" (v215)
 - "Exodia is on it" banner and toasts no longer blink / replay their entrance when you change page; they animate only the first time (v214)

@@ -76,7 +76,7 @@ const ICONS = {
 const esc = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 const estimate = (kg, reps) => (reps <= 1 ? kg : reps <= 10 ? (kg * 36) / (37 - reps) : kg * (1 + reps / 30));
 const weightFor = (oneRepMax, reps) => (reps <= 1 ? oneRepMax : reps <= 10 ? (oneRepMax * (37 - reps)) / 36 : oneRepMax / (1 + reps / 30));
-const ESTIMATE_INFO = `<div class="info" role="note"><p>Estimated 1RM uses the same math as the Strength Level one rep max calculator.</p><p>Up to 10 reps it is the Brzycki formula: weight × 36 ÷ (37 − reps). Above 10 reps it is the Epley formula: weight × (1 + reps ÷ 30). Example: 120 × 7 gives about 144 kg.</p><p>Exodia uses your strongest rep set. A single you actually lifted is never estimated; it counts as it is, and it is your real best.</p><p><a href="https://strengthlevel.com/one-rep-max-calculator" target="_blank" rel="noopener">Strength Level calculator</a></p></div>`;
+const ESTIMATE_INFO = `<div class="info" role="note"><p>Estimated 1RM uses the same math as the Strength Level one rep max calculator.</p><p>Up to 10 reps it is the Brzycki formula: weight × 36 ÷ (37 − reps). Above 10 reps it is the Epley formula: weight × (1 + reps ÷ 30). Example: 120 × 7 gives about 144 kg.</p><p>Each day counts its strongest set of 1–10 reps; RPE adds the reps you had left. Sets of more than 10 reps only count when there is nothing heavier, because they say little about a one-rep max. A single you actually lifted is never estimated; it counts as it is.</p><p><a href="https://strengthlevel.com/one-rep-max-calculator" target="_blank" rel="noopener">Strength Level calculator</a></p></div>`;
 const infoButton = () => `<button class="infoBtn" data-action="toggle-info" aria-expanded="${Boolean(view.info)}" aria-label="How the estimate works">i</button>`;
 const round = (value) => Math.round(value * 10) / 10;
 const pad = (number) => String(number).padStart(2, '0');
@@ -372,7 +372,15 @@ const sessionVolume = (session) => session.exercises.reduce((sum, exercise) => s
 const sessionSets = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).length, 0);
 const repsInTank = (set) => (Number(set.rpe) >= 1 ? Math.min(5, Math.max(0, 10 - Number(set.rpe))) : 0);
 const setEstimate = (set) => (set.warmup ? 0 : estimate(Number(set.kg), Number(set.reps) + repsInTank(set)));
-const topEstimate = (exercise) => Math.max(0, ...validSets(exercise).map(setEstimate));
+// The day's estimate comes from its sets of 1–10 reps (counting reps left in the tank). Higher-rep sets only count
+// when there's nothing heavier, because 12+ reps say little about a one-rep max.
+const estimateSets = (exercise) => {
+  const sets = validSets(exercise).filter((set) => !set.warmup);
+  const heavy = sets.filter((set) => Number(set.reps) + repsInTank(set) <= 10);
+  return heavy.length ? heavy : sets;
+};
+const estimateSet = (exercise) => estimateSets(exercise).reduce((winner, set) => (!winner || setEstimate(set) > setEstimate(winner) ? set : winner), null);
+const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map(setEstimate));
 
 const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
 const countsFor = (name) => [name, ...(HARDER_VARIANTS[name] || [])];
@@ -1075,7 +1083,7 @@ const chartFor = (allPoints) => {
     const isPr = single > bestSingle && bestSingle > 0;
     bestSingle = Math.max(bestSingle, single);
     bestSoFar = Math.max(bestSoFar, point.value);
-    return { date: point.date, lifted: Number(top.kg), top, sessionEstimate: point.value, estimate: bestSoFar, isPr };
+    return { date: point.date, lifted: Number(top.kg), top, from: estimateSet({ sets: point.sets }), sessionEstimate: point.value, estimate: bestSoFar, isPr };
   });
   const picked = rows.find((row) => row.date === view.chartPick);
   const values = rows.flatMap((row) => [...(lines.lift ? [row.lifted] : []), ...(lines.est ? [row.estimate] : [])]);
@@ -1091,7 +1099,7 @@ const chartFor = (allPoints) => {
   const y = (value) => ((high - value) / (high - low)) * 1000;
   const ticks = Array.from({ length: Math.round((high - low) / step) + 1 }, (unused, index) => high - index * step);
   const path = (key) => smoothPath(rows.map((row) => [x(row.date), y(row[key])]));
-  return `<div class="chips lineChips">${[['lift', 'Weight lifted'], ['est', 'Est. 1RM']].map(([key, label]) => `<button class="lineChip ${key}" data-action="toggle-line" data-line="${key}" aria-pressed="${lines[key]}"><i></i>${label}</button>`).join('')}</div>
+  return `<div class="chips lineChips">${[['lift', 'Weight lifted'], ['est', 'Est. 1RM']].map(([key, label]) => `<button class="lineChip ${key}" data-action="toggle-line" data-line="${key}" aria-pressed="${lines[key]}"><i></i>${label}</button>`).join('')}${infoButton()}</div>
   <div class="trend" role="img" aria-label="Weight lifted and estimated 1RM over time">
     ${ticks.map((tick) => `<span class="tick" style="top:${(y(tick) / 10).toFixed(2)}%"><b class="num">${tick}</b></span>`).join('')}
     <div class="plot">
@@ -1102,7 +1110,7 @@ const chartFor = (allPoints) => {
       ${lines.lift ? rows.map((row) => `<button class="dot${row.isPr ? ' pr' : ''}${row === picked ? ' on' : ''}" data-action="pick-point" data-date="${row.date}" style="left:${x(row.date) / 10}%;top:${y(row.lifted) / 10}%" aria-label="${dayLabel(row.date)}, ${row.top.kg} × ${row.top.reps}"></button>`).join('') : ''}
     </div>
   </div>
-  ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg</span>${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}
+  ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg${picked.from && (picked.from.kg !== picked.top.kg || picked.from.reps !== picked.top.reps) ? ` from ${picked.from.kg} × ${picked.from.reps}` : ''}</span>${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}
   <div class="axis num"><span>${dayLabel(rows[0].date)}</span><span>${dayLabel(rows.at(-1).date)}</span></div>`;
 };
 
@@ -1711,7 +1719,7 @@ const renderProgress = () => {
   return `<p class="eyebrow">Progress</p>
     <h2 class="title" style="font-size:28px;line-height:34px">${focus ? esc(focus) : 'Your lifts'}</h2>
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
-      ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
+      ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}${view.info && view.route !== 'trends' ? ESTIMATE_INFO : ''}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
     ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), lifts.filter((name) => !BIG_THREE.includes(name)), history, 'focus-lift', focus) : ''}
     ${renderVolume()}
@@ -1968,7 +1976,7 @@ const promptButtons = () => {
 const fileChips = () => (view.files || []).map((file, index) => `<div class="contextChip fileChip"><span class="contextKind">${ICONS.clip}</span><span class="contextLabel">${esc(file.name)}</span><button class="contextX" data-action="unfile" data-index="${index}" aria-label="Remove ${esc(file.name)}">${ICONS.close}</button></div>`).join('');
 const contextChip = () => {
   const chips = fileChips() + otherChip();
-  return chips ? `<div class="chips">${chips}</div>` : '';
+  return chips ? `<div class="promptChips">${chips}</div>` : '';
 };
 const otherChip = () => {
   const [kind, label, action, aria] = view.fixing ? ['Fixing', 'an earlier message', 'clear-edit', 'Stop fixing']
