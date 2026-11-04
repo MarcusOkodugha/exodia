@@ -802,3 +802,9 @@ body.dropping .prompt { border-color: var(--clay); border-style: dashed; }
 body.dropping .prompt::before { opacity: 1; animation: none; }
 
 .buildBanner.still, .toast.still { animation: none; }
+/* Chips in the box (files waiting to be sent, Editing, Adding to…) sit in one row and wrap. */
+.chips { grid-area: 1 / 1; justify-self: start; display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; margin: 8px 0 0 -6px; }
+.chips .contextChip { grid-area: auto; margin: 0; }
+.fileChip .contextKind { display: flex; color: var(--clay); }
+.fileChip .contextKind svg { width: 14px; height: 14px; }
+.confirmNote { font-size: 13px !important; color: var(--text2); }

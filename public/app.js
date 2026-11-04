@@ -1959,13 +1959,18 @@ const animateChat = (opening) => {
 
 const promptButtons = () => {
   if (view.listening) return `<div class="promptButtons"><button class="roundBtn stopBtn" data-action="stop-mic" aria-label="Stop listening">${ICONS.stop}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button></div>`;
-  const hasText = view.draft.trim().length > 0 || Boolean(view.voiceBlob);
+  const hasText = view.draft.trim().length > 0 || Boolean(view.voiceBlob) || Boolean(view.files?.length);
   return `<div class="promptButtons">${hasText
     ? `<button class="roundBtn soft" data-action="mic" aria-label="Speak">${ICONS.mic}</button><button class="roundBtn send" data-action="send" aria-label="Log it">${ICONS.up}</button>`
     : `<button class="roundBtn send" data-action="mic" aria-label="Speak">${ICONS.mic}</button>`}</div>`;
 };
 
+const fileChips = () => (view.files || []).map((file, index) => `<div class="contextChip fileChip"><span class="contextKind">${ICONS.clip}</span><span class="contextLabel">${esc(file.name)}</span><button class="contextX" data-action="unfile" data-index="${index}" aria-label="Remove ${esc(file.name)}">${ICONS.close}</button></div>`).join('');
 const contextChip = () => {
+  const chips = fileChips() + otherChip();
+  return chips ? `<div class="chips">${chips}</div>` : '';
+};
+const otherChip = () => {
   const [kind, label, action, aria] = view.fixing ? ['Fixing', 'an earlier message', 'clear-edit', 'Stop fixing']
     : view.editContext ? ['Editing', `${view.editContext.label || view.editContext.names.join(', ') || 'Workout'} · ${dayLabel(view.editContext.date)}`, 'clear-edit', 'Stop editing']
     : view.composerDate && view.composerDate !== todayIso() ? ['Adding to', dayLabel(view.composerDate), 'clear-day', 'Add to today instead'] : [];
@@ -1977,6 +1982,7 @@ const showSheet = () => view.composer && view.route !== 'admin' && view.route !=
 
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
+  ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' ? `<p class="dockStatus" role="status">${view.claudeSending ? '<span class="ghostText">Exodia is working on it…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
   <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
@@ -1986,6 +1992,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
     ${view.listening
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : view.voiceBlob && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Voice note ready · tap ↑ to log it</span></span>'
+      : view.files?.length && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Add a note (like when it started) or tap ↑</span></span>'
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
     <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `${state.sessions.length ? '<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">' + ICONS.plus + '</button>' : `<label class="roundBtn soft plusBtn" aria-label="Add a file with your training">${ICONS.clip}<input type="file" class="sr" data-action="import-file"></label>`}<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
@@ -3353,6 +3360,10 @@ const mergeImported = (days) => {
       else session.exercises.push({ name: exercise.name, sets: exercise.sets });
       added += exercise.sets.length;
     }
+    if (day.cardio && !session.cardio) {
+      session.cardio = day.cardio;
+      added += 1;
+    }
     if (!added) continue;
     if (day.label && !session.label) session.label = day.label;
     if (!sessionFor(day.date)) state.sessions.push(session);
@@ -3366,8 +3377,8 @@ const askColumns = (rows) => fetch('/api/columns', { method: 'POST', headers: { 
   .then((response) => (response.ok ? response.json() : null))
   .then((body) => (body && body.exercise >= 0 && (body.weight >= 0 || body.reps >= 0) ? { ...body, headerRow: Math.max(-1, Number(body.headerRow) || 0), lb: body.weightUnit === 'lb', warmHeader: true } : null))
   .catch(() => null);
-const sendImportPart = async (text) => {
-  const response = await fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) });
+const sendImportPart = async (text, extra = {}) => {
+  const response = await fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(body.error || 'Could not read that. Try again.'), { busy: response.status === 429 || response.status >= 500 });
   return body;
@@ -3439,6 +3450,139 @@ const importText = async (text, progress = () => {}) => {
   return aiImport(text.trim(), progress);
 };
 
+// Files: dropped, pasted or picked files wait in the box as chips, so a note can go with them ("this program started
+// on March 7, 7 weeks"). On send: a table with its own dates is added straight away (Undo is there). Anything the AI
+// had to place or fill in (no dates, missing values) is shown first and only added after "Add it".
+const attachFile = (picked) => readFileText(picked).then((text) => {
+  view.files = [...(view.files || []), { name: picked.name, text }].slice(-5);
+  view.showQuick = false;
+  view.quickHidden = true;
+  // Just the chip in the box and the cursor there; the panel stays out of the way.
+  if (!view.composer) openChat();
+  view.sheetH = SHEET_PEEK;
+  view.focusDraft = true;
+  render();
+}).catch((error) => {
+  openChat();
+  addLog(`File: ${picked.name}`, [`Not logged: ${error.message || 'Could not read that file. Try saving it as CSV.'}`]);
+  render();
+});
+const splitPieces = (text) => {
+  const pieces = [];
+  let piece = '';
+  for (const line of text.slice(0, AI_TEXT_LIMIT).split('\n')) {
+    if (piece.length + line.length > 24000 && piece.trim()) {
+      pieces.push(piece);
+      piece = '';
+    }
+    piece += `${line.slice(0, 24000)}\n`;
+  }
+  if (piece.trim()) pieces.push(piece);
+  return pieces;
+};
+// The AI reads the file with the note and sends back days without saving them (dry), so they can be shown first.
+const aiPreview = async (text, note, progress) => {
+  const days = new Map();
+  const unclear = [];
+  let lastError = null;
+  const pieces = splitPieces(text);
+  for (const [index, part] of pieces.entries()) {
+    progress(index, pieces.length);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const body = await sendImportPart(part, { dry: true, context: note });
+        for (const session of body.sessions || []) {
+          const day = days.get(session.date);
+          if (day) day.exercises.push(...session.exercises);
+          else days.set(session.date, { ...session, exercises: [...session.exercises] });
+        }
+        if (body.unclear) unclear.push(body.unclear);
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2 || !error.busy) break;
+        await new Promise((resolve) => setTimeout(resolve, attempt ? 30000 : 12000));
+      }
+    }
+  }
+  if (!days.size && lastError) throw lastError;
+  return { days: [...days.values()].sort((first, second) => first.date.localeCompare(second.date)), unclear: unclear.join(' ').slice(0, 300) };
+};
+const countSets = (days) => days.reduce((sum, day) => sum + day.exercises.reduce((total, exercise) => total + exercise.sets.length, 0), 0);
+const addImported = (days, name) => {
+  const before = JSON.stringify(state.sessions);
+  const { touched, sets } = mergeImported(days);
+  save();
+  syncNow();
+  const did = [touched.length ? `Added from ${name}: ${touched.length} ${touched.length === 1 ? 'day' : 'days'}, ${sets} sets` : `Nothing new in ${name}, it was all in already`];
+  showResult(did, touched.slice(-30).map((date) => ({ date, name: null })), touched.length ? before : null);
+  return did;
+};
+const runFiles = async (files, note) => {
+  const said = `${files.map((file) => `📎 ${file.name}`).join(' ')}${note ? `\n${note}` : ''}`;
+  const pending = { date: todayIso(), label: 'your training', text: said };
+  view.pending.push(pending);
+  render();
+  closeTray();
+  const progress = (index, total, text) => {
+    pending.progress = text || (total > 1 ? `Reading part ${index + 1} of ${total}…` : 'Reading the file…');
+    render();
+  };
+  const did = [];
+  const guessed = [];
+  try {
+    for (const file of files) {
+      progress(0, 1);
+      const rows = tableRows(file.text);
+      let days = rows && rows.length >= 2 ? tableDays(rows) : [];
+      if (!days.length && rows && rows.length >= 3 && navigator.onLine) {
+        progress(0, 1, 'Reading the columns…');
+        const mapping = await askColumns(rows.slice(0, 15));
+        if (mapping) days = tableDays(rows, mapping);
+      }
+      if (days.length) {
+        did.push(...addImported(days, file.name));
+        continue;
+      }
+      const preview = await aiPreview(file.text.trim(), note, progress);
+      if (preview.days.length) guessed.push({ name: file.name, ...preview });
+      else did.push(`Not logged: Couldn't find training I could place in ${file.name}. Add a note like "from March 7, 3 days a week" and send it again.`);
+    }
+  } catch (error) {
+    did.push(`Not logged: ${error.message}`);
+  } finally {
+    view.pending = view.pending.filter((item) => item !== pending);
+  }
+  if (guessed.length) {
+    const days = guessed.flatMap((item) => item.days);
+    view.importConfirm = { said, note, files: guessed, days, did };
+  } else {
+    if (did.some((line) => OFF_LINE.test(line)) && !did.some((line) => !OFF_LINE.test(line))) {
+      view.files = files;
+      view.draft = note;
+    }
+    addLog(said, did.length ? did : ['Nothing to add']);
+  }
+  render();
+};
+const answerImport = (yes) => {
+  const ask = view.importConfirm;
+  view.importConfirm = null;
+  if (!ask) return;
+  const did = [...ask.did];
+  if (yes) for (const file of ask.files) did.push(...addImported(file.days, file.name));
+  else did.push('Not added: you cancelled it');
+  addLog(ask.said, did);
+  closeTray();
+};
+const importConfirmText = () => {
+  const ask = view.importConfirm;
+  const first = ask.days[0].date;
+  const last = ask.days.at(-1).date;
+  const range = first === last ? dayLabel(first) : `${dayLabel(first)} – ${dayLabel(last)}`;
+  return `Add ${ask.days.length} ${ask.days.length === 1 ? 'day' : 'days'} (${range}), ${countSets(ask.days)} sets from ${ask.files.map((file) => file.name).join(', ')}?`;
+};
+
 // One import at a time, with a bubble that says how far it got.
 const runImport = async (text, said, onFail = () => {}) => {
   const pending = { date: todayIso(), label: 'your training', text: said };
@@ -3468,6 +3612,13 @@ const send = async () => {
   view.live = '';
   const voice = recorded?.size > 4000 ? recorded : null;
   const text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
+  if (view.files?.length && !voice) {
+    const files = view.files;
+    view.files = [];
+    view.draft = '';
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    return runFiles(files, text);
+  }
   if (!text && !voice?.size) {
     if (recorded) {
       openChat();
@@ -3810,6 +3961,9 @@ document.addEventListener('click', (event) => {
   }
   else if (action === 'toggle-info') view.info = !view.info;
   else if (action === 'confirm-yes') answerConfirm(true);
+  else if (action === 'import-yes') answerImport(true);
+  else if (action === 'import-no') answerImport(false);
+  else if (action === 'unfile') view.files = (view.files || []).filter((file, index) => index !== Number(target.dataset.index));
   else if (action === 'retry-said') {
     const entry = state.log?.[Number(target.dataset.index)];
     if (!entry) return;
@@ -4148,11 +4302,7 @@ document.addEventListener('change', (event) => {
     const picked = target.files[0];
     target.value = '';
     view.showQuick = false;
-    readFileText(picked).then((text) => runImport(text, `File: ${picked.name}`)).catch((error) => {
-      openChat();
-      addLog(`File: ${picked.name}`, [`Not logged: ${error.message || 'Could not read that file. Try saving it as CSV.'}`]);
-      render();
-    });
+    attachFile(picked);
   } else if (target.dataset.action === 'onboard-file' && target.files[0] && view.onboard) {
     const picked = target.files[0];
     target.value = '';
@@ -4188,12 +4338,7 @@ const takeFile = (picked) => {
     });
     return;
   }
-  view.showQuick = false;
-  readFileText(picked).then((text) => runImport(text, `File: ${picked.name}`)).catch((error) => {
-    openChat();
-    addLog(`File: ${picked.name}`, [`Not logged: ${error.message || 'Could not read that file. Try saving it as CSV.'}`]);
-    render();
-  });
+  attachFile(picked);
 };
 const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files');
 let dragDepth = 0;
