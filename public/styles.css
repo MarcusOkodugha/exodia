@@ -816,3 +816,12 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .onboardDock::before { display: block; }
 .onboard { padding-bottom: calc(var(--dock-h, 180px) + 48px); }
 .promptInput.overflowing { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 10px); mask-image: linear-gradient(180deg, transparent 0, #000 10px); }
+
+.promptMirror { grid-area: 1 / 1; display: none; padding: 11px 0; font: inherit; font-size: 17px; line-height: 22px; color: var(--text); white-space: pre-wrap; overflow-wrap: break-word; pointer-events: none; }
+.prompt.hasChip .promptMirror { grid-area: 2 / 1; }
+.prompt.slashOn .promptMirror { display: block; }
+.prompt.slashOn .promptInput { color: transparent; caret-color: var(--text); }
+.slashCmd { color: var(--clayText, var(--clay)); font-weight: 600; }
+.slashSuggest { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text2); font: inherit; font-size: 14px; }
+.slashSuggest[hidden] { display: none; }
+.slashSuggest b { color: var(--clayText, var(--clay)); font-weight: 600; }

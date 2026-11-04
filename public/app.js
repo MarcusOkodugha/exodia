@@ -1879,6 +1879,10 @@ const renderImport = () => `<main class="page">
     <h1 class="title">Add your data</h1>
     <p class="feedbackLead">Paste or drop any training history in the box below, in any format. Exodia turns it into days and sets.</p>
     <div class="onboardChoices"><label class="onboardChoice"><b>Choose a file</b><span>CSV, Excel, text or notes</span><input type="file" class="sr" data-action="import-file"></label></div>
+    <p class="section">Or let an AI do it</p>
+    <section class="card">
+      <div class="row"><span class="muted" style="flex:1;font-size:15px">Copy this, paste it into ChatGPT, Gemini or Claude, and it walks you through adding your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy'}</button></div>
+    </section>
     ${exportHelp(true)}
   </main>`;
 
@@ -2006,14 +2010,29 @@ const otherChip = () => {
 // Admin and Feedback show everything on the page itself, so the box never opens a panel over them.
 const showSheet = () => view.composer && view.route !== 'admin' && view.route !== 'feedback';
 
+// /admin typed in any box turns clay (the box can't colour part of its own text, so a copy sits behind it) and is suggested while you type "/".
+const slashOn = () => Boolean(view.isAdmin && /^\/admin(\s|$)/i.test(view.draft));
+const slashSuggest = () => Boolean(view.isAdmin && view.route !== 'admin' && /^\/(a(d(m(i(n)?)?)?)?)?$/i.test(view.draft));
+const slashHtml = () => (slashOn() ? `<span class="slashCmd">${esc(view.draft.slice(0, 6))}</span>${esc(view.draft.slice(6))}\u200b` : '');
+const paintSlash = () => {
+  const prompt = document.querySelector('.prompt');
+  if (!prompt) return;
+  prompt.classList.toggle('slashOn', slashOn());
+  const mirror = prompt.querySelector('.promptMirror');
+  if (mirror) mirror.innerHTML = slashHtml();
+  const hint = document.querySelector('.slashSuggest');
+  if (hint) hint.hidden = !slashSuggest();
+};
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' ? `<p class="dockStatus" role="status">${view.claudeSending ? '<span class="ghostText">Exodia is working on it…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
-  <div class="prompt${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
+  <button class="slashSuggest" data-action="slash-admin"${slashSuggest() ? '' : ' hidden'}><b>/admin</b> Send this to Exodia</button>
+  <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
+    <div class="promptMirror" aria-hidden="true">${slashHtml()}</div>
     <textarea id="draft" class="promptInput" rows="1" enterkeyhint="send" autocomplete="off">${esc(view.draft)}</textarea>
     ${view.listening
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
@@ -3833,6 +3852,18 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'start-fresh') return startFresh();
   if (action === 'split-pick' && view.splitAsk) return pickSplit(target.dataset.name);
+  if (action === 'slash-admin') {
+    const box = document.getElementById('draft');
+    view.draft = '/admin ';
+    if (box) {
+      box.value = view.draft;
+      fitDraft(box);
+      box.focus();
+      box.setSelectionRange(view.draft.length, view.draft.length);
+    }
+    paintSlash();
+    return;
+  }
   if (action === 'toggle-left') {
     view.leftOpen = !view.leftOpen;
     render();
@@ -4320,6 +4351,7 @@ document.addEventListener('input', (event) => {
     }
     fitDraft(target);
     syncDock();
+    paintSlash();
     return;
   }
   if (target.dataset.field) {
