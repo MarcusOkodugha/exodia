@@ -1,7 +1,9 @@
 'use strict';
 
 const STORE_KEY = 'exodia.v1';
-const HEAVY_SHARE = 0.85;
+// Exodia: a heavy set is a top set at least 80% of your best; everything counts over the last 10 days.
+const HEAVY_SHARE = 0.8;
+const EXODIA_DAYS = 10;
 
 const LIBRARY = [
   { name: 'Bench Press', piece: 'push', heavy: true, aliases: ['bench', 'bench press', 'bp', 'barbell bench press', 'flat bench', 'flat bench press', 'flat barbell bench press', 'bänkpress'] },
@@ -408,7 +410,7 @@ const lastSetsFor = (name, skipDate = todayIso()) => {
 };
 
 const pieceProgress = (endIso) => {
-  const startIso = addDays(endIso, -6);
+  const startIso = addDays(endIso, -(EXODIA_DAYS - 1));
   const inWindow = state.sessions.filter((session) => session.date >= startIso && session.date <= endIso);
   const counts = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
   for (const session of inWindow) {
@@ -993,7 +995,7 @@ const renderHome = () => {
   const pieces = pieceProgress(todayIso());
   const complete = pieces.filter((piece) => piece.complete).length;
   const hits = exodiaHistory().hits + (view.devHit && complete < 5 ? 1 : 0) - (view.celebrating ? 1 : 0);
-  const weekVolume = state.sessions.filter((session) => session.date >= addDays(todayIso(), -6)).reduce((sum, session) => sum + sessionVolume(session), 0);
+  const weekVolume = state.sessions.filter((session) => session.date >= addDays(todayIso(), -(EXODIA_DAYS - 1))).reduce((sum, session) => sum + sessionVolume(session), 0);
   const hour = new Date().getHours();
   const greeting = hour < 5 ? 'Late session?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const sessions = sortedSessions().filter((session) => session.exercises.length > 0 || session.cardio > 0);
@@ -1008,7 +1010,7 @@ const renderHome = () => {
         ${ICONS.chev}
       </button>
       <button class="bars" data-action="toggle-exodia" tabindex="-1" aria-hidden="true">${renderBars(pieces)}</button>
-      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 85% of your best. Last 7 days, any program.</p></div>` : ''}
+      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p></div>` : ''}
     </section>
     <p class="section sessionsHead">Sessions${sessions[0] && !view.open.has(sessions[0].date) ? COLUMN_HEAD : ''}</p>
     <div class="list">${sessions.length || view.pending.length ? listWithGhosts(sessions.slice(0, 30)) : quickStart()}</div>

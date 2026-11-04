@@ -9,7 +9,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## To do (Claude)
 
-- [ ] Decide with Marcus: Return on iPhone adds a new line instead of sending?
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 - [ ] UX, not done yet: Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
 - [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
@@ -17,6 +16,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Exodia: 10 days to hit it, and a heavy top set is 80% of your best (was 7 days, 85%) (v207)
+- Decided: Return keeps sending (fastest for one-line logs; pasted notes keep their lines)
 - Tapping the box opens the panel small, showing Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more; an arrow next to "Quick add" grows it to full size and shrinks it back (v206)
 - Shared log split switched on (SPLIT_PROFILES set, Nov 4)
 - Trends list: "Best lifts" heading with air after the chart, row lines start after the dot, a thin clay line on the lift on the chart, × 1 shown, Show all in plain text (v205)
