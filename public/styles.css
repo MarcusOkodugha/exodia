@@ -795,3 +795,4 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
   .updatePill, .updatedPill { left: calc(272px + (100% - 652px) / 2); }
 }
 @media (prefers-reduced-motion: reduce) { .buildDot { animation: none; } }
+@media (min-width: 1024px) { .searchBox { height: 40px; margin-top: 12px; } }
