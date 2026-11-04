@@ -2950,8 +2950,11 @@ const note = (title, text) => {
 const loggedDay = (date, exercise) => {
   const has = (session) => session.exercises.length && (!exercise || session.exercises.some((item) => item.name === exercise));
   if (sessionFor(date) && has(sessionFor(date))) return date;
+  // Only when the AI seems to have picked the wrong week ("on Monday" → last week's Monday): look for the same weekday
+  // within 7 days of the date. Never further: that used to change a day months or years away.
   const weekday = parseIso(date).getDay();
-  return sortedSessions().find((session) => session.date <= todayIso() && parseIso(session.date).getDay() === weekday && has(session))?.date || date;
+  const near = (session) => Math.abs(parseIso(session.date) - parseIso(date)) <= 7 * 86400000;
+  return sortedSessions().find((session) => session.date <= todayIso() && parseIso(session.date).getDay() === weekday && near(session) && has(session))?.date || date;
 };
 
 const applyEdits = (result) => {
