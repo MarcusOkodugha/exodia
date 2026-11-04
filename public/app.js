@@ -1617,6 +1617,8 @@ const renderAdmin = () => {
 
 const aiInstructions = () => `You are helping me log my gym training in my Exodia app.
 
+First, in one or two friendly sentences, tell me what you are going to do and what I need to give you. Then:
+
 STEP 1. Get my training. It is the workouts I want logged, with dates if I know them (what I did, weights, sets, reps). It can be in any format: a message, a photo of a notebook, a spreadsheet, old notes. If my message below does not contain my training yet, do NOT stop: ask me "What training should I add? Paste it or describe it, any format works, and add the dates if you know them." Then wait for my answer.
 
 STEP 2. Send it to Exodia.
