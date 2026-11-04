@@ -2009,6 +2009,8 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
 const fitDraft = (draft) => {
   draft.style.height = 'auto';
   draft.style.height = `${draft.scrollHeight}px`;
+  // Taller than the box allows: the text scrolls inside, with a soft fade at the edge instead of a hard cut.
+  draft.classList.toggle('overflowing', draft.scrollHeight > draft.clientHeight + 2);
 };
 
 const syncDock = () => {
@@ -2461,6 +2463,21 @@ const stopOnboardMic = () => {
   recorder.stop();
 };
 
+// --dock-h follows the box's real height (it grows while you type or paste), so every page can scroll its last line
+// up above the box instead of hiding it behind it.
+let dockObserver = null;
+let watchedDock = null;
+const watchDock = () => {
+  const dock = document.querySelector('.dock');
+  if (!dock || !window.ResizeObserver || dock === watchedDock) return;
+  dockObserver?.disconnect();
+  watchedDock = dock;
+  dockObserver = new ResizeObserver(() => {
+    const sheet = dock.querySelector('.sheet');
+    setVar('--dock-h', `${dock.offsetHeight - (sheet ? sheet.offsetHeight + 8 : 0)}px`);
+  });
+  dockObserver.observe(dock);
+};
 const render = () => {
   const app = document.getElementById('app');
   const hit = exodiaHit();
@@ -2480,6 +2497,9 @@ const render = () => {
     const focusedId = document.activeElement?.id;
     app.innerHTML = renderOnboard() + devExtras();
     if (focusedId) document.getElementById(focusedId)?.focus();
+    const onboardData = document.getElementById('onboardData');
+    if (onboardData) fitDraft(onboardData);
+    watchDock();
     return;
   }
   const focused = document.activeElement;
@@ -2511,6 +2531,7 @@ const render = () => {
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${renderLeft()}${updatePill()}${updatedPill()}${devExtras()}${demoPill()}`;
   if (view.toast) view.toast.shown = true;
+  watchDock();
   const draft = document.getElementById('draft');
   if (draft) {
     fitDraft(draft);
@@ -4226,6 +4247,7 @@ document.addEventListener('input', (event) => {
   }
   if (target.id === 'onboardName' || target.id === 'onboardData') {
     view.onboard[target.id === 'onboardName' ? 'name' : 'data'] = target.value;
+    if (target.id === 'onboardData') fitDraft(target);
     const prompt = document.querySelector('.onboardPrompt');
     const filled = view.onboard.data.trim().length > 0 || Boolean(view.onboard.file);
     if (target.id === 'onboardData' && prompt && prompt.classList.contains('hasText') !== filled) {

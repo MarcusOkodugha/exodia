@@ -811,3 +811,8 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .confirmNote { font-size: 13px !important; color: var(--text2); }
 
 .trendsPage .chartHead { scroll-margin-top: calc(var(--top) + 8px); }
+/* Like Claude: a soft fade above the box on every screen (the welcome screen too), and room under the page for the
+   box's real height, so the last line can always scroll up into view instead of being cut. */
+.onboardDock::before { display: block; }
+.onboard { padding-bottom: calc(var(--dock-h, 180px) + 48px); }
+.promptInput.overflowing { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%); mask-image: linear-gradient(180deg, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%); }
