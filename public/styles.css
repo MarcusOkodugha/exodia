@@ -40,6 +40,7 @@ textarea::placeholder, input::placeholder { color: var(--text2); }
 .eyebrow { margin: 0; font-size: 15px; line-height: 20px; color: var(--text2); }
 .title { margin: 2px 0 0; font-family: var(--serif); font-size: 34px; line-height: 41px; font-weight: 400; letter-spacing: -0.3px; }
 .section { margin: 24px 4px 8px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+.sectionNote { float: right; font-weight: 400; color: var(--text3, var(--text2)); }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 2px 16px; }
 .page .card { transition: opacity 0.3s ease; }

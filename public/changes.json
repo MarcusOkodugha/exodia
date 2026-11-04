@@ -1,4 +1,9 @@
 {
+  "238": [
+    "The box stays above the keyboard: the app no longer thinks the phone turned sideways when the keyboard opens",
+    "+ and Import from a file work with the keyboard up, even on small phones",
+    "New versions load as soon as you leave the box empty; Settings shows which version this device has"
+  ],
   "237": [
     "Adding a file works every time: picking a file no longer gets lost, and the file shows in the box",
     "A voice note sent with a file becomes the file's note",

@@ -1749,7 +1749,7 @@ const renderYou = () => {
       <div class="row"><span style="flex:1">Synced</span><span class="muted">${view.syncFailed ? 'Offline, will retry' : view.syncedAt ? 'Up to date' : 'Connecting…'}</span></div>
     </section>
     <p class="note">${view.isAdmin ? 'Only for your own phone or computer: open it there once and your lifts are there. Don’t send it to anyone, it opens your log.' : 'Your lifts are saved online as you log them.'}</p>
-    <p class="section">What's new</p>
+    <p class="section">What's new${installedVersion() ? `<span class="sectionNote num">This device: v${installedVersion()}</span>` : ''}</p>
     <section class="card whatsNew">${view.changes ? Object.keys(view.changes).map(Number).sort((first, second) => second - first).slice(0, 6).map((version) => `<div class="whatsNewItem"><p class="whatsNewVersion num">v${version}</p><ul>${view.changes[version].map((line) => `<li>${esc(line)}</li>`).join('')}</ul></div>`).join('') : '<p class="empty">Loading…</p>'}</section>
     <p class="section">Backup</p>
     <section class="card">
@@ -2233,11 +2233,20 @@ const setVar = (name, value) => {
 };
 
 // iOS web apps can't lock rotation, so in phone landscape the whole UI turns back to portrait.
+// Only the phone itself being sideways counts: an open keyboard also makes the window wider than tall,
+// and turning the app then put the box under the keyboard and moved every tap.
 const turnQuery = window.matchMedia('(orientation: landscape) and (pointer: coarse) and (max-height: 520px)');
+const coarseQuery = window.matchMedia('(pointer: coarse)');
 let turn = 0;
+const phoneSideways = () => {
+  if (!coarseQuery.matches || Math.min(screen.width, screen.height) > 520) return false;
+  const angle = screen.orientation?.angle ?? window.orientation;
+  if (typeof angle === 'number') return angle % 180 !== 0;
+  return screen.width > screen.height;
+};
 const turnUi = () => {
   const angle = screen.orientation?.angle ?? window.orientation ?? 0;
-  turn = turnQuery.matches ? (angle === 90 ? -90 : 90) : 0;
+  turn = phoneSideways() ? (angle === 90 ? -90 : 90) : 0;
   const root = document.documentElement;
   root.classList.toggle('turned', Boolean(turn));
   root.dataset.turn = turn;
@@ -2281,7 +2290,9 @@ const tuckCards = () => {
   const box = dock.offsetHeight - (sheet ? sheet.offsetHeight + 8 : 0);
   setVar('--dock-h', `${box}px`);
   const tall = turn ? window.innerWidth : window.visualViewport?.height || window.innerHeight;
-  setVar('--sheet-h', `${Math.round(Math.max(180, Math.min(720, tall - box - (desktopQuery.matches ? 64 : quickShown() ? 80 : Math.max(120, tall * 0.24)))))}px`);
+  // Never taller than the room under the top bar: on a small phone with the keyboard up, Import from a file stays in sight.
+  const room = tall - box - 64;
+  setVar('--sheet-h', `${Math.round(Math.max(Math.min(180, room), Math.min(720, tall - box - (desktopQuery.matches ? 64 : quickShown() ? 80 : Math.max(120, tall * 0.24)))))}px`);
   const line = uiBox(dock).bottom - box;
   for (const card of document.querySelectorAll('.page .card')) {
     const box = uiBox(card);
@@ -2378,6 +2389,13 @@ const hideUpdated = () => {
   pill.classList.add('gone');
   setTimeout(() => pill.remove(), 220);
 };
+const installedVersion = () => {
+  try {
+    return Number(localStorage.getItem(VERSION_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+};
 const noteUpdate = async () => {
   if (!window.caches) return;
   const keys = await caches.keys().catch(() => []);
@@ -2455,7 +2473,8 @@ const reloadInPlace = () => {
 };
 const updateQuietly = () => {
   if (!view.updateReady || view.pending.length || recording) return;
-  if (view.draft.trim() || view.editDay || view.composer || view.onboard?.busy || view.leftOpen || view.menu) return;
+  if (view.draft.trim() || view.files?.length || view.editDay || view.onboard?.busy || view.onboard?.file || view.leftOpen || view.menu) return;
+  if (view.composer && !document.hidden && document.activeElement?.id === 'draft') return;
   reloadInPlace();
 };
 setInterval(updateQuietly, 4000);
