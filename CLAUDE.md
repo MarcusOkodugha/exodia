@@ -31,6 +31,10 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 
 Its "Waiting on Marcus" section is also the red pill in the app that only Marcus sees: it opens to each item's steps and links, and `Decide:` items get Yes / No buttons that start a change session with his answer. Keep that section current and in its format (title, one line why, numbered steps with links), and do everything you can yourself so the list only holds what truly needs him.
 
+## Before you say something is or isn't done
+
+Marcus asks through three channels: this chat, the app's admin panel ("Change the app" / `/admin`, each starts its own session) and voice in the app. Sessions don't see each other's work. So before answering "is X done?" or building X: check `git log origin/main` (other sessions push there), `public/changes.json`, and his recent requests (the `commands` table and the admin runs), and look at the feature live on the phone **and** the computer. If it's done, say where and in which version. Never build it twice, and never say it's missing without checking.
+
 ## Plan panel
 
 Marcus sends several messages in a row and misses replies higher up in the chat. So every request also goes in the session's task list (the Plan panel): add it when he asks, tick it when it's live (with the version, like "✓ … (v187)"), and prefix anything only he can do with "You:". Answer questions in the chat as usual.
