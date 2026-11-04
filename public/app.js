@@ -4171,6 +4171,66 @@ document.addEventListener('change', (event) => {
   }
 });
 
+// Drop or paste a file anywhere on the page: it goes through the same reader as the paperclip.
+const takeFile = (picked) => {
+  if (view.onboard) {
+    readFileText(picked).then((text) => {
+      view.onboard.file = { name: picked.name, text };
+      view.onboard.status = '';
+      render();
+    }).catch((error) => {
+      view.onboard.status = error.message || 'Could not read that file. Try saving it as CSV.';
+      render();
+    });
+    return;
+  }
+  view.showQuick = false;
+  readFileText(picked).then((text) => runImport(text, `File: ${picked.name}`)).catch((error) => {
+    openChat();
+    addLog(`File: ${picked.name}`, [`Not logged: ${error.message || 'Could not read that file. Try saving it as CSV.'}`]);
+    render();
+  });
+};
+const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files');
+let dragDepth = 0;
+document.addEventListener('dragenter', (event) => {
+  if (!hasFiles(event)) return;
+  dragDepth += 1;
+  document.body.classList.add('dropping');
+});
+document.addEventListener('dragleave', (event) => {
+  if (!hasFiles(event)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) document.body.classList.remove('dropping');
+});
+document.addEventListener('dragover', (event) => {
+  if (hasFiles(event)) event.preventDefault();
+});
+document.addEventListener('drop', (event) => {
+  dragDepth = 0;
+  document.body.classList.remove('dropping');
+  const files = [...(event.dataTransfer?.files || [])];
+  if (!files.length) {
+    // A link dragged out of Google Drive or Sheets: the app can't open it, so say how to get the file.
+    const link = event.dataTransfer?.getData('text/uri-list') || '';
+    if (/docs\.google\.com|drive\.google\.com/.test(link)) {
+      event.preventDefault();
+      openChat();
+      addLog('Google link', ['Not logged: Exodia can’t open Google Drive links. In Sheets choose File → Download → Excel (.xlsx) or CSV, then drop that file here.']);
+      render();
+    }
+    return;
+  }
+  event.preventDefault();
+  files.slice(0, 5).forEach(takeFile);
+});
+document.addEventListener('paste', (event) => {
+  const files = [...(event.clipboardData?.files || [])];
+  if (!files.length) return;
+  event.preventDefault();
+  files.slice(0, 5).forEach(takeFile);
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.target.id === 'search' && event.key === 'Enter') {
     event.preventDefault();

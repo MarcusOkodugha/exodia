@@ -796,3 +796,7 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 }
 @media (prefers-reduced-motion: reduce) { .buildDot { animation: none; } }
 @media (min-width: 1024px) { .searchBox { height: 40px; margin-top: 12px; } }
+
+/* Dragging a file over the page: the box lights up. */
+body.dropping .prompt { border-color: var(--clay); border-style: dashed; }
+body.dropping .prompt::before { opacity: 1; animation: none; }

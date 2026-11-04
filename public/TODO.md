@@ -16,6 +16,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Drop or paste a file (Excel, CSV, text) anywhere on the page and the box takes it; the box outlines while you drag; a Google Drive link says how to download the file instead (v213)
+
 - Search bar on desktop is a calmer 40px tall (was 48px like the menu rows) (v212)
 - "Exodia is on it" banner sits in the middle of the main column on desktop and stays up (max 8 min) until the change is live; the admin log shows what was built (v210)
 - Trends chart: "est. 305 kg" under the chart stays on one line, kg never drops down alone (v211)
