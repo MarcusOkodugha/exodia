@@ -18,6 +18,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Red pill items have a Reply button: opens Admin chat with the item shown, your follow-up goes to Claude with it (v218)
 - Admin: what you just sent shows right away in the panel above the box, and on desktop the right side shows "What you sent" with its status (v222)
 - Red pill far right with the hidden dev button always on its left; logo bigger in the app; clearer favicon and app icons; `/admin` in any box opens Admin (text after it goes straight to Claude); box bottom no longer fades while typing on a computer (v222)
 

@@ -1501,7 +1501,7 @@ const renderLeft = () => {
       </div>`).join('')}
       ${items.map((item, index) => `<div class="leftItem${view.leftItem === index ? ' open' : ''}">
         <button class="leftTitle" data-action="left-item" data-index="${index}" aria-expanded="${view.leftItem === index}">${inlineMd(item.title.replace(/^Decide:\s*/i, '').replace(/^\p{Ll}/u, (letter) => letter.toUpperCase()))}${item.decide ? '<span class="leftTag">Decide</span>' : ''}</button>
-        ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}${item.decide ? `<div class="leftAnswer"><button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button></div>` : ''}</div>` : ''}
+        ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}<div class="leftAnswer">${item.decide ? `<button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button>` : ''}<button class="chip" data-action="left-reply" data-index="${index}"><span class="chipFace">Reply</span></button></div></div>` : ''}
       </div>`).join('')}
     </section>` : ''}`;
 };
@@ -1533,6 +1533,10 @@ const sendToClaude = async (text, voice) => {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Could not hear that. Try again.');
       ask = [text, body.text].filter(Boolean).join(' ');
+    }
+    if (view.replyTo) {
+      ask = `Marcus replies to "${view.replyTo.title}" (${view.replyTo.why}): ${ask}. Do what he asks, and update public/TODO.md if the item is settled.`;
+      view.replyTo = null;
     }
     await askClaude(ask);
   } catch (error) {
@@ -3824,6 +3828,21 @@ document.addEventListener('click', (event) => {
   if (action === 'left-item') {
     const index = /^f/.test(target.dataset.index) ? target.dataset.index : Number(target.dataset.index);
     view.leftItem = view.leftItem === index ? null : index;
+    render();
+    return;
+  }
+  if (action === 'left-reply') {
+    const item = leftItems()[Number(target.dataset.index)];
+    if (!item) return;
+    // The item shows up in the chat, then your reply goes to Claude together with it.
+    view.replyTo = { title: item.title.replace(/^Decide:\s*/i, ''), why: item.why };
+    addLog(`Exodia asked: ${view.replyTo.title}. ${item.why}`, ['Reply below with your follow-up.'], { manual: true });
+    view.leftOpen = false;
+    view.leftItem = null;
+    view.draft = '';
+    view.focusDraft = true;
+    if (location.hash !== '#/admin') location.hash = '#/admin';
+    view.route = 'admin';
     render();
     return;
   }
