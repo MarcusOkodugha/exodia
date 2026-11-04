@@ -16,6 +16,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Search bar on desktop is a calmer 40px tall (was 48px like the menu rows) (v210)
 - Desktop right panel: your other lifts now sit under Squat, Bench and Deadlift like on the phone, with Show all; the separate Best lifts list is gone (v209)
 - Friends' messages in the main box that aren't training go to Marcus as feedback (they see "Sent to Marcus"); new feedback shows in Marcus's red pill with Build it / Not now; when something doesn't go through, the panel opens on the chat with the reason, not Quick add; the sweep also runs as a friend (v208)
 - Exodia: 10 days to hit it, and a heavy top set is 80% of your best (was 7 days, 85%) (v207)
