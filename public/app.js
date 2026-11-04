@@ -1102,7 +1102,7 @@ const chartFor = (allPoints) => {
       ${lines.lift ? rows.map((row) => `<button class="dot${row.isPr ? ' pr' : ''}${row === picked ? ' on' : ''}" data-action="pick-point" data-date="${row.date}" style="left:${x(row.date) / 10}%;top:${y(row.lifted) / 10}%" aria-label="${dayLabel(row.date)}, ${row.top.kg} × ${row.top.reps}"></button>`).join('') : ''}
     </div>
   </div>
-  ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · ${picked.top.kg} × ${picked.top.reps}${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · est. ${Math.round(picked.sessionEstimate)} kg${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}
+  ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg</span>${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}
   <div class="axis num"><span>${dayLabel(rows[0].date)}</span><span>${dayLabel(rows.at(-1).date)}</span></div>`;
 };
 
