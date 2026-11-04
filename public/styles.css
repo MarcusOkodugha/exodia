@@ -895,3 +895,9 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 /* The day's action row (+ Set, + Exercise, Accessories) scrolls sideways inside its card instead of widening the page. */
 .dayActions { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .dayActions::-webkit-scrollbar { display: none; }
+
+/* Computer: the window's title bar is the page colour and the sidebar is darker, which met in a hard corner. The
+   sidebar now starts in the page colour and melts into its own over the first stretch, and its edge line fades in
+   the same way, so the top left reads as one soft surface. */
+.side { background: linear-gradient(180deg, var(--bg) 0, var(--drawer) 72px); border-right-color: transparent; }
+.side::after { content: ""; position: fixed; top: 0; bottom: 0; left: 271px; width: 1px; background: linear-gradient(180deg, rgb(0 0 0 / 0) 0, var(--line) 72px); pointer-events: none; }
