@@ -18,6 +18,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Tap the "Exodia updated" pill to see what changed (short bullets from `public/changes.json`, no names or sensitive details) (v230)
 - Fade above the box is shorter (30px, was 56px) and the page leaves less empty room under the last session, so less of a session hides behind it (v228)
 - Add your data page has "Or let an AI do it": copy the AI message from there too (v227)
 - Search bar on desktop is no longer squashed to ~20px by the sidebar, 44px tall (v228)

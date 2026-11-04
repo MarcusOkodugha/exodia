@@ -2275,10 +2275,16 @@ const endDemo = () => {
 };
 // After an update a small pill says so for about a minute. Tap × or swipe it away; the update itself needs no tap.
 const VERSION_KEY = 'exodia.version';
-const updatedPill = () => (view.updated && !view.updateReady ? `<div class="updatedPill" role="status"><span class="updatedDot" aria-hidden="true"></span>Exodia updated${view.isAdmin ? ` · v${view.updated.version}` : ''}<button class="updatedX" data-action="close-updated" aria-label="Close">${ICONS.close}</button></div>` : '');
+const updatedLines = () => {
+  const list = view.updated?.changes || [];
+  return list.length ? list : ['Small improvements and fixes'];
+};
+const updatedPill = () => (view.updated && !view.updateReady ? `<div class="updatedPill" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${view.updated.open ? 'true' : 'false'}"><span class="updatedDot" aria-hidden="true"></span>Exodia updated${view.isAdmin ? ` · v${view.updated.version}` : ''}</button><button class="updatedX" data-action="close-updated" aria-label="Close">${ICONS.close}</button></div>${view.updated.open ? `<div class="updatedCard"><p class="updatedTitle">What's new</p><ul>${updatedLines().map((line) => `<li>${esc(line)}</li>`).join('')}</ul></div>` : ''}` : '');
 const hideUpdated = () => {
   view.updated = null;
   const pill = document.querySelector('.updatedPill');
+  const card = document.querySelector('.updatedCard');
+  card?.remove();
   if (!pill) return;
   pill.classList.add('gone');
   setTimeout(() => pill.remove(), 220);
@@ -2296,10 +2302,15 @@ const noteUpdate = async () => {
     return;
   }
   if (!seen || seen >= version) return;
-  view.updated = { version };
+  view.updated = { version, from: seen, changes: [] };
   render();
+  fetch('/changes.json').then((response) => response.json()).then((all) => {
+    if (view.updated?.version !== version) return;
+    view.updated.changes = Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 8);
+    if (view.updated.open) render();
+  }).catch(() => {});
   setTimeout(() => {
-    if (view.updated?.version === version) hideUpdated();
+    if (view.updated?.version === version && !view.updated.open) hideUpdated();
   }, 60000);
 };
 let updatedSwipe = null;
@@ -3911,6 +3922,10 @@ document.addEventListener('click', (event) => {
   if (action === 'end-demo') return endDemo();
   if (action === 'reload-app') return reloadInPlace();
   if (action === 'close-updated') return hideUpdated();
+  if (action === 'toggle-updated') {
+    if (view.updated) view.updated.open = !view.updated.open;
+    return render();
+  }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
     if (name) state.name = name.slice(0, 40);

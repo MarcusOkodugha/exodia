@@ -38,6 +38,7 @@ Marcus sends several messages in a row and misses replies higher up in the chat.
 ## Rules for every change
 
 1. **Bump the cache version** in `public/sw.js` (`exodia-vNNN`) by one on every change that touches `public/`. Otherwise phones keep the old version.
+1b. **Add a line to `public/changes.json`** for the new version (`"NNN": ["short plain bullet"]`). The "Exodia updated" pill shows these to everyone when tapped, so never put names, keys, admin or security details in it.
 2. **Keep the style:** plain functions and template strings, no new dependencies, and all styles in `styles.css`. Later rules in `styles.css` override earlier ones, so search for every rule on a selector before you change it.
 3. **Check it on a phone screen before you push.** Serve `public/` (`python3 -m http.server`) and open it with Playwright at iPhone 15 size (393 wide) and at 375 wide.
    - To get test data, put a state in `localStorage['exodia.v1']` before load, like `{ version: 1, deviceId: 'x', name: 'Test', bests: {}, sessions: [{ date, label, exercises: [{ name, sets: [{ kg, reps, rpe }] }] }] }`. You can also click "Try it with example data".

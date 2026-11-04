@@ -1,0 +1,11 @@
+{
+  "230": ["Tap the \"Exodia updated\" pill to see what changed"],
+  "229": ["Small polish"],
+  "228": ["Shorter fade above the box, less empty room under the last session", "Search bar on desktop is no longer squashed"],
+  "227": ["\"Add your data\" has \"Or let an AI do it\": copy the AI message from there too"],
+  "224": ["The \"copy for your AI\" message now walks the AI through it step by step"],
+  "222": ["Logo bigger in the app, clearer favicon and app icons", "Box bottom no longer fades while typing on a computer"],
+  "219": ["The box never cuts the page: a soft fade above it on every screen", "Long pasted text grows the box, then scrolls inside it"],
+  "217": ["Trends: picking a lift scrolls the chart up so you can pick another"],
+  "215": ["Files wait in the box as chips so a note can go with them", "Programs without dates get placed by the AI and shown first for you to confirm"]
+}
