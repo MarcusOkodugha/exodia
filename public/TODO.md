@@ -18,7 +18,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
-- Admin: what you just sent shows right away in the panel above the box, and on desktop the right side shows "What you sent" with its status (v221)
+- Admin: what you just sent shows right away in the panel above the box, and on desktop the right side shows "What you sent" with its status (v222)
+- Red pill far right with the hidden dev button always on its left; logo bigger in the app; clearer favicon and app icons; `/admin` in any box opens Admin (text after it goes straight to Claude); box bottom no longer fades while typing on a computer (v222)
 
 - The box never cuts the page: a soft fade above it on every screen (the welcome screen too) and room under the page for the box's real height; long pasted text grows the box, then scrolls inside it with a soft edge (v219)
 - Est. 1RM counts each day's strongest set of 1–10 reps (12+ rep sets only when nothing heavier); the chart readout says which set it came from; (i) next to "Est. 1RM" in every chart legend explains it, also on the computer's Progress panel (v218)

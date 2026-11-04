@@ -3664,6 +3664,17 @@ const send = async () => {
     render();
     return;
   }
+  // Admin shortcut: /admin from any box opens Admin; anything after it goes straight to Claude there.
+  if (view.isAdmin && !voice && view.route !== 'admin' && /^\/admin(\s|$)/i.test(text)) {
+    const rest = text.replace(/^\/admin\s*/i, '');
+    view.draft = '';
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    if (location.hash !== '#/admin') location.hash = '#/admin';
+    view.route = 'admin';
+    if (rest) return sendToClaude(rest);
+    render();
+    return;
+  }
   if (view.route === 'feedback') return sendFeedback(text, voice);
   if (view.route === 'admin') return sendToClaude(text, voice);
   const date = view.composerDate || todayIso();
