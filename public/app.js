@@ -1228,7 +1228,7 @@ const renderTrends = () => {
     const last = all.at(-1);
     const lastTop = last.sets.reduce((winner, set) => (!winner || Number(set.kg) > Number(winner.kg) || (Number(set.kg) === Number(winner.kg) && Number(set.reps) > Number(winner.reps)) ? set : winner), null);
     return `<section class="card${open ? ' open' : ''}" data-trend="${esc(name)}">
-      <p class="head trendHead"><span class="headName">${esc(name)}</span><button class="textBtn trendSource" data-action="log-lift" data-name="${esc(name)}">What you said</button></p>
+      <p class="head trendHead"><span class="headName">${esc(name)}</span></p>
       ${open ? `
         <div class="tiles">
           <div class="tile"><p class="tileValue num">${lifted ? lifted.kg : '–'}<small>${lifted ? ` × ${lifted.reps}` : ''}</small></p><p class="tileLabel">Best lifted</p><p class="tileSub">All time</p></div>
@@ -2532,7 +2532,9 @@ const render = () => {
   if (view.trendScroll && view.route === 'trends') {
     const card = [...document.querySelectorAll('[data-trend]')].find((item) => item.dataset.trend === view.trendScroll);
     view.trendScroll = null;
-    if (card) requestAnimationFrame(() => card.scrollIntoView({ block: 'start' }));
+    const chart = view.trendScrollChart && card ? card.querySelector('.chartHead') : null;
+    view.trendScrollChart = false;
+    if (card) requestAnimationFrame(() => (chart || card).scrollIntoView({ block: 'start' }));
   }
   if (view.scrollTarget) {
     const card = document.getElementById(`session-${view.scrollTarget}`);
@@ -4085,7 +4087,8 @@ document.addEventListener('click', (event) => {
   else if (action === 'pick-trend') {
     view.trendOpen = target.dataset.name;
     // Picked from the list further down: bring the chart into view so you see it switch.
-    if (target.dataset.scroll) view.trendScroll = target.dataset.name;
+    view.trendScroll = target.dataset.name;
+    view.trendScrollChart = true;
   } else if (action === 'trend-more') view.trendMore = !view.trendMore;
   else if (action === 'range') view.range = Number(target.dataset.days);
   else if (action === 'accessories' && session) {

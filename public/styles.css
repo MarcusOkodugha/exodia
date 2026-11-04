@@ -808,3 +808,5 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .fileChip .contextKind { display: flex; color: var(--clay); }
 .fileChip .contextKind svg { width: 14px; height: 14px; }
 .confirmNote { font-size: 13px !important; color: var(--text2); }
+
+.trendsPage .chartHead { scroll-margin-top: calc(var(--top) + 8px); }
