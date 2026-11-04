@@ -1615,10 +1615,21 @@ const renderAdmin = () => {
   </main>`;
 };
 
-const aiInstructions = () => `Add my training to my Exodia app.
-If you can send web requests: POST ${location.origin}/api/add with the header "x-exodia-key: ${syncState.profile}" and the JSON body {"text": "<my training in plain words, with dates>"}. It reads any format and adds it to the right days.
-If you cannot send web requests: write my training as plain lines with dates, like "2026-10-31: Bench Press 120x5, 120x5, 120x4", and I will paste them into Exodia's box.
-Keep the key private; it gives full access to my log.`;
+const aiInstructions = () => `You are helping me log my gym training in my Exodia app.
+
+STEP 1. Get my training. It is the workouts I want logged, with dates if I know them (what I did, weights, sets, reps). It can be in any format: a message, a photo of a notebook, a spreadsheet, old notes. If my message below does not contain my training yet, do NOT stop: ask me "What training should I add? Paste it or describe it, any format works, and add the dates if you know them." Then wait for my answer.
+
+STEP 2. Send it to Exodia.
+- If you can send web requests: POST ${location.origin}/api/add with the header "x-exodia-key: ${syncState.profile}" and the JSON body {"text": "<my training in plain words, with dates>"}. Exodia reads any format and puts each workout on the right day. Tell me what it answers.
+- If you cannot send web requests: rewrite my training as plain lines with a date on each, one workout per line, like these two:
+2026-10-31: Bench Press 120x5, 120x5, 120x4
+2026-11-02: Squat 160x5x3, Deadlift 200x3
+Then tell me: "Copy these lines, open Exodia, paste them in the box at the bottom and send." Exodia adds them.
+
+Keep the key above private; it gives full access to my log.
+
+My training:
+`;
 
 const renderYou = () => {
   const big = ['Deadlift', 'Squat', 'Bench Press'];
