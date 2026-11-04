@@ -102,7 +102,7 @@ const askClaude = async (env, context, words) => {
 
 const IMPORT_PROMPT = `You turn a lifter's training history into JSON days. The text can be anything: notes, an app export, messages to themselves, a spoken ramble, in any order, with unrelated talk mixed in. Ignore everything that is not training.
 Each day gets its date as YYYY-MM-DD. Use the calendar below for relative dates like "yesterday" or "last Friday". If a date has no year, use the most recent past date with that day and month. Training with no date at all goes on today's date only if the text says it was today; otherwise put it in unclear in the user's words.
-Training programs and plans often have no dates, only weeks and days (Week 1 Day 1, W3D2, "Day A"). Use the user's note or anything in the text to date them: the first day of the program on its start date, the following training days in order, spread evenly over each week (three days a week: two days apart, like Monday, Wednesday, Friday), week N starting 7×(N−1) days after the start. If there is no date anywhere, end the program on the most recent past day before today and say in unclear that the dates were guessed. Never put days after today.
+Training programs and plans often have no real dates, only days and weeks (Day 7, Week 2 Day 3, W3D2, "Day A", a sheet called "Day 6-10"). Never invent dates for them. Give each such day programDay: its number counted from the program's first training day across the whole file, using sheet names, sheet order ("Sheet 3 of 7") and day labels to know where you are (a sheet "Day 6-10" holds days 6 to 10; "Week 2 Day 3" with 5 days a week is day 8). Set date to "" for those days. Set programStart (YYYY-MM-DD) if the user's note or the text says when the program started, and daysPerWeek if it says or shows how many training days a week. Every day in the text is a separate day: never merge two days into one.
 Get as much in as you can. A missing value never drops an exercise: "4x5" or "4 sets of 5" is four sets of 5 reps; reps without a weight get weight 0; a weight without reps gets reps 0; a percentage of a max becomes kg from the known best in the note (best × percentage, rounded to 2.5), otherwise weight 0. Ranges like "8-10" take the low end.
 Weights are kilograms; convert pounds (lb, lbs) to kg rounded to 0.5. "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps. "3x5 at 100" means three sets of 100 kg for 5 reps. Reps in reserve N means rpe 10 minus N. "At 9" after a set means rpe 9. Keep warm-up sets only when they are marked as warm-ups, and set warmup true. "Paused" or "pause" with bench or squat means the lift Pause Bench Press or Pause Squat. A number said with "kg" is always the weight. Never invent reps or weights; unknown reps are 0. Keep the exercise the user named in Title Case ("single arm tricep extension" is "Single Arm Tricep Extension"); use a known-list name only when it is the same exercise. Cardio goes in cardioMinutes, accessory work in minutes goes in accessoriesMinutes. If they named the session or said where it was, put a short name in label. Log each set once even if it is mentioned twice.`;
 
@@ -115,6 +115,7 @@ const DAY_SCHEMA = {
         type: 'OBJECT',
         properties: {
           date: { type: 'STRING' },
+          programDay: { type: 'INTEGER' },
           label: { type: 'STRING' },
           exercises: SCHEMA.properties.exercises,
           cardioMinutes: { type: 'INTEGER' },
@@ -123,7 +124,9 @@ const DAY_SCHEMA = {
         required: ['date', 'exercises']
       }
     },
-    unclear: { type: 'STRING' }
+    unclear: { type: 'STRING' },
+    programStart: { type: 'STRING' },
+    daysPerWeek: { type: 'INTEGER' }
   },
   required: ['days']
 };
@@ -133,7 +136,9 @@ const calendarFor = (today) => Array.from({ length: 14 }, (unused, index) => {
   return `${day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })} ${day.toISOString().slice(0, 10)}${index === 0 ? ' (today)' : ''}`;
 }).join('\n');
 
-const askAi = async (env, system, user, schema) => {
+// Imports are read by stronger models that think first (a whole program needs reasoning); the light ones are the fallback.
+const IMPORT_MODELS = 'gemini-3.5-flash,gemini-3.1-flash,gemini-2.5-flash';
+const askAi = async (env, system, user, schema, strong = false) => {
   if (env.ANTHROPIC_API_KEY) {
     try {
       const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2 });
@@ -150,7 +155,8 @@ const askAi = async (env, system, user, schema) => {
       console.log('Claude failed, using Gemini', String(error).slice(0, 200));
     }
   }
-  const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
+  const light = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
+  const models = strong ? [...new Set([...(env.GEMINI_IMPORT_MODELS || IMPORT_MODELS).split(',').map((model) => model.trim()).filter(Boolean), ...light])] : light;
   let busy = false;
   for (const [attempt, model] of [...models, ...models].entries()) {
     if (attempt === models.length) {
@@ -160,7 +166,7 @@ const askAi = async (env, system, user, schema) => {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: schema } })
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0, maxOutputTokens: strong ? 65536 : 8192, responseMimeType: 'application/json', responseSchema: schema } })
     });
     if (!response.ok) {
       busy = busy || response.status === 429 || response.status >= 500;
@@ -176,10 +182,14 @@ const askAi = async (env, system, user, schema) => {
   throw new Error(busy ? 'The AI was busy. Try again in a minute.' : 'The AI could not read that.');
 };
 
+// A piece that starts in the middle of a sheet repeats the sheet's name, so the AI always knows where it is.
+const SHEET_LINE = /^### Sheet \d+ of \d+: /;
 const chunksOf = (text, size = 8000) => {
   const chunks = [''];
+  let sheet = '';
   for (const line of text.split('\n')) {
-    if (chunks.at(-1).length + line.length > size && chunks.at(-1)) chunks.push('');
+    if (SHEET_LINE.test(line)) sheet = line;
+    if (chunks.at(-1).length + line.length > size && chunks.at(-1)) chunks.push(sheet && line !== sheet ? `${sheet} (continued)\n` : '');
     chunks[chunks.length - 1] += `${line}\n`;
   }
   return chunks.filter((chunk) => chunk.trim()).slice(0, 40);
@@ -193,7 +203,7 @@ const readDays = async (env, text, today, known, context = '') => {
   let failed = 0;
   let lastError = null;
   for (let start = 0; start < chunks.length; start += 3) {
-    for (const outcome of await Promise.allSettled(chunks.slice(start, start + 3).map((chunk) => askAi(env, system, chunk, DAY_SCHEMA)))) {
+    for (const outcome of await Promise.allSettled(chunks.slice(start, start + 3).map((chunk) => askAi(env, system, chunk, DAY_SCHEMA, true)))) {
       if (outcome.status === 'fulfilled') parts.push(outcome.value);
       else {
         failed += 1;
@@ -202,10 +212,37 @@ const readDays = async (env, text, today, known, context = '') => {
     }
   }
   if (!parts.length && lastError) throw lastError;
-  const days = parts.flatMap((part) => Array.isArray(part?.days) ? part.days : [])
+  const all = parts.flatMap((part) => Array.isArray(part?.days) ? part.days : []);
+  let guessed = '';
+  // Program days get their dates here, the same way for every piece: start + whole weeks + the day's place in its week.
+  const numbered = all.filter((day) => Number.isInteger(day?.programDay) && day.programDay > 0);
+  if (numbered.length) {
+    const note = `${context} ${text.slice(0, 2000)}`;
+    const startText = parts.map((part) => part?.programStart).find((value) => DATE.test(value ?? ''));
+    const lastDay = Math.max(...numbered.map((day) => day.programDay));
+    const weeks = Number((note.match(/(\d+)\s*(?:-\s*)?weeks?/i) || [])[1]) || 0;
+    const perWeek = Math.min(7, Math.max(1, parts.map((part) => part?.daysPerWeek).find((value) => Number.isInteger(value) && value > 0)
+      || Number((note.match(/(\d)\s*(?:workouts?|sessions?|days?|times|pass)\s*(?:a|per|\/|i)\s*(?:week|vecka)/i) || [])[1])
+      || (() => {
+        // Sheets named in blocks ("Day 6-10") are usually one week each.
+        const block = text.match(/^### Sheet \d+ of \d+: .*?(\d+)\s*[-–]\s*(\d+)/m);
+        const size = block ? Number(block[2]) - Number(block[1]) + 1 : 0;
+        return size >= 2 && size <= 7 ? size : 0;
+      })()
+      || (weeks ? Math.ceil(lastDay / weeks) : 4)));
+    const offset = (programDay) => 7 * Math.floor((programDay - 1) / perWeek) + Math.round(((programDay - 1) % perWeek) * 7 / perWeek);
+    const shift = (iso, days) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+    let start = startText;
+    if (!start) {
+      start = shift(today, -1 - offset(lastDay));
+      guessed = `No start date was given, so the program ends yesterday and starts ${start}. Add a note like "started 7 March 2024" to place it right.`;
+    }
+    for (const day of numbered) day.date = shift(start, offset(day.programDay));
+  }
+  const days = all
     .filter((day) => DATE.test(day?.date ?? '') && day.date <= today)
     .map((day) => ({ ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today), date: day.date }));
-  const unclear = parts.map((part) => part?.unclear).filter(Boolean).join(' ').slice(0, 500);
+  const unclear = [guessed, ...parts.map((part) => part?.unclear)].filter(Boolean).join(' ').slice(0, 500);
   return { days, unclear, failed };
 };
 

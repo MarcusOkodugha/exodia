@@ -1386,11 +1386,13 @@ const renderLog = () => `<main class="page">
 const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
   .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Not allowed'))))
   .then((data) => {
-    view.adminRows = data.commands;
-    view.adminFeedback = data.feedback || [];
+    view.adminRows = Array.isArray(data?.commands) ? data.commands : [];
+    view.adminFeedback = data?.feedback || [];
+    view.adminError = '';
   })
-  .catch(() => {
+  .catch((error) => {
     view.adminRows = [];
+    view.adminError = navigator.onLine === false ? 'No internet, so the list could not load.' : `The list could not load (${error.message}).`;
   })
   .finally(() => {
     if (view.route === 'admin') {
@@ -1694,23 +1696,22 @@ const shareCard = () => {
 };
 
 const renderAdmin = () => {
-  if (!view.adminRows) {
-    if (!view.adminLoading) {
-      view.adminLoading = true;
-      loadAdmin().finally(() => {
-        view.adminLoading = false;
-      });
-    }
-    return '<main class="page"><h1 class="title">Admin</h1><p class="empty">Loading every command…</p></main>';
+  // Your change requests show straight away; only the server lists below wait for loading.
+  if (!view.adminRows && !view.adminLoading) {
+    view.adminLoading = true;
+    loadAdmin().finally(() => {
+      view.adminLoading = false;
+    });
   }
   return `<main class="page">
     <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
+    <p class="section">Change the app</p>
+    <p class="feedbackLead">Say or type a change in the box below. It shows here at once, with how it's going.</p>
+    ${view.adminError ? `<p class="feedbackMeta"><span class="runFailed">${esc(view.adminError)}</span> <button class="textBtn" data-action="admin-reload">Try again</button></p>` : ''}
+    ${(state.claudeRuns || []).slice(0, 20).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Invite someone</p>
     ${shareCard()}
-    <p class="section">Change the app</p>
-    <p class="feedbackLead">Say or type a change in the box below. Exodia builds it, and it goes live in a few minutes.</p>
-    ${(state.claudeRuns || []).slice(0, 5).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Feedback</p>
     ${(view.adminFeedback || []).map((item) => `<div class="feedbackRow">
       <p class="feedbackHead"><span class="${item.kind === 'bug' ? 'prPill' : 'prPill est'}">${item.kind === 'bug' ? 'Bug' : 'Idea'}</span><b>${esc(item.title)}</b></p>
@@ -1719,7 +1720,7 @@ const renderAdmin = () => {
       <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}<button class="chip" data-action="feedback-claude" data-id="${item.id}"><span class="chipFace">Build it</span></button></div>
     </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
     <p class="section">Every command</p>
-    <div class="chat">${view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at), theirs: !row.mine })).join('') || '<p class="empty">No commands yet.</p>'}</div>
+    <div class="chat">${!view.adminRows ? '<p class="empty">Loading every command…</p>' : view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at), theirs: !row.mine })).join('') || '<p class="empty">No commands yet.</p>'}</div>
   </main>`;
 };
 
@@ -1755,20 +1756,9 @@ const loadChanges = () => {
 };
 const renderYou = () => {
   loadChanges();
-  const big = ['Deadlift', 'Squat', 'Bench Press'];
-  const lifts = [...big, ...loggedLifts().filter((name) => !big.includes(name)).sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 7)];
   return `<main class="page youPage">
     <p class="eyebrow">Settings</p>
     <h1 class="title nameTitle"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="Your name" data-name-input><label for="name" class="nameEdit" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg></label></h1>
-    <p class="section liftHead"><span>Best lifts</span><span class="colHead liftCol">Best lifted</span><span class="colHead e1Col">e1RM ${infoButton()}</span></p>
-    ${view.info ? ESTIMATE_INFO : ''}
-    <section class="card">
-      ${lifts.map((name) => {
-        const lifted = heaviestLifted(name);
-        return `<button class="row liftRow" data-action="open-trend" data-name="${esc(name)}"><span class="liftName">${esc(name)}</span><span class="liftCol liftSet num">${lifted ? `<span>${lifted.kg}</span><span class="liftX">×</span><span>${lifted.reps}</span>` : '<span></span><span></span><span>–</span>'}</span><span class="e1Col e1rm">${lifted ? Math.round(bestOverall(name)) : ''}</span></button>`;
-      }).join('')}
-    </section>
-    <p class="note">Best lifted is the heaviest set you have done. e1RM is your estimated one-rep max. Paused and other variations count as their own lift.</p>
     <p class="section">Share Exodia</p>
     ${shareCard()}
     <p class="section">Add from any AI</p>
@@ -2044,14 +2034,12 @@ const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
-const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}` || '<p class="empty">Say or type what to change in the app.</p>';
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 // Quick add gets the whole panel when it shows; the log stays on the Log page.
 const quickShown = () => !nameQuery() && (view.showQuick || (!view.draft.trim() && !view.quickHidden));
 
-const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeChat()}</div>`
-  : view.route === 'feedback' ? `<div class="chat">${feedbackChat()}</div>`
+const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedbackChat()}</div>`
   : nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
   : `${quickShown() ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${quickShown() ? quickAdd() : ''}`);
@@ -2722,7 +2710,7 @@ const render = () => {
     ? `<div class="desk">
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
-        <aside class="right" aria-label="${view.route === 'admin' ? 'Sent' : 'Progress'}">${view.route === 'admin' ? `<p class="eyebrow">What you sent</p><div class="chat">${claudeChat()}</div>` : renderProgress()}</aside>
+        <aside class="right" aria-label="Progress">${renderProgress()}</aside>
         ${view.isAdmin ? '<button class="devBtn deskDev" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
       </div>`
     : `<header class="topbar"><div class="topbarInner">
@@ -3260,7 +3248,19 @@ const xlsxToText = (files) => {
   const xfs = (styles.match(/<cellXfs[\s\S]*?<\/cellXfs>/) || [''])[0];
   const dateStyle = [...xfs.matchAll(/<xf [^>]*numFmtId="(\d+)"/g)].map((match) => isDateFormat(Number(match[1])));
   const out = [];
-  for (const name of Object.keys(files).filter((key) => key.startsWith('xl/worksheets/')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))) {
+  // Sheets in the workbook's own order, each under its name ("### Sheet 2 of 7: Day 6-10"): programs often keep a week or a block per sheet.
+  const rels = {};
+  for (const match of (files['xl/_rels/workbook.xml.rels'] || '').matchAll(/<Relationship [^>]*>/g)) {
+    const id = (match[0].match(/Id="([^"]+)"/) || [])[1];
+    const target = (match[0].match(/Target="([^"]+)"/) || [])[1];
+    if (id && target) rels[id] = `xl/${target.replace(/^\/?xl\//, '').replace(/^\//, '')}`;
+  }
+  const named = [...(files['xl/workbook.xml'] || '').matchAll(/<sheet [^>]*>/g)].map((match) => ({ title: xmlText((match[0].match(/name="([^"]*)"/) || [])[1] || ''), path: rels[(match[0].match(/r:id="([^"]+)"/) || [])[1]] })).filter((sheet) => files[sheet.path]);
+  const sheets = named.length ? named : Object.keys(files).filter((key) => key.startsWith('xl/worksheets/') && key.endsWith('.xml')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map((path, index) => ({ title: `Sheet${index + 1}`, path }));
+  for (const [index, sheet] of sheets.entries()) {
+    const name = sheet.path;
+    const before = out.length;
+    if (sheets.length > 1) out.push(`### Sheet ${index + 1} of ${sheets.length}: ${sheet.title}`);
     for (const row of files[name].matchAll(/<row[ >][\s\S]*?<\/row>/g)) {
       const cells = [];
       for (const cell of row[0].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
@@ -3281,6 +3281,7 @@ const xlsxToText = (files) => {
       }
       if (cells.some(Boolean)) out.push(cells.join('\t').replace(/\t+$/, ''));
     }
+    if (out.length === before + 1) out.pop();
   }
   return out.join('\n');
 };
@@ -3627,16 +3628,7 @@ const sendImportPart = async (text, extra = {}) => {
 };
 // Free text goes to the AI in parts of about 24,000 characters, one after the other, so a long history never times out.
 const aiImport = async (text, progress) => {
-  const pieces = [];
-  let piece = '';
-  for (const line of text.slice(0, AI_TEXT_LIMIT).split('\n')) {
-    if (piece.length + line.length > 24000 && piece.trim()) {
-      pieces.push(piece);
-      piece = '';
-    }
-    piece += `${line.slice(0, 24000)}\n`;
-  }
-  if (piece.trim()) pieces.push(piece);
+  const pieces = splitPieces(text);
   const added = new Map();
   const unclear = [];
   let failed = 0;
@@ -3729,10 +3721,12 @@ const attachFile = (picked) => readFileText(picked).then((text) => {
 const splitPieces = (text) => {
   const pieces = [];
   let piece = '';
+  let sheet = '';
   for (const line of text.slice(0, AI_TEXT_LIMIT).split('\n')) {
+    if (/^### Sheet \d+ of \d+: /.test(line)) sheet = line;
     if (piece.length + line.length > 24000 && piece.trim()) {
       pieces.push(piece);
-      piece = '';
+      piece = sheet && line !== sheet ? `${sheet} (continued)\n` : '';
     }
     piece += `${line.slice(0, 24000)}\n`;
   }
@@ -3914,13 +3908,14 @@ const send = async () => {
     return;
   }
   // Admin shortcut: /admin from any box opens Admin; anything after it goes straight to Claude there.
-  if (view.isAdmin && !voice && view.route !== 'admin' && /^\/admin(\s|$)/i.test(text)) {
+  // A voice note recorded after /admin goes to the builder too, never into the training log.
+  if (view.isAdmin && view.route !== 'admin' && /^\/admin(\s|$)/i.test(text)) {
     const rest = text.replace(/^\/admin\s*/i, '');
     view.draft = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
     if (location.hash !== '#/admin') location.hash = '#/admin';
     view.route = 'admin';
-    if (rest) return sendToClaude(rest);
+    if (rest || voice) return sendToClaude(rest, voice);
     render();
     return;
   }
@@ -4182,6 +4177,12 @@ document.addEventListener('click', (event) => {
         fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ id: item.id, status: 'planned' }) });
       })
       .catch(() => {});
+    return;
+  }
+  if (action === 'admin-reload') {
+    view.adminRows = null;
+    view.adminError = '';
+    render();
     return;
   }
   if (action === 'claude-retry') {
