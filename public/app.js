@@ -582,14 +582,20 @@ const recentLog = () => sortedSessions()
   .map((session) => `${session.date}: ${[...session.exercises.map((exercise) => `${exercise.name} ${validSets(exercise).map((set) => `${set.kg}x${set.reps}${set.rpe ? `@${set.rpe}` : ''}${set.warmup ? ' warm-up' : ''}`).join(', ')}`), session.cardio ? `Cardio ${session.cardio} min` : null].filter(Boolean).join('; ')}`)
   .join('\n');
 
+const laterJobs = () => (state.later || []);
+// No connection at all is a "try again later", same as a busy AI.
+const fetchOrLater = (url, options) => fetch(url, options).catch(() => {
+  throw Object.assign(new Error('No connection right now.'), { later: true, busy: true });
+});
 const parseWithAi = async (text, audio, hint = '') => {
-  const response = await fetch('/api/parse', {
+  const response = await fetchOrLater('/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
     body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(body.error || 'The AI could not read that.'), { heard: body.transcript || '' });
+  // Busy, rate-limited or down: worth trying again later by itself. A note the AI read but couldn't use is not.
+  if (!response.ok) throw Object.assign(new Error(body.error || 'The AI could not read that.'), { heard: body.transcript || '', later: response.status === 429 || response.status >= 500 });
   return body;
 };
 
@@ -735,7 +741,9 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 };
 
 // One word while the AI works, whether it is a set, a whole workout or an edit.
-const renderPending = () => '<div class="ghost" role="status"><span class="ghostText">Understanding…</span></div>';
+const renderPending = (item = {}) => `<div class="ghost" role="status"><span class="ghostText">${item.later ? 'Exodia is on it in the background · lands by itself' : 'Understanding…'}</span></div>`;
+// What is on its way to a day: being read right now, or waiting in the background for the AI.
+const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
 
 const accessoriesOf = (session) => session.accessories ?? (session.exercises.length ? 30 : 0);
 
@@ -789,7 +797,7 @@ const daySummary = (session) => {
 };
 
 const renderSession = (session) => {
-  const pendings = view.pending.filter((pending) => pending.date === session.date);
+  const pendings = inFlight().filter((pending) => pending.date === session.date);
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
@@ -826,8 +834,8 @@ const renderSession = (session) => {
 };
 
 const listWithGhosts = (sessions) => {
-  const ghostDates = [...new Set(view.pending.map((pending) => pending.date))].filter((date) => !sessions.some((session) => session.date === date));
-  const ghosts = ghostDates.map((date) => ({ date, html: `<section class="card session open landing" id="session-${date}"><div class="head"><span class="headName">${dayLabel(date)}</span></div>${view.pending.filter((pending) => pending.date === date).map(renderPending).join('')}</section>` }));
+  const ghostDates = [...new Set(inFlight().map((pending) => pending.date))].filter((date) => !sessions.some((session) => session.date === date));
+  const ghosts = ghostDates.map((date) => ({ date, html: `<section class="card session open landing" id="session-${date}"><div class="head"><span class="headName">${dayLabel(date)}</span></div>${inFlight().filter((pending) => pending.date === date).map(renderPending).join('')}</section>` }));
   return [...sessions.map((session) => ({ date: session.date, html: renderSession(session) })), ...ghosts]
     .sort((first, second) => second.date.localeCompare(first.date))
     .map((item) => item.html)
@@ -1084,7 +1092,7 @@ const renderHome = () => {
       ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p></div>` : ''}
     </section>
     <p class="section sessionsHead">Sessions${sessions[0] && !view.open.has(sessions[0].date) ? COLUMN_HEAD : ''}</p>
-    <div class="list">${sessions.length || view.pending.length ? listWithGhosts(sessions.slice(0, 30)) : quickStart()}</div>
+    <div class="list">${sessions.length || inFlight().length ? listWithGhosts(sessions.slice(0, 30)) : quickStart()}</div>
   </main>`;
 };
 
@@ -1344,7 +1352,7 @@ const chatStamp = (at, before) => {
   return at - before > 1800000 ? time : '';
 };
 
-const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, voiceId, compact, manual, theirs }) => {
+const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, voiceId, compact, manual, theirs, laterId }) => {
   const fixIndex = manual ? undefined : index;
   const lines = [].concat(did);
   const failed = OFF_LINE.test(lines[0] || '');
@@ -1356,7 +1364,7 @@ const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, 
   return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}">
   ${theirs ? `${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<p class="chatWho">${esc(who || 'Someone')}</p>` : stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
   ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
-  <div class="bubbleOut"><p>${esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}</div>
+  <div class="bubbleOut"><p>${laterId && laterJobs().some((job) => job.id === laterId) ? `<span class="ghostText">${esc(lines.join(' · '))}</span>` : esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}${failed && fixIndex !== undefined && view.isAdmin && said !== 'Voice note' ? `<button class="textBtn" data-action="said-builder" data-index="${fixIndex}">Ask Exodia builder</button>` : ''}</div>
 </div>`;
 };
 
@@ -2138,7 +2146,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
   <button class="slashSuggest" data-action="slash-admin"${slashSuggest() ? '' : ' hidden'}><b>/admin</b> Send this to Exodia</button>
   <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
@@ -2704,7 +2712,7 @@ const render = () => {
   const searchFocused = focused && focused.id === 'search';
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
-  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' ? renderAdmin() : view.route === 'import' ? renderImport() : renderHome();
+  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : renderHome();
   const dock = `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
@@ -3630,8 +3638,17 @@ const askColumns = (rows) => fetch('/api/columns', { method: 'POST', headers: { 
   .then((response) => (response.ok ? response.json() : null))
   .then((body) => (body && body.exercise >= 0 && (body.weight >= 0 || body.reps >= 0) ? { ...body, headerRow: Math.max(-1, Number(body.headerRow) || 0), lb: body.weightUnit === 'lb', warmHeader: true } : null))
   .catch(() => null);
+// A busy AI during an import: wait and go again by itself (about 7 minutes in all), saying so calmly.
+const IMPORT_WAIT = [10, 20, 30, 60, 60, 120, 120];
+const importPause = async (attempt, progress, index, total) => {
+  for (let left = IMPORT_WAIT[attempt]; left > 0; left -= 5) {
+    progress(index, total, `Exodia's AI is busy, going again in ${left} s. Keep using the app, this finishes by itself.`);
+    await new Promise((resolve) => setTimeout(resolve, Math.min(5, left) * 1000));
+  }
+  progress(index, total, total > 1 ? `Reading part ${index + 1} of ${total}…` : 'Reading the file…');
+};
 const sendImportPart = async (text, extra = {}) => {
-  const response = await fetch('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) });
+  const response = await fetchOrLater('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(body.error || 'Could not read that. Try again.'), { busy: response.status === 429 || response.status >= 500 });
   return body;
@@ -3645,7 +3662,7 @@ const aiImport = async (text, progress) => {
   let lastError = null;
   for (const [index, part] of pieces.entries()) {
     progress(index, pieces.length);
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt <= IMPORT_WAIT.length; attempt += 1) {
       try {
         const body = await sendImportPart(part);
         for (const session of body.sessions || []) {
@@ -3658,11 +3675,11 @@ const aiImport = async (text, progress) => {
         break;
       } catch (error) {
         lastError = error;
-        if (attempt === 2 || !error.busy) {
+        if (attempt === IMPORT_WAIT.length || !error.busy) {
           failed += 1;
           break;
         }
-        await new Promise((resolve) => setTimeout(resolve, attempt ? 30000 : 12000));
+        await importPause(attempt, progress, index, pieces.length);
       }
     }
   }
@@ -3756,7 +3773,7 @@ const aiPreview = async (text, note, progress) => {
   const pieces = splitPieces(text);
   for (const [index, part] of pieces.entries()) {
     progress(index, pieces.length);
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt <= IMPORT_WAIT.length; attempt += 1) {
       try {
         const body = await sendImportPart(part, { dry: true, context: [note, maxesNote()].filter(Boolean).join('\n') });
         for (const session of body.sessions || []) {
@@ -3768,8 +3785,8 @@ const aiPreview = async (text, note, progress) => {
         break;
       } catch (error) {
         lastError = error;
-        if (attempt === 2 || !error.busy) break;
-        await new Promise((resolve) => setTimeout(resolve, attempt ? 30000 : 12000));
+        if (attempt === IMPORT_WAIT.length || !error.busy) break;
+        await importPause(attempt, progress, index, pieces.length);
       }
     }
   }
@@ -3881,6 +3898,74 @@ const runImport = async (text, said, onFail = () => {}) => {
   }
 };
 
+// Messages that couldn't reach the AI (busy, or no internet) wait here and are sent again by themselves:
+// soon at first, then less often, for up to a day. The log shows them as "on it" until they land.
+const LATER_WAIT = [15, 30, 60, 120, 300, 600, 900];
+const queueLater = async ({ prompt, said, date, live = '', voice = null, heard = '' }) => {
+  const id = `later-${Date.now()}`;
+  if (voice?.size) await keepVoice(id, voice);
+  const at = Date.now();
+  state.later = [...laterJobs(), { id, prompt, said, date, live, heard, voice: Boolean(voice?.size), at, tries: 0, next: at + LATER_WAIT[0] * 1000 }];
+  addLog(said, ['Exodia is on it in the background. It lands by itself, keep going.'], { laterId: id, manual: true });
+  save();
+  render();
+  setTimeout(runLater, LATER_WAIT[0] * 1000);
+};
+let laterRunning = false;
+const runLater = async (force = false) => {
+  if (laterRunning || !laterJobs().length || !navigator.onLine) return;
+  laterRunning = true;
+  try {
+    for (const job of laterJobs().slice()) {
+      if (!force && job.next > Date.now()) continue;
+      let audio;
+      if (job.voice) {
+        const blob = await loadVoice(job.id);
+        audio = blob ? await wavBase64(blob).catch(() => undefined) : undefined;
+      }
+      try {
+        const result = await parseWithAi(job.prompt, audio, job.live);
+        state.later = laterJobs().filter((item) => item.id !== job.id);
+        state.log = (state.log || []).filter((entry) => entry.laterId !== job.id);
+        const said = result.transcript || job.said;
+        if (result.feedback && !/\b(feedback|feature)\b/i.test(`${job.prompt} ${result.transcript || ''}`)) delete result.feedback;
+        const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
+        try {
+          if (result.feedback && !logsSomething) await routeFeedback(result.feedback, said);
+          else if (result.remove?.length && job.voice) view.confirm = { result, date: job.date, said, heard: result.transcript || '', text: describeRemoval(result) };
+          else applyResult(result, job.date, said, job.voice ? result.transcript || '' : '');
+        } catch (error) {
+          addLog(said, [`Not logged: ${error.message}`]);
+        }
+        if (job.voice) dropVoice(job.id);
+      } catch (error) {
+        job.tries += 1;
+        const tooOld = Date.now() - job.at > 24 * 3600000;
+        if (!error.later && !(error instanceof TypeError) || tooOld) {
+          state.later = laterJobs().filter((item) => item.id !== job.id);
+          const entry = (state.log || []).find((item) => item.laterId === job.id);
+          if (entry) {
+            delete entry.laterId;
+            entry.did = [`Not logged: ${tooOld ? 'Exodia couldn\'t reach the AI for a day.' : error.message}${job.voice ? ' Your recording is saved, tap Try again.' : ''}`];
+            if (job.voice) entry.voiceId = job.id;
+          }
+        } else job.next = Date.now() + LATER_WAIT[Math.min(job.tries, LATER_WAIT.length - 1)] * 1000;
+      }
+      save();
+      render();
+    }
+  } finally {
+    laterRunning = false;
+  }
+  const next = Math.min(...laterJobs().map((job) => job.next));
+  if (Number.isFinite(next)) setTimeout(runLater, Math.max(1000, next - Date.now()));
+};
+window.addEventListener('online', () => runLater(true));
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) runLater();
+});
+setTimeout(() => runLater(true), 3000);
+
 const send = async () => {
   const recorded = recording ? await stopRecording() : view.voiceBlob;
   view.voiceBlob = null;
@@ -3930,7 +4015,7 @@ const send = async () => {
     return;
   }
   if (view.route === 'feedback') return sendFeedback(text, voice);
-  if (view.route === 'admin') return sendToClaude(text, voice);
+  if (view.route === 'admin' && view.isAdmin) return sendToClaude(text, voice);
   const date = view.composerDate || todayIso();
   // Long text, or rows pasted from a spreadsheet (they come with tabs), is a history to import.
   if (!voice && (text.length > 600 || (/\t/.test(view.draft) && view.draft.trim().includes('\n'))) && !view.fixing && !view.editContext) {
@@ -3961,9 +4046,13 @@ const send = async () => {
     closeTray();
     return;
   }
-  if (!navigator.onLine) {
-    view.status = 'Offline. Try “bench 120x4x3”.';
+  if (!navigator.onLine && !view.fixing) {
+    view.draft = '';
+    view.status = '';
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    await queueLater({ prompt: text, said: text || live || 'Voice note', date: guessDate(text, date), live, voice });
     render();
+    closeTray();
     return;
   }
   const pending = { date: guessDate(text, date), label: text || 'your voice note', text: text || live || 'Voice note' };
@@ -4001,6 +4090,11 @@ const send = async () => {
     if (error.feedback) {
       addLog(text || heard || error.heard || live || 'Voice note', ['Sent to Marcus as feedback'], { manual: true });
       note('Sent to Marcus', 'As feedback');
+      return;
+    }
+    // Busy or offline: it waits and tries again by itself; nothing for the person to do.
+    if (error.later && !view.fixing) {
+      await queueLater({ prompt: text, said: text || heard || error.heard || live || 'Voice note', date, live, voice, heard: heard || error.heard || '' });
       return;
     }
     view.composerDate = date === todayIso() ? null : date;
@@ -4311,6 +4405,13 @@ document.addEventListener('click', (event) => {
     view.replacing = entry.at;
     view.draft = entry.said;
     return send();
+  }
+  else if (action === 'said-builder') {
+    // The same builder that changes the app fixes the log: it reads what was said and writes it into the database.
+    const entry = state.log?.[Number(target.dataset.index)];
+    if (!entry) return;
+    askClaude(`Data fix, not an app change. Marcus said this in the app and it didn't go through: "${entry.said}" (on ${new Date(entry.at).toISOString().slice(0, 10)}, the app replied: ${entry.did.join(' ')}). Make his log match what he meant, in D1 with wrangler: find his profile with SELECT id FROM profiles WHERE json_extract(meta,'$.name')='Marcus'; read the days involved first; then bump profiles.seq by one and write each changed day with updated = now in ms and seq = the new profiles.seq (a removed day has data NULL). Keep sets he didn't mention. Never put his data in the repo. Reply with exactly what changed. If it's not clear what he meant, change nothing and say what you need.`).catch(() => {});
+    return;
   }
   else if (action === 'said-feedback') {
     const entry = state.log?.[Number(target.dataset.index)];

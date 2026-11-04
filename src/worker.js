@@ -541,38 +541,52 @@ const parse = async (request, env, ctx) => {
   }
   let lastError = '';
   let busy = false;
+  const system = `${PROMPT}\n${RAMBLE}${heard ? `\nWhisper, a strong speech-to-text tuned to gym words, heard: "${heard}". Use it together with the audio; when they disagree on a word, pick what makes sense for lifting.` : ''}${hint ? `\nThe phone's own live speech-to-text heard: "${hint}". It is often wrong, use it only as a last resort for unclear words.` : ''}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}`;
+  const ask = async (list, rounds) => {
+    for (let round = 0; round < rounds; round += 1) {
+      if (round && !busy) break;
+      if (round) await new Promise((resolve) => setTimeout(resolve, 1500 * round));
+      for (const model of list) {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
+            generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA }
+          })
+        });
+        if (!response.ok) {
+          lastError = `${model}: ${response.status} ${(await response.text()).slice(0, 160)}`;
+          busy = busy || response.status === 429 || response.status >= 500;
+          continue;
+        }
+        const data = await response.json();
+        const output = data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
+        try {
+          return { result: clean(JSON.parse(output), today), model };
+        } catch {
+          lastError = `${model}: answer could not be read`;
+        }
+      }
+    }
+    return null;
+  };
+  const logs = (result) => Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
   // Voice notes try the full Flash model first: it hears noisy gym audio better than the Lite ones, which stay as fallback.
   const tries = audio ? [...new Set([env.GEMINI_VOICE_MODEL || 'gemini-3.5-flash', ...models])] : models;
-  for (const [attempt, model] of [...tries, ...tries].entries()) {
-    if (attempt === tries.length) {
-      if (!busy) break;
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: `${PROMPT}\n${RAMBLE}${heard ? `\nWhisper, a strong speech-to-text tuned to gym words, heard: "${heard}". Use it together with the audio; when they disagree on a word, pick what makes sense for lifting.` : ''}${hint ? `\nThe phone's own live speech-to-text heard: "${hint}". It is often wrong, use it only as a last resort for unclear words.` : ''}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}` }] },
-        contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA }
-      })
-    });
-    if (response.status === 404 || response.status === 400 || response.status === 429 || response.status >= 500) {
-      lastError = `${model}: ${response.status} ${(await response.text()).slice(0, 160)}`;
-      busy = busy || response.status === 429 || response.status >= 500;
-      continue;
-    }
-    const data = await response.json();
-    const output = data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
-    try {
-      const result = clean(JSON.parse(output), today);
-      logCommand(request, env, ctx, body, text || result.transcript, result);
-      keepAsFeedback(request, env, ctx, body, text || result.transcript, result);
-      return json(result);
-    } catch {
-      logCommand(request, env, ctx, body, text || 'Voice note', { error: 'AI answer could not be read' });
-      return json({ error: 'Could not read that. Try “bench 120 for 4, 4 and 7”.', transcript: heard }, 422);
-    }
+  let found = await ask(tries, 2);
+  // Not understood (and not feedback): a stronger model that thinks first gets one more look before giving up.
+  if (!found || (!logs(found.result) && !found.result.feedback)) {
+    const strong = (env.GEMINI_IMPORT_MODELS || IMPORT_MODELS).split(',').map((model) => model.trim()).filter((model) => model && !/pro/.test(model));
+    const second = await ask(strong, 2);
+    if (second && (!found || logs(second.result) || second.result.feedback)) found = second;
+  }
+  if (found) {
+    const result = found.result;
+    logCommand(request, env, ctx, body, text || result.transcript, { ...result, engine: found.model });
+    keepAsFeedback(request, env, ctx, body, text || result.transcript, result);
+    return json(result);
   }
   logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}` });
   if (busy) return json({ error: 'Google’s AI was busy. Your note is fine, try again in a minute.', transcript: heard }, 503);
