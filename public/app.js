@@ -385,7 +385,24 @@ const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map(setE
 const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
 const countsFor = (name) => [name, ...(HARDER_VARIANTS[name] || [])];
 
-const bestBefore = (name, date, logged = false) => {
+// Answers about your history ("best before this day", "days before this one") are remembered until your log changes,
+// so the screen doesn't re-read every workout for every set it shows.
+let memoSaved = null;
+let memoBests = null;
+let memoCount = -1;
+let memo = new Map();
+const remember = (key, compute) => {
+  if (memoSaved !== lastSaved || memoBests !== state.bests || memoCount !== state.sessions.length) {
+    memo = new Map();
+    memoSaved = lastSaved;
+    memoBests = state.bests;
+    memoCount = state.sessions.length;
+  }
+  if (!memo.has(key)) memo.set(key, compute());
+  return memo.get(key);
+};
+const bestBefore = (name, date, logged = false) => remember(`best|${name}|${date}|${logged}`, () => bestBeforeFresh(name, date, logged));
+const bestBeforeFresh = (name, date, logged = false) => {
   let best = logged ? 0 : Number(state.bests?.[name]) || 0;
   for (const session of state.sessions) {
     if (session.date >= date) continue;
@@ -437,12 +454,17 @@ const lastSetsFor = (name, skipDate = todayIso()) => {
   return null;
 };
 
-const pieceProgress = (endIso) => {
-  const startIso = addDays(endIso, -(EXODIA_DAYS - 1));
-  const inWindow = state.sessions.filter((session) => session.date >= startIso && session.date <= endIso);
-  const counts = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
-  for (const session of inWindow) {
-    const hit = { push: false, pull: false, legs: false, arms: false };
+// Which Exodia pieces each day hit, worked out once in one pass through your history (a heavy press or deadlift is
+// judged against your best before that day). Opening the app used to redo this for every day of your history, which
+// took seconds with a few years of training. Kept until your log changes.
+let hitsCache = null;
+const dayHits = () => {
+  if (hitsCache && hitsCache.saved === lastSaved && hitsCache.bests === state.bests && hitsCache.sessions === state.sessions.length) return hitsCache.map;
+  const map = new Map();
+  const bestBy = {};
+  const bestOf = (name) => Math.max(Number(state.bests?.[name]) || 0, ...countsFor(name).map((item) => bestBy[item] || 0));
+  for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
+    const hit = { push: false, pull: false, legs: false, arms: false, move: (session.cardio || 0) >= 20 };
     for (const exercise of session.exercises) {
       const entry = libraryEntry(exercise.name);
       if (!entry || !entry.piece || validSets(exercise).length === 0) continue;
@@ -450,33 +472,54 @@ const pieceProgress = (endIso) => {
         hit[entry.piece] = true;
         continue;
       }
-      const isPullLift = entry.piece === 'pull' && entry.heavy;
-      const isPushLift = entry.piece === 'push' && entry.heavy;
-      if (!isPullLift && !isPushLift) continue;
-      const best = bestBefore(exercise.name, session.date);
-      if (topEstimate(exercise) >= best * HEAVY_SHARE) hit[entry.piece] = true;
+      if (!entry.heavy || (entry.piece !== 'pull' && entry.piece !== 'push')) continue;
+      if (topEstimate(exercise) >= bestOf(exercise.name) * HEAVY_SHARE) hit[entry.piece] = true;
     }
-    for (const key of Object.keys(hit)) if (hit[key]) counts[key] += 1;
-    if ((session.cardio || 0) >= 20) counts.move += 1;
+    for (const exercise of session.exercises) bestBy[exercise.name] = Math.max(bestBy[exercise.name] || 0, topEstimate(exercise));
+    map.set(session.date, hit);
+  }
+  hitsCache = { saved: lastSaved, bests: state.bests, sessions: state.sessions.length, map, history: null };
+  return map;
+};
+
+const pieceProgress = (endIso) => {
+  const hits = dayHits();
+  const counts = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
+  for (let back = 0; back < EXODIA_DAYS; back += 1) {
+    const hit = hits.get(addDays(endIso, -back));
+    if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += 1;
   }
   return PIECES.map((piece) => ({ ...piece, done: counts[piece.id], complete: counts[piece.id] >= piece.target }));
 };
 
+// How many times you hit Exodia: one walk through the days with a 10-day window that slides along.
 const exodiaHistory = () => {
   if (state.sessions.length === 0) return { hits: 0, last: null };
-  const first = sortedSessions().at(-1).date;
-  let hits = 0;
+  const hits = dayHits();
+  const today = todayIso();
+  if (hitsCache.history?.today === today) return hitsCache.history.value;
+  const first = [...hits.keys()].sort()[0];
+  const counts = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
+  const add = (iso, sign) => {
+    const hit = hits.get(iso);
+    if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += sign;
+  };
+  let total = 0;
   let last = null;
   let previous = false;
-  for (let iso = first; iso <= todayIso(); iso = addDays(iso, 1)) {
-    const complete = pieceProgress(iso).every((piece) => piece.complete);
+  for (let iso = first; iso <= today; iso = addDays(iso, 1)) {
+    add(iso, 1);
+    add(addDays(iso, -EXODIA_DAYS), -1);
+    const complete = PIECES.every((piece) => counts[piece.id] >= piece.target);
     if (complete && !previous) {
-      hits += 1;
+      total += 1;
       last = iso;
     }
     previous = complete;
   }
-  return { hits, last };
+  const value = { hits: total, last };
+  hitsCache.history = { today, value };
+  return value;
 };
 
 const findExerciseName = (rawName) => {
@@ -555,16 +598,16 @@ const priorSets = (name, date) => state.sessions
   .filter((session) => session.date < date)
   .flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets))
   .map((set) => ({ kg: Number(set.kg), reps: Number(set.reps) }));
-const singleBefore = (name, date, logged = false) => Math.max(logged ? 0 : Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg));
+const singleBefore = (name, date, logged = false) => remember(`single|${name}|${date}|${logged}`, () => Math.max(logged ? 0 : Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg)));
 
 const earlierToday = (name, date, set) => {
   const sets = (sessionFor(date)?.exercises || []).filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets);
   return sets.slice(0, Math.max(0, sets.indexOf(set))).filter((other) => !other.warmup);
 };
 
-const earlierDays = (name, date) => new Set(state.sessions
+const earlierDays = (name, date) => remember(`days|${name}|${date}`, () => new Set(state.sessions
   .filter((session) => session.date < date && session.exercises.some((exercise) => countsFor(name).includes(exercise.name) && validSets(exercise).length))
-  .map((session) => session.date)).size;
+  .map((session) => session.date)).size);
 
 const prKind = (name, date, set) => {
   const kg = Number(set.kg);

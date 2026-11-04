@@ -1,4 +1,7 @@
 {
+  "236": [
+    "Opens much faster, especially with a long history (up to 7 times faster with years of training)"
+  ],
   "235": [
     "Changing a past day by voice or text now always changes that day, never a day months away with the same weekday"
   ],
