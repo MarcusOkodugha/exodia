@@ -1198,7 +1198,7 @@ const liftKg = (name) => {
   return `<span class="liftNum num">${lifted ? lifted.kg : '–'}</span><span class="liftUnit">${lifted ? 'kg' : ''}</span><span class="liftReps num">${lifted ? `× ${lifted.reps}` : ''}</span>`;
 };
 const liftPicker = (big, rest, history, action = 'pick-trend', current = view.trendOpen) => {
-  const all = [...LIFT_ORDER.filter((name) => big.includes(name)), ...(action === 'pick-trend' ? rest : [])];
+  const all = [...LIFT_ORDER.filter((name) => big.includes(name)), ...rest];
   const first = 6;
   const visible = view.trendMore || all.length <= first ? all : [...all.slice(0, first), ...(all.indexOf(current) >= first ? [current] : [])];
   return `${action === 'pick-trend' ? '<p class="liftHead"><span>Best lifts</span><span class="liftHint">Tap one to show it on the chart</span></p>' : ''}<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
@@ -1690,13 +1690,9 @@ const renderProgress = () => {
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
       ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
-    ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), [], history, 'focus-lift', focus) : ''}
+    ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), lifts.filter((name) => !BIG_THREE.includes(name)), history, 'focus-lift', focus) : ''}
     ${renderVolume()}
-    ${view.route === 'trends' ? '' : renderMuscles()}
-    <p class="section">Best lifts</p>
-    <section class="card">
-      ${lifts.slice(0, 10).map((name) => `<button class="row liftRow" data-action="focus-lift" data-name="${esc(name)}" aria-pressed="${name === focus}"><span style="flex:1">${esc(name)}</span><span class="num" style="${bestSingle(name) ? 'font-weight:600' : 'color:var(--text2)'}">${bestSingle(name) ? `${bestSingle(name)} kg` : `est. ${Math.round(bestOverall(name))}`}</span></button>`).join('') || '<p class="empty" style="margin:14px 0">Nothing yet.</p>'}
-    </section>`;
+    ${view.route === 'trends' ? '' : renderMuscles()}`;
 };
 
 const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Bench Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
