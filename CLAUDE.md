@@ -74,6 +74,7 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 - Anything only he can do (logins, dashboards, tokens) goes as numbered taps with the exact button names. Never ask him to paste tokens or passwords in chat.
 - Do the whole thing end to end: edit, check, commit, push, then confirm it's live. Don't hand him steps you can do yourself.
 - Design taste: calm and subtle, with the clay/orange accent (`--clay`). Small, precise visual changes are better than redesigns. When he asks for a visual tweak, change only that.
+- Everything must feel smooth: anything you drag, swipe, open or close follows the finger and animates out, never jumps. If something you build or see isn't as smooth or refined as Marcus would want, say so in your reply ("not smooth yet: …") so it gets fixed.
 
 ## Change requests from the admin panel
 

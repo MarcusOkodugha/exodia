@@ -16,6 +16,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Swiping "Exodia updated" away follows the finger and glides off, a short swipe springs back; the red pill re-checks every 30 s and when you come back to the window, and redraws even while typing (v234)
 - "Now vs best" under each lift on Trends and in the computer's Progress panel; Settings → What's new lists the latest updates; the update pill opens to the same notes (v233)
 - Voice: a recording with no speech in it no longer turns into "Thank you very much." (Whisper makes that up on silence); the app says it couldn't hear you instead (v231)
 - Tap the "Exodia updated" pill to see what changed (short bullets from `public/changes.json`, no names or sensitive details) (v230)

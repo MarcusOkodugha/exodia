@@ -1482,8 +1482,19 @@ const answeredLeft = () => {
   }
 };
 let leftLoaded = 0;
+// Redraw just the pill (and its list, if open), so it updates even while you're typing in the box.
+const refreshLeftPill = () => {
+  document.querySelectorAll('.leftPill, .leftScrim, .leftPanel').forEach((node) => node.remove());
+  if (!onboarding() && !view.linkOffer && !view.splitAsk) document.getElementById('app')?.insertAdjacentHTML('beforeend', renderLeft());
+};
+// Back on the window (computer) or the app (phone): check the list straight away.
+for (const type of ['focus', 'visibilitychange']) window.addEventListener(type, () => {
+  if (document.hidden) return;
+  leftLoaded = 0;
+  loadLeft();
+});
 const loadLeft = () => {
-  if (!view.isAdmin || Date.now() - leftLoaded < 300000) return;
+  if (!view.isAdmin || Date.now() - leftLoaded < 30000) return;
   leftLoaded = Date.now();
   // Friends' feedback that's still new sits in the same list, with Build it / Not now.
   fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
@@ -1492,15 +1503,14 @@ const loadLeft = () => {
       if (!data) return;
       view.adminFeedback = data.feedback || [];
       if (!view.adminRows) view.adminRows = data.commands;
-      renderSoon();
+      refreshLeftPill();
     })
     .catch(() => null);
   fetch('/TODO.md', { cache: 'no-store' })
     .then((response) => (response.ok ? response.text() : ''))
     .then((markdown) => {
       view.left = parseLeft(markdown);
-      // Add the pill straight away, even while the text box is focused (a full render would wait for blur).
-      if (!document.querySelector('.leftPill') && !onboarding() && !view.linkOffer) document.getElementById('app')?.insertAdjacentHTML('beforeend', renderLeft());
+      refreshLeftPill();
     })
     .catch(() => null);
 };
@@ -2349,26 +2359,44 @@ const noteUpdate = async () => {
     if (view.updated?.version === version && !view.updated.open) hideUpdated();
   }, 60000);
 };
+// Swiping "Exodia updated" away: it follows the finger and fades as it goes; let go far or fast enough and it glides
+// off that way, otherwise it springs back. A plain tap still opens the notes.
 let updatedSwipe = null;
 document.addEventListener('pointerdown', (event) => {
-  updatedSwipe = event.target.closest('.updatedPill') && !event.target.closest('.updatedX') ? { x: event.clientX, y: event.clientY } : null;
+  const pill = event.target.closest('.updatedPill');
+  updatedSwipe = pill && !event.target.closest('.updatedX') ? { pill, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
 });
 document.addEventListener('pointermove', (event) => {
   if (!updatedSwipe) return;
-  const dx = event.clientX - updatedSwipe.x;
-  const dy = event.clientY - updatedSwipe.y;
-  const pill = document.querySelector('.updatedPill');
-  if (pill) pill.style.transform = `translate(calc(-50% + ${dx}px), ${Math.min(0, dy)}px)`;
-  if (Math.abs(dx) > 60 || dy < -30) {
-    updatedSwipe = null;
-    hideUpdated();
-  }
+  const swipe = updatedSwipe;
+  swipe.dx = event.clientX - swipe.x;
+  swipe.dy = Math.min(0, event.clientY - swipe.y);
+  if (!swipe.moved && Math.hypot(swipe.dx, swipe.dy) < 6) return;
+  swipe.moved = true;
+  swipe.pill.style.transition = 'none';
+  swipe.pill.style.transform = `translate(calc(-50% + ${swipe.dx}px), ${swipe.dy}px)`;
+  swipe.pill.style.opacity = String(Math.max(0.2, 1 - Math.max(Math.abs(swipe.dx) / 220, -swipe.dy / 90)));
 });
-for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => {
-  if (!updatedSwipe) return;
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, (event) => {
+  const swipe = updatedSwipe;
   updatedSwipe = null;
-  const pill = document.querySelector('.updatedPill');
-  if (pill) pill.style.transform = '';
+  if (!swipe?.moved) return;
+  view.updatedSwiped = Date.now();
+  const time = Math.max(1, event.timeStamp - swipe.t);
+  const fast = Math.abs(swipe.dx) / time > 0.5 || -swipe.dy / time > 0.4;
+  const far = Math.abs(swipe.dx) > 90 || swipe.dy < -40;
+  swipe.pill.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s ease';
+  if (fast || far) {
+    const up = -swipe.dy > Math.abs(swipe.dx);
+    swipe.pill.style.transform = up ? 'translate(-50%, -80px)' : `translate(calc(-50% + ${Math.sign(swipe.dx) * (window.innerWidth / 2 + 200)}px), 0)`;
+    swipe.pill.style.opacity = '0';
+    document.querySelector('.updatedCard')?.remove();
+    view.updated = null;
+    setTimeout(() => swipe.pill.remove(), 300);
+  } else {
+    swipe.pill.style.transform = '';
+    swipe.pill.style.opacity = '';
+  }
 });
 const updatePill = () => (view.updateReady && !state.demo ? '<button class="updatePill" data-action="reload-app">New version ready · Tap to update</button>' : '');
 // A new version loads by itself as soon as nothing would be lost (no text typed, nothing being sent, recorded or edited).
@@ -3958,6 +3986,7 @@ document.addEventListener('click', (event) => {
   if (action === 'end-demo') return endDemo();
   if (action === 'reload-app') return reloadInPlace();
   if (action === 'close-updated') return hideUpdated();
+  if (action === 'toggle-updated' && Date.now() - (view.updatedSwiped || 0) < 400) return;
   if (action === 'toggle-updated') {
     if (view.updated) view.updated.open = !view.updated.open;
     return render();
