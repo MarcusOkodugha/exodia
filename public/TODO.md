@@ -6,13 +6,26 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
+- [ ] **Attach the code to the admin task.** Without it, "Change the app" and "Ask Exodia builder" start a session that has no copy of the app, so nothing gets built.
+  1. Open [claude.ai/code/scheduled](https://claude.ai/code/scheduled)
+  2. Tap **Show** (1 hidden scheduled task)
+  3. Open **Exodia change → this chat**, then **Edit**
+  4. Add the repository **MarcusOkodugha/exodia**, then **Save**
+- [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
+- [ ] **Add your 7-week program Excel again.** The first try only kept 8 days; those were removed, and the import now reads every sheet.
+  1. In Exodia tap **+**, then **Import from a file**, and pick the Excel
+  2. Write the note "started 7 March 2024" and tap **↑**
+- [ ] **Tell Claude: Chrome or Safari on the Mac?** The Mac app's top bar can blend into the sidebar only when it was installed from Chrome or Edge.
 
 ## To do (Claude)
 
+- [ ] Voice: show the words while it's still working.
+- [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
+- [ ] Smoothness pass: find everything that jumps instead of animating.
+- [ ] The "Latest top set" tile on Trends jumps to Home; Return sends after one line on iPhone.
+- [ ] First visit: work on the whole landing experience with Marcus.
+- [ ] Check iPhone voice with friends again; check the fist animation on a real phone.
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
-- [ ] UX, not done yet: Return sends after one line on iPhone; the "Latest top set" tile on Trends jumps to Home.
-- [ ] Check iPhone voice with friends again (the phone's own speech-to-text was removed in v187).
-- [ ] Check the new fist animation on a real phone once Marcus has seen it.
 
 ## Done (recent)
 
