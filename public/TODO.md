@@ -6,6 +6,8 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
+- [ ] **Decide: add "Now vs best" to each lift?** One line like "Now 94% of your best (est. 1RM last 4 weeks vs all time)", so you see how close you are to your peak. A graph of when you peak needs data Exodia doesn't have (time of day, sleep, bodyweight).
+
 
 ## To do (Claude)
 
