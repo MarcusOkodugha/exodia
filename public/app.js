@@ -657,7 +657,9 @@ const addEntries = (result, date = todayIso()) => {
     for (const set of item.sets) exercise.sets.push({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: Number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true });
     checkPr(name, date);
   }
-  if (result.cardioMinutes) session.cardio = (session.cardio || 0) + Number(result.cardioMinutes);
+  // "Change the cardio to 50" sets the day's cardio; "30 min cardio" adds to it. A note that says
+  // "instead of", "change" or "not" also counts as a correction when the AI forgets to flag it.
+  if (result.cardioMinutes) session.cardio = result.cardioTotal || (session.cardio && /\b(instead|change|changed|correct|should be|not \d+|was \d+)\b/i.test(`${result.transcript || ''} ${view.lastSaid || ''}`)) ? Number(result.cardioMinutes) : (session.cardio || 0) + Number(result.cardioMinutes);
   view.open.add(date);
   save();
   return names;
@@ -1352,7 +1354,7 @@ const chatStamp = (at, before) => {
   return at - before > 1800000 ? time : '';
 };
 
-const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, voiceId, compact, manual, theirs, laterId }) => {
+const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, voiceId, compact, manual, theirs, laterId, fresh }) => {
   const fixIndex = manual ? undefined : index;
   const lines = [].concat(did);
   const failed = OFF_LINE.test(lines[0] || '');
@@ -1361,14 +1363,16 @@ const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, 
   const spoken = voice || (heard && heard === said) || (voiceId && said !== 'Voice note');
   const youSaid = `${spoken ? '<span class="bubbleKind">Voice note</span>' : ''}${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}${off && fixIndex !== undefined ? `<span class="bubbleHint">${failed ? 'Didn’t go through' : 'Partly logged'} · tap to edit</span>` : ''}`;
   // In Admin, other people's messages sit on the left under their own name, so they never look like Marcus's.
-  return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}">
+  return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}${fresh ? ' fresh' : ''}">
   ${theirs ? `${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<p class="chatWho">${esc(who || 'Someone')}</p>` : stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
   ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
   <div class="bubbleOut"><p>${laterId && laterJobs().some((job) => job.id === laterId) ? `<span class="ghostText">${esc(lines.join(' · '))}</span>` : esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}${failed && fixIndex !== undefined && view.isAdmin && said !== 'Voice note' ? `<button class="textBtn" data-action="said-builder" data-index="${fixIndex}">Ask Exodia builder</button>` : ''}</div>
 </div>`;
 };
 
-const chatList = (entries, compact) => entries.map(({ entry, index }, position) => chatEntry({ ...entry, stamp: chatStamp(entry.at, entries[position - 1]?.entry.at), fixIndex: index, compact })).join('');
+const chatList = (entries, compact) => entries.map(({ entry, index }, position) => chatEntry({ ...entry, stamp: chatStamp(entry.at, entries[position - 1]?.entry.at), fixIndex: index, compact, fresh: !freshShown.has(entry.at) && Date.now() - entry.at < 4000 && freshShown.add(entry.at) })).join('');
+// A reply slides in once, the first time it is drawn; redraws after that leave it still.
+const freshShown = new Set();
 
 // Messages that added or changed a lift: its name is in what was logged (raw) or in the reply.
 const logMatchesLift = (entry, name) => [entry.raw || '', ...entry.did].some((text) => text.toLowerCase().includes(name.toLowerCase()));
@@ -1539,6 +1543,7 @@ let leftLoaded = 0;
 const refreshLeftPill = () => {
   document.querySelectorAll('.leftPill, .leftScrim, .leftPanel').forEach((node) => node.remove());
   if (!onboarding() && !view.linkOffer && !view.splitAsk) document.getElementById('app')?.insertAdjacentHTML('beforeend', renderLeft());
+  placeTopRight();
 };
 // Back on the window (computer) or the app (phone): check the list straight away.
 for (const type of ['focus', 'visibilitychange']) window.addEventListener(type, () => {
@@ -2058,7 +2063,7 @@ const SHEET_PEEK = 30;
 // Tapping the box opens the panel this tall: Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more.
 const SHEET_SMALL = 214;
 const sheetSmall = () => typeof view.sheetH === 'number' && view.sheetH > SHEET_PEEK + 4 && view.sheetH <= SHEET_SMALL + 4;
-const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:none"` : '');
+const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:var(--sheet-room, none)"` : '');
 const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
 const preferredSheet = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-h')) || window.innerHeight * 0.6;
 const setSheet = (height, animate = false) => {
@@ -2071,7 +2076,7 @@ const setSheet = (height, animate = false) => {
   if (sizeBtn) sizeBtn.outerHTML = sizeButton();
   sheet.style.transition = animate && !reducedMotion.matches ? 'height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
   sheet.style.height = typeof height === 'number' ? `${height}px` : '';
-  sheet.style.maxHeight = typeof height === 'number' ? 'none' : '';
+  sheet.style.maxHeight = typeof height === 'number' ? 'var(--sheet-room, none)' : '';
   if (!sheetPeek()) scrollChat();
 };
 // Next to "Quick add": an arrow up makes the panel full size, an arrow down takes it back to the small size.
@@ -2088,6 +2093,14 @@ const openChat = () => {
   if (!view.composerDate) view.composerDate = todayIso();
 };
 
+// After sending, the conversation opens small right above the box: the note at once, then the reply sliding in,
+// newest at the bottom; scroll up for older ones. A tap outside closes it as usual.
+const showChat = () => {
+  openChat();
+  view.showQuick = false;
+  view.quickHidden = true;
+  if (typeof view.sheetH !== 'number' || view.sheetH <= SHEET_PEEK + 4) view.sheetH = SHEET_SMALL;
+};
 // The chat sits at the bottom of the panel (newest last); Quick add reads from the top.
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
@@ -2296,7 +2309,7 @@ turnUi();
 turnQuery.addEventListener('change', turnUi);
 screen.orientation?.addEventListener('change', turnUi);
 window.addEventListener('orientationchange', turnUi);
-window.addEventListener('resize', () => { turnUi(); fitNames(); });
+window.addEventListener('resize', () => { turnUi(); fitNames(); placeTopRight(); });
 
 const SHORTER = [[/\bExtensions?\b/, 'Ext.'], [/\b(Single|One)[ -]Arm\b/i, '1-Arm'], [/\bDumbbell\b/, 'DB'], [/\bBarbell\b/, 'BB'], [/\bOverhead\b/, 'OH'], [/\bMachine\b/, 'Mach.'], [/\bIncline\b/, 'Inc.'], [/\bDecline\b/, 'Dec.'], [/\bAbduction\b/, 'Abd.'], [/\bAdduction\b/, 'Add.'], [/\bRomanian Deadlift\b/, 'RDL']];
 const fitNames = () => {
@@ -2313,7 +2326,34 @@ const fitNames = () => {
   }
 };
 
+// Top right, right to left: the Trends/Home icon, then the red pill, then the dev button, each tight against the
+// next one, measured from where the icon really is (the bar is centred on wider windows, so fixed offsets drifted).
+const placeTopRight = () => {
+  const pill = document.querySelector('.leftPill');
+  const devs = [...document.querySelectorAll('.devBtn')].filter((button) => !button.closest('.side'));
+  let edge;
+  if (desktopQuery.matches) {
+    edge = window.innerWidth - 14;
+  } else {
+    const icon = document.querySelector('.topbarInner > .iconBtn:last-child');
+    if (!icon) return;
+    if (turn) return;
+    edge = icon.getBoundingClientRect().left;
+  }
+  if (pill) {
+    const width = pill.getBoundingClientRect().width;
+    pill.style.right = `${Math.round(window.innerWidth - edge + (desktopQuery.matches ? 0 : 2))}px`;
+    edge -= width + (desktopQuery.matches ? 0 : 2);
+  }
+  for (const dev of devs) {
+    const inBar = getComputedStyle(dev).position === 'absolute' && dev.offsetParent;
+    const right = inBar ? dev.offsetParent.getBoundingClientRect().right : window.innerWidth;
+    dev.style.left = 'auto';
+    dev.style.right = `${Math.round(right - edge + 2)}px`;
+  }
+};
 const tuckCards = () => {
+  placeTopRight();
   const dock = document.querySelector('.dock');
   if (!dock) return;
   const sheet = dock.querySelector('.sheet');
@@ -2322,6 +2362,7 @@ const tuckCards = () => {
   const tall = turn ? window.innerWidth : window.visualViewport?.height || window.innerHeight;
   // Never taller than the room under the top bar: on a small phone with the keyboard up, Import from a file stays in sight.
   const room = tall - box - 64;
+  setVar('--sheet-room', `${Math.max(60, Math.round(room))}px`);
   setVar('--sheet-h', `${Math.round(Math.max(Math.min(180, room), Math.min(720, tall - box - (desktopQuery.matches ? 64 : quickShown() ? 80 : Math.max(120, tall * 0.24)))))}px`);
   const line = uiBox(dock).bottom - box;
   for (const card of document.querySelectorAll('.page .card')) {
@@ -2332,7 +2373,20 @@ const tuckCards = () => {
 };
 document.addEventListener('scroll', () => requestAnimationFrame(tuckCards), { passive: true, capture: true });
 window.addEventListener('resize', tuckCards);
-window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(tuckCards));
+// iPhone: the keyboard covers the page instead of shrinking it, so the box is lifted by exactly the part the keyboard
+// hides (--kb). Android shrinks the page itself, so --kb stays 0 there.
+const fitKeyboard = () => {
+  const viewport = window.visualViewport;
+  if (!viewport || turn) return;
+  const hidden = Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop));
+  setVar('--kb', `${hidden}px`);
+  document.documentElement.classList.toggle('keyboard', hidden > 80);
+};
+for (const type of ['resize', 'scroll']) window.visualViewport?.addEventListener(type, () => requestAnimationFrame(() => {
+  fitKeyboard();
+  tuckCards();
+}));
+document.addEventListener('focusout', () => setTimeout(fitKeyboard, 60));
 
 const onboarding = () => view.route === 'home' && (Boolean(view.onboard?.busy || view.onboard?.status) || (!state.name && !state.started && state.sessions.length === 0));
 
@@ -2409,12 +2463,15 @@ const updatedLines = () => {
   const list = view.updated?.changes || [];
   return list.length ? list : ['Small improvements and fixes'];
 };
-const updatedPill = () => (view.updated && !view.updateReady ? `<div class="updatedPill" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${view.updated.open ? 'true' : 'false'}"><span class="updatedDot" aria-hidden="true"></span>Exodia updated${view.isAdmin ? ` · v${view.updated.version}` : ''}</button><button class="updatedX" data-action="close-updated" aria-label="Close">${ICONS.close}</button></div>${view.updated.open ? `<div class="updatedCard"><p class="updatedTitle">What's new</p><ul>${updatedLines().map((line) => `<li>${esc(line)}</li>`).join('')}</ul></div>` : ''}` : '');
+const updatedPill = () => (view.updated && !view.updateReady ? `<div class="updatedPill" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${view.updated.open ? 'true' : 'false'}"><span class="updatedDot" aria-hidden="true"></span>Exodia updated${view.isAdmin ? ` · v${view.updated.version}` : ''}<span class="updatedMore">${view.updated.open ? '' : 'See what’s new'}</span><svg class="updatedChevron${view.updated.open ? ' open' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><button class="updatedX" data-action="close-updated" aria-label="Close">${ICONS.close}</button></div>${view.updated.open ? `<div class="updatedCard"><p class="updatedTitle">What's new</p><ul>${updatedLines().map((line) => `<li>${esc(line)}</li>`).join('')}</ul></div>` : ''}` : '');
 const hideUpdated = () => {
   view.updated = null;
   const pill = document.querySelector('.updatedPill');
   const card = document.querySelector('.updatedCard');
-  card?.remove();
+  if (card) {
+    card.classList.add('gone');
+    setTimeout(() => card.remove(), 200);
+  }
   if (!pill) return;
   pill.classList.add('gone');
   setTimeout(() => pill.remove(), 220);
@@ -3139,7 +3196,7 @@ const addLog = (said, did, extra = {}) => {
   if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
-const describeAdd = (result, day) => `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`cardio ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
+const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${result.cardioMinutes} min on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`cardio ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 const applyResult = (result, date, said, heard = '') => {
   const before = JSON.stringify(state.sessions);
@@ -4042,8 +4099,9 @@ const send = async () => {
     land(local, date);
     showResult([describeAdd(local, date)], local.exercises.map(({ name }) => ({ date, name })), before);
     addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500) });
+    showChat();
     render();
-    closeTray();
+    scrollChat();
     return;
   }
   if (!navigator.onLine && !view.fixing) {
@@ -4061,13 +4119,15 @@ const send = async () => {
   view.status = '';
   view.scrollTarget = pending.date;
   if (!desktopQuery.matches) document.activeElement?.blur();
+  showChat();
   render();
-  closeTray();
+  scrollChat();
   let heard = '';
   let done = false;
   try {
     const audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
     const fixing = view.fixing;
+    view.lastSaid = text;
     const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '');
     heard = result.transcript || '';
     const said = fixing ? `Fix: ${text}` : heard || text;
@@ -4107,12 +4167,18 @@ const send = async () => {
   } finally {
     view.pending = view.pending.filter((item) => item !== pending);
     if (done && !desktopQuery.matches) document.activeElement?.blur();
+    if (view.composer && !view.showQuick) showChat();
     render();
-    if (done) closeTray();
+    scrollChat();
   }
 };
 
 document.addEventListener('click', (event) => {
+  // "What's new" open: a tap anywhere else closes it all, like any dialog, and does nothing else.
+  if (view.updated?.open && !event.target.closest('.updatedPill, .updatedCard')) {
+    hideUpdated();
+    return;
+  }
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
     if (view.editContext?.date === view.editDay) view.editContext = null;
     view.editDay = null;
@@ -5115,3 +5181,43 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     updateQuietly();
   });
 }
+
+// A warm, quiet sign of life: a soft clay bloom where a finger lands, and a faint glow along the edge the page is
+// being scrolled toward, fading as it slows. Nothing to tap, never in the way; off with reduced motion.
+(() => {
+  if (reducedMotion.matches) return;
+  const bloom = document.createElement('div');
+  bloom.className = 'touchBloom';
+  bloom.setAttribute('aria-hidden', 'true');
+  const edge = document.createElement('div');
+  edge.className = 'scrollGlow';
+  edge.setAttribute('aria-hidden', 'true');
+  document.body.append(bloom, edge);
+  document.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    bloom.style.left = `${event.clientX}px`;
+    bloom.style.top = `${event.clientY}px`;
+    bloom.getAnimations().forEach((animation) => animation.cancel());
+    bloom.animate([
+      { opacity: 0, transform: 'translate(-50%, -50%) scale(0.4)' },
+      { opacity: 1, transform: 'translate(-50%, -50%) scale(0.9)', offset: 0.25 },
+      { opacity: 0, transform: 'translate(-50%, -50%) scale(1.25)' }
+    ], { duration: 720, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }, { passive: true });
+  let lastY = 0;
+  let lastT = 0;
+  const onScroll = () => {
+    const y = scroller().scrollTop;
+    const now = performance.now();
+    const speed = Math.abs(y - lastY) / Math.max(16, now - lastT);
+    const down = y > lastY;
+    lastY = y;
+    lastT = now;
+    if (speed < 0.4) return;
+    edge.classList.toggle('up', !down);
+    edge.getAnimations().forEach((animation) => animation.cancel());
+    edge.animate([{ opacity: Math.min(0.9, speed / 4) }, { opacity: 0 }], { duration: 650, easing: 'ease-out' });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  document.getElementById('app')?.addEventListener('scroll', onScroll, { passive: true });
+})();

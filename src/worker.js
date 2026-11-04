@@ -15,7 +15,7 @@ Weights are kilograms. Return only sets that were actually done.
 "warm up 100 6, 140 4" means warm-up sets; keep them and set warmup true. Never invent warm-up sets: add them only when the user says they warmed up or worked up. If they say they warmed up or worked up plate by plate without exact numbers, add warm-up sets below the first working weight in steps of one 20 kg plate per side (40 kg), starting at 60 kg, with fewer reps as it gets heavier (60x6, 100x4, 140x2, 180x1 style), and copy their usual warm-ups from the recent log if it has any. Reps in reserve N means rpe 10 minus N, never rpe N: "3 in reserve" is rpe 7, "8 reps in reserve" is rpe 2. Accessory work in minutes ("30 minutes of accessories") goes in accessoriesMinutes. For lifts measured in lengths, distance or time (sled drag, sled push, farmer's walk, carries), log kg as the load and reps as the number of lengths or rounds. If part of the note cannot be logged at all, put that part, in the user's words, in unclear, and still log everything else. Unclear holds only the user's own words or a short question to them, never your reasoning. A number said with "kg" or "kilos" is always the weight, never reps: "two sets of 12 kg curls" is two sets at kg 12. Never invent a number the user did not say. If the sets or weight are known but the reps are not ("two sets of 12 kg curls", "three sets reps"), still log those sets with reps 0, which means reps unknown, and put a short question in unclear, like "Dumbbell Curl 12 kg: how many reps?". If the weight is unknown, use kg 0 only for bodyweight lifts; otherwise ask in unclear.
 "effort 70%" or "felt light" can become rpe (70% effort is about rpe 7).
 Bodyweight exercises use kg 0, or the added weight.
-Running, cycling, walking or other cardio goes in cardioMinutes.
+Running, cycling, walking or other cardio goes in cardioMinutes. If the user changes or corrects the cardio already logged for a day ("change the cardio to 50", "50 minutes instead of 60", "it was 50, not 60"), put the new total in cardioMinutes and set cardioTotal true; otherwise cardioMinutes is added to what is there.
 Keep the exercise the user named, in Title Case English: "single arm tricep extension" is "Single Arm Tricep Extension", never a different exercise like "Triceps Pushdown". Use a name from the known list only when it is the same exercise, differing just in spelling, plural or word order. If they name no specific variant, use common names like "Bench Press", "Deadlift", "Hack Squat".
 If the user says which day it happened, set date as YYYY-MM-DD from the calendar below. "Last Friday" or "on Friday" means the most recent Friday before today, never the week before. "Yesterday" is the day before today. If no day is mentioned, leave date out.
 When a voice note is attached, listen to it, write what was said in transcript, and log from it. If text comes with the voice note, the text is the user's own corrected transcript of it: follow the text and do not log anything twice. Expect gym words: exercise names, kilos, reps and sets. Words you will hear often: paused or pause, close-grip, incline, reps, sets, RPE, RIR, warm-up, worked up, plates, per side, top set, back-off. Do not mishear "paused" as "post" or "pots", or "reps" as "wraps". "Paused" or "pause" said with bench or squat means the lift Pause Bench Press or Pause Squat. "At 9" or "at an 8" after a set means that rpe. "Three sets 130 for two" means three sets of 130 kg for 2 reps. Example: "I did 120 for two paused and then three sets 130 kg for two paused at 9" is Pause Bench Press 120x2, then 130x2 rpe 9 three times.
@@ -43,6 +43,7 @@ const SCHEMA = {
       }
     },
     cardioMinutes: { type: 'INTEGER' },
+    cardioTotal: { type: 'BOOLEAN' },
     accessoriesMinutes: { type: 'INTEGER' },
     unclear: { type: 'STRING' },
     feedback: { type: 'STRING' },
@@ -426,7 +427,7 @@ const clean = (raw, today) => {
   const accessoriesMinutes = Math.min(300, Math.max(0, Math.round(Number(raw?.accessoriesMinutes) || 0)));
   const unclear = typeof raw?.unclear === 'string' ? raw.unclear.trim().slice(0, 1000) : '';
   const feedback = typeof raw?.feedback === 'string' ? raw.feedback.trim().slice(0, 2000) : '';
-  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
+  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(cardioMinutes && raw?.cardioTotal === true ? { cardioTotal: true } : {}), ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
 
 // A friend's message that isn't training (nothing to log, AI couldn't read it) goes to Marcus as feedback, so it shows

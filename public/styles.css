@@ -170,8 +170,11 @@ html { touch-action: manipulation; }
 .chip[aria-pressed="true"] .chipFace { background: var(--text); color: var(--bg); }
 .cardio { border-top: 1px solid var(--sep); min-height: 48px; display: flex; align-items: center; gap: 8px; font-size: 17px; }
 
-.dock { position: fixed; z-index: 4; left: 0; right: 0; bottom: 0; padding: 12px 16px max(14px, calc(var(--bottom) + 2px)); background: var(--bg); }
-.dock::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 30px; background: linear-gradient(0deg, var(--bg) 0%, rgba(250, 249, 245, 0.7) 35%, rgba(250, 249, 245, 0.3) 70%, rgba(250, 249, 245, 0) 100%); -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); pointer-events: none; }
+.dock { position: fixed; z-index: 4; left: 0; right: 0; bottom: var(--kb, 0px); padding: 12px 16px max(14px, calc(var(--bottom) + 2px)); background: var(--bg); }
+html.keyboard .dock { padding-bottom: 8px; }
+/* Text scrolling under the box melts away: a tall, eased fade with a light blur that only builds up near the box,
+   full width so there is no edge where it suddenly stops. */
+.dock::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 64px; background: linear-gradient(0deg, var(--bg) 0%, rgb(250 249 245 / 0.9) 18%, rgb(250 249 245 / 0.62) 42%, rgb(250 249 245 / 0.3) 66%, rgb(250 249 245 / 0.1) 86%, rgb(250 249 245 / 0) 100%); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); -webkit-mask-image: linear-gradient(0deg, #000 30%, rgb(0 0 0 / 0.6) 60%, transparent 100%); mask-image: linear-gradient(0deg, #000 30%, rgb(0 0 0 / 0.6) 60%, transparent 100%); pointer-events: none; }
 
 .overlay { position: fixed; z-index: 10; inset: 0; }
 .scrim { position: absolute; inset: 0; background: var(--scrim); animation: fadeIn 0.2s ease both; }
@@ -556,7 +559,7 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .exRing { position: absolute; left: 28%; top: 44%; width: 44%; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 2px var(--exodiaBlue), inset 0 0 18px rgb(124 163 221 / 0.35); opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .logo.land, .title.reveal, .reveal .exodiaHits, .reveal .fill::after { animation: none; } }
 
-.devBtn { position: absolute; right: 104px; top: 4px; width: 44px; height: 44px; opacity: 0; }
+.devBtn { position: absolute; right: 104px; top: 8px; width: 36px; height: 36px; opacity: 0; }
 .topbarInner { position: relative; }
 .devScrim { position: fixed; inset: 0; z-index: 30; }
 .devMenu { position: fixed; z-index: 31; top: calc(var(--top) + 52px); right: 16px; min-width: 220px; padding: 6px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(20, 20, 19, 0.12); display: grid; animation: fadeIn 0.15s ease-out; }
@@ -775,6 +778,15 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .updatedTitle { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text2); }
 .updatedCard ul { margin: 0; padding-left: 18px; }
 .updatedCard li { margin: 3px 0; line-height: 1.35; }
+/* "See what's new" opens the notes under the pill with a soft drop; a tap outside closes both. */
+.updatedMore { margin-left: 2px; font-weight: 500; color: var(--clayText); }
+.updatedMore:empty { display: none; }
+.updatedChevron { color: var(--text2); transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.updatedChevron.open { transform: rotate(180deg); }
+.updatedCard { transform-origin: 50% 0; animation: updatedCardIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); transition: opacity 0.18s ease, transform 0.18s ease; }
+.updatedCard.gone { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.97); }
+@keyframes updatedCardIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .updatedCard { animation: none; } }
 @media (min-width: 1024px) { .updatedCard { top: 62px; } }
 .updatedDot { width: 8px; height: 8px; border-radius: 50%; background: var(--clay); }
 .updatedX { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 15px; color: var(--text2); }
@@ -845,3 +857,26 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .whatsNewVersion { margin: 10px 0 4px; font-size: 13px; font-weight: 600; color: var(--text2); }
 .whatsNew ul { margin: 0 0 8px; padding-left: 18px; font-size: 14px; line-height: 20px; }
 .whatsNew li + li { margin-top: 4px; }
+
+/* A new reply in the chat above the box slides up softly, once. */
+.chatItem.fresh .bubbleOut { animation: replyIn 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.chatItem.fresh .bubbleIn { animation: replyIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes replyIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chatItem.fresh .bubbleOut, .chatItem.fresh .bubbleIn { animation: none; } }
+
+/* Signs of life: a soft warm bloom under the finger, and a faint glow on the edge you scroll toward. */
+.touchBloom { position: fixed; z-index: 30; left: 0; top: 0; width: 140px; height: 140px; border-radius: 50%; background: radial-gradient(circle, rgb(var(--clayRgb) / 0.16) 0%, rgb(var(--clayRgb) / 0.07) 40%, rgb(var(--clayRgb) / 0) 70%); opacity: 0; pointer-events: none; transform: translate(-50%, -50%); will-change: transform, opacity; }
+.scrollGlow { position: fixed; z-index: 3; left: 0; right: 0; top: calc(var(--top) + 52px); height: 90px; background: radial-gradient(ellipse 70% 100% at 50% 0%, rgb(var(--clayRgb) / 0.12), rgb(var(--clayRgb) / 0) 70%); opacity: 0; pointer-events: none; }
+.scrollGlow:not(.up) { top: auto; bottom: calc(var(--dock-h, 120px) + var(--kb, 0px)); background: radial-gradient(ellipse 70% 100% at 50% 100%, rgb(var(--clayRgb) / 0.12), rgb(var(--clayRgb) / 0) 70%); }
+@media (min-width: 1024px) { .scrollGlow { left: 272px; right: 380px; top: 0; } }
+
+/* Installed on a computer (Chrome/Edge app window): the sidebar runs up under the window buttons like a native app,
+   the strip at the top drags the window, and nothing sits under the buttons. */
+@media (display-mode: window-controls-overlay) {
+  .desk::before { content: ""; position: fixed; z-index: 40; top: env(titlebar-area-y, 0px); left: env(titlebar-area-x, 0px); width: env(titlebar-area-width, 100%); height: env(titlebar-area-height, 32px); -webkit-app-region: drag; app-region: drag; }
+  .side { padding-top: calc(env(titlebar-area-height, 32px) + 10px); }
+  .desk .page { padding-top: calc(env(titlebar-area-height, 32px) + 32px); }
+  .right { padding-top: calc(env(titlebar-area-height, 32px) + 16px); }
+  .leftPill, .deskDev, .updatedPill, .updatePill { top: calc(env(titlebar-area-height, 32px) + 8px); -webkit-app-region: no-drag; app-region: no-drag; }
+  .leftPanel, .updatedCard { top: calc(env(titlebar-area-height, 32px) + 52px); }
+}
