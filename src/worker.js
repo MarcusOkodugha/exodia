@@ -99,7 +99,7 @@ const askClaude = async (env, context, words) => {
 const IMPORT_PROMPT = `You turn a lifter's training history into JSON days. The text can be anything: notes, an app export, messages to themselves, a spoken ramble, in any order, with unrelated talk mixed in. Ignore everything that is not training.
 Each day gets its date as YYYY-MM-DD. Use the calendar below for relative dates like "yesterday" or "last Friday". If a date has no year, use the most recent past date with that day and month. Training with no date at all goes on today's date only if the text says it was today; otherwise put it in unclear in the user's words.
 Training programs and plans often have no dates, only weeks and days (Week 1 Day 1, W3D2, "Day A"). Use the user's note or anything in the text to date them: the first day of the program on its start date, the following training days in order, spread evenly over each week (three days a week: two days apart, like Monday, Wednesday, Friday), week N starting 7×(N−1) days after the start. If there is no date anywhere, end the program on the most recent past day before today and say in unclear that the dates were guessed. Never put days after today.
-Get as much in as you can. A missing value never drops an exercise: "4x5" or "4 sets of 5" is four sets of 5 reps; reps without a weight get weight 0; a weight without reps gets reps 0; a percentage of a max with a known best (from the note) becomes that kg, rounded to 2.5, otherwise weight 0. Ranges like "8-10" take the low end.
+Get as much in as you can. A missing value never drops an exercise: "4x5" or "4 sets of 5" is four sets of 5 reps; reps without a weight get weight 0; a weight without reps gets reps 0; a percentage of a max becomes kg from the known best in the note (best × percentage, rounded to 2.5), otherwise weight 0. Ranges like "8-10" take the low end.
 Weights are kilograms; convert pounds (lb, lbs) to kg rounded to 0.5. "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps. "3x5 at 100" means three sets of 100 kg for 5 reps. Reps in reserve N means rpe 10 minus N. "At 9" after a set means rpe 9. Keep warm-up sets only when they are marked as warm-ups, and set warmup true. "Paused" or "pause" with bench or squat means the lift Pause Bench Press or Pause Squat. A number said with "kg" is always the weight. Never invent reps or weights; unknown reps are 0. Keep the exercise the user named in Title Case ("single arm tricep extension" is "Single Arm Tricep Extension"); use a known-list name only when it is the same exercise. Cardio goes in cardioMinutes, accessory work in minutes goes in accessoriesMinutes. If they named the session or said where it was, put a short name in label. Log each set once even if it is mentioned twice.`;
 
 const DAY_SCHEMA = {
@@ -306,7 +306,7 @@ const add = async (request, env, ctx) => {
   const sent = Array.isArray(body?.known) ? body.known.filter((name) => typeof name === 'string').map((name) => name.slice(0, 60)) : [];
   const known = [...new Set([...existing.flatMap((row) => JSON.parse(row.data).exercises.map((exercise) => exercise.name)), ...sent])].slice(0, 100);
   try {
-    const context = typeof body?.context === 'string' ? body.context.trim().slice(0, 600) : '';
+    const context = typeof body?.context === 'string' ? body.context.trim().slice(0, 1500) : '';
     const { days, unclear, failed } = await readDays(env, text, today, known, context);
     if (body.dry === true) {
       const sessions = new Map();

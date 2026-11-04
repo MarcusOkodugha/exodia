@@ -3480,6 +3480,11 @@ const splitPieces = (text) => {
   if (piece.trim()) pieces.push(piece);
   return pieces;
 };
+// Your estimated maxes go along, so a program written in % of max turns into real kilos.
+const maxesNote = () => {
+  const lifts = [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].map((name) => [name, Math.round(bestOverall(name))]).filter(([, best]) => best > 0).sort((first, second) => second[1] - first[1]).slice(0, 20);
+  return lifts.length ? `Known bests (estimated 1RM, kg), use them for percentages: ${lifts.map(([name, best]) => `${name} ${best}`).join(', ')}` : '';
+};
 // The AI reads the file with the note and sends back days without saving them (dry), so they can be shown first.
 const aiPreview = async (text, note, progress) => {
   const days = new Map();
@@ -3490,7 +3495,7 @@ const aiPreview = async (text, note, progress) => {
     progress(index, pieces.length);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const body = await sendImportPart(part, { dry: true, context: note });
+        const body = await sendImportPart(part, { dry: true, context: [note, maxesNote()].filter(Boolean).join('\n') });
         for (const session of body.sessions || []) {
           const day = days.get(session.date);
           if (day) day.exercises.push(...session.exercises);
