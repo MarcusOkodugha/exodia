@@ -76,11 +76,15 @@ const transcribe = async (env, audio, known = []) => {
     // Whisper gets the gym words plus the lifts this person has logged, so it hears "pushdown", not "push down town".
     const vocabulary = ['bench press', 'paused bench', 'pause squat', 'hack squat', 'deadlift', 'incline', 'close-grip', 'lat pulldown', ...known.map((name) => name.toLowerCase())];
     const result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, initial_prompt: `Gym log, kilos, sets and reps: ${[...new Set(vocabulary)].slice(0, 40).join(', ')}, RPE, reps in reserve, warm-up, per side, top set.` });
-    return String(result?.text ?? '').trim();
+    const text = String(result?.text ?? '').trim();
+    // Whisper makes these up when a recording has no speech in it (silence, a mic that picked up nothing).
+    // Treat them as "heard nothing" so the app says so, instead of sending "Thank you very much." on.
+    return SILENCE_WORDS.test(text) ? '' : text;
   } catch {
     return '';
   }
 };
+const SILENCE_WORDS = /^(?:(?:thank you(?: very much| so much| for watching)?|thanks(?: for watching)?|you|bye|tack(?: för att du tittade)?|undertexter[^.]*)[.!?,\s]*)+$/i;
 
 const askClaude = async (env, context, words) => {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2 });

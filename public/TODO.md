@@ -18,6 +18,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Voice: a recording with no speech in it no longer turns into "Thank you very much." (Whisper makes that up on silence); the app says it couldn't hear you instead (v231)
 - Tap the "Exodia updated" pill to see what changed (short bullets from `public/changes.json`, no names or sensitive details) (v230)
 - Fade above the box is shorter (30px, was 56px) and the page leaves less empty room under the last session, so less of a session hides behind it (v228)
 - Add your data page has "Or let an AI do it": copy the AI message from there too (v227)
