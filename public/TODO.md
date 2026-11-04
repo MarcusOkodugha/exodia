@@ -6,12 +6,6 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Decide: add "Now vs best" to each lift on Trends?** One small line under the lift's numbers that says how close you are to your peak right now, so you know if you're at your best, coming back, or slipping.
-  1. How: your best estimated 1RM in the last 4 weeks ÷ your all-time best estimated 1RM, from sets of 1–10 reps
-  2. Example: "Now 96% of your best" (est. 120 now vs 125 all time), "At your best", or "No heavy set in 4 weeks"
-  3. Where: one line on Trends under Best lifted / Est. 1RM / Latest top set, nothing else changes
-  4. Not possible instead: a graph of when you peak needs time of day, sleep or bodyweight, which Exodia doesn't have
-
 
 ## To do (Claude)
 
@@ -22,6 +16,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- "Now vs best" under each lift on Trends and in the computer's Progress panel; Settings → What's new lists the latest updates; the update pill opens to the same notes (v233)
 - Voice: a recording with no speech in it no longer turns into "Thank you very much." (Whisper makes that up on silence); the app says it couldn't hear you instead (v231)
 - Tap the "Exodia updated" pill to see what changed (short bullets from `public/changes.json`, no names or sensitive details) (v230)
 - Fade above the box is shorter (30px, was 56px) and the page leaves less empty room under the last session, so less of a session hides behind it (v228)

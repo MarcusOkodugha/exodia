@@ -394,6 +394,26 @@ const bestBefore = (name, date, logged = false) => {
   return best;
 };
 const bestOverall = (name) => bestBefore(name, '9999-12-31');
+// Now vs best: the best estimated 1RM of the last 4 weeks against the all-time best, so you see if you're at your
+// peak, coming back, or slipping.
+const NOW_DAYS = 28;
+const nowVsBest = (name) => {
+  const best = bestOverall(name);
+  if (!best) return null;
+  const since = addDays(todayIso(), -(NOW_DAYS - 1));
+  let now = 0;
+  for (const session of state.sessions) {
+    if (session.date < since) continue;
+    for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) now = Math.max(now, topEstimate(exercise));
+  }
+  const pct = now ? Math.min(100, Math.round((now / best) * 100)) : 0;
+  return { pct, now: Math.round(now), best: Math.round(best), text: !now ? 'No heavy set in the last 4 weeks' : pct >= 100 ? 'At your best' : `Now ${pct}% of your best` };
+};
+const nowLine = (name) => {
+  const now = nowVsBest(name);
+  if (!now) return '';
+  return `<div class="nowBest"><p><b>${now.text}</b>${now.pct && now.pct < 100 ? `<span class="muted num"> · ${now.now} vs ${now.best} kg</span>` : ''}<span class="muted"> · last 4 weeks</span></p><div class="nowBar" aria-hidden="true"><i style="width:${now.pct}%"></i></div></div>`;
+};
 const setsOf = (name) => state.sessions.flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets)).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), rpe: set.rpe }));
 const bestSingle = (name) => Math.max(Number(state.bests?.[name]) || 0, ...setsOf(name).filter((set) => set.reps === 1).map((set) => set.kg));
 const heaviestLifted = (name) => {
@@ -1243,6 +1263,7 @@ const renderTrends = () => {
           <div class="tile"><p class="tileValue num">${Math.round(best)}<small> kg</small></p><p class="tileLabel">Est. 1RM ${infoButton()}</p><p class="tileSub">All time</p></div>
           <button class="tile" data-action="jump-session" data-date="${last.date}" aria-label="Latest top set ${lastTop.kg} × ${lastTop.reps}, open ${dayLabel(last.date)}"><p class="tileValue num">${lastTop.kg}<small> × ${lastTop.reps}</small></p><p class="tileLabel">Latest top set</p><p class="tileSub">${dayLabel(last.date)}</p></button>
         </div>
+        ${nowLine(name)}
         ${view.info ? ESTIMATE_INFO : ''}
         <div class="chartHead">
           <p class="chartTitle">Trend <span class="chartPrs">${prCount(name, view.range ? since : '') || 'No'} ${prCount(name, view.range ? since : '') === 1 ? 'PR' : 'PRs'}</span></p>
@@ -1633,7 +1654,20 @@ Keep the key above private; it gives full access to my log.
 My training:
 `;
 
+const loadChanges = () => {
+  if (view.changes || view.changesLoading) return;
+  view.changesLoading = true;
+  fetch('/changes.json').then((response) => response.json()).then((all) => {
+    view.changes = all;
+    if (view.route === 'you') renderSoon();
+  }).catch(() => {
+    view.changes = {};
+  }).finally(() => {
+    view.changesLoading = false;
+  });
+};
 const renderYou = () => {
+  loadChanges();
   const big = ['Deadlift', 'Squat', 'Bench Press'];
   const lifts = [...big, ...loggedLifts().filter((name) => !big.includes(name)).sort((first, second) => bestOverall(second) - bestOverall(first)).slice(0, 7)];
   return `<main class="page youPage">
@@ -1662,6 +1696,8 @@ const renderYou = () => {
       <div class="row"><span style="flex:1">Synced</span><span class="muted">${view.syncFailed ? 'Offline, will retry' : view.syncedAt ? 'Up to date' : 'Connecting…'}</span></div>
     </section>
     <p class="note">${view.isAdmin ? 'Only for your own phone or computer: open it there once and your lifts are there. Don’t send it to anyone, it opens your log.' : 'Your lifts are saved online as you log them.'}</p>
+    <p class="section">What's new</p>
+    <section class="card whatsNew">${view.changes ? Object.keys(view.changes).map(Number).sort((first, second) => second - first).slice(0, 6).map((version) => `<div class="whatsNewItem"><p class="whatsNewVersion num">v${version}</p><ul>${view.changes[version].map((line) => `<li>${esc(line)}</li>`).join('')}</ul></div>`).join('') : '<p class="empty">Loading…</p>'}</section>
     <p class="section">Backup</p>
     <section class="card">
       <div class="row"><button class="textBtn" data-action="export">Download a backup</button></div>
@@ -1737,7 +1773,7 @@ const renderProgress = () => {
   return `<p class="eyebrow">Progress</p>
     <h2 class="title" style="font-size:28px;line-height:34px">${focus ? esc(focus) : 'Your lifts'}</h2>
     <section class="card" style="margin-top:16px;padding:12px 16px 4px">
-      ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${chartFor(history.get(focus))}${view.info && view.route !== 'trends' ? ESTIMATE_INFO : ''}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
+      ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${nowLine(focus)}${chartFor(history.get(focus))}${view.info && view.route !== 'trends' ? ESTIMATE_INFO : ''}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
     ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), lifts.filter((name) => !BIG_THREE.includes(name)), history, 'focus-lift', focus) : ''}
     ${renderVolume()}

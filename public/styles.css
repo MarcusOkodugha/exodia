@@ -831,3 +831,15 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .slashSuggest { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text2); font: inherit; font-size: 14px; }
 .slashSuggest[hidden] { display: none; }
 .slashSuggest b { color: var(--clayText, var(--clay)); font-weight: 600; }
+/* Now vs best: one line and a thin clay bar under a lift's numbers. */
+.nowBest { margin: 2px 0 14px; }
+.nowBest p { margin: 0 0 6px; font-size: 14px; line-height: 20px; }
+.nowBar { height: 4px; border-radius: 2px; background: var(--sep); overflow: hidden; }
+.nowBar i { display: block; height: 100%; border-radius: 2px; background: var(--clay); }
+.right .nowBest { margin: 0 0 10px; }
+/* Settings → What's new: the last updates, newest first. */
+.whatsNew { padding: 6px 16px 10px; }
+.whatsNewItem + .whatsNewItem { border-top: 1px solid var(--sep); }
+.whatsNewVersion { margin: 10px 0 4px; font-size: 13px; font-weight: 600; color: var(--text2); }
+.whatsNew ul { margin: 0 0 8px; padding-left: 18px; font-size: 14px; line-height: 20px; }
+.whatsNew li + li { margin-top: 4px; }
