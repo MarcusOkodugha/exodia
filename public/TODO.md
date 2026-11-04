@@ -16,6 +16,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Friends' messages in the main box that aren't training go to Marcus as feedback (they see "Sent to Marcus"); new feedback shows in Marcus's red pill with Build it / Not now; when something doesn't go through, the panel opens on the chat with the reason, not Quick add; the sweep also runs as a friend (v208)
 - Exodia: 10 days to hit it, and a heavy top set is 80% of your best (was 7 days, 85%) (v207)
 - Decided: Return keeps sending (fastest for one-line logs; pasted notes keep their lines)
 - Tapping the box opens the panel small, showing Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more; an arrow next to "Quick add" grows it to full size and shrinks it back (v206)

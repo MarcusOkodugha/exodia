@@ -781,3 +781,4 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .sizeBtn .chev { transform: rotate(180deg); transition: transform 0.2s ease; }
 .sizeBtn.full .chev { transform: none; }
 @media (prefers-reduced-motion: reduce) { .sheet.small .grabber::after { animation: none; } }
+.leftWhen { font-size: 12px; color: var(--text2); }

@@ -359,6 +359,17 @@ const clean = (raw, today) => {
   return { exercises, cardioMinutes, transcript, remove, replace, move, ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
 
+// A friend's message that isn't training (nothing to log, AI couldn't read it) goes to Marcus as feedback, so it shows
+// up in his list instead of getting lost. Marcus's own messages don't: he talks to the app all day.
+const logsNothing = (result) => !result?.exercises?.length && !result?.cardioMinutes && !result?.accessoriesMinutes && !result?.remove?.length && !result?.replace?.length && !result?.move?.length && !result?.label && !result?.feedback;
+const keepAsFeedback = (request, env, ctx, body, said, result) => {
+  const key = request.headers.get('x-exodia-key') ?? '';
+  if (!PROFILE_KEY.test(key) || key === env.ADMIN_PROFILE || !result?.unclear || !logsNothing(result) || !said?.trim() || body?.dry === true) return;
+  const name = typeof body?.name === 'string' ? body.name.slice(0, 40) : '';
+  ctx.waitUntil(env.DB.prepare('INSERT INTO feedback (at, profile, name, kind, title, details, said) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(Date.now(), key, name, 'idea', said.trim().slice(0, 80), `Typed in the main box, not training: "${said.trim().slice(0, 1500)}"`, said.slice(0, 4000)).run().catch(() => null));
+};
+
 const logCommand = (request, env, ctx, body, said, result) => {
   if (body?.dry === true) return;
   const profile = request.headers.get('x-exodia-key') ?? '';
@@ -452,6 +463,7 @@ const parse = async (request, env, ctx) => {
     try {
       const result = clean({ ...(await askClaude(env, context, `${words}${heard && hint && !text ? `\n\n(The phone's own speech-to-text heard: "${hint}". Use it only for unclear words.)` : ''}`)), transcript: heard || text }, today);
       logCommand(request, env, ctx, body, text || heard || 'Voice note', { ...result, engine: 'claude' });
+      keepAsFeedback(request, env, ctx, body, text || heard, result);
       return json(result);
     } catch (error) {
       console.log('Claude failed, using Gemini', String(error).slice(0, 200));
@@ -485,6 +497,7 @@ const parse = async (request, env, ctx) => {
     try {
       const result = clean(JSON.parse(output), today);
       logCommand(request, env, ctx, body, text || result.transcript, result);
+      keepAsFeedback(request, env, ctx, body, text || result.transcript, result);
       return json(result);
     } catch {
       logCommand(request, env, ctx, body, text || 'Voice note', { error: 'AI answer could not be read' });

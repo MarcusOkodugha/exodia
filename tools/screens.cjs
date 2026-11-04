@@ -1,6 +1,7 @@
 // Screenshot every page of Exodia at phone and computer sizes, with realistic data, and flag what's broken.
 // Use: cd public && python3 -m http.server 8765   (in another shell)
 //      node tools/screens.cjs <out-folder> [only-width]
+//      ADMIN=0 node tools/screens.cjs <out-folder>   (as a friend, not Marcus: what friends see)
 // Look at every image it writes. It also prints page errors and any page wider than the screen.
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -64,7 +65,7 @@ const sizes = [['phone', 393, 852], ['small', 375, 812], ['desktop', 1440, 900]]
     for (const [name, hash, act, where = 'all', data = 'full'] of shots) {
       if (where === 'phone' && kind === 'desktop') continue;
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: kind !== 'desktop' });
-      await page.route('**/api/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ cursor: 1, sessions: [], meta: null, admin: true, name: 'Romy', days: 212 }) }));
+      await page.route('**/api/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ cursor: 1, sessions: [], meta: null, admin: process.env.ADMIN !== '0', name: 'Romy', days: 212 }) }));
       await page.route('**/me/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8') }));
       await page.addInitScript((state) => { if (state) localStorage.setItem('exodia.v1', state); }, data === 'full' ? JSON.stringify(full) : '');
       page.on('pageerror', (error) => problems.push(`${kind} ${name}: page error ${error.message}`));

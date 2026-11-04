@@ -1433,6 +1433,16 @@ let leftLoaded = 0;
 const loadLeft = () => {
   if (!view.isAdmin || Date.now() - leftLoaded < 300000) return;
   leftLoaded = Date.now();
+  // Friends' feedback that's still new sits in the same list, with Build it / Not now.
+  fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      if (!data) return;
+      view.adminFeedback = data.feedback || [];
+      if (!view.adminRows) view.adminRows = data.commands;
+      renderSoon();
+    })
+    .catch(() => null);
   fetch('/TODO.md', { cache: 'no-store' })
     .then((response) => (response.ok ? response.text() : ''))
     .then((markdown) => {
@@ -1446,12 +1456,18 @@ const leftItems = () => {
   const answered = answeredLeft();
   return (view.left || []).filter((item) => !answered[item.title]);
 };
+const newFeedback = () => (view.adminFeedback || []).filter((item) => item.status === 'new');
 const renderLeft = () => {
   const items = view.isAdmin ? leftItems() : [];
-  if (!items.length) return '';
-  return `<button class="leftPill" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot" aria-hidden="true"></span>${items.length}<span class="leftWord"> left</span></button>
+  const feedback = view.isAdmin ? newFeedback() : [];
+  if (!items.length && !feedback.length) return '';
+  return `<button class="leftPill" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot" aria-hidden="true"></span>${items.length + feedback.length}<span class="leftWord"> left</span></button>
     ${view.leftOpen ? `<button class="leftScrim" data-action="toggle-left" aria-label="Close"></button><section class="leftPanel" aria-label="Waiting on you">
       <p class="leftHead">Waiting on you</p>
+      ${feedback.map((item) => `<div class="leftItem${view.leftItem === `f${item.id}` ? ' open' : ''}">
+        <button class="leftTitle" data-action="left-item" data-index="f${item.id}" aria-expanded="${view.leftItem === `f${item.id}`}">${esc(item.who)}: ${esc(item.title)}<span class="leftTag">${item.kind === 'bug' ? 'Bug' : 'Feedback'}</span></button>
+        ${view.leftItem === `f${item.id}` ? `<div class="leftBody"><p>${esc(item.details)}</p><p class="leftWhen">${new Date(item.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p><div class="leftAnswer"><button class="chip" data-action="feedback-claude" data-id="${item.id}"><span class="chipFace">Build it</span></button><button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="declined"><span class="chipFace">Not now</span></button></div></div>` : ''}
+      </div>`).join('')}
       ${items.map((item, index) => `<div class="leftItem${view.leftItem === index ? ' open' : ''}">
         <button class="leftTitle" data-action="left-item" data-index="${index}" aria-expanded="${view.leftItem === index}">${inlineMd(item.title.replace(/^Decide:\s*/i, '').replace(/^\p{Ll}/u, (letter) => letter.toUpperCase()))}${item.decide ? '<span class="leftTag">Decide</span>' : ''}</button>
         ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}${item.decide ? `<div class="leftAnswer"><button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button></div>` : ''}</div>` : ''}
@@ -2840,7 +2856,12 @@ const addLog = (said, did, extra = {}) => {
   const previous = (state.log || [])[0];
   const merged = extra.merge && previous?.merge === extra.merge && Date.now() - previous.at < 120000 ? previous.at : null;
   const words = String(said || '').slice(0, 2000);
-  if (OFF_LINE.test(did?.[0] || '') && sheetPeek()) view.sheetH = null;
+  // Something didn't go through: open the panel on the chat (not Quick add) so the reason is right there.
+  if (OFF_LINE.test(did?.[0] || '')) {
+    view.quickHidden = true;
+    view.showQuick = false;
+    if (typeof view.sheetH === 'number' && view.sheetH <= SHEET_SMALL + 4) view.sheetH = null;
+  }
   // A voice note's words are the "said"; keep a flag instead of a second copy.
   const { heard, ...rest } = extra;
   const voice = heard && heard === words ? { voice: true } : heard ? { heard } : {};
@@ -2880,6 +2901,12 @@ const applyResult = (result, date, said, heard = '') => {
     did.push(`Accessories ${result.accessoriesMinutes} min on ${dayLabel(day)}`);
   }
   // When the AI only echoes the whole note back, say it plainly instead of repeating it: the words are already in the bubble.
+  // A friend's message that isn't training went to Marcus as feedback on the server; say so, and keep it in their
+  // Feedback list. Marcus's own messages stay "didn't understand".
+  if (did.length === 0 && result.unclear && !view.isAdmin && !view.sandbox) {
+    state.feedback = [...(state.feedback || []), { at: Date.now(), said, kind: 'idea', title: said.slice(0, 80) }].slice(-50);
+    throw Object.assign(new Error('Not training, so it went to Marcus as feedback.'), { unclear: true, feedback: true });
+  }
   if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true });
   if (result.unclear) {
     did.push(`Didn't understand: ${result.unclear}`);
@@ -3498,6 +3525,11 @@ const send = async () => {
     view.retryVoice = null;
     done = !view.confirm && !result.unclear && !view.draft.trim() && !view.listening && view.pending.length === 1;
   } catch (error) {
+    if (error.feedback) {
+      addLog(text || heard || error.heard || live || 'Voice note', ['Sent to Marcus as feedback'], { manual: true });
+      note('Sent to Marcus', 'As feedback');
+      return;
+    }
     view.composerDate = date === todayIso() ? null : date;
     openChat();
     const voiceId = voice ? `voice-${Date.now()}` : null;
@@ -3571,7 +3603,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'left-item') {
-    const index = Number(target.dataset.index);
+    const index = /^f/.test(target.dataset.index) ? target.dataset.index : Number(target.dataset.index);
     view.leftItem = view.leftItem === index ? null : index;
     render();
     return;
