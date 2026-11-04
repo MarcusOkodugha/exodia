@@ -16,6 +16,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Fixed: picking a file did nothing (the picker sat inside a button that redrew on click, so the file was lost); now one permanent picker; voice note with a file becomes its note; clear messages for empty files; tested 21 files by clicking the real button with the live AI (v237)
 - Opens much faster: Exodia hits and PR checks no longer re-read the whole history for every day and set (6 years of data: 7 s → 1 s on a slow phone) (v236)
 - Fixed: changing a past day could change the most recent day with the same weekday, even years away; now only within 7 days of the date you meant (v235)
 - Swiping "Exodia updated" away follows the finger and glides off, a short swipe springs back; the red pill re-checks every 30 s and when you come back to the window, and redraws even while typing (v234)

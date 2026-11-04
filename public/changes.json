@@ -1,4 +1,9 @@
 {
+  "237": [
+    "Adding a file works every time: picking a file no longer gets lost, and the file shows in the box",
+    "A voice note sent with a file becomes the file's note",
+    "Empty files and files with only column names say so clearly"
+  ],
   "236": [
     "Opens much faster, especially with a long history (up to 7 times faster with years of training)"
   ],

@@ -1967,7 +1967,7 @@ const renderImport = () => `<main class="page">
     <p class="eyebrow">Bring your history</p>
     <h1 class="title">Add your data</h1>
     <p class="feedbackLead">Paste or drop any training history in the box below, in any format. Exodia turns it into days and sets.</p>
-    <div class="onboardChoices"><label class="onboardChoice"><b>Choose a file</b><span>CSV, Excel, text or notes</span><input type="file" class="sr" data-action="import-file"></label></div>
+    <div class="onboardChoices"><button class="onboardChoice" data-action="pick-file"><b>Choose a file</b><span>Excel, CSV, Numbers export, text or notes</span></button></div>
     <p class="section">Or let an AI do it</p>
     <section class="card">
       <div class="row"><span class="muted" style="flex:1;font-size:15px">Copy this, paste it into ChatGPT, Gemini or Claude, and it walks you through adding your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy'}</button></div>
@@ -2006,7 +2006,7 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>'}</div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" data-action="import-file"></label>${renderPicks()}</div>${quickExtras()}</div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
@@ -2128,7 +2128,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
       : view.voiceBlob && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Voice note ready · tap ↑ to log it</span></span>'
       : view.files?.length && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Add a note (like when it started) or tap ↑</span></span>'
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
-    <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `${state.sessions.length ? '<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">' + ICONS.plus + '</button>' : `<label class="roundBtn soft plusBtn" aria-label="Add a file with your training">${ICONS.clip}<input type="file" class="sr" data-action="import-file"></label>`}<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
+    <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `${state.sessions.length ? '<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">' + ICONS.plus + '</button>' : `<button class="roundBtn soft plusBtn" data-action="pick-file" aria-label="Add a file with your training">${ICONS.clip}</button>`}<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
 </div>`;
 
@@ -2557,7 +2557,7 @@ const renderOnboard = () => {
       <label for="onboardData" class="sr">Your training so far</label>
       <textarea id="onboardData" class="promptInput onboardData" rows="3" ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
       ${listening ? '<span class="hint live" aria-hidden="true"><span class="liveText">Listening… tap stop when you are done</span></span>' : hearing ? '<span class="hint live" aria-hidden="true"><span class="liveText">Writing down what you said…</span></span>' : busy ? '<span class="hint live" aria-hidden="true"><span class="liveText">Reading your training…</span></span>' : `<span class="hint onboardHint${onboardExample.fading ? ' fading' : ''}" aria-hidden="true">${esc(ONBOARD_EXAMPLES[onboardExample.index])}</span>`}
-      <div class="promptBar"><label class="roundBtn soft onboardFile" aria-label="Add a file">${ICONS.plus}<input type="file" class="sr" data-action="onboard-file" ${locked ? 'disabled' : ''}></label><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
+      <div class="promptBar"><button class="roundBtn soft onboardFile" data-action="pick-file" aria-label="Add a file" ${locked ? 'disabled' : ''}>${ICONS.plus}</button><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><div class="promptButtons">${listening ? `<button class="roundBtn stopBtn" data-action="onboard-stop" aria-label="Stop">${ICONS.stop}</button>` : `${filled ? `<button class="roundBtn soft" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button><button class="roundBtn send" data-action="onboard-start" aria-label="Import and start" ${locked ? 'disabled' : ''}>${ICONS.up}</button>` : `<button class="roundBtn send" data-action="onboard-mic" aria-label="Talk" ${locked ? 'disabled' : ''}>${ICONS.mic}</button>`}`}</div></div>
     </div>
   </div>`;
 };
@@ -3642,6 +3642,23 @@ const importText = async (text, progress = () => {}) => {
 // Files: dropped, pasted or picked files wait in the box as chips, so a note can go with them ("this program started
 // on March 7, 7 weeks"). On send: a table with its own dates is added straight away (Undo is there). Anything the AI
 // had to place or fill in (no dates, missing values) is shown first and only added after "Add it".
+// One file picker for the whole app. It lives outside the part of the page that redraws, so a file you pick can never
+// get lost (a picker inside a redrawn button used to vanish the moment you clicked it, so nothing happened).
+const filePicker = (() => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.className = 'sr';
+  input.tabIndex = -1;
+  input.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(input);
+  input.addEventListener('change', () => {
+    const files = [...input.files];
+    input.value = '';
+    files.slice(0, 5).forEach((file) => takeFile(file));
+  });
+  return input;
+})();
 const attachFile = (picked) => readFileText(picked).then((text) => {
   view.files = [...(view.files || []), { name: picked.name, text }].slice(-5);
   view.showQuick = false;
@@ -3727,7 +3744,15 @@ const runFiles = async (files, note) => {
   try {
     for (const file of files) {
       progress(0, 1);
+      if (!file.text.trim()) {
+        did.push(`Not logged: ${file.name} is empty. Export it again from your app and add the new file.`);
+        continue;
+      }
       const rows = tableRows(file.text);
+      if (rows && rows.length < 2) {
+        did.push(`Not logged: ${file.name} only has column names, no training rows. Export it again with your workouts in it.`);
+        continue;
+      }
       let days = rows && rows.length >= 2 ? tableDays(rows) : [];
       if (!days.length && rows && rows.length >= 3 && navigator.onLine) {
         progress(0, 1, 'Reading the columns…');
@@ -3740,7 +3765,7 @@ const runFiles = async (files, note) => {
       }
       const preview = await aiPreview(file.text.trim(), note, progress);
       if (preview.days.length) guessed.push({ name: file.name, ...preview });
-      else did.push(`Not logged: Couldn't find training I could place in ${file.name}. Add a note like "from March 7, 3 days a week" and send it again.`);
+      else did.push(`Not logged: Couldn't find training in ${file.name}. If it's a program without dates, add a note like "from March 7, 3 days a week" and send it again.`);
     }
   } catch (error) {
     did.push(`Not logged: ${error.message}`);
@@ -3806,12 +3831,26 @@ const send = async () => {
   view.live = '';
   const voice = recorded?.size > 4000 ? recorded : null;
   const text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
-  if (view.files?.length && !voice) {
+  // A file waiting in the box goes with whatever you typed or said: a voice note becomes the file's note.
+  if (view.files?.length) {
     const files = view.files;
     view.files = [];
     view.draft = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
-    return runFiles(files, text);
+    let note = text;
+    if (voice) {
+      view.status = 'Listening to your note…';
+      render();
+      try {
+        const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
+        const body = await response.json().catch(() => ({}));
+        if (response.ok && body.text) note = [text, body.text].filter(Boolean).join(' ');
+      } catch {
+        // no note from the recording; the file still goes in
+      }
+      view.status = '';
+    }
+    return runFiles(files, note);
   }
   if (!text && !voice?.size) {
     if (recorded) {
@@ -3950,6 +3989,10 @@ document.addEventListener('click', (event) => {
   const date = target.dataset.date;
   const session = date ? sessionFor(date) : null;
   if (action === 'import') return;
+  if (action === 'pick-file') {
+    filePicker.click();
+    return;
+  }
   if (action === 'onboard-mic' && view.onboard) return startOnboardMic();
   if (action === 'onboard-stop' && view.onboard) return stopOnboardMic();
   if (action === 'onboard-unfile' && view.onboard) {
