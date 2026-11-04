@@ -1521,6 +1521,7 @@ const askClaude = async (text) => {
 
 const sendToClaude = async (text, voice) => {
   view.draft = '';
+  view.claudeText = text;
   view.claudeSending = true;
   if (!desktopQuery.matches) document.activeElement?.blur();
   render();
@@ -1899,7 +1900,7 @@ const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
-const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
+const claudeChat = () => `${(state.claudeRuns || []).slice().reverse().map((run) => `<div class="chatItem"><div class="bubbleIn">${esc(run.said)}</div><div class="bubbleOut"><p>${runStatus(run)}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch</a>` : ''}</p></div></div>`).join('')}${view.claudeSending ? `<div class="chatItem">${view.claudeText ? `<div class="bubbleIn">${esc(view.claudeText)}</div>` : ''}${typingBubble}</div>` : ''}` || '<p class="empty">Say or type what to change in the app.</p>';
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 // Quick add gets the whole panel when it shows; the log stays on the Log page.
@@ -2514,7 +2515,7 @@ const render = () => {
     ? `<div class="desk">
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
-        <aside class="right" aria-label="Progress">${renderProgress()}</aside>
+        <aside class="right" aria-label="${view.route === 'admin' ? 'Sent' : 'Progress'}">${view.route === 'admin' ? `<p class="eyebrow">What you sent</p><div class="chat">${claudeChat()}</div>` : renderProgress()}</aside>
         ${view.isAdmin ? '<button class="devBtn deskDev" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
       </div>`
     : `<header class="topbar"><div class="topbarInner">
