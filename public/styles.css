@@ -800,3 +800,5 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 /* Dragging a file over the page: the box lights up. */
 body.dropping .prompt { border-color: var(--clay); border-style: dashed; }
 body.dropping .prompt::before { opacity: 1; animation: none; }
+
+.buildBanner.still, .toast.still { animation: none; }

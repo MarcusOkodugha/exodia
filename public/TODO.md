@@ -16,6 +16,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- "Exodia is on it" banner and toasts no longer blink / replay their entrance when you change page; they animate only the first time (v214)
+
 - Drop or paste a file (Excel, CSV, text) anywhere on the page and the box takes it; the box outlines while you drag; a Google Drive link says how to download the file instead (v213)
 
 - Search bar on desktop is a calmer 40px tall (was 48px like the menu rows) (v212)
