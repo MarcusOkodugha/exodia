@@ -19,6 +19,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 ## Done (recent)
 
 - Add your data page has "Or let an AI do it": copy the AI message from there too (v227)
+- Search bar on desktop is no longer squashed to ~20px by the sidebar, 44px tall (v228)
 - The "copy for your AI" message now walks the AI through it: ask for your training if it's missing, send it, or give plain dated lines to paste in the box, and ends with "My training:" for you to fill in (v224)
 - Red pill items have a Reply button: opens Admin chat with the item shown, your follow-up goes to Claude with it (v223)
 - Admin: what you just sent shows right away in the panel above the box, and on desktop the right side shows "What you sent" with its status (v222)
