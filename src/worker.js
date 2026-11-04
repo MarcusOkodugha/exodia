@@ -212,7 +212,7 @@ const chunksOf = (text, size = 8000) => {
   return chunks.filter((chunk) => chunk.trim()).slice(0, 40);
 };
 
-const readDays = async (env, text, today, known, context = '') => {
+const readDays = async (env, text, today, known, context = '', defer = false) => {
   refusals = [];
   const system = `${IMPORT_PROMPT}\nToday is ${today}.\nCalendar, newest first:\n${calendarFor(today)}\nKnown exercises: ${known.join(', ') || 'none yet'}${context ? `\nThe user's note about this data (use it for dates, the program's start and length, and anything else it says): "${context}"` : ''}`;
   // At most 6 pieces per request (the app sends big imports in parts): Workers Free allows 50 outside calls per request.
@@ -232,6 +232,7 @@ const readDays = async (env, text, today, known, context = '') => {
   if (!parts.length && lastError) throw lastError;
   const all = parts.flatMap((part) => Array.isArray(part?.days) ? part.days : []);
   let guessed = '';
+  let program = null;
   // Program days get their dates here, the same way for every piece: start + whole weeks + the day's place in its week.
   const numbered = all.filter((day) => Number.isInteger(day?.programDay) && day.programDay > 0);
   if (numbered.length) {
@@ -251,19 +252,34 @@ const readDays = async (env, text, today, known, context = '') => {
     const offset = (programDay) => 7 * Math.floor((programDay - 1) / perWeek) + Math.round(((programDay - 1) % perWeek) * 7 / perWeek);
     const shift = (iso, days) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
     let start = startText;
-    if (!start) {
-      start = shift(today, -1 - offset(lastDay));
-      guessed = `No start date was given, so the program ends yesterday and starts ${start}. Add a note like "started 7 March 2024" to place it right.`;
+    if (!start && defer) {
+      // The app sends a long file in parts; without a start date only the app sees the whole program, so it dates it.
+      program = { perWeek, days: numbered.map((day) => ({ programDay: day.programDay, ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today) })) };
+      for (const day of numbered) day.date = '';
+    } else {
+      if (!start) {
+        start = shift(today, -1 - offset(lastDay));
+        guessed = `No start date was given, so the program ends yesterday and starts ${start}. Add a note like "started 7 March 2024" to place it right.`;
+      }
+      for (const day of numbered) day.date = shift(start, offset(day.programDay));
     }
-    for (const day of numbered) day.date = shift(start, offset(day.programDay));
   }
   const days = all
     .filter((day) => DATE.test(day?.date ?? '') && day.date <= today)
     .map((day) => ({ ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today), date: day.date }));
   const unclear = [guessed, ...parts.map((part) => part?.unclear)].filter(Boolean).join(' ').slice(0, 500);
-  return { days, unclear, failed, models: [...new Set(parts.map((part) => part?.model).filter(Boolean))], refused: [...new Set(refusals)].slice(0, 8) };
+  return { days, unclear, failed, models: [...new Set(parts.map((part) => part?.model).filter(Boolean))], refused: [...new Set(refusals)].slice(0, 8), program };
 };
 
+const containsSets = (have, want) => {
+  const left = have.map((set) => `${Number(set.kg)}x${Number(set.reps)}`);
+  return want.every((set) => {
+    const index = left.indexOf(`${Number(set.kg)}x${Number(set.reps)}`);
+    if (index < 0) return false;
+    left.splice(index, 1);
+    return true;
+  });
+};
 const sameSets = (first, second) => first.length === second.length && first.every((set, index) => Number(set.kg) === Number(second[index].kg) && Number(set.reps) === Number(second[index].reps));
 
 // Same rule as the app: the same lift with the same sets is left alone; a lift already on that day from before is
@@ -275,15 +291,15 @@ const mergeDays = (sessions, days) => {
     const session = sessions.get(day.date) ?? { date: day.date, exercises: [], cardio: 0 };
     let added = 0;
     for (const exercise of day.exercises) {
-      const sets = exercise.sets.map((set) => ({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: set.rpe } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true }));
+      const sets = exercise.sets.map((set) => ({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: set.rpe } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true, imported: true }));
       const key = `${day.date}|${exercise.name.toLowerCase()}`;
       const same = session.exercises.find((item) => item.name.toLowerCase() === exercise.name.toLowerCase());
-      if (same && sameSets(same.sets, sets)) {
+      if (same && !fromThis.has(key) && containsSets(same.sets, sets)) {
         fromThis.add(key);
         continue;
       }
       if (same && fromThis.has(key)) same.sets.push(...sets);
-      else if (same) same.sets = sets;
+      else if (same) same.sets = [...sets, ...same.sets.filter((set) => !set.imported && !sets.some((other) => sameSets([set], [other])))];
       else session.exercises.push({ name: exercise.name, sets });
       fromThis.add(key);
       added += sets.length;
@@ -375,11 +391,11 @@ const add = async (request, env, ctx) => {
   const known = [...new Set([...existing.flatMap((row) => JSON.parse(row.data).exercises.map((exercise) => exercise.name)), ...sent])].slice(0, 100);
   try {
     const context = typeof body?.context === 'string' ? body.context.trim().slice(0, 1500) : '';
-    const { days, unclear, failed, models, refused } = await readDays(env, text, today, known, context);
+    const { days, unclear, failed, models, refused, program } = await readDays(env, text, today, known, context, body.dry === true && body.defer === true);
     if (body.dry === true) {
       const sessions = new Map();
       const added = mergeDays(sessions, days);
-      return json({ added, unclear, failed, models, refused, sessions: [...sessions.values()] });
+      return json({ added, unclear, failed, models, refused, sessions: [...sessions.values()], ...(program ? { program } : {}) });
     }
     const added = await addDays(env, key, days);
     logCommand(request, env, ctx, body, text.slice(0, 500), { added: added.slice(0, 40), days: added.length, unclear, failed, engine: 'add' });
@@ -594,6 +610,57 @@ const parse = async (request, env, ctx) => {
   return json({ error: 'The AI could not read that note. Try again, or type it.', transcript: heard }, 502);
 };
 
+// Two versions of one day: start from the newest and add what the other one has that it lacks (whole lifts, or
+// sets of a lift). A day deleted on one side and changed on the other keeps the training.
+const mergeDay = (newestJson, otherJson) => {
+  if (!otherJson) return newestJson;
+  if (!newestJson) return otherJson;
+  try {
+    const newest = JSON.parse(newestJson);
+    const other = JSON.parse(otherJson);
+    for (const exercise of other.exercises || []) {
+      const same = (newest.exercises || []).find((item) => item.name.toLowerCase() === exercise.name.toLowerCase());
+      if (!same) {
+        newest.exercises = [...(newest.exercises || []), exercise];
+        continue;
+      }
+      const left = same.sets.map((set) => `${Number(set.kg)}x${Number(set.reps)}`);
+      for (const set of exercise.sets || []) {
+        const index = left.indexOf(`${Number(set.kg)}x${Number(set.reps)}`);
+        if (index >= 0) left.splice(index, 1);
+        else same.sets.push(set);
+      }
+    }
+    newest.cardio = Math.max(Number(newest.cardio) || 0, Number(other.cardio) || 0);
+    if (!newest.label && other.label) newest.label = other.label;
+    if (newest.accessories == null && other.accessories != null) newest.accessories = other.accessories;
+    return JSON.stringify(newest);
+  } catch {
+    return newestJson;
+  }
+};
+const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
+  try {
+    const current = JSON.parse(currentJson || '{}');
+    const incoming = JSON.parse(incomingJson);
+    const seen = new Set();
+    const log = [...(incoming.log || []), ...(current.log || [])]
+      .filter((entry) => {
+        const id = `${entry?.at}|${entry?.said}`;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      })
+      .sort((first, second) => (second.at || 0) - (first.at || 0))
+      .slice(0, 80);
+    const bests = { ...(current.bests || {}) };
+    for (const [name, value] of Object.entries(incoming.bests || {})) bests[name] = Math.max(Number(bests[name]) || 0, Number(value) || 0);
+    const name = incomingNewer ? incoming.name : current.name || incoming.name;
+    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log });
+  } catch {
+    return incomingJson;
+  }
+};
 const sync = async (request, env) => {
   const key = request.headers.get('x-exodia-key') ?? '';
   if (!PROFILE_KEY.test(key)) return json({ error: 'Bad key' }, 400);
@@ -613,18 +680,40 @@ const sync = async (request, env) => {
   const changes = (Array.isArray(body?.changes) ? body.changes : [])
     .slice(0, MAX_CHANGES)
     .filter((change) => typeof change?.date === 'string' && DATE.test(change.date) && Number.isFinite(change.updated))
-    .map((change) => ({ date: change.date, updated: Math.round(change.updated), data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
+    .map((change) => ({ date: change.date, updated: Math.round(change.updated), base: Number.isFinite(change.base) ? Math.round(change.base) : null, data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
     .filter((change) => change.data === null || change.data.length <= MAX_RECORD);
   const meta = body?.meta && typeof body.meta === 'object' && Number.isFinite(body.meta.updated)
     ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [] }), updated: Math.round(body.meta.updated) }
     : null;
   if (meta && meta.json.length > MAX_RECORD * 4) return json({ error: 'Too big' }, 400);
-  const statements = [env.DB.prepare('INSERT OR IGNORE INTO profiles (id, created) VALUES (?, ?)').bind(key, Date.now())];
+  const now = Date.now();
+  const statements = [env.DB.prepare('INSERT OR IGNORE INTO profiles (id, created) VALUES (?, ?)').bind(key, now)];
   if (changes.length || meta) statements.push(env.DB.prepare('UPDATE profiles SET seq = seq + 1 WHERE id = ?').bind(key));
-  for (const change of changes) {
-    statements.push(env.DB.prepare('INSERT INTO sessions (profile, date, data, updated, seq) VALUES (?1, ?2, ?3, ?4, (SELECT seq FROM profiles WHERE id = ?1)) ON CONFLICT (profile, date) DO UPDATE SET data = excluded.data, updated = excluded.updated, seq = excluded.seq WHERE excluded.updated > sessions.updated').bind(key, change.date, change.data, change.updated));
+  // Apps that say which version of a day they edited (base) never lose work to a clock that is off: an edit on top of
+  // the newest version simply wins; an edit on top of an older one is merged into the newest, nothing dropped.
+  // The server's own clock stamps every write. Older apps without base keep the old newest-stamp-wins rule.
+  const existing = new Map();
+  const knowing = changes.filter((change) => change.base !== null);
+  for (let index = 0; index < knowing.length; index += 90) {
+    const group = knowing.slice(index, index + 90);
+    const found = await env.DB.prepare(`SELECT date, data, updated FROM sessions WHERE profile = ? AND date IN (${group.map(() => '?').join(',')})`).bind(key, ...group.map((change) => change.date)).all();
+    for (const row of found.results) existing.set(row.date, row);
   }
-  if (meta) statements.push(env.DB.prepare('UPDATE profiles SET meta = ?2, meta_updated = ?3, meta_seq = seq WHERE id = ?1 AND ?3 > meta_updated').bind(key, meta.json, meta.updated));
+  for (const change of changes) {
+    if (change.base === null) {
+      statements.push(env.DB.prepare('INSERT INTO sessions (profile, date, data, updated, seq) VALUES (?1, ?2, ?3, ?4, (SELECT seq FROM profiles WHERE id = ?1)) ON CONFLICT (profile, date) DO UPDATE SET data = excluded.data, updated = excluded.updated, seq = excluded.seq WHERE excluded.updated > sessions.updated').bind(key, change.date, change.data, change.updated));
+      continue;
+    }
+    const row = existing.get(change.date);
+    const data = row && change.base < row.updated ? mergeDay(row.data, change.data) : change.data;
+    statements.push(env.DB.prepare('INSERT INTO sessions (profile, date, data, updated, seq) VALUES (?1, ?2, ?3, ?4, (SELECT seq FROM profiles WHERE id = ?1)) ON CONFLICT (profile, date) DO UPDATE SET data = excluded.data, updated = excluded.updated, seq = excluded.seq').bind(key, change.date, data, Math.max(now, (row?.updated || 0) + 1)));
+  }
+  if (meta) {
+    // The log, bests and name from two devices are combined, never one replacing the other.
+    const current = await env.DB.prepare('SELECT meta, meta_updated FROM profiles WHERE id = ?').bind(key).first();
+    const merged = mergeMeta(current?.meta, meta.json, meta.updated >= (current?.meta_updated || 0));
+    statements.push(env.DB.prepare('UPDATE profiles SET meta = ?2, meta_updated = ?3, meta_seq = seq WHERE id = ?1').bind(key, merged, Math.max(now, (current?.meta_updated || 0) + 1)));
+  }
   statements.push(env.DB.prepare('SELECT date, data, updated FROM sessions WHERE profile = ? AND seq > ?').bind(key, since));
   statements.push(env.DB.prepare('SELECT seq, meta, meta_updated, meta_seq FROM profiles WHERE id = ?').bind(key));
   const results = await env.DB.batch(statements);

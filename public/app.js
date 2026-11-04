@@ -172,8 +172,9 @@ let redoSteps = [];
 let replaying = false;
 const recordStep = (before, now) => {
   const last = undoSteps.at(-1);
-  // Typing a number fires many saves; changes within a moment of each other are one step.
-  if (last && now - last.at < 1500) {
+  // Typing a number fires many saves; changes within a moment of each other are one step. A step that already has
+  // a name (an add, a delete) is finished, so the next change is its own Undo.
+  if (last && now - last.at < 1500 && !last.title) {
     for (const [date, json] of Object.entries(before)) if (!(date in last.before)) last.before[date] = json;
     last.at = now;
   } else undoSteps = [...undoSteps, { at: now, title: '', before }].slice(-30);
@@ -211,7 +212,10 @@ const applyIncoming = (result) => {
     const incoming = row.data ? JSON.stringify(row.data) : null;
     const local = lastSaved[row.date] ?? null;
     const dirty = fingerprint(local) !== (syncState.synced[row.date] ?? null);
-    if (dirty && (syncState.stamps[row.date] || 0) > row.updated) continue;
+    // Changed here while the server had another version: keep it; the next sync sends it and the server merges.
+    if (dirty) continue;
+    // Which server version this device now has: sent along with its next edit of that day.
+    syncState.bases = { ...(syncState.bases || {}), [row.date]: row.updated };
     syncState.synced[row.date] = fingerprint(incoming);
     if (local === incoming) continue;
     state.sessions = state.sessions.filter((session) => session.date !== row.date);
@@ -222,7 +226,7 @@ const applyIncoming = (result) => {
     const { updated, ...incomingMeta } = result.meta;
     const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [] });
     const dirty = lastMeta !== syncState.metaSynced;
-    if (!dirty || syncState.metaStamp <= updated) {
+    if (!dirty) {
       syncState.metaSynced = incoming;
       if (incoming !== lastMeta) {
         state.name = incomingMeta.name || '';
@@ -248,7 +252,7 @@ const syncNow = () => {
   const changes = [...new Set([...Object.keys(current), ...Object.keys(syncState.synced)])]
     .filter((date) => fingerprint(current[date]) !== (syncState.synced[date] ?? null))
     .slice(0, 500)
-    .map((date) => ({ date, updated: syncState.stamps[date] || 1, data: current[date] ? JSON.parse(current[date]) : null }));
+    .map((date) => ({ date, updated: syncState.stamps[date] || 1, base: syncState.bases?.[date] || 0, data: current[date] ? JSON.parse(current[date]) : null }));
   const sentMeta = lastMeta;
   const meta = sentMeta !== syncState.metaSynced ? { ...JSON.parse(sentMeta), updated: syncState.metaStamp || 1 } : null;
   syncing = fetch('/api/sync', {
@@ -536,29 +540,37 @@ const findExerciseName = (rawName) => {
 const parseChunk = (chunk) => {
   const text = chunk.toLowerCase().replace(/kilos?|kg/g, ' ').replace(/×/g, 'x').trim();
   if (!text) return { empty: true };
-  const cardio = text.match(/^(cardio|run|ran|running|bike|biked|cycling|walk|walked|walking|hike|hiked|hiking|swim|swam|rowing|elliptical|stairs|löpning|cykel|promenad|vandring)\D*(\d+)/);
-  if (cardio) return { cardio: Number(cardio[2]) };
+  const cardio = text.match(/^(cardio|run|ran|running|bike|biked|cycling|walk|walked|walking|hike|hiked|hiking|swim|swam|rowing|elliptical|stairs|löpning|cykel|promenad|vandring)\D*(\d+(?:[.,]\d+)?)\s*(min|minutes?|h|hours?|hrs?|timmar?|tim|km|k|mi|miles?|m|meters?)?\b/);
+  if (cardio) {
+    const amount = Number(cardio[2].replace(',', '.'));
+    const unit = cardio[3] || 'min';
+    // Distance is not time: the AI works that out. Hours become minutes.
+    if (/^(km|k|mi|miles?|m|meters?)$/.test(unit)) return null;
+    const minutes = /^(h|hours?|hrs?|timmar?|tim)$/.test(unit) ? Math.round(amount * 60) : Math.round(amount);
+    return minutes > 0 && minutes <= 600 ? { cardio: minutes } : null;
+  }
   const match = text.match(/^([\p{L}][\p{L}\s-]*?)\s+(\d.*)$/u);
   if (!match) return null;
   const name = findExerciseName(match[1]);
   if (!name) return null;
   const numbers = match[2].replace(/\s+(reps?|sets?)\b/g, ' ');
-  const straight = numbers.match(/^(\d+(?:[.,]\d+)?)\s*x\s*(\d+)\s*x\s*(\d+)\s*$/);
+  // Anything that looks off (dozens of sets, reps over 50, a 2 kg squat) goes to the AI instead of being guessed.
+  const sane = (sets) => sets.length > 0 && sets.length <= 15 && sets.every((set) => Number(set.reps) > 0 && Number(set.reps) <= 50 && Number(set.kg) >= 0 && Number(set.kg) <= 500) ? { name, sets } : null;
+  const straight = numbers.match(/^(\d+(?:[.,]\d+)?)\s*x\s*(\d+)\s*x\s*(\d+(?:[.,]\d+)?)\s*$/);
   if (straight) {
-    const kg = straight[1].replace(',', '.');
-    return { name, sets: Array.from({ length: Number(straight[3]) }, () => ({ kg, reps: straight[2] })) };
+    const [first, second, third] = [straight[1], straight[2], straight[3]].map((value) => Number(value.replace(',', '.')));
+    // 5x5x100 is sets × reps × kg; 100x5x3 is kg × reps × sets. The big number is the weight.
+    if (third > 20 && first <= 12) return sane(Array.from({ length: first }, () => ({ kg: String(third), reps: String(second) })));
+    return sane(Array.from({ length: third }, () => ({ kg: String(first), reps: String(second) })));
   }
   if (/^\d+(?:[.,]\d+)?\s*x\s*\d+(\s+\d+(?:[.,]\d+)?\s*x\s*\d+)*\s*$/.test(numbers)) {
-    return { name, sets: numbers.trim().split(/\s+(?=\d)/).map((pair) => {
-      const [kg, reps] = pair.split(/\s*x\s*/);
-      return { kg: kg.replace(',', '.'), reps };
-    }) };
+    return sane([...numbers.matchAll(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+)/g)].map((pair) => ({ kg: pair[1].replace(',', '.'), reps: pair[2] })));
   }
   const loose = numbers.match(/^(\d+(?:[.,]\d+)?)\s*(?:for|x)\s+(.+)$/);
   if (loose) {
     const parts = loose[2].split(/,|\band\b|\boch\b|\s+/).map((part) => part.trim()).filter(Boolean);
     const reps = parts.filter((part) => /^\d+$/.test(part));
-    if (reps.length > 0 && reps.length === parts.length) return { name, sets: reps.map((count) => ({ kg: loose[1].replace(',', '.'), reps: count })) };
+    if (reps.length > 0 && reps.length === parts.length) return sane(reps.map((count) => ({ kg: loose[1].replace(',', '.'), reps: count })));
   }
   return null;
 };
@@ -583,15 +595,18 @@ const recentLog = () => sortedSessions()
   .join('\n');
 
 const laterJobs = () => (state.later || []);
+// What a note means depends on when it was written and which day was being edited: a note that waits for the AI
+// keeps both, so "yesterday" and "make the last set 105" still land where they were meant to.
+const noteContext = () => ({ today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '' });
 // No connection at all is a "try again later", same as a busy AI.
 const fetchOrLater = (url, options) => fetch(url, options).catch(() => {
   throw Object.assign(new Error('No connection right now.'), { later: true, busy: true });
 });
-const parseWithAi = async (text, audio, hint = '') => {
+const parseWithAi = async (text, audio, hint = '', saved = null) => {
   const response = await fetchOrLater('/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
-    body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '', recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
+    body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', ...noteContext(), ...(saved || {}), recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
   // Busy, rate-limited or down: worth trying again later by itself. A note the AI read but couldn't use is not.
@@ -638,8 +653,9 @@ const checkPr = (name, date = todayIso()) => {
   view.toast = top.kind === 'max'
     ? { kind: 'max', name, title: `New 1RM PR · ${name}`, text: `${top.kg} kg, +${round(top.kg - singleBefore(name, date))} kg on your best single` }
     : { kind: 'rep', name, title: `New PR · ${name}`, text: `${top.kg} × ${top.reps}, estimated 1RM ${Math.round(top.est)} kg, +${round(top.est - bestBefore(name, date))} kg` };
+  const shown = view.toast;
   setTimeout(() => {
-    clearToast();
+    if (view.toast === shown) clearToast();
   }, top.kind === 'max' ? 6000 : 3500);
 };
 
@@ -1610,15 +1626,20 @@ const askClaude = async (text, run = null) => {
   delete run.error;
   let body = {};
   try {
-    const from = await liveVersion();
-    const response = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) });
+    const from = await Promise.race([liveVersion(), new Promise((resolve) => setTimeout(() => resolve(0), 5000))]);
+    // No answer in 30 s: say so honestly; the request may still have started, so check before sending it again.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    const response = await fetch('/api/admin', { method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ claude: text }) }).finally(() => clearTimeout(timer));
     body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Exodia builder did not start (${response.status}).`);
     Object.assign(run, { url: body.url, from, at: run.at });
     delete run.status;
   } catch (error) {
     run.status = 'failed';
-    run.error = navigator.onLine === false ? 'No internet. Try again when you are online.' : error.message || 'Exodia builder did not start.';
+    run.error = navigator.onLine === false ? 'No internet. Try again when you are online.'
+      : error.name === 'AbortError' || error instanceof TypeError ? 'No answer from the server. It may still have started: check Admin in a minute before trying again.'
+      : error.message || 'Exodia builder did not start.';
   }
   const entry = (state.log || []).find((item) => item.merge === `claude-${run.at}`);
   if (entry) entry.did = [run.status === 'failed' ? `Not sent to Exodia builder: ${run.error}` : 'Sent to Exodia builder. It goes live in a few minutes.'];
@@ -2560,13 +2581,17 @@ const reloadInPlace = () => {
 };
 const updateQuietly = () => {
   if (!view.updateReady || view.pending.length || recording) return;
+  // Never while something is being typed anywhere (search, a name, a number) or a change request is on its way.
+  const field = document.activeElement;
+  if (field && /^(INPUT|TEXTAREA)$/.test(field.tagName) && field.value) return;
+  if ((state.claudeRuns || []).some((run) => run.status === 'sending')) return;
   if (view.draft.trim() || view.files?.length || view.editDay || view.onboard?.busy || view.onboard?.file || view.leftOpen || view.menu) return;
   if (view.composer && !document.hidden && document.activeElement?.id === 'draft') return;
   reloadInPlace();
 };
 setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
-const demoPill = () => (state.demo ? '<div class="demoPill" role="status">Example data<button data-action="end-demo">Start my own</button></div>' : '');
+const demoPill = () => (state.demo ? `<div class="demoPill" role="status">${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button></div>` : '');
 
 // Two people ended up on one log (a shared private link). The server lists those logs in SPLIT_PROFILES; each phone on
 // one is asked once who uses it. The first name keeps the log; anyone else gets their own, empty, with their name.
@@ -2647,7 +2672,7 @@ const renderOnboard = () => {
     <h1 class="title">Welcome to Exodia${view.invited ? `, ${esc(view.invited)}` : ''}</h1>
     <p class="onboardLead">Log your training by talking or typing. No account, no setup.${view.invited ? ` Not ${esc(view.invited)}? Change the name below.` : ''}</p>
     <label class="sr" for="onboardName">Your name</label>
-    <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional, you can add it later)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
+    <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
     <p class="onboardMove"><b>Have a history?</b> Paste or drop it in the box below, in any format. Exodia turns it into days, sets and trends in seconds.</p>
     ${exportHelp(false)}
     ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
@@ -3309,6 +3334,8 @@ const xlsxToText = (files) => {
   const styles = files['xl/styles.xml'] || '';
   const custom = {};
   for (const match of styles.matchAll(/<numFmt [^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g)) custom[match[1]] = match[2];
+  // Mac Excel can count dates from 1904: those serials are 1462 days smaller.
+  const epoch = /date1904="(1|true)"/.test(files['xl/workbook.xml'] || '') ? 24107 : 25569;
   const isDateFormat = (id) => (id >= 14 && id <= 22) || (id >= 45 && id <= 47) || (custom[id] !== undefined && /[dmy]/i.test(custom[id].replace(/"[^"]*"|\[[^\]]*\]|\\./g, '')));
   const xfs = (styles.match(/<cellXfs[\s\S]*?<\/cellXfs>/) || [''])[0];
   const dateStyle = [...xfs.matchAll(/<xf [^>]*numFmtId="(\d+)"/g)].map((match) => isDateFormat(Number(match[1])));
@@ -3337,7 +3364,7 @@ const xlsxToText = (files) => {
         let value = '';
         if (type === 's') value = strings[Number(raw)] ?? '';
         else if (type === 'inlineStr') value = xmlText(cell[2] || '');
-        else if (raw !== undefined) value = type === 'str' || type === 'e' ? xmlText(raw) : dateStyle[style] && Number(raw) > 1 ? new Date(Math.round((Number(raw) - 25569) * 86400000)).toISOString().slice(0, 10) : raw;
+        else if (raw !== undefined) value = type === 'str' || type === 'e' ? xmlText(raw) : dateStyle[style] && Number(raw) > 1 ? new Date(Math.round((Number(raw) - epoch) * 86400000)).toISOString().slice(0, 10) : raw;
         if (ref) {
           const column = [...ref].reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
           while (cells.length < column) cells.push('');
@@ -3379,7 +3406,9 @@ const decodeText = (buffer) => {
     return new TextDecoder('windows-1252').decode(bytes);
   }
 };
-const readFileText = async (file) => {
+// Every file comes back with plain \n line endings (old Mac files use \r only, Windows \r\n).
+const readFileText = async (file) => (await readFileRaw(file)).replace(/\r\n?/g, '\n');
+const readFileRaw = async (file) => {
   const name = file.name.toLowerCase();
   if (file.size > FILE_BYTES) throw new Error(`That file is ${Math.round(file.size / 1048576)} MB. Exodia takes files up to 50 MB.`);
   if (/\.numbers$/.test(name)) throw new Error('Numbers files can’t be opened here. In Numbers, tap ··· → Export → Excel, then add that file.');
@@ -3654,6 +3683,16 @@ const tableRows = (text) => {
   const delimiter = tableDelimiter(trimmed);
   return delimiter ? parseDelimited(trimmed, delimiter) : null;
 };
+// Are all of these sets (kg × reps, counted) in that list?
+const containsSets = (have, want) => {
+  const left = have.map((set) => `${Number(set.kg)}x${Number(set.reps)}`);
+  return want.every((set) => {
+    const index = left.indexOf(`${Number(set.kg)}x${Number(set.reps)}`);
+    if (index < 0) return false;
+    left.splice(index, 1);
+    return true;
+  });
+};
 const sameImportSets = (first, second) => first.length === second.length && first.every((set, index) => Number(set.kg) === Number(second[index].kg) && Number(set.reps) === Number(second[index].reps));
 // Adding a file again never doubles a day: a lift that is already on that day with the same sets is left alone,
 // with other sets the file's version replaces it (the newest file wins). Within one file, sets of the same lift on
@@ -3668,13 +3707,16 @@ const mergeImported = (days) => {
     for (const exercise of day.exercises) {
       const key = `${day.date}|${exercise.name.toLowerCase()}`;
       const same = session.exercises.find((item) => item.name.toLowerCase() === exercise.name.toLowerCase());
-      if (same && sameImportSets(same.sets, exercise.sets)) {
+      const incoming = exercise.sets.map((set) => ({ ...set, imported: true }));
+      // Every set of the file is already there (maybe with sets added by hand since): nothing to do.
+      if (same && !fromThisFile.has(key) && containsSets(same.sets, exercise.sets)) {
         fromThisFile.add(key);
         continue;
       }
-      if (same && fromThisFile.has(key)) same.sets.push(...exercise.sets);
-      else if (same) same.sets = exercise.sets.map((set) => ({ ...set }));
-      else session.exercises.push({ name: exercise.name, sets: exercise.sets });
+      if (same && fromThisFile.has(key)) same.sets.push(...incoming);
+      // A changed file replaces what an earlier file put there; sets added by hand stay.
+      else if (same) same.sets = [...incoming, ...same.sets.filter((set) => !set.imported && !exercise.sets.some((other) => sameImportSets([set], [other])))];
+      else session.exercises.push({ name: exercise.name, sets: incoming });
       fromThisFile.add(key);
       added += exercise.sets.length;
     }
@@ -3784,12 +3826,23 @@ const filePicker = (() => {
   input.addEventListener('change', () => {
     const files = [...input.files];
     input.value = '';
-    files.slice(0, 5).forEach((file) => takeFile(file));
+    takeFiles(files);
   });
   return input;
 })();
+// Up to 10 files wait in the box at once; more than that says so instead of quietly dropping one.
+const FILE_MAX = 10;
+const takeFiles = (files) => {
+  const room = FILE_MAX - (view.files || []).length;
+  files.slice(0, Math.max(0, room)).forEach((file) => takeFile(file));
+  if (files.length > room) {
+    view.status = `${files.length - Math.max(0, room)} ${files.length - room === 1 ? 'file wasn’t' : 'files weren’t'} added: up to ${FILE_MAX} at a time. Send these first, then add the rest.`;
+    render();
+  }
+};
 const attachFile = (picked) => readFileText(picked).then((text) => {
-  view.files = [...(view.files || []), { name: picked.name, text }].slice(-5);
+  if ((view.files || []).length >= FILE_MAX) throw new Error(`Up to ${FILE_MAX} files at a time. Send these first, then add ${picked.name}.`);
+  view.files = [...(view.files || []), { name: picked.name, text }];
   view.showQuick = false;
   view.quickHidden = true;
   // Just the chip in the box and the cursor there; the panel stays out of the way.
@@ -3812,7 +3865,14 @@ const splitPieces = (text) => {
       pieces.push(piece);
       piece = sheet && line !== sheet ? `${sheet} (continued)\n` : '';
     }
-    piece += `${line.slice(0, 24000)}\n`;
+    // A single huge line (a file with odd line endings) is cut into pieces, never dropped.
+    for (let start = 0; start < Math.max(1, line.length); start += 24000) {
+      if (start && piece.trim()) {
+        pieces.push(piece);
+        piece = '';
+      }
+      piece += `${line.slice(start, start + 24000)}\n`;
+    }
   }
   if (piece.trim()) pieces.push(piece);
   return pieces;
@@ -3823,8 +3883,10 @@ const maxesNote = () => {
   return lifts.length ? `Known bests (estimated 1RM, kg), use them for percentages: ${lifts.map(([name, best]) => `${name} ${best}`).join(', ')}` : '';
 };
 // The AI reads the file with the note and sends back days without saving them (dry), so they can be shown first.
+const shiftDate = (iso, count) => new Date(Date.parse(`${iso}T12:00:00Z`) + count * 86400000).toISOString().slice(0, 10);
 const aiPreview = async (text, note, progress) => {
   const days = new Map();
+  const program = { perWeek: 0, days: [] };
   const unclear = [];
   let lastError = null;
   const pieces = splitPieces(text);
@@ -3832,7 +3894,11 @@ const aiPreview = async (text, note, progress) => {
     progress(index, pieces.length);
     for (let attempt = 0; attempt <= IMPORT_WAIT.length; attempt += 1) {
       try {
-        const body = await sendImportPart(part, { dry: true, context: [note, maxesNote()].filter(Boolean).join('\n') });
+        const body = await sendImportPart(part, { dry: true, defer: true, context: [note, maxesNote()].filter(Boolean).join('\n') });
+        if (body.program) {
+          program.perWeek = program.perWeek || body.program.perWeek;
+          program.days.push(...body.program.days);
+        }
         for (const session of body.sessions || []) {
           const day = days.get(session.date);
           if (day) day.exercises.push(...session.exercises);
@@ -3846,6 +3912,23 @@ const aiPreview = async (text, note, progress) => {
         await importPause(attempt, progress, index, pieces.length);
       }
     }
+  }
+  // A program without a start date: date it here, once, over all its days, so it ends yesterday and no two
+  // program days share a date (each part used to be dated on its own and they overlapped).
+  if (program.days.length) {
+    const perWeek = Math.min(7, Math.max(1, program.perWeek || 4));
+    const offset = (programDay) => 7 * Math.floor((programDay - 1) / perWeek) + Math.round(((programDay - 1) % perWeek) * 7 / perWeek);
+    const lastDay = Math.max(...program.days.map((day) => day.programDay));
+    const start = shiftDate(todayIso(), -1 - offset(lastDay));
+    for (const day of program.days) {
+      const date = shiftDate(start, offset(day.programDay));
+      const session = days.get(date) || { date, exercises: [], cardio: 0 };
+      for (const exercise of day.exercises || []) session.exercises.push({ name: exercise.name, sets: exercise.sets.map((set) => ({ kg: String(set.kg), reps: Number(set.reps) > 0 ? String(set.reps) : '', ...(set.rpe ? { rpe: set.rpe } : {}), ...(set.warmup ? { warmup: true } : {}), edited: true })) });
+      if (day.cardioMinutes && !session.cardio) session.cardio = day.cardioMinutes;
+      if (day.label && !session.label) session.label = day.label;
+      days.set(date, session);
+    }
+    unclear.unshift(`No start date was given, so the program ends yesterday. Add a note like "started 7 March 2024" to place it right.`);
   }
   if (!days.size && lastError) throw lastError;
   return { days: [...days.values()].sort((first, second) => first.date.localeCompare(second.date)), unclear: unclear.join(' ').slice(0, 300) };
@@ -3879,7 +3962,9 @@ const runFiles = async (files, note) => {
         did.push(`Not logged: ${file.name} is empty. Export it again from your app and add the new file.`);
         continue;
       }
-      const rows = tableRows(file.text);
+      let rows = tableRows(file.text);
+      // One "row" from a file with several lines is not a table (a note starting with a quote mark reads like one).
+      if (rows && rows.length < 2 && file.text.trim().split('\n').filter((line) => line.trim()).length > 2) rows = null;
       if (rows && rows.length < 2) {
         did.push(`Not logged: ${file.name} only has column names, no training rows. Export it again with your workouts in it.`);
         continue;
@@ -3958,11 +4043,11 @@ const runImport = async (text, said, onFail = () => {}) => {
 // Messages that couldn't reach the AI (busy, or no internet) wait here and are sent again by themselves:
 // soon at first, then less often, for up to a day. The log shows them as "on it" until they land.
 const LATER_WAIT = [15, 30, 60, 120, 300, 600, 900];
-const queueLater = async ({ prompt, said, date, live = '', voice = null, heard = '' }) => {
+const queueLater = async ({ prompt, said, date, live = '', voice = null, heard = '', context = noteContext() }) => {
   const id = `later-${Date.now()}`;
   if (voice?.size) await keepVoice(id, voice);
   const at = Date.now();
-  state.later = [...laterJobs(), { id, prompt, said, date, live, heard, voice: Boolean(voice?.size), at, tries: 0, next: at + LATER_WAIT[0] * 1000 }];
+  state.later = [...laterJobs(), { id, prompt, said, date, live, heard, context, voice: Boolean(voice?.size), at, tries: 0, next: at + LATER_WAIT[0] * 1000 }];
   addLog(said, ['Exodia is on it in the background. It lands by itself, keep going.'], { laterId: id, manual: true });
   save();
   render();
@@ -3981,7 +4066,7 @@ const runLater = async (force = false) => {
         audio = blob ? await wavBase64(blob).catch(() => undefined) : undefined;
       }
       try {
-        const result = await parseWithAi(job.prompt, audio, job.live);
+        const result = await parseWithAi(job.prompt, audio, job.live, job.context || null);
         state.later = laterJobs().filter((item) => item.id !== job.id);
         state.log = (state.log || []).filter((entry) => entry.laterId !== job.id);
         const said = result.transcript || job.said;
@@ -3992,7 +4077,7 @@ const runLater = async (force = false) => {
           else if (result.remove?.length && job.voice) view.confirm = { result, date: job.date, said, heard: result.transcript || '', text: describeRemoval(result) };
           else applyResult(result, job.date, said, job.voice ? result.transcript || '' : '');
         } catch (error) {
-          addLog(said, [`Not logged: ${error.message}`]);
+          addLog(said, error.feedback ? ['Sent to Marcus as feedback'] : [`Not logged: ${error.message}`], error.feedback ? { manual: true } : {});
         }
         if (job.voice) dropVoice(job.id);
       } catch (error) {
@@ -4022,7 +4107,12 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) runLater();
 });
 setTimeout(() => runLater(true), 3000);
+// A request that was still "Sending…" when the app closed never got its answer: show that, with Try again.
+for (const run of state.claudeRuns || []) {
+  if (run.status === 'sending' && Date.now() - run.at > 60000) Object.assign(run, { status: 'failed', error: 'The app closed before the answer came. Check Admin in a minute before trying again.' });
+}
 
+let sentContext = null;
 const send = async () => {
   const recorded = recording ? await stopRecording() : view.voiceBlob;
   view.voiceBlob = null;
@@ -4128,6 +4218,7 @@ const send = async () => {
     const audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
     const fixing = view.fixing;
     view.lastSaid = text;
+    sentContext = noteContext();
     const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '');
     heard = result.transcript || '';
     const said = fixing ? `Fix: ${text}` : heard || text;
@@ -4154,7 +4245,7 @@ const send = async () => {
     }
     // Busy or offline: it waits and tries again by itself; nothing for the person to do.
     if (error.later && !view.fixing) {
-      await queueLater({ prompt: text, said: text || heard || error.heard || live || 'Voice note', date, live, voice, heard: heard || error.heard || '' });
+      await queueLater({ prompt: text, said: text || heard || error.heard || live || 'Voice note', date: pending.date, live, voice, heard: heard || error.heard || '', context: sentContext || noteContext() });
       return;
     }
     view.composerDate = date === todayIso() ? null : date;
@@ -4290,7 +4381,19 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'onboard-demo') return startDemo();
-  if (action === 'end-demo') return endDemo();
+  // Two taps, so a tap that lands on the pill by mistake never throws the example away.
+  if (action === 'end-demo') {
+    if (!view.endDemoAsk) {
+      view.endDemoAsk = true;
+      setTimeout(() => {
+        view.endDemoAsk = false;
+        render();
+      }, 4000);
+      return render();
+    }
+    view.endDemoAsk = false;
+    return endDemo();
+  }
   if (action === 'reload-app') return reloadInPlace();
   if (action === 'close-updated') return hideUpdated();
   if (action === 'toggle-updated' && Date.now() - (view.updatedSwiped || 0) < 400) return;
@@ -4882,13 +4985,13 @@ document.addEventListener('drop', (event) => {
     return;
   }
   event.preventDefault();
-  files.slice(0, 5).forEach(takeFile);
+  takeFiles(files);
 });
 document.addEventListener('paste', (event) => {
   const files = [...(event.clipboardData?.files || [])];
   if (!files.length) return;
   event.preventDefault();
-  files.slice(0, 5).forEach(takeFile);
+  takeFiles(files);
 });
 
 document.addEventListener('keydown', (event) => {

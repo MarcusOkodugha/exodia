@@ -880,3 +880,18 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
   .leftPill, .deskDev, .updatedPill, .updatePill { top: calc(env(titlebar-area-height, 32px) + 8px); -webkit-app-region: no-drag; app-region: no-drag; }
   .leftPanel, .updatedCard { top: calc(env(titlebar-area-height, 32px) + 52px); }
 }
+
+/* A set row never lets the PR badge or the % column cover the + or the reps: with a PR the % steps aside, and on
+   narrow phones (320) the columns tighten and the % is left out. */
+.setRow .pct { min-width: 0; overflow: hidden; }
+.setRow .pct:has(.prPill) .setPct { display: none; }
+@media (max-width: 359px) {
+  .setRow { grid-template-columns: 22px 50px 18px 10px 36px 46px minmax(0, 1fr) 20px; column-gap: 3px; }
+  .rpeTag { grid-template-columns: 28px 18px; }
+  .setPct { display: none; }
+  .setRow .pct { gap: 4px; }
+  .setRow .pct .prPill { padding: 1px 5px; margin-left: 0; }
+}
+/* The day's action row (+ Set, + Exercise, Accessories) scrolls sideways inside its card instead of widening the page. */
+.dayActions { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.dayActions::-webkit-scrollbar { display: none; }
