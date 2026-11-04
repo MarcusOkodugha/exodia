@@ -1850,7 +1850,7 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>'}</div>`).join('');
 
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? '<button class="textBtn" data-action="hide-quick">Hide</button>' : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" data-action="import-file"></label>${renderPicks()}</div>${quickExtras()}</div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><label class="pick"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span><input type="file" class="sr" data-action="import-file"></label>${renderPicks()}</div>${quickExtras()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
@@ -1869,6 +1869,9 @@ const sheetBody = () => (view.route === 'admin' ? `<div class="chat">${claudeCha
 // The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".
 // Drag the bar: let go anywhere and it stays that tall; a quick flick up snaps to the usual size, a flick down closes.
 const SHEET_PEEK = 30;
+// Tapping the box opens the panel this tall: Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more.
+const SHEET_SMALL = 214;
+const sheetSmall = () => typeof view.sheetH === 'number' && view.sheetH > SHEET_PEEK + 4 && view.sheetH <= SHEET_SMALL + 4;
 const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:none"` : '');
 const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
 const preferredSheet = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-h')) || window.innerHeight * 0.6;
@@ -1877,12 +1880,18 @@ const setSheet = (height, animate = false) => {
   const sheet = document.querySelector('.dock .sheet');
   if (!sheet) return;
   sheet.classList.toggle('peek', sheetPeek());
+  sheet.classList.toggle('small', sheetSmall());
+  const sizeBtn = sheet.querySelector('[data-action="sheet-size"]');
+  if (sizeBtn) sizeBtn.outerHTML = sizeButton();
   sheet.style.transition = animate && !reducedMotion.matches ? 'height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
   sheet.style.height = typeof height === 'number' ? `${height}px` : '';
   sheet.style.maxHeight = typeof height === 'number' ? 'none' : '';
   if (!sheetPeek()) scrollChat();
 };
-const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}${sheetPeek() ? ' peek' : ''}" role="group" aria-label="Chat"${sheetStyle()}>
+// Next to "Quick add": an arrow up makes the panel full size, an arrow down takes it back to the small size.
+const sheetFull = () => typeof view.sheetH !== 'number' || view.sheetH > SHEET_SMALL + 4;
+const sizeButton = () => `<button class="sizeBtn${sheetFull() ? ' full' : ''}" data-action="sheet-size" aria-label="${sheetFull() ? 'Make smaller' : 'Show more'}">${ICONS.chev}</button>`;
+const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}${sheetPeek() ? ' peek' : ''}${sheetSmall() ? ' small' : ''}" role="group" aria-label="Chat"${sheetStyle()}>
   <button class="grabber" data-action="sheet-toggle" aria-label="${sheetPeek() ? 'Show more' : 'Show less'}"></button>
   <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : quickShown() ? 'quick' : 'chat'}">${sheetBody()}</div>
 </div>`;
@@ -1893,9 +1902,10 @@ const openChat = () => {
   if (!view.composerDate) view.composerDate = todayIso();
 };
 
+// The chat sits at the bottom of the panel (newest last); Quick add reads from the top.
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
-  if (body) body.scrollTop = body.scrollHeight;
+  if (body) body.scrollTop = body.dataset.mode === 'quick' ? 0 : body.scrollHeight;
 };
 
 const animateChat = (opening) => {
@@ -3518,7 +3528,7 @@ document.addEventListener('click', (event) => {
   if (view.composer && !insideDock) view.composer = false;
   if (insideDock && !event.target.closest('[data-action]') && !view.composer) {
     view.composer = true;
-    view.sheetH = SHEET_PEEK;
+    view.sheetH = SHEET_SMALL;
     if (!view.composerDate) view.composerDate = todayIso();
     syncDock();
     document.getElementById('draft')?.focus();
@@ -3811,7 +3821,10 @@ document.addEventListener('click', (event) => {
     return;
   } else if (action === 'sheet-toggle') {
     if (Date.now() - (view.sheetDragged || 0) < 400) return;
-    setSheet(sheetPeek() ? Math.round(preferredSheet()) : SHEET_PEEK, true);
+    setSheet(sheetFull() ? SHEET_SMALL : Math.round(preferredSheet()), true);
+    return;
+  } else if (action === 'sheet-size') {
+    setSheet(sheetFull() ? SHEET_SMALL : Math.round(preferredSheet()), true);
     return;
   }
   else if (action === 'confirm-no') answerConfirm(false);
@@ -4012,7 +4025,7 @@ document.addEventListener('input', (event) => {
     view.draft = target.value;
     if (!view.composer) {
       view.composer = true;
-      view.sheetH = SHEET_PEEK;
+      view.sheetH = SHEET_SMALL;
       if (!view.composerDate) view.composerDate = todayIso();
     }
     fitDraft(target);
@@ -4257,8 +4270,8 @@ for (const type of ['pointerup', 'pointercancel']) document.addEventListener(typ
   if (speed > 0.5) setSheet(Math.max(now, usual), true);
   else if (speed < -0.5) {
     if (now > usual + 24) setSheet(usual, true);
-    else if (drag.h <= SHEET_PEEK + 4) closeTray();
-    else setSheet(SHEET_PEEK, true);
+    else if (drag.h <= SHEET_SMALL + 4) closeTray();
+    else setSheet(SHEET_SMALL, true);
   }
 });
 

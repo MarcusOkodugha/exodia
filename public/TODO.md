@@ -17,6 +17,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Tapping the box opens the panel small, showing Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more; an arrow next to "Quick add" grows it to full size and shrinks it back (v206)
+- Shared log split switched on (SPLIT_PROFILES set, Nov 4)
 - Trends list: "Best lifts" heading with air after the chart, row lines start after the dot, a thin clay line on the lift on the chart, × 1 shown, Show all in plain text (v205)
 - New users: the box's + is a paperclip that opens the file picker; with lifts it's + → Quick add (Import from a file first) (v205)
 - Two friends on one shared log: each phone asks once "Who's using Exodia on this phone?"; the owner keeps the log, the other gets their own under their name (v205)

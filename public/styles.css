@@ -773,3 +773,11 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 @keyframes updatedIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
 @media (min-width: 1024px) { .updatedPill { top: 16px; } }
 @media (prefers-reduced-motion: reduce) { .updatedPill { animation: none; } }
+/* Small panel (from tapping the box): the bar bounces twice like the peek did. The arrow next to "Quick add" grows or
+   shrinks it: pointing up when it can grow, down when it's full. */
+.sheet.small .grabber::after { animation: grabHint 1.4s ease-in-out 0.4s 2; background: rgba(20, 20, 19, 0.28); }
+.sizeBtn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: var(--text2); }
+.sheetBody { overflow-x: hidden; }
+.sizeBtn .chev { transform: rotate(180deg); transition: transform 0.2s ease; }
+.sizeBtn.full .chev { transform: none; }
+@media (prefers-reduced-motion: reduce) { .sheet.small .grabber::after { animation: none; } }
