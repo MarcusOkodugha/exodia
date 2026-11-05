@@ -1308,7 +1308,7 @@ const MUSCLE_LIFTS = {
   shoulders: { 'shoulder-press': 0.55, 'incline-bench-press': 0.25, 'bench-press': 0.2 },
   triceps: { 'bench-press': 0.5, 'shoulder-press': 0.3, 'incline-bench-press': 0.2 },
   upperBack: { 'bent-over-row': 0.5, 'pull-ups': 0.5 },
-  traps: { deadlift: 0.6, 'bent-over-row': 0.25, 'shoulder-press': 0.15 },
+  traps: { deadlift: 0.75, 'bent-over-row': 0.25 },
   biceps: { 'pull-ups': 0.6, 'bent-over-row': 0.4 },
   lowerBack: { deadlift: 0.7, squat: 0.2, 'bent-over-row': 0.1 },
   quads: { squat: 1 },
@@ -1317,8 +1317,8 @@ const MUSCLE_LIFTS = {
   forearms: { deadlift: 0.5, 'bent-over-row': 0.3, 'pull-ups': 0.2 },
   adductors: { squat: 0.6, deadlift: 0.4 }
 };
-// The same five colours as .tierBeg … .tierElite in styles.css, for SVG gradients.
-const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#95B79A', tierInt: '#D9AE5F', tierAdv: '#C96442', tierElite: '#7CA3DD' };
+// The same five colours as --tierBeg … in styles.css (SVG gradients need the values).
+const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#A9C4A6', tierInt: '#A88FB5', tierAdv: '#C96442', tierElite: '#7CA3DD' };
 const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
 const muscleLevels = () => {
   const body = state.body;
