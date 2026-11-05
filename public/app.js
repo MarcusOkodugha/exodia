@@ -1400,9 +1400,9 @@ const renderMuscles = () => {
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
-  const toggle = `<div class="segment full" role="group" aria-label="Show">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
+  const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
-    return `<p class="section">Anatomy</p>${toggle}
+    return `${toggle}
     ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
@@ -1414,7 +1414,7 @@ const renderMuscles = () => {
       <div class="muscleList">${MUSCLES.map(([, label]) => `<div class="muscleRow muted"><i class="muscleSwatch tierNone"></i><span>${label}</span><span class="num tierWord">–</span></div>`).join('')}</div>
     </div>`}`;
   }
-  return `<p class="section">Anatomy</p>${toggle}
+  return `${toggle}
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><i class="muscleSwatch" style="opacity:${muscleStrength(load, key) || 1}"></i><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
@@ -2202,31 +2202,31 @@ const textWidth = (text, font) => {
   return measurer.measureText(text).width;
 };
 const levelWord = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
-// All time = the best ever (logged sets and saved bests); that's what the web and the anatomy show, so one light day
-// never pulls a level down. Now (the last 3 months) is still worked out but not shown.
+// All time = the heaviest you've ever lifted: the web's solid shape and the anatomy, so one light day never pulls a
+// level down. Now = the heaviest of the last 3 months, the web's dotted line (tap "Last 3 months" to swap them).
 const STRENGTH_NOW_DAYS = 90;
+// Strength is the weight you actually lifted, never an estimate: each lift's heaviest set (warm-ups don't count),
+// against Strength Level's one-rep max standards. Reps and RPE never raise it: 290 × 3 at RPE 7 counts as 290, the
+// same as a single would. They only break a tie: at the same weight, more reps wins, then the earlier day (the first
+// time you did it). Pull-ups count your most reps in one set against Strength Level's reps table.
 const liftStrength = (lift, body) => {
   const since = addDays(todayIso(), -STRENGTH_NOW_DAYS);
   let now = 0;
-  let ever = 0;
-  // The best set you actually did, ranked by its estimated one-rep max; when two come out the same (within 0.5 kg),
-  // the heavier one wins, so 300 × 1 beats 285 × 2.
   let best = null;
-  for (const session of state.sessions) {
+  for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
     for (const exercise of session.exercises) {
       if (!lift.names.includes(exercise.name.toLowerCase())) continue;
       for (const set of validSets(exercise)) {
-        // Pull-ups: bodyweight + added kg, as a one-rep max, against the reps table turned into the same kind of number.
-        const value = lift.reps ? (set.warmup ? 0 : estimate(body.kg + Number(set.kg || 0), Number(set.reps) + repsInTank(set))) : setEstimate(set);
-        if (value > ever) ever = value;
+        if (set.warmup) continue;
+        const [value, reps] = lift.reps ? [Number(set.reps), Number(set.kg) || 0] : [Number(set.kg), Number(set.reps)];
+        if (!(value > 0)) continue;
         if (session.date >= since && value > now) now = value;
-        if (value > 0 && (!best || value > best.value + 0.5 || (value >= best.value - 0.5 && Number(set.kg) > Number(best.set.kg)))) best = { value, set, date: session.date, name: exercise.name };
+        if (!best || value > best.value || (value === best.value && reps > best.tie)) best = { value, tie: reps, set, date: session.date, name: exercise.name };
       }
     }
   }
-  if (!lift.reps) for (const [name, kg] of Object.entries(state.bests || {})) if (lift.names.includes(name.toLowerCase()) && Number(kg) > ever) ever = Number(kg);
-  const table = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
-  const marks = table && lift.reps ? table.map((reps) => (reps >= 1 ? estimate(body.kg, reps) : body.kg * 0.95)) : table;
+  const ever = best?.value || 0;
+  const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
   return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) } };
 };
 // Bodyweight and sex, asked where they're needed (Strength level, and the anatomy's Strength view). Both forms can be
@@ -2267,9 +2267,13 @@ const renderStrength = () => {
   };
   const outline = (points) => `M${fixed(points[0])}${points.map((_, index) => segment(points, index)).join('')}Z`;
   const ring = (score) => `<polygon points="${lifts.map((lift, index) => fixed(point(index, score))).join(' ')}"`;
-  // Every corner is your all-time best, so a light day or a break never shrinks the shape.
-  const shownScore = (lift) => lift.everScore;
+  // The solid shape is all time unless you tap "Last 3 months"; the other one is the dotted line.
+  const recent = Boolean(view.webNow);
+  const shownScore = (lift) => (recent ? lift.score : lift.everScore);
+  const otherScore = (lift) => (recent ? lift.everScore : lift.score);
+  const shown = (lift) => (recent ? lift.value : lift.ever);
   const corners = lifts.map((lift, index) => point(index, Math.max(0.15, shownScore(lift))));
+  const dotted = lifts.some((lift) => Math.abs(otherScore(lift) - shownScore(lift)) >= 0.05) ? `<path d="${outline(lifts.map((lift, index) => point(index, Math.max(0.15, otherScore(lift)))))}" class="webEverShape"/>` : '';
   // The picture is as wide as its words: long level names on a side corner widen it instead of being cut off.
   let [left, right] = [-6, size + 6];
   const labels = lifts.map((lift, index) => {
@@ -2278,8 +2282,8 @@ const renderStrength = () => {
     const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelWord(shownScore(lift))} 0.0`, '500 15px'));
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
-    const swatch = lift.ever ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
-    const level = !known ? '<tspan class="webNone">–</tspan>' : lift.ever ? `${swatch}${levelWord(lift.everScore)} <tspan class="webNum">${lift.everScore.toFixed(1)}</tspan>` : '<tspan class="webNone">Not logged</tspan>';
+    const swatch = shown(lift) ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
+    const level = !known ? '<tspan class="webNone">–</tspan>' : shown(lift) ? `${swatch}${levelWord(shownScore(lift))} <tspan class="webNum">${shownScore(lift).toFixed(1)}</tspan>` : `<tspan class="webNone">${lift.ever ? 'Not lately' : 'Not logged'}</tspan>`;
     return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
   }).join('');
   // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
@@ -2301,13 +2305,14 @@ const renderStrength = () => {
   return `<p class="section">Strength level ${known ? `<button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button>` : ''}</p>
     <section class="card webCard${known ? '' : ' empty'}">
       ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
-      ${!known ? '' : `<div class="webTop"><p class="webIntro">Your best ever in each lift, against Strength Level's standards for your bodyweight</p></div>`}
-      <svg class="web" viewBox="${(middle - half).toFixed(0)} -12 ${(half * 2).toFixed(0)} 362" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, all time: ${lifts.map((lift) => `${lift.label} ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
+      ${!known ? '' : `<div class="webTop"><p class="webIntro">The heaviest you've lifted in each, against Strength Level's standards for your bodyweight</p><p class="webLegend">${[[false, 'All time', 'solid'], [true, 'Last 3 months', 'dotted']].map(([value, label, look]) => `<button class="webPick" data-action="web-now" data-now="${value ? 1 : 0}" aria-pressed="${recent === value}"><i class="${look}"></i>${label}</button>`).join('')}</p></div>`}
+      <svg class="web" viewBox="${(middle - half).toFixed(0)} -12 ${(half * 2).toFixed(0)} 362" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
         ${known ? `<path d="${outline(corners)}" class="webShape"/>
-        ${edges}` : ''}
-        ${lifts.map((lift, index) => lift.ever ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="5" class="webDot ${tierOf(lift.everScore)?.[2] || 'tierBeg'}"/>` : '').join('')}
+        ${edges}
+        ${dotted}` : ''}
+        ${lifts.map((lift, index) => shown(lift) ? `<circle cx="${point(index, shownScore(lift))[0].toFixed(1)}" cy="${point(index, shownScore(lift))[1].toFixed(1)}" r="5" class="webDot ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}"/>` : '').join('')}
         ${ringNumbers}
         ${labels}
       </svg>
@@ -2315,26 +2320,37 @@ const renderStrength = () => {
     </section>`;
 };
 
-// How rare a lift is. Two sources, each where it holds up:
-// 1. Up to Elite: Strength Level's own definition of its levels, the share of people training the lift that each
-//    level is stronger than: Beginner 5%, Novice 20%, Intermediate 50%, Advanced 80%, Elite 95%
-//    (strengthlevel.com/strength-standards, 6,393,746 checked lifts from 16 March 2015 to 10 March 2026). Between two
-//    levels the share moves evenly on a log scale.
-// 2. Past Elite, for squat, bench and deadlift: OpenPowerlifting raw meet results (openpowerlifting.org rankings, every
-//    lifter's best raw lift, read 5 November 2026). MEETS holds, per sex and IPF weight class (999 = the top class),
-//    the number of lifters in that class and the kg at the top 50%, 30%, 20%, 10%, 5%, 2%, 1%, 0.5%, 0.2%, 0.1%,
-//    0.05%, 0.02% and the class record (top 1 lifter). Your kg gives your share of your class; that share of all raw
-//    meet lifters of your sex (`all`) is how many people "at your bodyweight" have done it in a meet. We assume as many
-//    again do it without ever competing (no source counts them; this is our assumption, so we double it). Against
-//    about 2.7 billion adults of each sex (UN World Population Prospects 2024: 4.14 bn men and 4.09 bn women in 2025,
-//    about two thirds of them 20 or older), that gives "about 1 in N".
-//    Example, men's deadlift: 15,459 men have pulled 300 kg or more raw in a meet (of 330,925). At 100 kg bodyweight
-//    300 kg is the top 5.6% of the up-to-105 kg class (72,508 men): 5.6% of 330,925, doubled, is about 37,000 people,
-//    so about 1 in 73,000 men.
-// Below Elite meet results would overstate it (most people who train never compete), so they're only used past Elite.
+// How rare a lift is, from counts rather than guesses. Everything here uses the weight you actually lifted.
+// - Levels: Strength Level's own definition, the share of people training a lift that each level is stronger than:
+//   Beginner 5%, Novice 20%, Intermediate 50%, Advanced 80%, Elite 95% (strengthlevel.com/strength-standards,
+//   6,393,746 checked lifts, 16 March 2015 to 10 March 2026). Between two levels the share moves evenly on a log scale.
+// - Squat, bench and deadlift: OpenPowerlifting raw meet results, every lifter's best raw lift (openpowerlifting.org
+//   rankings, read 5 and 6 November 2026). MEETS_ALL holds, per sex, the exact number of lifters (all bodyweights)
+//   who have lifted at least each weight, every 2.5 kg from `from` (the weight 90% of them have lifted) to the
+//   record; a weight between two steps counts from the step below it. MEETS holds the same per IPF weight class (999 = the top class): lifters in the class and the kg at
+//   the top 50%, 30%, 20%, 10%, 5%, 2%, 1%, 0.5%, 0.2%, 0.1%, 0.05%, 0.02%, then the class record.
+// - "1 in N": adults of your sex divided by that count. UN World Population Prospects 2024: 4.14 bn men and 4.09 bn
+//   women in 2025, about two thirds of them 20 or older, so 2.7 bn each. Only from Elite up: below that most people
+//   who can lift the weight never compete, so a meet count would make it look rarer than it is; there the number is
+//   Strength Level's share instead.
+//   Example: 15,459 men have deadlifted 300 kg or more raw in a meet (of 330,925), so 1 in 175,000 men.
 const LEVEL_BEATS = [0.05, 0.2, 0.5, 0.8, 0.95];
 const MEET_SHARES = [0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002];
 const ADULTS = 2.7e9;
+const MEETS_ALL = {
+  "squat": {
+    male: { from: 125, record: 490.5, counts: [259378, 256505, 255081, 251422, 249851, 246644, 244523, 239602, 236299, 231783, 229348, 222646, 219730, 214510, 211792, 203982, 200809, 194162, 191112, 182355, 178575, 171657, 168724, 160618, 154295, 146549, 142696, 133778, 128832, 122225, 119327, 109138, 105605, 98339, 94892, 87270, 84086, 77677, 74803, 68179, 65918, 61334, 56708, 51319, 48743, 44792, 42563, 37894, 35722, 32750, 31268, 27241, 25813, 23387, 22379, 19682, 18596, 16690, 16043, 14457, 12955, 11460, 10859, 9513, 8806, 7840, 7373, 6424, 6060, 5452, 5298, 4327, 4057, 3563, 3343, 2925, 2736, 2527, 2265, 1872, 1754, 1563, 1457, 1226, 1137, 1012, 961, 788, 726, 643, 607, 498, 474, 417, 410, 384, 359, 284, 268, 229, 220, 189, 183, 152, 144, 130, 120, 106, 100, 93, 89, 73, 63, 57, 57, 44, 39, 36, 32, 28, 25, 21, 19, 15, 12, 10, 10, 9, 9, 8, 8, 8, 8, 6, 6, 6, 6, 5, 4, 3, 3, 3, 3, 3, 3, 2, 2] },
+    female: { from: 70, record: 320, counts: [122268, 119432, 117332, 114361, 112349, 108658, 105905, 101903, 99111, 94386, 90536, 86039, 82604, 76867, 72998, 68125, 64516, 59043, 55437, 50622, 47379, 42483, 39379, 35407, 32838, 29225, 26828, 24246, 21723, 19030, 16966, 14955, 13630, 11711, 10561, 9164, 8319, 7070, 6356, 5490, 5007, 4243, 3752, 3189, 2891, 2507, 2125, 1798, 1599, 1336, 1173, 1012, 936, 751, 669, 551, 490, 413, 359, 300, 268, 219, 206, 180, 143, 117, 101, 90, 80, 70, 66, 57, 54, 46, 37, 33, 33, 29, 27, 23, 21, 16, 15, 12, 11, 7, 6, 6, 6, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1] },
+  },
+  "bench-press": {
+    male: { from: 85, record: 355, counts: [362508, 356488, 352645, 344805, 339160, 330982, 325488, 313465, 306319, 295501, 287729, 273965, 265491, 252696, 244316, 228485, 219945, 205928, 197416, 183151, 174448, 162762, 154329, 141287, 131994, 120394, 113545, 101792, 95103, 86451, 81370, 71958, 67248, 60233, 56488, 48930, 45400, 40331, 38077, 33422, 29959, 26433, 24644, 20972, 18851, 16552, 15405, 12749, 11596, 9924, 9028, 7580, 6910, 5841, 5259, 4348, 4039, 3492, 2968, 2450, 2178, 1842, 1636, 1324, 1128, 969, 832, 641, 563, 477, 430, 339, 306, 256, 240, 182, 144, 122, 111, 91, 81, 67, 56, 42, 34, 25, 24, 20, 18, 11, 11, 8, 7, 7, 7, 6, 4, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1] },
+    female: { from: 40, record: 207.5, counts: [145057, 138962, 133065, 124772, 116630, 106783, 98137, 87834, 79495, 69070, 61003, 52187, 45563, 38134, 32710, 27081, 23178, 19153, 16057, 13106, 11099, 9099, 7551, 6122, 5194, 4160, 3494, 2819, 2382, 1908, 1627, 1315, 1105, 898, 743, 600, 514, 395, 331, 275, 214, 164, 140, 106, 86, 64, 54, 43, 36, 27, 20, 15, 13, 10, 7, 6, 4, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+  },
+  "deadlift": {
+    male: { from: 152.5, record: 492.5, counts: [298200, 296779, 293940, 292413, 287456, 285736, 281746, 280066, 273762, 271353, 266613, 264958, 257848, 252673, 246041, 242998, 234335, 230014, 223596, 220911, 208108, 204094, 195046, 191136, 180486, 176418, 167141, 163209, 152646, 149410, 141363, 133509, 123039, 118666, 111123, 107023, 97055, 92845, 86185, 83223, 73469, 70253, 64685, 62518, 55150, 52687, 47797, 46214, 41822, 37693, 33496, 31846, 27774, 25808, 22935, 21619, 18825, 17614, 15956, 15459, 12285, 11437, 9901, 9279, 8014, 7592, 6933, 6125, 4931, 4531, 3944, 3622, 3004, 2707, 2356, 2197, 1763, 1594, 1390, 1314, 1049, 960, 842, 809, 699, 639, 505, 458, 378, 345, 292, 261, 208, 178, 147, 139, 117, 111, 97, 94, 72, 66, 54, 51, 36, 33, 26, 19, 16, 16, 13, 11, 11, 10, 9, 8, 8, 8, 5, 5, 5, 5, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1] },
+    female: { from: 92.5, record: 297.5, counts: [134474, 132386, 129611, 127581, 122835, 120118, 115829, 113055, 107693, 104183, 98694, 95110, 88606, 84730, 78974, 75280, 69235, 65663, 61097, 56557, 50891, 46569, 41819, 38945, 33738, 30889, 27361, 25296, 21558, 19590, 16953, 15481, 13066, 11738, 10043, 9200, 7983, 6674, 5645, 5061, 4172, 3631, 3153, 2867, 2184, 1937, 1581, 1400, 1139, 987, 816, 738, 615, 562, 497, 382, 305, 267, 221, 197, 147, 125, 109, 105, 84, 78, 62, 56, 38, 29, 27, 22, 18, 12, 9, 9, 7, 6, 6, 5, 4, 2, 1] },
+  },
+};
 const MEETS = {
   "squat": {
     male: { all: 287436, classes: [
@@ -2411,8 +2427,15 @@ const topShare = (score) => {
   const [from, to] = [1 - LEVEL_BEATS[index], 1 - LEVEL_BEATS[index + 1]];
   return from * (to / from) ** (score - Math.floor(score));
 };
+// How many raw meet lifters of your sex have lifted at least this: null below the 90% mark, 0 past the record.
+const meetCount = (key, sex, kg) => {
+  const meets = MEETS_ALL[key]?.[sex];
+  if (!meets || kg < meets.from) return null;
+  if (kg > meets.record) return 0;
+  return meets.counts[Math.min(meets.counts.length - 1, Math.floor((kg - meets.from) / 2.5 + 1e-9))];
+};
 const IPF_CLASSES = { male: [59, 66, 74, 83, 93, 105, 120], female: [47, 52, 57, 63, 69, 76, 84] };
-// Your share of your weight class in raw meets, or null when the lift has no meet data or you're below its middle.
+// Your share of your weight class in raw meets, or null when you're below its middle.
 const meetShare = (key, sex, bodyweight, kg) => {
   const meets = MEETS[key]?.[sex];
   if (!meets) return null;
@@ -2421,33 +2444,36 @@ const meetShare = (key, sex, bodyweight, kg) => {
   const shares = [...MEET_SHARES, 1 / lifters];
   if (kg < marks[0]) return null;
   const above = marks.findIndex((mark) => mark > kg);
-  if (above === -1) return { share: 1 / lifters, lifters, limit, all: meets.all, record: true };
-  const share = shares[above - 1] * (shares[above] / shares[above - 1]) ** ((kg - marks[above - 1]) / (marks[above] - marks[above - 1]));
-  return { share, lifters, limit, all: meets.all };
+  if (above === -1) return { share: 1 / lifters, lifters, limit };
+  return { share: shares[above - 1] * (shares[above] / shares[above - 1]) ** ((kg - marks[above - 1]) / (marks[above] - marks[above - 1])), lifters, limit };
 };
-const roughly = (number) => {
-  if (number >= 1e6) return `${Number((number / 1e6).toPrecision(2))} million`;
-  return Number(number.toPrecision(2)).toLocaleString('en-GB');
-};
+// Big numbers to three figures (174,656 → 175,000), millions with one decimal.
+const figures = (number, digits = 3) => (number >= 1e6 ? `${Number((number / 1e6).toPrecision(2))}<small> million</small>` : Number(number.toPrecision(digits)).toLocaleString('en-GB'));
 const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 1 : 2))}%`;
-const classText = (limit, sex) => (limit === 999 ? `over ${IPF_CLASSES[sex].at(-1)} kg` : `up to ${limit} kg`);
-// Your most impressive lift: a set you actually did, never an estimate. Every set is ranked by its estimated one-rep
-// max against Strength Level for your bodyweight (liftStrength keeps each lift's best set). The best squat, bench or
-// deadlift always shows; any other lift (overhead press, hip abduction…) shows under it when it ranks higher.
+// Your most impressive lift: the heaviest set you actually did, its level and how rare that weight is. Lifts are
+// compared by level (actual kg against Strength Level for your bodyweight). Your best squat, bench or deadlift always
+// shows; any other lift (overhead press, hip abduction…) shows under it when its level is higher.
 const BIG_KEYS = ['squat', 'bench-press', 'deadlift'];
-const rarityOf = (lift, body) => {
+const rarityTiles = (lift, body) => {
   const { value, score } = lift.best;
   const people = body.sex === 'male' ? 'men' : 'women';
-  const meet = score >= 5 ? meetShare(lift.key, body.sex, body.kg, value) : null;
-  if (meet) {
-    const odds = ADULTS / (meet.share * meet.all * 2);
-    return { meet: true, rare: `About 1 in ${roughly(odds)} ${people}`, fact: meet.record ? `Heavier than every raw meet result at ${classText(meet.limit, body.sex)} (${meet.lifters.toLocaleString('en-GB')} ${people})` : `Top ${shareText(meet.share)} of ${meet.lifters.toLocaleString('en-GB')} ${people} in raw meets at ${classText(meet.limit, body.sex)}` };
-  }
+  const count = BIG_KEYS.includes(lift.key) ? meetCount(lift.key, body.sex, value) : null;
   const share = topShare(score);
+  const tiles = [];
+  if (score >= 5 && count) tiles.push({ value: `<small>1 in </small>${figures(ADULTS / count)}`, label: people, sub: `of 2.7 bn adults` });
+  else if (score >= 5) tiles.push({ value: 'Top 5%', label: 'who train it', sub: 'Strength Level' });
+  else if (share <= 0.5) tiles.push({ value: `<small>1 in </small>${Math.round(1 / share)}`, label: 'who train it', sub: 'Strength Level' });
+  else tiles.push({ value: `${Math.max(1, Math.round((1 - share) * 100))}%`, label: 'Stronger than', sub: 'who train it' });
+  if (count !== null && BIG_KEYS.includes(lift.key)) tiles.push(count === 0 ? { value: 'None', label: 'lifted more', sub: 'raw meets' } : { value: count.toLocaleString('en-GB'), label: `${people} lifted it`, sub: 'raw meets' });
   const level = Math.floor(score);
-  const mark = level < 5 ? lift.marks[level] : 0;
-  const fact = level < 5 ? `${LEVELS[level]} at ${lift.reps ? `+${Math.max(0, Math.round(mark - body.kg))}` : Math.round(mark)} kg for one` : '';
-  return { meet: false, fact, rare: score >= 5 ? 'Rarer than 1 in 20 who train it' : share > 0.5 ? `Stronger than ${Math.max(1, Math.round((1 - share) * 100))}% of people who train it` : `About 1 in ${Math.round(1 / share)} people who train it` };
+  if (level < 5) {
+    const mark = lift.marks[level];
+    tiles.push({ value: lift.reps ? `${Math.ceil(mark)}<small> reps</small>` : `${Math.round(mark)}<small> kg</small>`, label: LEVELS[level], sub: 'next level' });
+  } else {
+    const inClass = BIG_KEYS.includes(lift.key) ? meetShare(lift.key, body.sex, body.kg, value) : null;
+    if (inClass) tiles.push({ value: `Top ${shareText(inClass.share)}`, label: 'your weight class', sub: inClass.limit === 999 ? `over ${IPF_CLASSES[body.sex].at(-1)} kg, raw` : `up to ${inClass.limit} kg, raw` });
+  }
+  return { tiles, meet: count !== null };
 };
 const impressiveLifts = () => {
   const body = state.body;
@@ -2456,7 +2482,7 @@ const impressiveLifts = () => {
   const big = ranked.find((lift) => BIG_KEYS.includes(lift.key));
   const other = ranked.find((lift) => !BIG_KEYS.includes(lift.key));
   const shown = big ? [big, ...(other && other.best.score > big.best.score ? [other] : [])] : other ? [other] : [];
-  return shown.map((lift) => ({ lift, ...rarityOf(lift, body) }));
+  return shown.map((lift) => ({ lift, ...rarityTiles(lift, body) }));
 };
 const renderImpressive = () => {
   const found = impressiveLifts();
@@ -2468,12 +2494,11 @@ const renderImpressive = () => {
   };
   return `<p class="section">Your most impressive lift</p>
     <div class="feat">
-      ${found.map(({ lift, rare, fact }) => `<div class="featItem">
-        <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score) || 'Below Beginner'} <span class="num">${Math.min(lift.best.score, 9.9).toFixed(1)}</span></span></p>
-        <p class="featRare num">${rare}</p>
-        ${fact ? `<p class="featFact num">${fact}</p>` : ''}
+      ${found.map(({ lift, tiles }) => `<div class="featItem">
+        <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${Math.min(lift.best.score, 9.9).toFixed(1)}</span></span></p>
+        <div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileValue num">${tile.value}</p><p class="tileLabel">${tile.label}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>
       </div>`).join('')}
-      <p class="featSource">Sets you did, ranked by their estimated one-rep max. Strength Level: 6.4 million checked lifts, 2015–2026.${found.some((item) => item.meet) ? ` Past Elite: OpenPowerlifting raw meet results, doubled for people who never compete, against 2.7 billion adult ${state.body.sex === 'male' ? 'men' : 'women'}.` : ''}</p>
+      <p class="featSource">Levels: Strength Level, 6.4 million checked lifts (2015–2026).${found.some((item) => item.meet) ? ' Counts: OpenPowerlifting, every raw meet result. People: UN World Population Prospects 2024.' : ''}</p>
     </div>`;
 };
 // The computer's right panel. On Trends the middle already has the lift chart, so the panel holds what the phone shows
@@ -5351,6 +5376,7 @@ document.addEventListener('click', (event) => {
     view.rulesEnter = view.exodiaOpen;
   }
   else if (action === 'toggle-info') view.info = !view.info;
+  else if (action === 'web-now') view.webNow = target.dataset.now === '1';
   else if (action === 'level-info') {
     const level = Number(target.dataset.level);
     const where = target.dataset.where;

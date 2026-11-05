@@ -1243,3 +1243,18 @@ main.page { overflow-x: clip; }
 .anatomyFoot > .muscleNote { margin: 8px 4px 0; line-height: 18px; }
 .featKg { white-space: nowrap; }
 .featKg { margin-left: 0; }
+/* Anatomy starts with its Strength / Recovery switch (no heading above it), the figure under it. */
+.anatomySwitch { margin-top: 28px; }
+/* Most impressive lift: the numbers as tiles on the same grid as the lift tiles above the chart. */
+.featTiles { padding: 8px 0 0; }
+.featTiles .tile { cursor: default; }
+/* Trends sections sit flush with the page edge, so the lift's first letter lines up with the heading's. */
+.trendsPage .feat { margin: 8px 0 0; }
+.featTiles .tileValue { font-size: 20px; letter-spacing: -0.01em; }
+.featTiles .tileValue small { font-size: 12px; letter-spacing: 0; }
+/* Strength web: All time (solid, the default) or Last 3 months; the other one is the dotted line. */
+.webPick { display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; margin: -6px 0; border: 0; background: none; font: inherit; color: var(--text2); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.webPick[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+.webPick i { width: 14px; height: 10px; border-radius: 3px; flex: none; }
+.webPick[aria-pressed="true"] i { background: rgb(var(--clayRgb) / 0.22); border: 1.5px solid var(--clay); }
+.webPick[aria-pressed="false"] i { border: 1.8px dashed #5B4A3F; }

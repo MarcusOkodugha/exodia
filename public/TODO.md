@@ -19,7 +19,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Write the note "started 7 March 2024" and tap **↑**
 ## To do (Claude)
 
-- [ ] Anatomy heading: Marcus said "Anatomy" over the Strength / Recovery switch should be "under"; asked whether that means moving Anatomy below the strength web, or the switch first with no heading. Waiting on his answer.
 - [ ] Voice: show the words while it's still working.
 - [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
 - [ ] Smoothness pass: find everything that jumps instead of animating.
@@ -29,6 +28,11 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+
+- Strength = actual weight lifted, all time: each lift's heaviest set (warm-ups out) against Strength Level; reps and RPE never raise it, they only break a tie at the same weight (more reps wins). Same for the web, the anatomy, the head and the most impressive lift; saved "bests" without a set no longer count. Pull-ups: most reps in one set (v285)
+- Strength web: all time solid (default), last 3 months dotted, tap "Last 3 months" to swap (v285)
+- Most impressive lift: number tiles, no "about"/"estimated": 1 in N people (Elite and up: adults ÷ exact OpenPowerlifting count, e.g. 300 kg deadlift → 15,459 men → 1 in 175,000), exact count who lifted it in a raw meet, your weight class or the next level; sources line (Strength Level, OpenPowerlifting, UN WPP 2024); the lift's first letter lines up with the heading (v285)
+- Anatomy starts with the Strength / Recovery switch, no "Anatomy" heading above it (option b; moving the whole section under the strength web instead is a one-line change) (v285)
 
 - Update pill: one small clay pill with the newest change and "+N more"; tap grows the same element in place to show every change, tap outside shrinks it and it goes; soft glow once (v277)
 - AI: the three full Flash models were out of their daily free Gemini quota, so notes ran on Flash-Lite; such a model now sits out until the quota resets (09:00 Swedish time), search uses Lite first to save the quota for notes, each note logs its time and the models tried (worker)
