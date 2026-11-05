@@ -950,3 +950,21 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .pickDate { position: relative; overflow: hidden; }
 .pickDate .chipFace { color: var(--clayText); font-weight: 600; }
 .pickDate input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+
+/* Anatomy: Recovery (sets, red = still recovering) or Strength (each muscle's level from your lifts). Two greys for
+   Beginner and Novice, light and full clay for Intermediate and Advanced, Exodia blue for Elite. */
+.muscleHead { align-items: center; }
+.muscleToggle { display: inline-flex; gap: 2px; }
+.muscleToggle .chipFace { padding: 0 10px; height: 26px; font-size: 12.5px; }
+.bodyTier { transition: fill 0.35s ease; }
+.tierBeg { fill: #D9D5CA; background: #D9D5CA; }
+.tierNov { fill: #ABA699; background: #ABA699; }
+.tierInt { fill: rgb(var(--clayRgb) / 0.5); background: rgb(var(--clayRgb) / 0.5); }
+.tierAdv { fill: var(--clay); background: var(--clay); }
+.tierElite { fill: var(--exodiaBlue); background: var(--exodiaBlue); }
+.muscleSwatch.tierNone { background: var(--line); }
+.tierWord { font-size: 12px; color: var(--text2); }
+.tierLegend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.tierLegend span { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.tierLegend i { width: 9px; height: 9px; border-radius: 2px; }
+@media (max-width: 379px) { .tierWord { display: none; } }

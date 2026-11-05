@@ -1287,7 +1287,46 @@ const muscleLoad = () => {
 };
 // Strong while a muscle recovers and only fading near the end, then a light tint until 7 days have passed.
 const muscleStrength = ({ sets, fresh }, key) => (!sets[key] ? 0 : fresh[key] > 0 ? 0.22 + 0.78 * fresh[key] : 0.14);
-const bodySvg = (side, load) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+// Strength view (like Symmetric Strength): each muscle takes the level of the lifts that train it, weighted, from
+// the same Strength Level scores as the spider web (now, or all time when a lift isn't done lately).
+try {
+  view.muscleMode = localStorage.getItem('exodia.muscleMode') || 'recovery';
+} catch {
+  // private mode: recovery
+}
+const MUSCLE_LIFTS = {
+  chest: { 'bench-press': 0.6, 'incline-bench-press': 0.4 },
+  shoulders: { 'shoulder-press': 0.55, 'incline-bench-press': 0.25, 'bench-press': 0.2 },
+  triceps: { 'bench-press': 0.5, 'shoulder-press': 0.3, 'incline-bench-press': 0.2 },
+  upperBack: { 'bent-over-row': 0.5, 'pull-ups': 0.5 },
+  biceps: { 'pull-ups': 0.6, 'bent-over-row': 0.4 },
+  lowerBack: { deadlift: 0.7, squat: 0.2, 'bent-over-row': 0.1 },
+  quads: { squat: 1 },
+  glutes: { squat: 0.5, deadlift: 0.5 },
+  hamstrings: { deadlift: 0.7, squat: 0.3 },
+  forearms: { deadlift: 0.5, 'bent-over-row': 0.3, 'pull-ups': 0.2 },
+  adductors: { squat: 0.6, deadlift: 0.4 }
+};
+const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
+const muscleLevels = () => {
+  const body = state.body;
+  if (!body?.kg || !body?.sex) return null;
+  const scores = Object.fromEntries(WEB_LIFTS.map((lift) => {
+    const result = liftStrength(lift, body);
+    return [lift.key, result.score || result.everScore || 0];
+  }));
+  return Object.fromEntries(MUSCLES.map(([key]) => {
+    const parts = Object.entries(MUSCLE_LIFTS[key] || {}).filter(([lift]) => scores[lift] > 0);
+    const weight = parts.reduce((sum, [, share]) => sum + share, 0);
+    return [key, weight ? parts.reduce((sum, [lift, share]) => sum + scores[lift] * share, 0) / weight : 0];
+  }));
+};
+const tierOf = (level) => STRENGTH_TIERS.find(([from]) => level >= from) || null;
+const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+  if (levels) {
+    const tier = key ? tierOf(levels[key] || 0) : null;
+    return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
+  }
   const strength = key ? muscleStrength(load, key) : 0;
   return `<polygon points="${points}" class="${!key ? 'bodyBone' : strength ? 'bodyHit' : 'bodyRest'}"${strength ? ` style="fill-opacity:${strength.toFixed(2)}"` : ''}/>`;
 }).join('')}</svg>`;
@@ -1296,11 +1335,24 @@ const renderMuscles = () => {
   if (!anatomy || anatomy === 'loading') return '';
   const load = muscleLoad();
   const { sets } = load;
-  return `<p class="section muscleHead">Anatomy<span>Sets · 7 days</span></p>
+  const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
+  const toggle = `<span class="muscleToggle" role="group" aria-label="Show">${[['recovery', 'Recovery'], ['strength', 'Strength']].map(([mode, label]) => `<button class="chip" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'recovery') === mode}"><span class="chipFace">${label}</span></button>`).join('')}</span>`;
+  if (view.muscleMode === 'strength') {
+    return `<p class="section muscleHead">Anatomy${toggle}</p>
+    ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
+      <div class="muscleList">${MUSCLES.map(([key, label]) => {
+        const tier = tierOf(levels[key] || 0);
+        return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? tier[3] : '–'}</span></div>`;
+      }).join('')}</div>
+    </div>
+    <p class="muscleNote tierLegend"><span><i class="tierBeg"></i>Beginner</span><span><i class="tierNov"></i>Novice</span><span><i class="tierInt"></i>Intermediate</span><span><i class="tierAdv"></i>Advanced</span><span><i class="tierElite"></i>Elite</span></p>`
+    : `<p class="muscleNote">Add your bodyweight under Strength level to see how strong each muscle is.</p>`}`;
+  }
+  return `<p class="section muscleHead">Anatomy${toggle}</p>
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><i class="muscleSwatch" style="opacity:${muscleStrength(load, key) || 1}"></i><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
-    <p class="muscleNote">Red means still recovering.</p>`;
+    <p class="muscleNote">Sets in the last 7 days. Red means still recovering.</p>`;
 };
 
 // Days in the range where this lift set a PR (a heavier single or a new estimated max).
@@ -4624,6 +4676,15 @@ document.addEventListener('click', (event) => {
     view.adminError = '';
     render();
     return;
+  }
+  if (action === 'muscle-mode') {
+    view.muscleMode = target.dataset.mode;
+    try {
+      localStorage.setItem('exodia.muscleMode', view.muscleMode);
+    } catch {
+      // not remembered: fine
+    }
+    return render();
   }
   if (action === 'body-sex') {
     view.bodySex = target.dataset.sex;
