@@ -27,6 +27,11 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Notes no longer hang when Google's Gemini is overloaded (503s and 2-minute hangs seen on Nov 5): each model gets 15 s (25 s for voice), a failing one sits out a minute; full dates ("26th of July, 2024") are read without AI; replies say "Handled by Gemini 3.8 Flash" for Marcus, "Handled by Exodia" for friends (v267–v268)
+- Exodia in rounds: hit it → blue for 10 days → back to orange, counted from zero (days after the hit already count) (v265)
+- Anatomy head: the Exodia hand (with the eye in front, without on the back) only when every muscle is at least Advanced (orange) or Elite (blue); otherwise a normal head (v266–v268)
+- Strength web: Beginner ring back (1–5), key with squares, centred (v265)
+- Admin builder can use more than one Claude account (switch in Admin when a second is set up) (v264)
 - "Every session" calendar at the bottom of Trends, GitHub style: orange by tonnage, PR days Exodia blue, scrolls back, tap opens the day (v263)
 - Strength level colours decided (F): grey, sage, soft purple, clay, Exodia blue, the same in anatomy, spider web and keys; traps from deadlift 75% / row 25% (v262)
 - Strength web: straight lines (decided), ring numbers 2–5, legs top / push right / pull left, coloured rings with a key, "Incline bench" (v260–v262)
