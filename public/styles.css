@@ -1274,3 +1274,9 @@ main.page { overflow-x: clip; }
 .right .featTiles { column-gap: 8px; }
 .right .featTiles .tileValue { font-size: 17px; }
 .right .featTiles .tileLabel, .right .featTiles .tileSub { font-size: 11px; }
+/* Accessories time in a day: the chosen one is dark text with a short clay line under it, no black pill. */
+.dayActions .chipFace { position: relative; border-radius: 0; background: none; padding: 0 7px; }
+.dayActions .chip[aria-pressed="true"] .chipFace { background: none; color: var(--text); }
+.dayActions .chipFace::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: 4px; height: 2px; border-radius: 1px; background: var(--clay); transform: scaleX(0); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.dayActions .chip[aria-pressed="true"] .chipFace::after { transform: none; }
+@media (prefers-reduced-motion: reduce) { .dayActions .chipFace::after { transition: none; } }
