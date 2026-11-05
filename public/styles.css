@@ -1013,3 +1013,19 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 /* Muscle names stay on one line (two-word names wrapped at 375 wide); the level word takes the room it needs. */
 .muscleRow { grid-template-columns: 10px minmax(0, 1fr) auto; }
 .muscleRow span:first-of-type { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Anatomy switch: across the whole card width, right under the heading, so it reads as the main control. */
+.segment.full { display: grid; width: 100%; margin: 2px 0 14px; padding: 4px; }
+.segment.full .segmentOption { height: 40px; font-size: 15px; }
+.segment.full .segmentKnob { top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); }
+/* Strength web in the anatomy's colours: the outline blends per corner, level words carry a swatch, ring names are pills. */
+.webShape { fill: rgb(var(--clayRgb) / 0.1); stroke: none; }
+.webEdge { stroke-width: 3; stroke-linecap: round; }
+.webLevel, .webLevel.tierInt, .webLevel.tierNov, .webLevel.tierBeg, .webLevel.tierAdv, .webLevel.tierElite { fill: var(--text); font-weight: 500; }
+.webSwatch { font-size: 12px; }
+.webSwatch.tierBeg { fill: #BDB7AA; } .webSwatch.tierNov { fill: #F0C9B5; } .webSwatch.tierInt { fill: #E2967A; } .webSwatch.tierAdv { fill: var(--clay); } .webSwatch.tierElite { fill: var(--exodiaBlue); }
+.webPill { stroke: var(--card); stroke-width: 1.5; }
+.webPill.tierNov { fill: #F0C9B5; } .webPill.tierInt { fill: #E2967A; } .webPill.tierAdv { fill: var(--clay); } .webPill.tierElite { fill: var(--exodiaBlue); }
+.webRingName, .webRingName.tierNov, .webRingName.tierInt { font-size: 11.5px; font-weight: 600; fill: #3F2E25; stroke: none; }
+.webRingName.tierAdv, .webRingName.tierElite { fill: #FFFFFF; stroke: none; }
+.webDot.tierBeg { fill: #BDB7AA; } .webDot.tierNov { fill: #F0C9B5; } .webDot.tierInt { fill: #E2967A; }
+.webDot { r: 5; stroke-width: 2; }

@@ -1317,6 +1317,8 @@ const MUSCLE_LIFTS = {
   forearms: { deadlift: 0.5, 'bent-over-row': 0.3, 'pull-ups': 0.2 },
   adductors: { squat: 0.6, deadlift: 0.4 }
 };
+// The same five colours as .tierBeg … .tierElite in styles.css, for SVG gradients.
+const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#F0C9B5', tierInt: '#E2967A', tierAdv: '#C96442', tierElite: '#7CA3DD' };
 const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
 const muscleLevels = () => {
   const body = state.body;
@@ -1346,9 +1348,9 @@ const renderMuscles = () => {
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
-  const toggle = `<span class="segment" role="group" aria-label="Show">${[['recovery', 'Recovery'], ['strength', 'Strength']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'recovery') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'strength' ? ' on' : ''}" aria-hidden="true"></i></span>`;
+  const toggle = `<div class="segment full" role="group" aria-label="Show">${[['recovery', 'Recovery'], ['strength', 'Strength']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'recovery') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'strength' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
-    return `<p class="section muscleHead">Anatomy${toggle}</p>
+    return `<p class="section">Anatomy</p>${toggle}
     ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
@@ -1358,7 +1360,7 @@ const renderMuscles = () => {
     <p class="muscleNote tierLegend"><span><i class="tierBeg"></i>Beginner</span><span><i class="tierNov"></i>Novice</span><span><i class="tierInt"></i>Intermediate</span><span><i class="tierAdv"></i>Advanced</span><span><i class="tierElite"></i>Elite</span></p>`
     : `<p class="muscleNote">Add your bodyweight under Strength level to see how strong each muscle is.</p>`}`;
   }
-  return `<p class="section muscleHead">Anatomy${toggle}</p>
+  return `<p class="section">Anatomy</p>${toggle}
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><i class="muscleSwatch" style="opacity:${muscleStrength(load, key) || 1}"></i><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
@@ -1433,7 +1435,7 @@ const renderTrends = () => {
     <h1 class="title">Trends</h1>
     ${names.length ? `<div class="list">${card(view.trendOpen).replace(/<\/section>\s*$/, `${liftPicker(big, rest, history)}</section>`)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
-    ${desktopQuery.matches ? '' : `${renderVolume()}${renderStrength()}`}
+    ${desktopQuery.matches ? '' : `${renderStrength()}${renderVolume()}`}
   </main>`;
 };
 
@@ -2080,20 +2082,32 @@ const renderStrength = () => {
   const labels = lifts.map((lift, index) => {
     const [x, y] = [middle + Math.cos(angle(index)) * (radius + 30), middle + Math.sin(angle(index)) * (radius + 30)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
-    const wide = Math.max(textWidth(lift.label, '600 17px'), textWidth(`${lift.value ? levelWord(lift.score) : levelWord(lift.everScore)} 0.0`, '600 14.5px'));
+    const wide = Math.max(textWidth(lift.label, '600 17px'), textWidth(`■ ${lift.value ? levelWord(lift.score) : levelWord(lift.everScore)} 0.0`, '600 14.5px'));
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
     // Not done in the last 3 months: the corner shows the all-time level, marked so, instead of looking empty.
-    const level = lift.value ? `${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `<tspan class="webEverWord">${levelWord(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : 'Not logged';
+    const shown = lift.value ? lift.score : lift.everScore;
+    const swatch = lift.value || lift.ever ? `<tspan class="webSwatch ${tierOf(shown)?.[2] || 'tierBeg'}">■</tspan> ` : '';
+    const level = lift.value ? `${swatch}${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `${swatch}<tspan class="webEverWord">${levelWord(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : 'Not logged';
     const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 36).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 19).toFixed(1)}" text-anchor="${anchor}" class="webLevel ${lift.value ? tierOf(lift.score)?.[2] || 'tierBeg' : ''}">${level}</text>${allTime}`;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 19).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>${allTime}`;
   }).join('');
   // The level names line up on the straight vertical line to the top corner, each where its ring crosses it, in the
   // same colours as the anatomy's Strength view.
   const ringNames = [[2, 'Novice', 'tierNov'], [3, 'Intermediate', 'tierInt'], [4, 'Advanced', 'tierAdv'], [5, 'Elite', 'tierElite']].map(([level, name, tier]) => {
     const y = middle - radius * (level / outer);
-    return `<text x="${middle + 5}" y="${(y + 4).toFixed(1)}" class="webRingName ${tier}">${name}</text>`;
+    const wide = textWidth(name, '600 11.5px') + 12;
+    return `<rect x="${middle + 5}" y="${(y - 8.5).toFixed(1)}" width="${wide.toFixed(1)}" height="17" rx="8.5" class="webPill ${tier}"/><text x="${(middle + 5 + wide / 2).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" class="webRingName ${tier}">${name}</text>`;
   }).join('');
+  // The outline takes each corner's level colour and blends along each edge, so a lift past Elite shows blue there.
+  const corners = lifts.map((lift, index) => ({ at: point(index, Math.max(0.15, lift.value ? lift.score : lift.everScore)), colour: TIER_COLOURS[tierOf(lift.value ? lift.score : lift.everScore)?.[2] || 'tierBeg'] }));
+  const edges = `<defs>${corners.map((corner, index) => {
+    const next = corners[(index + 1) % corners.length];
+    return `<linearGradient id="webEdge${index}" gradientUnits="userSpaceOnUse" x1="${corner.at[0].toFixed(1)}" y1="${corner.at[1].toFixed(1)}" x2="${next.at[0].toFixed(1)}" y2="${next.at[1].toFixed(1)}"><stop offset="0" stop-color="${corner.colour}"/><stop offset="1" stop-color="${next.colour}"/></linearGradient>`;
+  }).join('')}</defs>${corners.map((corner, index) => {
+    const next = corners[(index + 1) % corners.length];
+    return `<line x1="${corner.at[0].toFixed(1)}" y1="${corner.at[1].toFixed(1)}" x2="${next.at[0].toFixed(1)}" y2="${next.at[1].toFixed(1)}" stroke="url(#webEdge${index})" class="webEdge"/>`;
+  }).join('')}`;
   const everDots = lifts.map((lift, index) => lift.ever && lift.everScore - lift.score >= 0.1 ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="2.6" class="webEverDot"/>` : '').join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
@@ -2106,6 +2120,7 @@ const renderStrength = () => {
         <polygon points="${ring(5)}" class="webRing elite"/>
         <polygon points="${everShape}" class="webEverShape"/>
         <polygon points="${shape}" class="webShape"/>
+        ${edges}
         ${everDots}
         ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="4.5" class="webDot ${tierOf(lift.score)?.[2] || 'tierBeg'}"/>` : '').join('')}
         ${ringNames}
@@ -2131,8 +2146,8 @@ const renderProgress = () => {
       ${focus ? `<button class="chartLink" data-action="open-trend" data-name="${esc(focus)}"><span class="chartTitle">Est. 1RM · ${Math.round(bestOverall(focus))} kg</span><span class="textBtn" style="min-height:0">Open in Trends</span></button>${nowLine(focus)}${chartFor(history.get(focus))}${view.info && view.route !== 'trends' ? ESTIMATE_INFO : ''}` : '<p class="empty">Your strongest lift shows up here once you log it.</p>'}
     </section>
     ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), lifts.filter((name) => !BIG_THREE.includes(name)), history, 'focus-lift', focus) : ''}
-    ${renderVolume()}
     ${renderStrength()}
+    ${renderVolume()}
     ${view.route === 'trends' ? '' : renderMuscles()}`;
 };
 
