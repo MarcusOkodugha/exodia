@@ -779,7 +779,12 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 };
 
 // One word while the AI works, whether it is a set, a whole workout or an edit.
-const renderPending = (item = {}) => `<div class="ghost" role="status"><span class="ghostText">${item.later ? 'Exodia is on it in the background · lands by itself' : 'Understanding…'}</span></div>`;
+// A note on its way: what was said, then set-shaped rows that build up with a soft shimmer where the workout will land,
+// and a quiet line that it lands by itself, so nobody has to sit and watch it.
+const renderPending = (item = {}) => {
+  const said = String(item.text || '').replace(/\s+/g, ' ').trim();
+  return `<div class="ghost${item.later ? ' later' : ''}" role="status"><span class="ghostText">${item.later ? 'Exodia is on it in the background · lands by itself' : 'Writing it down…'}</span>${said && said !== 'Voice note' ? `<span class="ghostSaid">“${esc(said.length > 90 ? `${said.slice(0, 88)}…` : said)}”</span>` : ''}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">Keep going, it lands by itself.</span>`}</div>`;
+};
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
 
@@ -2942,9 +2947,20 @@ const updatedLines = () => {
 const updatedPill = () => {
   if (state.demo || !(view.updated || view.updateReady)) return '';
   const open = Boolean(view.updated?.open);
+  const lines = view.updated ? updatedLines() : [];
   const still = view.updatedShown ? ' still' : '';
   view.updatedShown = true;
-  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span>Exodia updated${view.isAdmin && view.updated ? ` · v${view.updated.version}` : ''}</span><span class="updatedMore">${open ? '' : 'See what’s new'}</span><svg class="updatedChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${open ? `<ul class="updatedNotes">${updatedLines().map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
+  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><b>New</b><span class="updatedTeaser">${open ? `in Exodia${view.isAdmin && view.updated ? ` · v${view.updated.version}` : ''}` : esc(lines[0] || 'See what changed')}</span><svg class="updatedChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${open ? `<div class="updatedNotes">${lines.slice(0, 3).map((line) => `<p>${esc(line)}</p>`).join('')}</div>` : ''}</div>`;
+};
+// The card grows and shrinks as one piece: measure it before and after the redraw and animate its own size between.
+const resizeUpdated = (change) => {
+  const before = document.querySelector('.updatedPill')?.getBoundingClientRect();
+  change();
+  render();
+  const card = document.querySelector('.updatedPill');
+  if (!before || !card || reducedMotion.matches) return;
+  const after = card.getBoundingClientRect();
+  card.animate([{ width: `${before.width}px`, height: `${before.height}px` }, { width: `${after.width}px`, height: `${after.height}px` }], { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
 };
 const hideUpdated = () => {
   view.updated = null;
@@ -4879,8 +4895,9 @@ document.addEventListener('click', (event) => {
       try { sessionStorage.setItem(NOTES_KEY, '1'); } catch { /* opens closed instead */ }
       return reloadInPlace();
     }
-    if (view.updated) view.updated.open = !view.updated.open;
-    return render();
+    return resizeUpdated(() => {
+      if (view.updated) view.updated.open = !view.updated.open;
+    });
   }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();

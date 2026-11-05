@@ -9,6 +9,8 @@ const MAX_RECORD = 80000;
 // Logging reads with full Flash models first; the Lite ones are only the fallback when those are busy.
 // Gemini models that just failed or hung, until when to skip them (per Worker instance).
 const COOLING = new Map();
+// Short workout notes don't need long thinking; low thinking answers in a fraction of the time.
+const THINK_LOW = true;
 const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.7-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
 
 const PROMPT = `You turn a lifter's spoken or typed workout note into JSON.
@@ -601,10 +603,10 @@ const parse = async (request, env, ctx) => {
       if (round) await new Promise((resolve) => setTimeout(resolve, 1500 * round));
       for (const model of list) {
         const started = Date.now();
-        // Google sometimes hangs for minutes when busy; a normal answer takes 2–5 s, so give up on a model after a
-        // while and ask the next one instead of keeping the person waiting.
+        // Google sometimes hangs for minutes when busy; with low thinking a normal answer takes 1–3 s, so give up on a
+        // model after 7 s (18 s with audio) and ask the next one instead of keeping the person waiting.
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), audio ? 25000 : 15000);
+        const timer = setTimeout(() => controller.abort(), audio ? 18000 : 7000);
         let response;
         try {
           response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -613,7 +615,7 @@ const parse = async (request, env, ctx) => {
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: system }] },
             contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
-            generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA }
+            generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA, ...(THINK_LOW ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) }
           }),
           signal: controller.signal
         });

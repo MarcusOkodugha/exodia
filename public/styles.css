@@ -1161,17 +1161,36 @@ main.page { overflow-x: clip; }
 
 .daySummary:empty { display: none; }
 
-/* Update card (replaces the pill + separate notes): clay, calm entrance with a soft glow, grows in place to show notes. */
-.updatedPill { flex-direction: column; align-items: stretch; height: auto; padding: 0; border: 0; border-radius: 20px; background: var(--clay); color: #FFFFFF; box-shadow: 0 8px 24px rgb(var(--clayRgb) / 0.32); width: max-content; max-width: calc(100vw - 32px); overflow: hidden; animation: updatedGlowIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: opacity 0.2s ease, width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.updatedPill.open { width: min(340px, calc(100vw - 32px)); white-space: normal; }
-.updatedMain { justify-content: center; height: 38px; padding: 0 16px; gap: 8px; color: #FFFFFF; font-weight: 600; }
-.updatedMore { color: rgb(255 255 255 / 0.82); font-weight: 500; }
-.updatedChevron { color: #FFFFFF; }
-.updatedPill.open .updatedChevron { transform: rotate(180deg); }
-.updatedPill.open .updatedMain { justify-content: flex-start; }
-.updatedNotes { margin: 0; padding: 0 18px 14px 34px; font-size: 14px; font-weight: 400; line-height: 1.4; color: #FFFFFF; animation: updatedNotesIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.updatedNotes li { margin: 4px 0; }
-@keyframes updatedGlowIn { from { opacity: 0; transform: translate(-50%, -6px) scale(0.97); box-shadow: 0 0 0 rgb(var(--clayRgb) / 0); } 60% { box-shadow: 0 8px 34px rgb(var(--clayRgb) / 0.5); } to { opacity: 1; transform: translateX(-50%); box-shadow: 0 8px 24px rgb(var(--clayRgb) / 0.32); } }
+/* Update notice: one slim clay pill with a teaser; the same element grows in place to show up to three changes. */
+.updatedPill { position: fixed; z-index: 4; top: calc(var(--top) + 60px); left: 50%; transform: translateX(-50%); display: block; height: auto; width: max-content; max-width: min(300px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 15px; background: var(--clay); color: #FFFFFF; box-shadow: 0 4px 16px rgb(var(--clayRgb) / 0.25); overflow: hidden; white-space: nowrap; font-size: 14px; line-height: 20px; animation: updatedGlowIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: opacity 0.2s ease, border-radius 0.28s ease; }
+.updatedPill.open { width: min(340px, calc(100vw - 32px)); max-width: none; border-radius: 18px; white-space: normal; }
+.updatedMain { display: flex; align-items: center; gap: 6px; width: 100%; height: 30px; padding: 0 12px; font: inherit; color: #FFFFFF; }
+.updatedPill.open .updatedMain { height: 40px; padding: 0 14px; }
+.updatedMain b { font-weight: 600; flex: none; }
+.updatedTeaser { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(255 255 255 / 0.85); font-weight: 400; }
+.updatedChevron { flex: none; margin-left: 2px; color: rgb(255 255 255 / 0.85); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.updatedPill.open .updatedChevron { transform: rotate(180deg); margin-left: auto; }
+.updatedNotes { padding: 0 14px 12px; display: grid; gap: 0; animation: updatedNotesIn 0.18s ease-out 0.12s both; }
+.updatedNotes p { margin: 0; padding: 8px 0; border-top: 1px solid rgb(255 255 255 / 0.15); color: rgb(255 255 255 / 0.92); font-size: 14px; line-height: 20px; font-weight: 400; }
+@keyframes updatedGlowIn { from { opacity: 0; transform: translate(-50%, -6px); box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 60% { box-shadow: 0 4px 24px 2px rgb(var(--clayRgb) / 0.4); } to { opacity: 1; transform: translateX(-50%); box-shadow: 0 4px 16px rgb(var(--clayRgb) / 0.25); } }
 @keyframes updatedNotesIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .updatedPill, .updatedNotes { animation: none; } }
 .updatedPill.still { animation: none; }
+@media (min-width: 1024px) { .updatedPill { top: 16px; } }
+@media (prefers-reduced-motion: reduce) { .updatedPill, .updatedNotes { animation: none; } }
+
+/* Writing skeleton: a name bar and set rows on the real set grid, appearing one by one and shimmering softly. */
+.ghostSaid { color: var(--text2); font-size: 14px; line-height: 19px; font-style: italic; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ghostRows { display: grid; gap: 0; padding: 2px 0; }
+.ghostName, .ghostRow { opacity: 0; animation: ghostRowIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) var(--at) forwards; }
+.ghostName { display: block; padding: 6px 0 4px; }
+.ghostName i { display: block; width: 46%; height: 13px; }
+.ghostRow.setRow { min-height: 32px; }
+.ghostRow i:first-child { grid-column: 1; width: 18px; height: 10px; }
+.ghostRow i.kg { grid-column: 2; }
+.ghostRow i.reps { grid-column: 5; }
+.ghostRow i.e1 { grid-column: 7; justify-self: end; width: 34px; }
+.ghostName i, .ghostRow i { display: block; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--sep) 0%, rgb(var(--clayRgb) / 0.22) 45%, var(--sep) 90%); background-size: 220% 100%; animation: ghostSweep 1.6s ease-in-out var(--at) infinite; }
+.ghostHint { color: var(--text2); font-size: 13px; line-height: 18px; }
+@keyframes ghostRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes ghostSweep { from { background-position: 120% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .ghostName, .ghostRow { animation: none; opacity: 1; } .ghostName i, .ghostRow i { animation: none; } }
