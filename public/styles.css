@@ -1155,3 +1155,6 @@ button.calDay:active { transform: scale(0.85); }
 /* Phone: the web is centred on the screen (same room both sides) and may use 10px of each side margin, so balancing it
    doesn't make it smaller. */
 @media (max-width: 1023px) { .trendsPage .webCard .web { width: calc(100% + 20px); max-width: none !important; margin: 0 -10px; } }
+/* Nothing may make the page wider than the screen (a chart dot's touch area at the right edge did, by 1px), or Safari lets
+   the whole page sit a little to one side. */
+main.page { overflow-x: clip; }

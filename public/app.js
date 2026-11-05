@@ -2766,23 +2766,60 @@ const placeTopRight = () => {
 };
 // Phone: the back figure shifts a few pixels so its head sits right under the Exodia logo in the header as you scroll,
 // a hint that the head can become Exodia.
+// Measured on the drawn page, not worked out from sizes, so it holds in Safari and Chrome alike and after the header's
+// font has loaded: the shift needed is the logo's centre minus where the head is now, plus the shift it already has.
 const alignBackHead = () => {
   const back = document.querySelectorAll('.page .bodyFig')[1];
-  const logo = document.querySelector('.logo');
+  const logo = document.querySelector('.brand .logo') || document.querySelector('.logo');
   if (!back) return;
-  back.style.transform = '';
-  if (desktopQuery.matches || !logo) return;
+  if (desktopQuery.matches || !logo) {
+    back.style.transform = '';
+    return;
+  }
   const head = back.querySelector('[data-head]')?.getBoundingClientRect();
   const mark = logo.getBoundingClientRect();
   if (!head?.width || !mark.width) return;
-  const shift = mark.x + mark.width / 2 - (head.x + head.width / 2);
-  if (Math.abs(shift) < 24) back.style.transform = `translateX(${shift.toFixed(1)}px)`;
+  const now = Number(back.dataset.shift) || 0;
+  const shift = now + (mark.x + mark.width / 2) - (head.x + head.width / 2);
+  if (Math.abs(shift) > 24 || Math.abs(shift - now) < 0.1) return;
+  back.dataset.shift = shift.toFixed(2);
+  back.style.transform = `translateX(${shift.toFixed(2)}px)`;
 };
+// The strength web: its outer ring's centre goes to the screen's centre (phone), measured the same way.
+const centreWeb = () => {
+  const web = document.querySelector('.page svg.web');
+  const ring = web?.querySelector('.webRing.tierElite');
+  if (!web || !ring) return;
+  if (desktopQuery.matches) {
+    web.style.transform = '';
+    return;
+  }
+  const box = ring.getBoundingClientRect();
+  if (!box.width) return;
+  const now = Number(web.dataset.shift) || 0;
+  const shift = now + window.innerWidth / 2 - (box.x + box.width / 2);
+  if (Math.abs(shift) > 40 || Math.abs(shift - now) < 0.1) return;
+  web.dataset.shift = shift.toFixed(2);
+  web.style.transform = `translateX(${shift.toFixed(2)}px)`;
+};
+let alignFrame = 0;
+const alignSoon = () => {
+  if (alignFrame) return;
+  alignFrame = requestAnimationFrame(() => {
+    alignFrame = 0;
+    alignBackHead();
+    centreWeb();
+  });
+};
+window.addEventListener('scroll', alignSoon, { passive: true });
+document.getElementById('app')?.addEventListener('scroll', alignSoon, { passive: true });
 // The figure moves a little once the text font has loaded; line it up again then.
-document.fonts?.ready.then(() => requestAnimationFrame(alignBackHead));
+document.fonts?.ready.then(alignSoon);
+document.fonts?.addEventListener?.('loadingdone', alignSoon);
 const tuckCards = () => {
   placeTopRight();
   alignBackHead();
+  centreWeb();
   const dock = document.querySelector('.dock');
   if (!dock) return;
   const sheet = dock.querySelector('.sheet');
