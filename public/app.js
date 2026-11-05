@@ -3209,6 +3209,15 @@ const noteUpdate = async () => {
     show(Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 8));
   }).catch(() => show([]));
 };
+// A touch anywhere outside the pill puts it away (open or not). pointerdown, because iPhone Safari sends no click for a
+// tap on plain page, so a click listener alone never saw those taps.
+document.addEventListener('pointerdown', (event) => {
+  if (!view.updated || event.target.closest('.updatedPill')) return;
+  if (view.updated.open) {
+    view.updatedClosedAt = Date.now();
+    toggleUpdated(false, hideUpdated);
+  } else hideUpdated();
+}, true);
 // Swiping "Exodia updated" away: it follows the finger and fades as it goes; let go far or fast enough and it glides
 // off that way, otherwise it springs back. A plain tap still opens the notes.
 let updatedSwipe = null;
@@ -4961,10 +4970,8 @@ const send = async () => {
 
 document.addEventListener('click', (event) => {
   // "What's new" open: a tap anywhere else closes it all, like any dialog, and does nothing else.
-  if (view.updated?.open && !event.target.closest('.updatedPill')) {
-    toggleUpdated(false, hideUpdated);
-    return;
-  }
+  // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
+  if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
     if (view.editContext?.date === view.editDay) view.editContext = null;
     view.editDay = null;
@@ -5096,7 +5103,11 @@ document.addEventListener('click', (event) => {
       try { sessionStorage.setItem(NOTES_KEY, '1'); } catch { /* opens closed instead */ }
       return reloadInPlace();
     }
-    return toggleUpdated();
+    // Open: a tap closes it and it goes. Nothing more to show (one change that already fits): a tap clears it.
+    const lead = document.querySelector('.updatedLead');
+    if (view.updated?.open) return toggleUpdated(false, hideUpdated);
+    if (!document.querySelector('.updatedNotes') && lead && lead.scrollWidth <= lead.clientWidth) return hideUpdated();
+    return toggleUpdated(true);
   }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
