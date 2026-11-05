@@ -1921,23 +1921,27 @@ const levelScore = (value, marks) => {
   return 5 + (value - marks[4]) / Math.max(1, marks[4] - marks[3]);
 };
 const levelWord = (score) => (score >= 5.25 ? 'Elite+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
+// Now = best estimated 1RM of the last 3 months; all time = the best ever (logged sets and saved bests).
+const STRENGTH_NOW_DAYS = 90;
 const liftStrength = (lift, body) => {
-  const since = addDays(todayIso(), -365);
-  let best = 0;
+  const since = addDays(todayIso(), -STRENGTH_NOW_DAYS);
+  let now = 0;
+  let ever = 0;
   for (const session of state.sessions) {
-    if (session.date < since) continue;
     for (const exercise of session.exercises) {
       if (!lift.names.includes(exercise.name.toLowerCase())) continue;
       for (const set of validSets(exercise)) {
         // Pull-ups: reps at bodyweight against the reps table (added kg counts as extra reps' worth).
         const value = lift.reps ? Number(set.reps) * (1 + Number(set.kg || 0) / Math.max(40, body.kg)) : setEstimate(set);
-        if (value > best) best = value;
+        if (value > ever) ever = value;
+        if (session.date >= since && value > now) now = value;
       }
     }
   }
+  if (!lift.reps) for (const [name, kg] of Object.entries(state.bests || {})) if (lift.names.includes(name.toLowerCase()) && Number(kg) > ever) ever = Number(kg);
   const table = STANDARDS[lift.key]?.[body.sex];
   const marks = table ? (lift.reps ? table : table.map((ratio) => ratio * body.kg)) : null;
-  return { ...lift, value: best, marks, score: levelScore(best, marks) };
+  return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks) };
 };
 const bodyPrompt = () => `<section class="card bodyCard">
     <p class="bodyTitle">See your strength level per lift</p>
@@ -1952,7 +1956,7 @@ const renderStrength = () => {
   if (!body?.kg || !body?.sex || view.bodyEdit) return `<p class="section">Strength level</p>${bodyPrompt()}`;
   const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks);
   if (lifts.length < 3) return '';
-  const top = Math.max(5, ...lifts.map((lift) => lift.score));
+  const top = Math.max(5, ...lifts.map((lift) => Math.max(lift.score, lift.everScore)));
   const outer = Math.min(8, Math.ceil(top * 2) / 2);
   const size = 320;
   const middle = size / 2;
@@ -1961,23 +1965,28 @@ const renderStrength = () => {
   const point = (index, score) => [middle + Math.cos(angle(index)) * radius * (Math.min(score, outer) / outer), middle + Math.sin(angle(index)) * radius * (Math.min(score, outer) / outer)];
   const ring = (score) => lifts.map((lift, index) => point(index, score).map((value) => value.toFixed(1)).join(',')).join(' ');
   const shape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.score)).map((value) => value.toFixed(1)).join(',')).join(' ');
+  const everShape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.everScore)).map((value) => value.toFixed(1)).join(',')).join(' ');
   const labels = lifts.map((lift, index) => {
     const [x, y] = [middle + Math.cos(angle(index)) * (radius + 26), middle + Math.sin(angle(index)) * (radius + 26)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${lift.value ? levelWord(lift.score) : 'Not logged'}</text>`;
+    const now = lift.value ? levelWord(lift.score) : lift.ever ? 'Not lately' : 'Not logged';
+    const ever = lift.ever && levelWord(lift.everScore) !== levelWord(lift.score) ? `<text x="${x.toFixed(1)}" y="${(y + 29).toFixed(1)}" text-anchor="${anchor}" class="webEver">best ${levelWord(lift.everScore)}</text>` : '';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${now}</text>${ever}`;
   }).join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
-      <svg class="web" viewBox="-40 -14 400 352" role="img" aria-label="Strength level per lift: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not logged'}`).join(', ')}">
+      <svg class="web" viewBox="-40 -14 400 366" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
         ${[1, 2, 3, 4].map((level) => `<polygon points="${ring(level)}" class="webRing"/>`).join('')}
         <polygon points="${ring(5)}" class="webRing elite"/>
         ${outer > 5 ? `<polygon points="${ring(outer)}" class="webRing past"/>` : ''}
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
+        <polygon points="${everShape}" class="webEverShape"/>
         <polygon points="${shape}" class="webShape"/>
         ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="3.5" class="webDot"/>` : '').join('')}
         ${labels}
       </svg>
-      <p class="webNote">Best estimated 1RM in the last 12 months, against Strength Level's standards (multiples of your ${Math.round(body.kg)} kg). The solid ring is Elite.</p>
+      <p class="webLegend"><span><i class="now"></i>Now · last 3 months</span><span><i class="ever"></i>All time</span></p>
+      <p class="webNote">Estimated 1RM against Strength Level's standards (multiples of your ${Math.round(body.kg)} kg). The solid ring is Elite.</p>
     </section>`;
 };
 

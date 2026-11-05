@@ -930,3 +930,11 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .bodyRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .bodyKg { width: 72px; }
 .saveBody .chipFace { background: var(--text); color: var(--bg); }
+/* All time sits behind now: a dashed clay outline, so you see how far now is from your best. */
+.webEverShape { fill: none; stroke: var(--clay); stroke-width: 1.4; stroke-dasharray: 4 4; stroke-linejoin: round; opacity: 0.75; }
+.webEver { font-size: 10.5px; fill: var(--text2); opacity: 0.85; }
+.webLegend { display: flex; justify-content: center; gap: 18px; margin: 2px 0 0; font-size: 12px; color: var(--text2); }
+.webLegend span { display: inline-flex; align-items: center; gap: 6px; }
+.webLegend i { width: 14px; height: 10px; border-radius: 3px; }
+.webLegend i.now { background: rgb(var(--clayRgb) / 0.22); border: 1.5px solid var(--clay); }
+.webLegend i.ever { border: 1.4px dashed var(--clay); }
