@@ -797,7 +797,8 @@ const sync = async (request, env) => {
     admin: Boolean(env.ADMIN_PROFILE) && key === env.ADMIN_PROFILE,
     cursor: profile.seq,
     sessions: rows.map((row) => ({ date: row.date, updated: row.updated, data: row.data ? JSON.parse(row.data) : null })),
-    meta: profile.meta && profile.meta_seq > since ? { ...JSON.parse(profile.meta), updated: profile.meta_updated } : null
+    // A device that asks (just opened, or missing the bodyweight) always gets the profile, even if it synced past its last change.
+    meta: profile.meta && (profile.meta_seq > since || body?.wantMeta === true) ? { ...JSON.parse(profile.meta), updated: profile.meta_updated } : null
   });
 };
 

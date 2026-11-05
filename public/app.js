@@ -265,7 +265,9 @@ const syncNow = () => {
   syncing = fetch('/api/sync', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
-    body: JSON.stringify({ since: syncState.cursor, changes, meta })
+    // The first sync after opening, or while the bodyweight is missing, asks for the whole profile: a device that
+    // synced past a change on an older version would otherwise never get it (the phone asked for 100 kg again).
+    body: JSON.stringify({ since: syncState.cursor, changes, meta, ...(!view.syncedAt || !state.body?.kg ? { wantMeta: true } : {}) })
   })
     .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Sync failed'))))
     .then((result) => {
@@ -5477,6 +5479,11 @@ const route = () => {
   view.menu = false;
   scrollPage(0);
   render();
+  // Arrived by a swipe: the new page slides in from that side.
+  if (view.pageEnter) {
+    document.querySelector('main.page')?.classList.add(`enter-${view.pageEnter}`);
+    view.pageEnter = null;
+  }
   if (view.route === 'home' && view.homeScroll && !view.trendScroll) scrollPage(view.homeScroll);
   if (view.route === 'log') scrollPage(scroller().scrollHeight);
 };
@@ -5756,3 +5763,75 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('scroll', onScroll, { passive: true });
   document.getElementById('app')?.addEventListener('scroll', onScroll, { passive: true });
 })();
+
+// Phone: swipe between the three screens like an app. On Home, swipe left for Trends and right for the sidebar; on
+// Trends, swipe right back to Home. The page follows the finger and glides out; a short or slow swipe springs back.
+let pageSwipe = null;
+let pageSwipedAt = 0;
+const PAGE_SWIPE_SKIP = '.dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .updatedCard, .drawer, .scrim, .segment, .toast, .confirm';
+document.addEventListener('pointerdown', (event) => {
+  pageSwipe = null;
+  if (event.pointerType !== 'touch' || desktopQuery.matches || turn || view.menu || view.composer || !['home', 'trends'].includes(view.route)) return;
+  if (event.target.closest(PAGE_SWIPE_SKIP)) return;
+  const page = document.querySelector('main.page');
+  if (page) pageSwipe = { page, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, active: false };
+});
+document.addEventListener('pointermove', (event) => {
+  if (!pageSwipe) return;
+  const dx = event.clientX - pageSwipe.x;
+  const dy = event.clientY - pageSwipe.y;
+  if (!pageSwipe.active) {
+    // Mostly up or down is scrolling: let it be.
+    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+      pageSwipe = null;
+      return;
+    }
+    if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    pageSwipe.active = true;
+    pageSwipe.page.style.transition = 'none';
+  }
+  // Trends has nothing further right: that way only gives a little.
+  const allowed = view.route === 'home' || dx > 0;
+  pageSwipe.dx = allowed ? dx : dx * 0.18;
+  pageSwipe.page.style.transform = `translateX(${pageSwipe.dx.toFixed(1)}px)`;
+  pageSwipe.page.style.opacity = String(1 - Math.min(0.35, Math.abs(pageSwipe.dx) / window.innerWidth * 0.5));
+});
+const endPageSwipe = (event) => {
+  const swipe = pageSwipe;
+  pageSwipe = null;
+  if (!swipe?.active) return;
+  pageSwipedAt = Date.now();
+  const width = window.innerWidth;
+  const speed = swipe.dx / Math.max(1, event.timeStamp - swipe.t);
+  const far = Math.abs(swipe.dx) > width * 0.28 || Math.abs(speed) > 0.45;
+  const target = swipe.dx < 0 ? (view.route === 'home' ? 'trends' : null) : view.route === 'trends' ? 'home' : 'menu';
+  const page = swipe.page;
+  page.style.transition = 'transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.24s ease';
+  if (!far || !target || event.type === 'pointercancel') {
+    page.style.transform = '';
+    page.style.opacity = '';
+    return;
+  }
+  if (target === 'menu') {
+    page.style.transform = '';
+    page.style.opacity = '';
+    view.menu = true;
+    render();
+    return;
+  }
+  page.style.transform = `translateX(${swipe.dx < 0 ? -width : width}px)`;
+  page.style.opacity = '0';
+  setTimeout(() => {
+    view.pageEnter = swipe.dx < 0 ? 'right' : 'left';
+    location.hash = target === 'trends' ? '#/trends' : '#/';
+  }, 200);
+};
+document.addEventListener('pointerup', endPageSwipe);
+document.addEventListener('pointercancel', endPageSwipe);
+// A swipe that ends on a button is not a tap on it.
+document.addEventListener('click', (event) => {
+  if (Date.now() - pageSwipedAt < 400) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+}, true);

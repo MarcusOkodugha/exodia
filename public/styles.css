@@ -1107,3 +1107,16 @@ button.calDay:active { transform: scale(0.85); }
 /* The anatomy's head: Exodia blue when you've hit Exodia, else your average level (Strength view). */
 .bodyHead { transition: fill 0.35s ease; }
 .handledBy { margin: 3px 0 0; font-size: 11.5px; line-height: 15px; color: var(--text2); opacity: 0.8; }
+/* Phone: the page sits still like an app. No sideways drag, no rubber-band bounce, no zoom; only the parts meant to
+   scroll sideways (calendar, day chips) do. Swiping between Home and Trends is handled by the app. */
+@media (pointer: coarse) {
+  html { overscroll-behavior: none; overflow-x: hidden; }
+  body { overscroll-behavior: none; }
+  body { touch-action: pan-y; }
+  .calScroll, .days, .dayActions { touch-action: pan-x pan-y; }
+}
+.page.enter-right { animation: pageFromRight 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.page.enter-left { animation: pageFromLeft 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes pageFromRight { from { transform: translateX(32%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pageFromLeft { from { transform: translateX(-32%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .page.enter-right, .page.enter-left { animation: none; } }
