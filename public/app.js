@@ -3163,10 +3163,10 @@ const updatedPill = () => {
   const open = Boolean(view.updated?.open);
   const still = view.updatedShown ? ' still' : '';
   view.updatedShown = true;
-  const [lead, ...rest] = view.updated ? updatedLines() : ['Exodia updated'];
-  const more = !view.updated ? '· Tap to see' : rest.length ? `· +${rest.length} more` : '';
-  const version = view.isAdmin && view.updated ? ` title="v${view.updated.version}"` : '';
-  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"${version}><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span class="updatedDot" aria-hidden="true"></span><span class="updatedLead">${esc(lead)}</span>${more ? `<span class="updatedMore">${more}</span>` : ''}</button>${rest.length ? `<ul class="updatedNotes">${rest.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
+  const lines = view.updated ? updatedLines() : [];
+  const more = !view.updated ? 'Tap to see' : lines.length > 1 ? `Show all ${lines.length}` : 'Show more';
+  const version = view.isAdmin && view.updated ? ` · v${view.updated.version}` : '';
+  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span class="updatedDot" aria-hidden="true"></span><span class="updatedLead">${esc(lines[0] || 'Exodia updated')}</span><span class="updatedTitle">What’s new${version}</span><span class="updatedMore">${more}</span><svg class="updatedChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${lines.length ? `<ul class="updatedNotes">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
 };
 // Grow or shrink the pill between its measured sizes without redrawing it. The content is laid out at the end size
 // from the first frame, so no text reflows while the edge moves; closing drops back to one line and the notes fade.
@@ -3249,7 +3249,7 @@ const noteUpdate = async () => {
   };
   setTimeout(() => show([]), 4000);
   fetch('/changes.json').then((response) => response.json()).then((all) => {
-    show(Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 8));
+    show(Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 40));
   }).catch(() => show([]));
 };
 // A touch anywhere outside the pill puts it away (open or not). pointerdown, because iPhone Safari sends no click for a
@@ -3266,7 +3266,7 @@ document.addEventListener('pointerdown', (event) => {
 let updatedSwipe = null;
 document.addEventListener('pointerdown', (event) => {
   const pill = event.target.closest('.updatedPill');
-  updatedSwipe = pill ? { pill, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
+  updatedSwipe = pill && !event.target.closest('.updatedNotes') ? { pill, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
 });
 document.addEventListener('pointermove', (event) => {
   if (!updatedSwipe) return;
@@ -5147,10 +5147,8 @@ document.addEventListener('click', (event) => {
       try { sessionStorage.setItem(NOTES_KEY, '1'); } catch { /* opens closed instead */ }
       return reloadInPlace();
     }
-    // Open: a tap closes it and it goes. Nothing more to show (one change that already fits): a tap clears it.
-    const lead = document.querySelector('.updatedLead');
+    // Closed: a tap opens every change. Open: a tap on the top row closes it and it goes.
     if (view.updated?.open) return toggleUpdated(false, hideUpdated);
-    if (!document.querySelector('.updatedNotes') && lead && lead.scrollWidth <= lead.clientWidth) return hideUpdated();
     return toggleUpdated(true);
   }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
