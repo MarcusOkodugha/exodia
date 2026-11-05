@@ -225,5 +225,8 @@
   "279": [
     "A note being written shows up on the day it is about, also for Swedish words like \"igår\" and \"i fredags\"",
     "While it is written: it lands by itself, so keep logging or look at Trends"
+  ],
+  "280": [
+    "Trends opens faster with years of training"
   ]
 }

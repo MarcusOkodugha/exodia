@@ -91,11 +91,14 @@ const addDays = (iso, days) => {
   date.setDate(date.getDate() + days);
   return isoDate(date);
 };
+// One formatter each, made once: toLocaleDateString builds a new one per call, and the Trends calendar asks thousands of times.
+const DAY_FORMAT = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const DAY_FORMAT_YEAR = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const dayLabel = (iso) => {
-  if (iso === todayIso()) return 'Today';
-  if (iso === addDays(todayIso(), -1)) return 'Yesterday';
-  const sameYear = iso.slice(0, 4) === todayIso().slice(0, 4);
-  return parseIso(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) }).replace(',', '');
+  const today = todayIso();
+  if (iso === today) return 'Today';
+  if (iso === addDays(today, -1)) return 'Yesterday';
+  return (iso.slice(0, 4) === today.slice(0, 4) ? DAY_FORMAT : DAY_FORMAT_YEAR).format(parseIso(iso)).replace(',', '');
 };
 const tonnes = (kg) => (kg / 1000).toFixed(1) + ' t';
 const setCount = (count) => count + (count === 1 ? ' set' : ' sets');
