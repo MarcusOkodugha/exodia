@@ -25,6 +25,15 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
   - `CLAUDE_MODEL`, `GEMINI_MODELS`: optional.
   - `SPLIT_PROFILES`: optional JSON `{ "<profile key>": ["Owner name", "Other name"] }` for a log two people ended up sharing. Each phone on it is asked once who uses it; the first name keeps the log, the others get their own. Delete the secret once they've answered.
 
+## Continuing from another Claude account
+
+Everything a new session needs is in this repo: this file, `public/TODO.md` (open list + what waits on Marcus) and `git log`. To continue on another account:
+
+1. On claude.ai/code with the other account, connect GitHub (the account that owns MarcusOkodugha/exodia) and start a session on this repo.
+2. In that session's cloud environment, add the Cloudflare API token as an environment variable `CLOUDFLARE_API_TOKEN` (the same token as here; Marcus copies it from Cloudflare → My Profile → API Tokens, never pasted in chat), so `npx wrangler` can deploy and read D1.
+3. The admin panel's "Change the app" fires a scheduled task that belongs to the account that created it. On a new account, create a new "Exodia change" scheduled task there (with this repo attached and an API trigger), then set its URL and token with `npx wrangler secret put CLAUDE_TASK_URL` and `npx wrangler secret put CLAUDE_TASK_TOKEN`.
+4. First message to the new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
+
 ## Open list
 
 `public/TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
