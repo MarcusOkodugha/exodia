@@ -1891,9 +1891,18 @@ const renderVolume = () => {
 
 // Strength levels (Strength Level standards: one-rep max by bodyweight and sex, Beginner → Elite) as a spider web.
 // Each corner is a lift, placed by your best estimated 1RM of the last 12 months. The rings are the levels, the
-// outer solid ring is Elite; anyone past Elite pushes the web outward. STANDARDS holds the tables:
-// { key: { male: [[bodyweight, beginner, novice, intermediate, advanced, elite], ...], female: [...] } }.
-const STANDARDS = {};
+// outer solid ring is Elite; anyone past Elite pushes the web outward. STANDARDS holds Strength Level's
+// "entire community" thresholds as multiples of bodyweight (1RM ÷ bodyweight) for Beginner, Novice, Intermediate,
+// Advanced and Elite; pull-ups are reps. Source: strengthlevel.com/strength-standards (2014–2026 community lifts).
+const STANDARDS = {
+  squat: { male: [0.75, 1.25, 1.75, 2.25, 2.75], female: [0.5, 0.75, 1.25, 1.75, 2.25] },
+  'bench-press': { male: [0.5, 1, 1.25, 1.5, 2], female: [0.3, 0.5, 0.75, 1.1, 1.45] },
+  deadlift: { male: [1, 1.5, 2, 2.5, 3.25], female: [0.75, 1, 1.5, 2, 2.5] },
+  'shoulder-press': { male: [0.35, 0.55, 0.8, 1.05, 1.35], female: [0.2, 0.35, 0.5, 0.7, 0.95] },
+  'bent-over-row': { male: [0.5, 0.75, 1, 1.5, 1.75], female: [0.3, 0.45, 0.7, 0.95, 1.25] },
+  'incline-bench-press': { male: [0.5, 0.75, 1, 1.5, 1.75], female: [0.25, 0.4, 0.65, 0.95, 1.25] },
+  'pull-ups': { male: [1, 7, 13, 21, 30], female: [0.5, 1, 6, 12, 19] }
+};
 const LEVELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
 const WEB_LIFTS = [
   { label: 'Squat', key: 'squat', names: ['squat', 'back squat'] },
@@ -1904,16 +1913,6 @@ const WEB_LIFTS = [
   { label: 'Pull-up', key: 'pull-ups', names: ['pull-up', 'pull up', 'pullup', 'chin-up', 'chin up', 'weighted pull-up', 'weighted pull up', 'weighted chin-up'], reps: true },
   { label: 'Incline', key: 'incline-bench-press', names: ['incline bench press', 'incline bench'] }
 ];
-// The table's row for this bodyweight: in between two rows it is the straight line between them.
-const standardAt = (rows, bodyweight) => {
-  if (!rows?.length) return null;
-  if (bodyweight <= rows[0][0]) return rows[0].slice(1);
-  if (bodyweight >= rows.at(-1)[0]) return rows.at(-1).slice(1);
-  const upper = rows.findIndex((row) => row[0] >= bodyweight);
-  const [low, high] = [rows[upper - 1], rows[upper]];
-  const share = (bodyweight - low[0]) / (high[0] - low[0]);
-  return low.slice(1).map((value, index) => value + (high[index + 1] - value) * share);
-};
 // 0 … 5 where 1 is Beginner and 5 Elite; past Elite it keeps going by the Advanced→Elite step.
 const levelScore = (value, marks) => {
   if (!(value > 0) || !marks) return 0;
@@ -1936,7 +1935,8 @@ const liftStrength = (lift, body) => {
       }
     }
   }
-  const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
+  const table = STANDARDS[lift.key]?.[body.sex];
+  const marks = table ? (lift.reps ? table : table.map((ratio) => ratio * body.kg)) : null;
   return { ...lift, value: best, marks, score: levelScore(best, marks) };
 };
 const bodyPrompt = () => `<section class="card bodyCard">
@@ -1975,10 +1975,9 @@ const renderStrength = () => {
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         <polygon points="${shape}" class="webShape"/>
         ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="3.5" class="webDot"/>` : '').join('')}
-        <text x="${middle + 4}" y="${(point(0, 5)[1] - 5).toFixed(1)}" class="webRingLabel">Elite</text>
         ${labels}
       </svg>
-      <p class="webNote">Best estimated 1RM in the last 12 months, against Strength Level's standards for ${Math.round(body.kg)} kg. The solid ring is Elite.</p>
+      <p class="webNote">Best estimated 1RM in the last 12 months, against Strength Level's standards (multiples of your ${Math.round(body.kg)} kg). The solid ring is Elite.</p>
     </section>`;
 };
 
