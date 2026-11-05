@@ -9,6 +9,36 @@ const MAX_RECORD = 80000;
 // Logging reads with full Flash models first; the Lite ones are only the fallback when those are busy.
 // Gemini models that just failed or hung, until when to skip them (per Worker instance).
 const COOLING = new Map();
+// Google's free tier says why it refused. A used-up daily quota only comes back at midnight Pacific time, a per-minute
+// one after its retryDelay, so the model sits out exactly that long instead of being asked again on every note.
+const pacificMidnight = () => {
+  const now = new Date();
+  const there = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const next = new Date(there);
+  next.setHours(24, 0, 0, 0);
+  return now.getTime() + (next - there);
+};
+const coolDown = (model, status, body = '') => {
+  if (status !== 429 && status < 500) return '';
+  let until = Date.now() + 60000;
+  let why = status === 429 ? 'busy' : 'down';
+  if (status === 429) {
+    let details = [];
+    try { details = JSON.parse(body)?.error?.details || []; } catch { /* not JSON */ }
+    const quota = details.flatMap((detail) => detail.violations || []).map((violation) => violation.quotaId || '').join(' ');
+    const retry = Number.parseFloat(details.find((detail) => detail.retryDelay)?.retryDelay || '');
+    if (/PerDay/i.test(quota)) {
+      until = pacificMidnight();
+      why = 'daily quota used up';
+    } else if (retry > 0) {
+      until = Date.now() + retry * 1000;
+      why = `per-minute quota, back in ${Math.round(retry)} s`;
+    }
+  }
+  COOLING.set(model, Math.max(COOLING.get(model) || 0, until));
+  return why;
+};
+const cooling = (model) => COOLING.get(model) > Date.now();
 // Short workout notes don't need long thinking; low thinking answers in a fraction of the time.
 const THINK_LOW = true;
 const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.7-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
@@ -521,7 +551,9 @@ const search = async (request, env) => {
     const { success } = await env.PARSE_LIMITER.limit({ key: `search:${request.headers.get('x-exodia-key') || request.headers.get('cf-connecting-ip') || 'local'}` });
     if (!success) return json({ error: 'Slow down a little.' }, 429);
   }
-  const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
+  // Search is easy: Lite models first, so the full Flash models' small free daily quota stays for notes.
+  const all = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean).reverse();
+  const models = all.filter((model) => !cooling(model)).length ? all.filter((model) => !cooling(model)) : all;
   for (const model of models) {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
@@ -533,6 +565,10 @@ const search = async (request, env) => {
       })
     });
     if (response.status === 404 || response.status === 400) continue;
+    if (response.status === 429 || response.status >= 500) {
+      coolDown(model, response.status, await response.text().catch(() => ''));
+      continue;
+    }
     if (!response.ok) return json({ error: 'The AI is not answering right now.' }, 502);
     const data = await response.json();
     const output = data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
@@ -550,6 +586,7 @@ const search = async (request, env) => {
 };
 
 const parse = async (request, env, ctx) => {
+  const begun = Date.now();
   if (!env.GEMINI_API_KEY) return json({ error: 'AI is not set up yet. Try “bench 120x4x3”.' }, 503);
   const body = await request.json().catch(() => null);
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
@@ -583,7 +620,7 @@ const parse = async (request, env, ctx) => {
   if (env.ANTHROPIC_API_KEY && words) {
     try {
       const result = clean({ ...(await askClaude(env, context, `${words}${heard && hint && !text ? `\n\n(The phone's own speech-to-text heard: "${hint}". Use it only for unclear words.)` : ''}`)), transcript: heard || text }, today);
-      logCommand(request, env, ctx, body, text || heard || 'Voice note', { ...result, engine: 'claude' });
+      logCommand(request, env, ctx, body, text || heard || 'Voice note', { ...result, engine: 'claude', ms: Date.now() - begun });
       keepAsFeedback(request, env, ctx, body, text || heard, result);
       return json({ ...result, engine: 'claude' });
     } catch (error) {
@@ -594,9 +631,11 @@ const parse = async (request, env, ctx) => {
   let busy = false;
   const system = `${PROMPT}\n${RAMBLE}${heard ? `\nWhisper, a strong speech-to-text tuned to gym words, heard: "${heard}". Use it together with the audio; when they disagree on a word, pick what makes sense for lifting.` : ''}${hint ? `\nThe phone's own live speech-to-text heard: "${hint}". It is often wrong, use it only as a last resort for unclear words.` : ''}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}`;
   const trace = [];
+  // Saved with each note so speed per model can be read from the commands table: "3.5-flash 200 2140".
+  const timing = () => ({ ms: Date.now() - begun, tried: trace.map((step) => `${step.model.replace('gemini-', '')} ${step.status} ${step.ms}`) });
   const ask = async (all, rounds) => {
     // Models that just failed sit out a minute (unless nothing else is left), so the next note doesn't wait on them.
-    const fresh = all.filter((model) => !(COOLING.get(model) > Date.now()));
+    const fresh = all.filter((model) => !cooling(model));
     const list = fresh.length ? fresh : all;
     for (let round = 0; round < rounds; round += 1) {
       if (round && !busy) break;
@@ -622,7 +661,7 @@ const parse = async (request, env, ctx) => {
         } catch (error) {
           clearTimeout(timer);
           trace.push({ model, status: 'timeout', ms: Date.now() - started });
-          COOLING.set(model, Date.now() + 60000);
+          COOLING.set(model, Math.max(COOLING.get(model) || 0, Date.now() + 60000));
           lastError = `${model}: no answer in time`;
           busy = true;
           continue;
@@ -630,10 +669,11 @@ const parse = async (request, env, ctx) => {
         trace.push({ model, status: response.status, ms: Date.now() - started });
         if (!response.ok) {
           clearTimeout(timer);
-          lastError = `${model}: ${response.status} ${(await response.text()).slice(0, 160)}`;
-          trace.at(-1).error = lastError.slice(0, 120);
+          const reason = await response.text().catch(() => '');
+          const why = coolDown(model, response.status, reason);
+          lastError = `${model}: ${response.status} ${why || reason.replace(/\s+/g, ' ').slice(0, 160)}`;
+          trace.at(-1).error = lastError.slice(0, 160);
           busy = busy || response.status === 429 || response.status >= 500;
-          if (response.status === 429 || response.status >= 500) COOLING.set(model, Date.now() + 60000);
           continue;
         }
         const data = await response.json().catch(() => null);
@@ -672,11 +712,11 @@ const parse = async (request, env, ctx) => {
     const result = found.result;
     const dates = saidDates(`${text} ${heard}`).filter((date) => !today || date <= today);
     if (dates.length === 1 && (result.exercises?.length || result.cardioMinutes) && !result.move?.length && result.date !== dates[0]) result.date = dates[0];
-    logCommand(request, env, ctx, body, text || result.transcript, { ...result, engine: found.model });
+    logCommand(request, env, ctx, body, text || result.transcript, { engine: found.model, ...timing(), ...result });
     keepAsFeedback(request, env, ctx, body, text || result.transcript, result);
     return json({ ...result, engine: found.model, ...(body?.dry === true ? { trace } : {}) });
   }
-  logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}` });
+  logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}`, ...timing() });
   if (busy) return json({ error: 'Google’s AI was busy. Your note is fine, try again in a minute.', transcript: heard }, 503);
   return json({ error: 'The AI could not read that note. Try again, or type it.', transcript: heard }, 502);
 };
