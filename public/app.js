@@ -779,12 +779,9 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 };
 
 // One word while the AI works, whether it is a set, a whole workout or an edit.
-// A note on its way: what was said, then set-shaped rows that build up with a soft shimmer where the workout will land,
-// and a quiet line that it lands by itself, so nobody has to sit and watch it.
-const renderPending = (item = {}) => {
-  const said = String(item.text || '').replace(/\s+/g, ' ').trim();
-  return `<div class="ghost${item.later ? ' later' : ''}" role="status"><span class="ghostText">${item.later ? 'Exodia is on it in the background · lands by itself' : 'Writing it down…'}</span>${said && said !== 'Voice note' ? `<span class="ghostSaid">“${esc(said.length > 90 ? `${said.slice(0, 88)}…` : said)}”</span>` : ''}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">Keep going, it lands by itself.</span>`}</div>`;
-};
+// A note on its way: set-shaped rows that build up with a soft shimmer right where the workout will land, and a quiet
+// line that it lands by itself, so nobody has to sit and watch it.
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status"><span class="ghostText">${item.later ? 'Exodia is on it in the background · lands by itself' : 'Writing it down…'}</span>${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
 
@@ -3687,9 +3684,13 @@ const wavBase64 = async (blob) => {
 
 const DAY_WORDS = /\b(yesterday|today|mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\b(last|ago|on the)\b|\d{1,2}(st|nd|rd|th)\b|\d{1,2}\/\d{1,2}/i;
 
+// Where the writing skeleton goes until the AI answers: English and Swedish day words ("igår", "i fredags").
+const SWEDISH_DAYS = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
 const guessDate = (text, fallback) => {
-  if (/\byesterday\b/i.test(text)) return addDays(todayIso(), -1);
-  const weekday = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].findIndex((day) => new RegExp(`\\b${day}[a-z]*\\b`, 'i').test(text));
+  if (/\b(day before yesterday|förrgår)/i.test(text)) return addDays(todayIso(), -2);
+  if (/\byesterday\b|\bi\s?går(?![a-zåäö])/i.test(text)) return addDays(todayIso(), -1);
+  const swedish = SWEDISH_DAYS.findIndex((day) => text.toLowerCase().includes(day));
+  const weekday = swedish !== -1 ? swedish : ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].findIndex((day) => new RegExp(`\\b${day}[a-z]*\\b`, 'i').test(text));
   if (weekday === -1) return fallback;
   const back = (new Date().getDay() - weekday + 7) % 7 || 7;
   return addDays(todayIso(), -back);
