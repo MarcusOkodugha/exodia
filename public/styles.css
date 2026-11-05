@@ -1092,3 +1092,10 @@ button.calDay:active { transform: scale(0.85); }
 .calKey span { margin: 0 4px; }
 .calKey .calKeyPr { margin-left: 10px; }
 .calKey .calDay { width: 10px; height: 10px; border-radius: 2.5px; }
+/* Admin: which Claude account builds. Same calm switch as the anatomy one, buttons share the width. */
+.builderRow { display: flex; align-items: center; gap: 12px; margin: 10px 0 2px; }
+.builderLabel { flex: none; font-size: 13px; color: var(--text2); }
+.builderSwitch { margin: 0; display: flex; }
+.builderSwitch .segmentOption { flex: 1; }
+.builderSwitch .segmentOption:disabled { opacity: 0.45; }
+.builderSwitch .segmentOption[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 2px rgb(20 20 19 / 0.1), 0 0 0 0.5px rgb(20 20 19 / 0.08); }

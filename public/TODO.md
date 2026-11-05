@@ -6,11 +6,17 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **When you switch Claude account: set up the admin task there.** "Change the app" sends to a scheduled task on the account that made it; a new account needs its own.
-  1. On the new account, start a session on this repo at [claude.ai/code](https://claude.ai/code) and add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to its environment
-  2. First message: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue." It creates the task and tells you the rest
-  3. In [claude.ai/code/scheduled](https://claude.ai/code/scheduled) open the new task, turn on **API trigger**, copy the URL and token
-  4. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL`, paste the URL; then the same with `CLAUDE_TASK_TOKEN` and the token
+- [ ] **Point "Change the app" at the cheap builder (once).** It now sends into one long chat, which costs a lot per request and stops when that chat ends; the "Exodia change" task starts a fresh session each time (about $0.30).
+  1. Open [claude.ai/code/scheduled](https://claude.ai/code/scheduled) and open **Exodia change** (not "→ this chat")
+  2. Under **API trigger**, make a new token; copy the URL and the token
+  3. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL`, paste the URL
+  4. Then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN`, paste the token
+  5. In Exodia → Admin, send "Test only: change nothing, just say you have the code". It should show as started, with a link to watch it
+- [ ] **Your second Claude account (once, when you first use it).** Then switching is one tap in Admin: "Built with Account 1 / Account 2".
+  1. On that account start a session on this repo at [claude.ai/code](https://claude.ai/code), add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to its environment
+  2. First message: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue. Set up the Exodia change task for this account."
+  3. It makes the task; in [claude.ai/code/scheduled](https://claude.ai/code/scheduled) open it, turn on **API trigger**, copy the URL and token
+  4. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2` (URL), then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2` (token)
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
 - [ ] **Add your 7-week program Excel again.** The first try only kept 8 days; those were removed, and the import now reads every sheet.
   1. In Exodia tap **+**, then **Import from a file**, and pick the Excel

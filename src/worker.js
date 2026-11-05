@@ -772,38 +772,57 @@ const logChange = (env, ctx, ask, result) => {
   const write = env.DB.prepare('INSERT INTO commands (at, profile, name, said, result) VALUES (?, ?, ?, ?, ?)').bind(Date.now(), env.ADMIN_PROFILE, 'Change request', ask, JSON.stringify(result)).run().catch(() => {});
   if (ctx) ctx.waitUntil(write);
 };
+// Exodia can build from more than one Claude account. Each account has its own scheduled task with an API trigger,
+// kept as Worker secrets: CLAUDE_TASK_URL + CLAUDE_TASK_TOKEN (account 1), CLAUDE_TASK_URL_2 + CLAUDE_TASK_TOKEN_2
+// (account 2), and _3. Marcus picks which one builds in Admin (saved as a "Builder" row in commands); if that one
+// can't start, the next one is tried.
+const BUILDER_SLOTS = [1, 2, 3];
+const builderSecrets = (env, slot) => {
+  const suffix = slot === 1 ? '' : `_${slot}`;
+  const rawUrl = (env[`CLAUDE_TASK_URL${suffix}`] || '').trim();
+  // Pasted secrets often carry a trailing newline or spaces, which break the URL or the auth header.
+  // Accept the Fire URL, or any link or text that contains the task id (trig_…), and build the Fire URL from it.
+  const taskId = rawUrl.match(/trig_[A-Za-z0-9]+/)?.[0];
+  const url = /\/fire$/.test(rawUrl) ? rawUrl : taskId ? `https://api.anthropic.com/v1/claude_code/routines/${taskId}/fire` : rawUrl;
+  const token = (env[`CLAUDE_TASK_TOKEN${suffix}`] || '').trim().replace(/^Bearer\s+/i, '');
+  return { slot, url, token, ready: Boolean(url && token && /^https?:\/\/[^\s]+\/fire$/.test(url)) };
+};
+const builders = (env) => BUILDER_SLOTS.map((slot) => builderSecrets(env, slot)).filter((builder) => builder.url || builder.token);
+const pickedBuilder = async (env) => {
+  const row = await env.DB.prepare("SELECT said FROM commands WHERE name = 'Builder' ORDER BY at DESC LIMIT 1").first().catch(() => null);
+  return Number(row?.said) || 1;
+};
 const startClaudeTask = async (text, env, ctx) => {
   const ask = text.trim().slice(0, 4000);
   const response = await startClaudeTaskNow(ask, env);
   const body = await response.clone().json().catch(() => ({}));
-  if (ask) logChange(env, ctx, ask, response.ok ? { build: 'started', url: body.url || '' } : { build: 'failed', error: body.error || `HTTP ${response.status}` });
+  if (ask) logChange(env, ctx, ask, response.ok ? { build: 'started', url: body.url || '', account: body.account } : { build: 'failed', error: body.error || `HTTP ${response.status}` });
   return response;
 };
 // Starts a Claude Code cloud session (a scheduled task with an API trigger) that changes the app and deploys it.
 const startClaudeTaskNow = async (text, env) => {
   const ask = text.trim().slice(0, 4000);
   if (!ask) return json({ error: 'Say what to change.' }, 400);
-  // Pasted secrets often carry a trailing newline or spaces, which break the URL or the auth header.
-  // Accept the Fire URL, or any link or text that contains the task id (trig_…), and build the Fire URL from it.
-  const rawUrl = (env.CLAUDE_TASK_URL || '').trim();
-  const taskId = rawUrl.match(/trig_[A-Za-z0-9]+/)?.[0];
-  const taskUrl = /\/fire$/.test(rawUrl) ? rawUrl : taskId ? `https://api.anthropic.com/v1/claude_code/routines/${taskId}/fire` : rawUrl;
-  const token = (env.CLAUDE_TASK_TOKEN || '').trim().replace(/^Bearer\s+/i, '');
-  if (!taskUrl || !token) return json({ error: 'Exodia builder is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
-  if (!/^https?:\/\/[^\s]+\/fire$/.test(taskUrl)) return json({ error: `CLAUDE_TASK_URL should be the Fire URL ending in /fire (it starts with “${rawUrl.slice(0, 16)}”).` }, 503);
-  let response;
-  try {
-    response = await fetch(taskUrl, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'anthropic-beta': 'experimental-cc-routine-2026-04-01', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ text: ask })
-    });
-  } catch (error) {
-    return json({ error: `Exodia did not start: ${error.message}` }, 502);
+  const ready = builders(env).filter((builder) => builder.ready);
+  if (!ready.length) return json({ error: 'Exodia builder is not connected yet. Add CLAUDE_TASK_URL and CLAUDE_TASK_TOKEN to the Worker.' }, 503);
+  const picked = await pickedBuilder(env);
+  const order = [...ready.filter((builder) => builder.slot === picked), ...ready.filter((builder) => builder.slot !== picked)];
+  const errors = [];
+  for (const builder of order) {
+    try {
+      const response = await fetch(builder.url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${builder.token}`, 'anthropic-beta': 'experimental-cc-routine-2026-04-01', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ text: ask })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return json({ ok: true, url: data.claude_code_session_url || '', account: builder.slot });
+      errors.push(`account ${builder.slot}: ${response.status} ${data.error?.message || 'no details'}`);
+    } catch (error) {
+      errors.push(`account ${builder.slot}: ${error.message}`);
+    }
   }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) return json({ error: `Exodia did not start (${response.status}): ${data.error?.message || 'no details'}` }, 502);
-  return json({ ok: true, url: data.claude_code_session_url || '' });
+  return json({ error: `Exodia did not start (${errors.join('; ')})` }, 502);
 };
 
 const admin = async (request, env, ctx) => {
@@ -811,15 +830,21 @@ const admin = async (request, env, ctx) => {
   if (request.method === 'POST') {
     const body = await request.json().catch(() => null);
     if (typeof body?.claude === 'string') return startClaudeTask(body.claude, env, ctx);
+    if (BUILDER_SLOTS.includes(body?.builder)) {
+      await env.DB.prepare('INSERT INTO commands (at, profile, name, said, result) VALUES (?, ?, ?, ?, ?)').bind(Date.now(), env.ADMIN_PROFILE, 'Builder', String(body.builder), '{}').run();
+      return json({ ok: true, builder: body.builder });
+    }
     if (!Number.isInteger(body?.id) || !['new', 'planned', 'done', 'declined'].includes(body?.status)) return json({ error: 'Bad request' }, 400);
     await env.DB.prepare('UPDATE feedback SET status = ? WHERE id = ?').bind(body.status, body.id).run();
     return json({ ok: true });
   }
   const [commands, feedback] = await env.DB.batch([
-    env.DB.prepare('SELECT at, profile, name, said, result FROM commands ORDER BY at DESC LIMIT 300'),
+    env.DB.prepare("SELECT at, profile, name, said, result FROM commands WHERE name IS NOT 'Builder' ORDER BY at DESC LIMIT 300"),
     env.DB.prepare('SELECT id, at, profile, name, kind, title, details, said, status FROM feedback ORDER BY at DESC LIMIT 200')
   ]);
   return json({
+    builders: builders(env).map(({ slot, ready }) => ({ slot, ready })),
+    builder: await pickedBuilder(env),
     commands: commands.results.map((row) => ({ at: row.at, who: row.name || row.profile, mine: row.profile === env.ADMIN_PROFILE, said: row.said, did: describe(row.result), raw: row.result })),
     feedback: feedback.results.map(({ profile, ...row }) => ({ ...row, who: row.name || profile.slice(0, 6) }))
   });

@@ -1505,6 +1505,8 @@ const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncSta
   .then((data) => {
     view.adminRows = Array.isArray(data?.commands) ? data.commands : [];
     view.adminFeedback = data?.feedback || [];
+    view.adminBuilders = data?.builders || [];
+    view.adminBuilder = data?.builder || 1;
     view.adminError = '';
   })
   .catch((error) => {
@@ -1831,6 +1833,7 @@ const renderAdmin = () => {
     <h1 class="title">Admin</h1>
     <p class="section">Change the app</p>
     <p class="feedbackLead">Say or type a change in the box below. It shows here at once, with how it's going.</p>
+    ${(view.adminBuilders || []).length > 1 ? `<div class="builderRow"><span class="builderLabel">Built with</span><div class="segment full builderSwitch" role="group" aria-label="Claude account that builds">${view.adminBuilders.map((builder) => `<button class="segmentOption" data-action="pick-builder" data-slot="${builder.slot}" aria-pressed="${view.adminBuilder === builder.slot}"${builder.ready ? '' : ' disabled'}>Account ${builder.slot}${builder.ready ? '' : ' · not set up'}</button>`).join('')}</div></div><p class="feedbackMeta">If that account can't start, the other one is tried.</p>` : ''}
     ${view.adminError ? `<p class="feedbackMeta"><span class="runFailed">${esc(view.adminError)}</span> <button class="textBtn" data-action="admin-reload">Try again</button></p>` : ''}
     ${(state.claudeRuns || []).slice(0, 20).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Invite someone</p>
@@ -5056,6 +5059,9 @@ document.addEventListener('click', (event) => {
     view.draft = target.dataset.text;
     view.status = '';
     view.focusDraft = true;
+  } else if (action === 'pick-builder') {
+    view.adminBuilder = Number(target.dataset.slot);
+    fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ builder: view.adminBuilder }) }).catch(() => {});
   } else if (action === 'jump-session') {
     view.open.add(date);
     view.menu = false;

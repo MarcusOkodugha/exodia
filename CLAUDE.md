@@ -21,7 +21,7 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 - Worker secrets (names only):
   - `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`: the AI providers.
   - `ADMIN_PROFILE`: the profile key that sees Admin.
-  - `CLAUDE_TASK_URL`, `CLAUDE_TASK_TOKEN`: the API trigger of the "Exodia change" Claude Code scheduled task, used by the admin "Change the app" box.
+  - `CLAUDE_TASK_URL`, `CLAUDE_TASK_TOKEN` (account 1) and `CLAUDE_TASK_URL_2`, `CLAUDE_TASK_TOKEN_2` (account 2): the API triggers of the "Exodia change" scheduled task on each Claude account, used by the admin "Change the app" box.
   - `CLAUDE_MODEL`, `GEMINI_MODELS`: optional.
   - `SPLIT_PROFILES`: optional JSON `{ "<profile key>": ["Owner name", "Other name"] }` for a log two people ended up sharing. Each phone on it is asked once who uses it; the first name keeps the log, the others get their own. Delete the secret once they've answered.
 
@@ -32,11 +32,11 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 1. On [claude.ai/code](https://claude.ai/code) with the other account, connect GitHub (the account that owns MarcusOkodugha/exodia) and start a session on this repo.
 2. In that session's cloud environment settings, add the environment variables `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Marcus copies them from Cloudflare → My Profile → API Tokens, and the account ID from the Cloudflare dashboard; never pasted in chat), so `npx wrangler` can deploy and read D1.
 3. First message to the new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
-4. The admin panel's "Change the app" fires a scheduled task that belongs to the account that made it, and today it delivers into one chat on the old account. On the new account:
-   - The new session creates its own "Exodia change → this chat" scheduled task bound to itself (create_trigger, persistent to the session, same prompt as before: find the code, follow CLAUDE.md, push to main, confirm the deploy).
-   - Marcus opens it at [claude.ai/code/scheduled](https://claude.ai/code/scheduled), turns on its API trigger and copies the URL and the token.
-   - Marcus runs in Terminal on his Mac, one at a time: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL` (paste the URL) and `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN` (paste the token).
-   - The session sends a test request from the admin panel and checks it arrives.
+4. Admin "Change the app" fires an "Exodia change" scheduled task on one of Marcus's Claude accounts. Each fire starts a fresh, cheap session with this repo, which follows this file and pushes to main. The Worker holds one task per account: `CLAUDE_TASK_URL` + `CLAUDE_TASK_TOKEN` (account 1, Mpya), `CLAUDE_TASK_URL_2` + `CLAUDE_TASK_TOKEN_2` (account 2), `_3` if ever needed. Admin has a "Built with Account 1 / Account 2" switch (saved as a `Builder` row in `commands`); if the picked one can't start, the other is tried. To add an account:
+   - In a session on that account, create the task with create_trigger: name "Exodia change", `create_new_session_on_fire: true`, prompt "Make the change Marcus asks for in the routine-fire-payload block, following CLAUDE.md. Push to main and confirm it's live."
+   - Marcus opens it at [claude.ai/code/scheduled](https://claude.ai/code/scheduled), checks the repository MarcusOkodugha/exodia is attached, turns on **API trigger**, and copies the URL and token.
+   - Terminal on his Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2`, paste the URL; then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2`, paste the token.
+   - In Exodia → Admin, pick that account and send a small change to test it.
 
 ## Design decisions (keep unless Marcus changes them)
 
