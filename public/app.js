@@ -226,6 +226,12 @@ const applyIncoming = (result) => {
     const { updated, ...incomingMeta } = result.meta;
     const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}) });
     const dirty = lastMeta !== syncState.metaSynced;
+    // Bodyweight saved on another device comes through even while this one has unsent log lines (a body just
+    // typed here is kept: it goes up with the next sync).
+    if (dirty && incomingMeta.body && !state.body?.kg) {
+      state.body = incomingMeta.body;
+      changed = true;
+    }
     if (!dirty) {
       syncState.metaSynced = incoming;
       if (incoming !== lastMeta) {
@@ -1228,7 +1234,7 @@ const chartFor = (allPoints) => {
 };
 
 const MUSCLES = [
-  ['chest', 'Chest'], ['upperBack', 'Upper back'], ['lowerBack', 'Lower back'], ['quads', 'Quads'], ['hamstrings', 'Hamstrings'], ['shoulders', 'Shoulders'], ['biceps', 'Biceps'],
+  ['chest', 'Chest'], ['traps', 'Traps'], ['upperBack', 'Upper back'], ['lowerBack', 'Lower back'], ['quads', 'Quads'], ['hamstrings', 'Hamstrings'], ['shoulders', 'Shoulders'], ['biceps', 'Biceps'],
   ['triceps', 'Triceps'], ['glutes', 'Glutes'], ['abs', 'Abs'], ['calves', 'Calves'], ['forearms', 'Forearms'], ['adductors', 'Adductors'],
 ];
 // First match wins: [name pattern, muscles worked hard, muscles helping (half a set)].
@@ -1237,7 +1243,8 @@ const MUSCLE_RULES = [
   [/leg ext/, ['quads']],
   [/back ext|hyperext|good morning/, ['lowerBack'], ['glutes', 'hamstrings']],
   [/romanian|\brdl\b|stiff/, ['hamstrings'], ['glutes', 'lowerBack']],
-  [/deadlift/, ['hamstrings', 'glutes', 'lowerBack'], ['upperBack', 'forearms']],
+  [/deadlift/, ['hamstrings', 'glutes', 'lowerBack'], ['upperBack', 'forearms', 'traps']],
+  [/shrug/, ['traps'], ['forearms']],
   [/hack|leg press|squat|lunge|split|step.?up/, ['quads', 'glutes'], ['adductors']],
   [/hip thrust|glute|bridge|kickback|abduct/, ['glutes']],
   [/adduct/, ['adductors']],
@@ -1246,9 +1253,11 @@ const MUSCLE_RULES = [
   [/tricep|pushdown|skull|extension|french/, ['triceps']],
   [/hammer/, ['biceps', 'forearms']],
   [/curl/, ['biceps'], ['forearms']],
-  [/overhead|ohp|shoulder|military|arnold|lateral|delt|face pull|front raise|upright/, ['shoulders'], ['triceps']],
+  [/upright|face pull/, ['shoulders'], ['traps']],
+  [/overhead|ohp|shoulder|military|arnold|lateral|delt|front raise/, ['shoulders'], ['triceps']],
   [/bench|chest|push.?up|fly|flye|pec|incline|decline|press/, ['chest'], ['shoulders', 'triceps']],
-  [/pull.?up|chin.?up|pulldown|\blat\b|row|shrug/, ['upperBack'], ['biceps']],
+  [/row/, ['upperBack'], ['biceps', 'traps']],
+  [/pull.?up|chin.?up|pulldown|\blat\b/, ['upperBack'], ['biceps']],
   [/crunch|sit.?up|plank|\babs?\b|leg raise|core|oblique/, ['abs']],
   [/wrist|forearm|farmer|grip/, ['forearms']],
 ];
@@ -1259,7 +1268,7 @@ const loadAnatomy = () => {
   fetch('/anatomy.json').then((response) => response.json()).then((data) => { anatomy = data; if (view.route === 'trends') render(); }).catch(() => { anatomy = null; });
 };
 // Days until a muscle is recovered. After that it keeps a light tint until it drops out of the 7 days.
-const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, chest: 3, shoulders: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
+const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, traps: 4, chest: 3, shoulders: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
 const daysBetween = (from, to) => Math.round((new Date(`${to}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
 const muscleLoad = () => {
   const today = todayIso();
@@ -1299,6 +1308,7 @@ const MUSCLE_LIFTS = {
   shoulders: { 'shoulder-press': 0.55, 'incline-bench-press': 0.25, 'bench-press': 0.2 },
   triceps: { 'bench-press': 0.5, 'shoulder-press': 0.3, 'incline-bench-press': 0.2 },
   upperBack: { 'bent-over-row': 0.5, 'pull-ups': 0.5 },
+  traps: { deadlift: 0.6, 'bent-over-row': 0.25, 'shoulder-press': 0.15 },
   biceps: { 'pull-ups': 0.6, 'bent-over-row': 0.4 },
   lowerBack: { deadlift: 0.7, squat: 0.2, 'bent-over-row': 0.1 },
   quads: { squat: 1 },
@@ -1336,7 +1346,7 @@ const renderMuscles = () => {
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
-  const toggle = `<span class="muscleToggle" role="group" aria-label="Show">${[['recovery', 'Recovery'], ['strength', 'Strength']].map(([mode, label]) => `<button class="chip" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'recovery') === mode}"><span class="chipFace">${label}</span></button>`).join('')}</span>`;
+  const toggle = `<span class="segment" role="group" aria-label="Show">${[['recovery', 'Recovery'], ['strength', 'Strength']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'recovery') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'strength' ? ' on' : ''}" aria-hidden="true"></i></span>`;
   if (view.muscleMode === 'strength') {
     return `<p class="section muscleHead">Anatomy${toggle}</p>
     ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
@@ -2009,6 +2019,12 @@ const levelScore = (value, marks) => {
   for (let index = 0; index < 4; index += 1) if (value < marks[index + 1]) return index + 1 + (value - marks[index]) / (marks[index + 1] - marks[index]);
   return 5 + (value - marks[4]) / Math.max(1, marks[4] - marks[3]);
 };
+let measurer;
+const textWidth = (text, font) => {
+  measurer ||= document.createElement('canvas').getContext('2d');
+  measurer.font = `${font} ${getComputedStyle(document.body).fontFamily}`;
+  return measurer.measureText(text).width;
+};
 const levelWord = (score) => (score >= 5.25 ? 'Elite+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
 // Now = best estimated 1RM of the last 3 months; all time = the best ever (logged sets and saved bests).
 const STRENGTH_NOW_DAYS = 90;
@@ -2042,6 +2058,8 @@ const bodyPrompt = () => `<section class="card bodyCard">
 const renderStrength = () => {
   if (!Object.keys(STANDARDS).length) return '';
   const body = state.body;
+  // Ask only once this device has heard from the account (a bodyweight saved elsewhere arrives with the first sync).
+  if ((!body?.kg || !body?.sex) && !view.syncedAt && !view.bodyEdit) return '';
   if (!body?.kg || !body?.sex || view.bodyEdit) return `<p class="section">Strength level</p>${bodyPrompt()}`;
   const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks);
   if (lifts.length < 3) return '';
@@ -2057,33 +2075,39 @@ const renderStrength = () => {
   // A lift not done lately keeps its all-time place in the shape (its corner says "all time"), rather than falling to zero.
   const shape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.value ? lift.score : lift.everScore)).map((value) => value.toFixed(1)).join(',')).join(' ');
   const everShape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.everScore)).map((value) => value.toFixed(1)).join(',')).join(' ');
+  // The picture is as wide as its words: long level names on a side corner widen it instead of being cut off.
+  let [left, right] = [-6, size + 6];
   const labels = lifts.map((lift, index) => {
-    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 26), middle + Math.sin(angle(index)) * (radius + 26)];
+    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 30), middle + Math.sin(angle(index)) * (radius + 30)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
+    const wide = Math.max(textWidth(lift.label, '600 17px'), textWidth(`${lift.value ? levelWord(lift.score) : levelWord(lift.everScore)} 0.0`, '600 14.5px'));
+    const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
+    [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
     // Not done in the last 3 months: the corner shows the all-time level, marked so, instead of looking empty.
     const level = lift.value ? `${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `<tspan class="webEverWord">${levelWord(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : 'Not logged';
-    const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 32).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 17).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${level}</text>${allTime}`;
+    const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 36).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 19).toFixed(1)}" text-anchor="${anchor}" class="webLevel ${lift.value ? tierOf(lift.score)?.[2] || 'tierBeg' : ''}">${level}</text>${allTime}`;
   }).join('');
-  // The level names sit on their rings in the gap at the bottom, where there is room, so you can read where Elite is.
-  const gap = angle(Math.floor(lifts.length / 2)) + Math.PI / lifts.length;
-  const ringNames = [[2, 'Novice'], [3, 'Intermediate'], [4, 'Advanced'], [5, 'Elite']].map(([level, name]) => {
-    const distance = radius * (level / outer) * Math.cos(Math.PI / lifts.length);
-    return `<text x="${(middle + Math.cos(gap) * distance).toFixed(1)}" y="${(middle + Math.sin(gap) * distance + 3.5).toFixed(1)}" text-anchor="middle" class="webRingName${level === 5 ? ' elite' : ''}">${name}</text>`;
+  // The level names line up on the straight vertical line to the top corner, each where its ring crosses it, in the
+  // same colours as the anatomy's Strength view.
+  const ringNames = [[2, 'Novice', 'tierNov'], [3, 'Intermediate', 'tierInt'], [4, 'Advanced', 'tierAdv'], [5, 'Elite', 'tierElite']].map(([level, name, tier]) => {
+    const y = middle - radius * (level / outer);
+    return `<text x="${middle + 5}" y="${(y + 4).toFixed(1)}" class="webRingName ${tier}">${name}</text>`;
   }).join('');
   const everDots = lifts.map((lift, index) => lift.ever && lift.everScore - lift.score >= 0.1 ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="2.6" class="webEverDot"/>` : '').join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
       <div class="webTop"><p class="webIntro">Each lift against Strength Level for your bodyweight</p><p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p></div>
-      <svg class="web" viewBox="-52 -6 424 352" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
-        ${[1, 2, 3, 4].map((level) => `<polygon points="${ring(level)}" class="webRing"/>`).join('')}
+      <svg class="web" viewBox="${left.toFixed(0)} -10 ${(right - left).toFixed(0)} 364" style="max-width:${Math.round(((right - left) / 448) * 360)}px" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
+        ${[1, 2, 3].map((level) => `<polygon points="${ring(level)}" class="webRing"/>`).join('')}
+        <polygon points="${ring(4)}" class="webRing adv"/>
         <polygon points="${ring(outer)}" class="webRing past"/>
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         <polygon points="${ring(5)}" class="webRing elite"/>
         <polygon points="${everShape}" class="webEverShape"/>
         <polygon points="${shape}" class="webShape"/>
         ${everDots}
-        ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="3.5" class="webDot"/>` : '').join('')}
+        ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="4.5" class="webDot ${tierOf(lift.score)?.[2] || 'tierBeg'}"/>` : '').join('')}
         ${ringNames}
         ${labels}
       </svg>
@@ -4680,13 +4704,18 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'muscle-mode') {
+    if (view.muscleMode === target.dataset.mode) return;
     view.muscleMode = target.dataset.mode;
+    // The knob slides over first, then the body recolours.
+    const segment = target.closest('.segment');
+    segment?.querySelector('.segmentKnob')?.classList.toggle('on', view.muscleMode === 'strength');
+    segment?.querySelectorAll('.segmentOption').forEach((option) => option.setAttribute('aria-pressed', String(option === target)));
     try {
       localStorage.setItem('exodia.muscleMode', view.muscleMode);
     } catch {
       // not remembered: fine
     }
-    return render();
+    return setTimeout(render, 230);
   }
   if (action === 'body-sex') {
     view.bodySex = target.dataset.sex;

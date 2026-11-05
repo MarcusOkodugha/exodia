@@ -957,9 +957,9 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .muscleToggle { display: inline-flex; gap: 2px; }
 .muscleToggle .chipFace { padding: 0 10px; height: 26px; font-size: 12.5px; }
 .bodyTier { transition: fill 0.35s ease; }
-.tierBeg { fill: #D9D5CA; background: #D9D5CA; }
-.tierNov { fill: #ABA699; background: #ABA699; }
-.tierInt { fill: rgb(var(--clayRgb) / 0.5); background: rgb(var(--clayRgb) / 0.5); }
+.tierBeg { fill: #BDB7AA; background: #BDB7AA; }
+.tierNov { fill: #F0C9B5; background: #F0C9B5; }
+.tierInt { fill: #E2967A; background: #E2967A; }
 .tierAdv { fill: var(--clay); background: var(--clay); }
 .tierElite { fill: var(--exodiaBlue); background: var(--exodiaBlue); }
 .muscleSwatch.tierNone { background: var(--line); }
@@ -977,3 +977,39 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 /* Every page scrolls far enough that its last card clears the fade above the box. */
 .page { padding-bottom: calc(var(--dock-h, 150px) + 76px); }
 .desk .page { padding-bottom: calc(var(--dock-h, 160px) + 76px); }
+
+/* Strength web, bigger and in the anatomy's colours: Advanced ring orange, Elite ring Exodia blue, dots and level
+   words coloured by tier, level names lined up on the vertical line to Squat. */
+.web { max-width: 360px; }
+.webLift { font-size: 17px; }
+.webLevel { font-size: 14.5px; fill: var(--text2); }
+.webLevel.tierAdv { fill: var(--clayText); font-weight: 600; }
+.webLevel.tierElite { fill: #4F7FC4; font-weight: 600; }
+.webLevel.tierInt { fill: #B9694B; }
+.webLevel.tierNov { fill: #C98466; }
+.webLevel.tierBeg { fill: #8E897D; }
+.webEver { font-size: 13px; }
+.webRing.adv { stroke: rgb(var(--clayRgb) / 0.4); }
+.webRing.elite { stroke: var(--exodiaBlue); stroke-width: 2; }
+.webRingName { font-size: 12.5px; font-weight: 600; paint-order: stroke; stroke: var(--card); stroke-width: 3.5px; stroke-linejoin: round; }
+.webRingName.tierNov { fill: #C98466; }
+.webRingName.tierInt { fill: #B9694B; }
+.webRingName.tierAdv { fill: var(--clayText); }
+.webRingName.tierElite { fill: #4F7FC4; }
+.webDot { stroke: var(--card); stroke-width: 1.5; }
+.webDot.tierBeg { fill: #A9A396; }
+.webDot.tierNov { fill: #EBB89F; }
+.webDot.tierInt { fill: #E2967A; }
+.webDot.tierAdv { fill: var(--clay); }
+.webDot.tierElite { fill: var(--exodiaBlue); }
+.webTop .webIntro { font-size: 14px; }
+.webTop .webLegend { font-size: 14px; }
+/* Anatomy: a real two-part switch, easy to see and tap. */
+.segment { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 999px; background: #ECE9E0; }
+.segmentOption { position: relative; z-index: 1; height: 32px; padding: 0 16px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 600; color: var(--text2); transition: color 0.2s ease; }
+.segmentOption[aria-pressed="true"] { color: var(--text); }
+.segmentKnob { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.segmentKnob.on { transform: translateX(100%); }
+/* Muscle names stay on one line (two-word names wrapped at 375 wide); the level word takes the room it needs. */
+.muscleRow { grid-template-columns: 10px minmax(0, 1fr) auto; }
+.muscleRow span:first-of-type { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
