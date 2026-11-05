@@ -959,7 +959,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .bodyTier { transition: fill 0.35s ease; }
 .tierBeg { fill: #BDB7AA; background: #BDB7AA; }
 .tierNov { fill: #95B79A; background: #95B79A; }
-.tierInt { fill: #E2967A; background: #E2967A; }
+.tierInt { fill: #D9AE5F; background: #D9AE5F; }
 .tierAdv { fill: var(--clay); background: var(--clay); }
 .tierElite { fill: var(--exodiaBlue); background: var(--exodiaBlue); }
 .muscleSwatch.tierNone { background: var(--line); }
@@ -999,7 +999,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .webDot { stroke: var(--card); stroke-width: 1.5; }
 .webDot.tierBeg { fill: #A9A396; }
 .webDot.tierNov { fill: #95B79A; }
-.webDot.tierInt { fill: #E2967A; }
+.webDot.tierInt { fill: #D9AE5F; }
 .webDot.tierAdv { fill: var(--clay); }
 .webDot.tierElite { fill: var(--exodiaBlue); }
 .webTop .webIntro { font-size: 14px; }
@@ -1022,19 +1022,45 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .webEdge { stroke-width: 3; stroke-linecap: round; }
 .webLevel, .webLevel.tierInt, .webLevel.tierNov, .webLevel.tierBeg, .webLevel.tierAdv, .webLevel.tierElite { fill: var(--text); font-weight: 500; }
 .webSwatch { font-size: 12px; }
-.webSwatch.tierBeg { fill: #BDB7AA; } .webSwatch.tierNov { fill: #95B79A; } .webSwatch.tierInt { fill: #E2967A; } .webSwatch.tierAdv { fill: var(--clay); } .webSwatch.tierElite { fill: var(--exodiaBlue); }
+.webSwatch.tierBeg { fill: #BDB7AA; } .webSwatch.tierNov { fill: #95B79A; } .webSwatch.tierInt { fill: #D9AE5F; } .webSwatch.tierAdv { fill: var(--clay); } .webSwatch.tierElite { fill: var(--exodiaBlue); }
 .webPill { stroke: var(--card); stroke-width: 1.5; }
-.webPill.tierNov { fill: #95B79A; } .webPill.tierInt { fill: #E2967A; } .webPill.tierAdv { fill: var(--clay); } .webPill.tierElite { fill: var(--exodiaBlue); }
+.webPill.tierNov { fill: #95B79A; } .webPill.tierInt { fill: #D9AE5F; } .webPill.tierAdv { fill: var(--clay); } .webPill.tierElite { fill: var(--exodiaBlue); }
 .webRingName, .webRingName.tierNov, .webRingName.tierInt { font-size: 11.5px; font-weight: 600; fill: #3F2E25; stroke: none; }
 .webRingName.tierAdv, .webRingName.tierElite { fill: #FFFFFF; stroke: none; }
-.webDot.tierBeg { fill: #BDB7AA; } .webDot.tierNov { fill: #95B79A; } .webDot.tierInt { fill: #E2967A; }
+.webDot.tierBeg { fill: #BDB7AA; } .webDot.tierNov { fill: #95B79A; } .webDot.tierInt { fill: #D9AE5F; }
 .webDot { r: 5; stroke-width: 2; }
 /* Ring names: a small square in the level colour and a quiet word, like the anatomy legend (no pills). */
 .webMark { stroke: var(--card); stroke-width: 1.5; paint-order: stroke; }
-.webMark.tierNov { fill: #95B79A; } .webMark.tierInt { fill: #E2967A; } .webMark.tierAdv { fill: var(--clay); } .webMark.tierElite { fill: var(--exodiaBlue); }
+.webMark.tierNov { fill: #95B79A; } .webMark.tierInt { fill: #D9AE5F; } .webMark.tierAdv { fill: var(--clay); } .webMark.tierElite { fill: var(--exodiaBlue); }
 .webRingName { font-size: 12px; font-weight: 500; fill: var(--text2); paint-order: stroke; stroke: var(--card); stroke-width: 3.5px; stroke-linejoin: round; }
 /* Anatomy switch, calmer: room under the heading, soft 10px corners, a hairline edge. */
 .segment.full { margin: 10px 0 18px; padding: 3px; border-radius: 10px; background: #EFECE4; box-shadow: inset 0 0 0 0.5px rgb(20 20 19 / 0.08); }
 .segment.full .segmentOption { height: 36px; border-radius: 8px; font-size: 14px; font-weight: 500; }
 .segment.full .segmentOption[aria-pressed="true"] { font-weight: 600; }
 .segment.full .segmentKnob { top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 8px; box-shadow: 0 1px 2px rgb(20 20 19 / 0.1), 0 0 0 0.5px rgb(20 20 19 / 0.08); }
+/* Strength web v260: rings in the level colours (Novice → Elite), no names inside; legend for the rings under it. */
+.webRing, .webRing.elite, .webRing.adv { fill: none; stroke-width: 1.4; }
+.webRing.tierNov { stroke: rgb(149 183 154 / 0.75); }
+.webRing.tierInt { stroke: rgb(217 174 95 / 0.75); }
+.webRing.tierAdv { stroke: rgb(var(--clayRgb) / 0.55); }
+.webRing.tierElite { stroke: var(--exodiaBlue); stroke-width: 2; }
+.webSpoke { stroke: var(--line); }
+.webShape { fill: rgb(var(--clayRgb) / 0.08); }
+.webEverShape { fill: none; }
+.webEdge { fill: none; }
+.webLift { font-size: 18px; }
+.webLevel, .webLevel.tierInt, .webLevel.tierNov, .webLevel.tierBeg, .webLevel.tierAdv, .webLevel.tierElite { font-size: 15px; }
+.webEver { font-size: 13px; }
+.webRings { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin: 6px 8px 2px; font-size: 13px; color: var(--text2); }
+.webRings span { display: inline-flex; align-items: center; gap: 6px; }
+.webRings i { width: 14px; height: 0; border-top: 2px solid; border-radius: 1px; background: none; }
+.webRings i.tierNov { border-color: #95B79A; } .webRings i.tierInt { border-color: #D9AE5F; } .webRings i.tierAdv { border-color: var(--clay); } .webRings i.tierElite { border-color: var(--exodiaBlue); }
+/* Anatomy Strength list: the full level word and its number where there's room, the short word where there isn't. */
+.muscleList { container-type: inline-size; }
+.tierLong { display: none; }
+.tierNum { color: var(--text2); opacity: 0.8; }
+@container (max-width: 179px) { .tierNum { display: none; } }
+@container (min-width: 200px) { .tierLong { display: inline; } .tierShort { display: none; } }
+.desk .muscles:not(.right .muscles) { grid-template-columns: auto auto minmax(0, 236px); }
+@media (max-width: 379px) { .tierWord { display: inline; } }
+.webNone { fill: var(--text2); font-weight: 400; }
