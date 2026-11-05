@@ -498,44 +498,46 @@ const dayHits = () => {
   return map;
 };
 
-const pieceProgress = (endIso) => {
-  const hits = dayHits();
-  const counts = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
-  for (let back = 0; back < EXODIA_DAYS; back += 1) {
-    const hit = hits.get(addDays(endIso, -back));
-    if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += 1;
-  }
-  return PIECES.map((piece) => ({ ...piece, done: counts[piece.id], complete: counts[piece.id] >= piece.target }));
-};
-
-// How many times you hit Exodia: one walk through the days with a 10-day window that slides along.
+// Exodia works in rounds: when all five pieces land within 10 days you hit it, it stays hit (blue) for 10 days, then
+// goes back to orange. Each round counts only days after the last hit, so it resets, and training during the blue
+// days already counts toward the next one. One walk through the days, kept until your log changes.
 const exodiaHistory = () => {
-  if (state.sessions.length === 0) return { hits: 0, last: null };
-  const hits = dayHits();
   const today = todayIso();
+  const empty = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
+  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty } };
+  const hits = dayHits();
   if (hitsCache.history?.today === today) return hitsCache.history.value;
   const first = [...hits.keys()].sort()[0];
-  const counts = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
+  let counts = { ...empty };
+  let total = 0;
+  let last = null;
   const add = (iso, sign) => {
     const hit = hits.get(iso);
     if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += sign;
   };
-  let total = 0;
-  let last = null;
-  let previous = false;
   for (let iso = first; iso <= today; iso = addDays(iso, 1)) {
     add(iso, 1);
-    add(addDays(iso, -EXODIA_DAYS), -1);
-    const complete = PIECES.every((piece) => counts[piece.id] >= piece.target);
-    if (complete && !previous) {
+    const leaving = addDays(iso, -EXODIA_DAYS);
+    if (!last || leaving > last) add(leaving, -1);
+    if (PIECES.every((piece) => counts[piece.id] >= piece.target)) {
       total += 1;
       last = iso;
+      counts = { ...empty };
     }
-    previous = complete;
   }
-  const value = { hits: total, last };
+  const value = { hits: total, last, counts };
   hitsCache.history = { today, value };
   return value;
+};
+const exodiaActive = () => {
+  const { last } = exodiaHistory();
+  return Boolean(last) && last > addDays(todayIso(), -EXODIA_DAYS);
+};
+// The bars: full while Exodia is hit, otherwise this round's days (since the last hit, within the last 10 days).
+const pieceProgress = () => {
+  const active = exodiaActive();
+  const { counts } = exodiaHistory();
+  return PIECES.map((piece) => (active ? { ...piece, done: piece.target, complete: true } : { ...piece, done: counts[piece.id], complete: counts[piece.id] >= piece.target }));
 };
 
 const findExerciseName = (rawName) => {
@@ -874,7 +876,7 @@ const listWithGhosts = (sessions) => {
 
 const quickStart = () => `<p class="empty">Tap a lift to log it, or say or type what you did in the box below.</p>${quickAdd()}`;
 
-const fullExodia = () => pieceProgress(todayIso()).every((piece) => piece.complete);
+const fullExodia = () => exodiaActive();
 const exodiaHit = () => Boolean(view.devHit) || fullExodia();
 
 // Exodia assembles like the card: each bar (Push, Pull, Legs, Arms, Move) flies up to become a finger,
@@ -1334,7 +1336,16 @@ const muscleLevels = () => {
   }));
 };
 const tierOf = (level) => STRENGTH_TIERS.find(([from]) => level >= from) || null;
+// The head is Exodia's: Exodia blue while you've hit Exodia, otherwise (Strength view) the colour of your average level.
+const headClass = (levels) => {
+  if (exodiaHit()) return 'bodyHead tierElite';
+  if (!levels) return 'bodyBone';
+  const known = Object.values(levels).filter((level) => level > 0);
+  const tier = known.length ? tierOf(known.reduce((sum, level) => sum + level, 0) / known.length) : null;
+  return tier ? `bodyHead ${tier[2]}` : 'bodyBone';
+};
 const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+  if (key === 'head') return `<polygon points="${points}" class="${headClass(levels)}"/>`;
   if (levels) {
     const tier = key ? tierOf(levels[key] || 0) : null;
     return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
@@ -2186,14 +2197,14 @@ const renderStrength = () => {
     return `<linearGradient id="webEdge${index}" gradientUnits="userSpaceOnUse" x1="${corner[0].toFixed(1)}" y1="${corner[1].toFixed(1)}" x2="${next[0].toFixed(1)}" y2="${next[1].toFixed(1)}"><stop offset="0" stop-color="${colours[index]}"/><stop offset="1" stop-color="${colours[(index + 1) % colours.length]}"/></linearGradient>`;
   }).join('')}</defs>${corners.map((corner, index) => `<path d="M${fixed(corner)}${segment(corners, index)}" stroke="url(#webEdge${index})" class="webEdge"/>`).join('')}`;
   const everDots = lifts.map((lift, index) => lift.ever && lift.everScore - lift.score >= 0.1 ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="2.6" class="webEverDot"/>` : '').join('');
-  // Rings from Novice to Elite, each in its level's colour (no Beginner ring: Novice is the first circle).
+  // Rings 1 Beginner to 5 Elite, each in its level's colour.
   // Each ring's number, the same scale as the corners' numbers, on the gap between Squat and Bench.
   const gap = -Math.PI / 2 + Math.PI / lifts.length;
-  const ringNumbers = [2, 3, 4, 5].map((level) => {
+  const ringNumbers = [1, 2, 3, 4, 5].map((level) => {
     const reach = radius * (level / outer) * Math.cos(Math.PI / lifts.length);
     return `<text x="${(middle + Math.cos(gap) * reach).toFixed(1)}" y="${(middle + Math.sin(gap) * reach + 4).toFixed(1)}" text-anchor="middle" class="webRingNumber">${level}</text>`;
   }).join('');
-  const rings = [[2, 'tierNov'], [3, 'tierInt'], [4, 'tierAdv'], [5, 'tierElite']].map(([level, tier]) => `${ring(level)} class="webRing ${tier}"/>`).join('');
+  const rings = [[1, 'tierBeg'], [2, 'tierNov'], [3, 'tierInt'], [4, 'tierAdv'], [5, 'tierElite']].map(([level, tier]) => `${ring(level)} class="webRing ${tier}"/>`).join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
       <div class="webTop"><p class="webIntro">Each lift against Strength Level for your bodyweight</p><p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p></div>
@@ -2208,7 +2219,7 @@ const renderStrength = () => {
         ${ringNumbers}
         ${labels}
       </svg>
-      <p class="webRings">${[['tierNov', 'Novice', 2], ['tierInt', 'Intermediate', 3], ['tierAdv', 'Advanced', 4], ['tierElite', 'Elite', 5]].map(([tier, name, level]) => `<span><i class="${tier}"></i>${level} ${name}</span>`).join('')}</p>
+      <p class="webRings">${[['tierBeg', 'Beginner', 1], ['tierNov', 'Novice', 2], ['tierInt', 'Intermediate', 3], ['tierAdv', 'Advanced', 4], ['tierElite', 'Elite', 5]].map(([tier, name, level]) => `<span><i class="${tier}"></i>${level} ${name}</span>`).join('')}</p>
     </section>`;
 };
 

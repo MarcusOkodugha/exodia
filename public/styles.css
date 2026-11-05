@@ -1099,3 +1099,10 @@ button.calDay:active { transform: scale(0.85); }
 .builderSwitch .segmentOption { flex: 1; }
 .builderSwitch .segmentOption:disabled { opacity: 0.45; }
 .builderSwitch .segmentOption[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 2px rgb(20 20 19 / 0.1), 0 0 0 0.5px rgb(20 20 19 / 0.08); }
+/* Ring key: squares in the level colours (easier to see than thin lines), centred under the web. */
+.webRings { justify-content: center; gap: 4px 12px; }
+.webRings i { width: 10px; height: 10px; border: 0; border-radius: 2.5px; }
+.webRings i.tierBeg { background: var(--tierBeg); } .webRings i.tierNov { background: var(--tierNov); } .webRings i.tierInt { background: var(--tierInt); } .webRings i.tierAdv { background: var(--clay); } .webRings i.tierElite { background: var(--exodiaBlue); }
+.webRing.tierBeg { stroke: var(--tierBeg); }
+/* The anatomy's head: Exodia blue when you've hit Exodia, else your average level (Strength view). */
+.bodyHead { transition: fill 0.35s ease; }
