@@ -17,6 +17,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Write the note "started 7 March 2024" and tap **↑**
 ## To do (Claude)
 
+- [ ] "Your most impressive lift" at the bottom of Trends: the lift, its level, and how rare it is with real sourced numbers (e.g. 300 kg deadlift ≈ a few thousand people ever, so about 1 in millions), not a percentile guess.
+- [ ] Level info in the strength web: tap a level (Beginner … Elite +) or an (i) to see what it means and how many lifters it beats, with real numbers.
+- [ ] Desktop Trends: decide what sits in the middle and what only on the right, and make phone and desktop show the same things.
 - [ ] Voice: show the words while it's still working.
 - [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
 - [ ] Smoothness pass: find everything that jumps instead of animating.
@@ -27,6 +30,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Own private link stays in the address bar once you've started, so Add to Home Screen keeps your log and name (Isabella's name vanished); example data never blocks or mixes into a joined link; football, cycling etc. keep their name and still count for Move; one clay update card that opens in place; set counts only on repeated sets; Brzycki/Epley wording; move-to dates old → new (v274)
 - Notes no longer hang when Google's Gemini is overloaded (503s and 2-minute hangs seen on Nov 5): each model gets 15 s (25 s for voice), a failing one sits out a minute; full dates ("26th of July, 2024") are read without AI; replies say "Handled by Gemini 3.8 Flash" for Marcus, "Handled by Exodia" for friends (v267–v268)
 - Exodia in rounds: hit it → blue for 10 days → back to orange, counted from zero (days after the hit already count) (v265)
 - Anatomy head: the Exodia hand (with the eye in front, without on the back) only when every muscle is at least Advanced (orange) or Elite (blue); otherwise a normal head (v266–v268)
