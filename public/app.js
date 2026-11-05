@@ -1336,16 +1336,26 @@ const muscleLevels = () => {
   }));
 };
 const tierOf = (level) => STRENGTH_TIERS.find(([from]) => level >= from) || null;
-// The head is Exodia's: Exodia blue while you've hit Exodia, otherwise (Strength view) the colour of your average level.
+// The head is Exodia's hand-and-eye logo, front and back: Exodia blue while you've hit Exodia; otherwise your average
+// level's colour in the Strength view, Exodia's own orange in Recovery. Drawn as a colour through a mask of the logo,
+// so its lines stay lighter like the real one.
 const headClass = (levels) => {
-  if (exodiaHit()) return 'bodyHead tierElite';
-  if (!levels) return 'bodyBone';
+  if (exodiaHit()) return 'tierElite';
+  if (!levels) return 'tierAdv';
   const known = Object.values(levels).filter((level) => level > 0);
   const tier = known.length ? tierOf(known.reduce((sum, level) => sum + level, 0) / known.length) : null;
-  return tier ? `bodyHead ${tier[2]}` : 'bodyBone';
+  return tier ? tier[2] : 'tierBeg';
 };
-const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 0 100 200" aria-hidden="true">${anatomy[side].map(([key, points]) => {
-  if (key === 'head') return `<polygon points="${points}" class="${headClass(levels)}"/>`;
+const headLogo = (side, points, levels) => {
+  const values = points.split(/[\s,]+/).map(Number);
+  const xs = values.filter((_, index) => index % 2 === 0);
+  const ys = values.filter((_, index) => index % 2 === 1);
+  const size = 30;
+  const [x, y] = [((Math.min(...xs) + Math.max(...xs)) / 2 - size / 2).toFixed(1), (Math.max(...ys) - size + 3).toFixed(1)];
+  return `<mask id="hamsa-${side}" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}"><image href="/hamsa-mask.png" x="${x}" y="${y}" width="${size}" height="${size}"/></mask><rect x="${x}" y="${y}" width="${size}" height="${size}" mask="url(#hamsa-${side})" class="bodyHead ${headClass(levels)}"/>`;
+};
+const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 -7 100 207" aria-hidden="true">${anatomy[side].map(([key, points]) => {
+  if (key === 'head') return headLogo(side, points, levels);
   if (levels) {
     const tier = key ? tierOf(levels[key] || 0) : null;
     return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
