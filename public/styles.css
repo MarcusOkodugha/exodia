@@ -907,3 +907,26 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .emptyChart { position: absolute; inset: 0 0 0 28px; background: radial-gradient(ellipse 60% 70% at 50% 50%, var(--bg) 40%, rgb(250 249 245 / 0) 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
 .emptyTitle { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
 .emptySub { margin: 0 0 8px; font-size: 13px; color: var(--text2); }
+
+/* Strength level spider web: rings per level (Elite solid), clay shape for you, quiet labels at the corners. */
+.webCard { padding: 10px 8px 12px; }
+.web { display: block; width: 100%; max-width: 290px; height: auto; margin: 0 auto; overflow: visible; }
+.webRing { fill: none; stroke: var(--line); stroke-width: 1; }
+.webRing.elite { stroke: #CFCBBE; stroke-width: 1.4; }
+.webRing.past { stroke-dasharray: 3 4; }
+.webSpoke { stroke: var(--line); stroke-width: 1; }
+.webShape { fill: rgb(var(--clayRgb) / 0.18); stroke: var(--clay); stroke-width: 2; stroke-linejoin: round; }
+.webDot { fill: var(--clay); }
+.webLift { font-size: 13px; font-weight: 600; fill: var(--text); }
+.webLevel { font-size: 11.5px; fill: var(--text2); }
+.webLevel.elite { fill: var(--clayText); font-weight: 600; }
+.webRingLabel { font-size: 10px; fill: var(--text2); letter-spacing: 0.02em; }
+.webNote { margin: 4px 8px 0; font-size: 12px; line-height: 16px; color: var(--text2); text-align: center; }
+.section:has(.bodyEdit) { display: flex; align-items: baseline; justify-content: space-between; }
+.bodyEdit { font-weight: 500; font-size: 13px; color: var(--text2); }
+.bodyCard { padding: 14px 16px; }
+.bodyTitle { margin: 0; font-size: 15px; font-weight: 600; }
+.bodyText { margin: 2px 0 10px; font-size: 13px; color: var(--text2); }
+.bodyRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bodyKg { width: 72px; }
+.saveBody .chipFace { background: var(--text); color: var(--bg); }

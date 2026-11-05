@@ -151,7 +151,7 @@ const loadSync = () => {
 
 let syncState = loadSync();
 const localJson = () => Object.fromEntries(state.sessions.map((session) => [session.date, JSON.stringify(session)]));
-const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [] });
+const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}) });
 let lastSaved = localJson();
 let lastMeta = metaJson();
 
@@ -224,7 +224,7 @@ const applyIncoming = (result) => {
   }
   if (result.meta) {
     const { updated, ...incomingMeta } = result.meta;
-    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [] });
+    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}) });
     const dirty = lastMeta !== syncState.metaSynced;
     if (!dirty) {
       syncState.metaSynced = incoming;
@@ -232,6 +232,7 @@ const applyIncoming = (result) => {
         state.name = incomingMeta.name || '';
         state.bests = incomingMeta.bests || {};
         state.log = incomingMeta.log || [];
+        if (incomingMeta.body) state.body = incomingMeta.body;
         changed = true;
       }
     }
@@ -1365,7 +1366,7 @@ const renderTrends = () => {
     <h1 class="title">Trends</h1>
     ${names.length ? `<div class="list">${card(view.trendOpen).replace(/<\/section>\s*$/, `${liftPicker(big, rest, history)}</section>`)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
-    ${desktopQuery.matches ? '' : renderVolume()}
+    ${desktopQuery.matches ? '' : `${renderVolume()}${renderStrength()}`}
   </main>`;
 };
 
@@ -1888,6 +1889,99 @@ const renderVolume = () => {
     </section>`;
 };
 
+// Strength levels (Strength Level standards: one-rep max by bodyweight and sex, Beginner → Elite) as a spider web.
+// Each corner is a lift, placed by your best estimated 1RM of the last 12 months. The rings are the levels, the
+// outer solid ring is Elite; anyone past Elite pushes the web outward. STANDARDS holds the tables:
+// { key: { male: [[bodyweight, beginner, novice, intermediate, advanced, elite], ...], female: [...] } }.
+const STANDARDS = {};
+const LEVELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
+const WEB_LIFTS = [
+  { label: 'Squat', key: 'squat', names: ['squat', 'back squat'] },
+  { label: 'Bench', key: 'bench-press', names: ['bench press'] },
+  { label: 'Deadlift', key: 'deadlift', names: ['deadlift'] },
+  { label: 'Overhead', key: 'shoulder-press', names: ['overhead press', 'shoulder press', 'military press', 'ohp'] },
+  { label: 'Row', key: 'bent-over-row', names: ['barbell row', 'bent over row', 'pendlay row'] },
+  { label: 'Pull-up', key: 'pull-ups', names: ['pull-up', 'pull up', 'pullup', 'chin-up', 'chin up', 'weighted pull-up', 'weighted pull up', 'weighted chin-up'], reps: true },
+  { label: 'Incline', key: 'incline-bench-press', names: ['incline bench press', 'incline bench'] }
+];
+// The table's row for this bodyweight: in between two rows it is the straight line between them.
+const standardAt = (rows, bodyweight) => {
+  if (!rows?.length) return null;
+  if (bodyweight <= rows[0][0]) return rows[0].slice(1);
+  if (bodyweight >= rows.at(-1)[0]) return rows.at(-1).slice(1);
+  const upper = rows.findIndex((row) => row[0] >= bodyweight);
+  const [low, high] = [rows[upper - 1], rows[upper]];
+  const share = (bodyweight - low[0]) / (high[0] - low[0]);
+  return low.slice(1).map((value, index) => value + (high[index + 1] - value) * share);
+};
+// 0 … 5 where 1 is Beginner and 5 Elite; past Elite it keeps going by the Advanced→Elite step.
+const levelScore = (value, marks) => {
+  if (!(value > 0) || !marks) return 0;
+  if (value < marks[0]) return value / marks[0];
+  for (let index = 0; index < 4; index += 1) if (value < marks[index + 1]) return index + 1 + (value - marks[index]) / (marks[index + 1] - marks[index]);
+  return 5 + (value - marks[4]) / Math.max(1, marks[4] - marks[3]);
+};
+const levelWord = (score) => (score >= 5.25 ? 'Elite+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
+const liftStrength = (lift, body) => {
+  const since = addDays(todayIso(), -365);
+  let best = 0;
+  for (const session of state.sessions) {
+    if (session.date < since) continue;
+    for (const exercise of session.exercises) {
+      if (!lift.names.includes(exercise.name.toLowerCase())) continue;
+      for (const set of validSets(exercise)) {
+        // Pull-ups: reps at bodyweight against the reps table (added kg counts as extra reps' worth).
+        const value = lift.reps ? Number(set.reps) * (1 + Number(set.kg || 0) / Math.max(40, body.kg)) : setEstimate(set);
+        if (value > best) best = value;
+      }
+    }
+  }
+  const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
+  return { ...lift, value: best, marks, score: levelScore(best, marks) };
+};
+const bodyPrompt = () => `<section class="card bodyCard">
+    <p class="bodyTitle">See your strength level per lift</p>
+    <p class="bodyText">Strength Level's standards depend on bodyweight. Saved on this account only.</p>
+    <div class="bodyRow"><label class="sr" for="bodyKg">Bodyweight in kg</label><input id="bodyKg" class="pill num bodyKg" inputmode="decimal" placeholder="kg" value="${esc(state.body?.kg || '')}">
+      ${['male', 'female'].map((sex) => `<button class="chip" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}"><span class="chipFace">${sex === 'male' ? 'Male' : 'Female'}</span></button>`).join('')}
+      <button class="chip saveBody" data-action="body-save"><span class="chipFace">Save</span></button></div>
+  </section>`;
+const renderStrength = () => {
+  if (!Object.keys(STANDARDS).length) return '';
+  const body = state.body;
+  if (!body?.kg || !body?.sex || view.bodyEdit) return `<p class="section">Strength level</p>${bodyPrompt()}`;
+  const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks);
+  if (lifts.length < 3) return '';
+  const top = Math.max(5, ...lifts.map((lift) => lift.score));
+  const outer = Math.min(8, Math.ceil(top * 2) / 2);
+  const size = 320;
+  const middle = size / 2;
+  const radius = 108;
+  const angle = (index) => -Math.PI / 2 + (index / lifts.length) * Math.PI * 2;
+  const point = (index, score) => [middle + Math.cos(angle(index)) * radius * (Math.min(score, outer) / outer), middle + Math.sin(angle(index)) * radius * (Math.min(score, outer) / outer)];
+  const ring = (score) => lifts.map((lift, index) => point(index, score).map((value) => value.toFixed(1)).join(',')).join(' ');
+  const shape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.score)).map((value) => value.toFixed(1)).join(',')).join(' ');
+  const labels = lifts.map((lift, index) => {
+    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 26), middle + Math.sin(angle(index)) * (radius + 26)];
+    const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${lift.value ? levelWord(lift.score) : 'Not logged'}</text>`;
+  }).join('');
+  return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
+    <section class="card webCard">
+      <svg class="web" viewBox="-40 -14 400 352" role="img" aria-label="Strength level per lift: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not logged'}`).join(', ')}">
+        ${[1, 2, 3, 4].map((level) => `<polygon points="${ring(level)}" class="webRing"/>`).join('')}
+        <polygon points="${ring(5)}" class="webRing elite"/>
+        ${outer > 5 ? `<polygon points="${ring(outer)}" class="webRing past"/>` : ''}
+        ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
+        <polygon points="${shape}" class="webShape"/>
+        ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="3.5" class="webDot"/>` : '').join('')}
+        <text x="${middle + 4}" y="${(point(0, 5)[1] - 5).toFixed(1)}" class="webRingLabel">Elite</text>
+        ${labels}
+      </svg>
+      <p class="webNote">Best estimated 1RM in the last 12 months, against Strength Level's standards for ${Math.round(body.kg)} kg. The solid ring is Elite.</p>
+    </section>`;
+};
+
 const renderProgress = () => {
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
@@ -1906,6 +2000,7 @@ const renderProgress = () => {
     </section>
     ${focus ? liftPicker(BIG_THREE.filter((name) => history.has(name)), lifts.filter((name) => !BIG_THREE.includes(name)), history, 'focus-lift', focus) : ''}
     ${renderVolume()}
+    ${renderStrength()}
     ${view.route === 'trends' ? '' : renderMuscles()}`;
 };
 
@@ -4475,6 +4570,29 @@ document.addEventListener('click', (event) => {
     view.adminError = '';
     render();
     return;
+  }
+  if (action === 'body-sex') {
+    view.bodySex = target.dataset.sex;
+    document.querySelectorAll('[data-action="body-sex"]').forEach((chip) => chip.setAttribute('aria-pressed', String(chip === target)));
+    return;
+  }
+  if (action === 'body-edit') {
+    view.bodyEdit = true;
+    return render();
+  }
+  if (action === 'body-save') {
+    const kg = Number(String(document.getElementById('bodyKg')?.value || '').replace(',', '.'));
+    const sex = view.bodySex || state.body?.sex;
+    if (!(kg >= 30 && kg <= 250) || !sex) {
+      view.status = !sex ? 'Pick Male or Female for the standards.' : 'Type your bodyweight in kg, like 85.';
+      return render();
+    }
+    state.body = { kg: Math.round(kg * 10) / 10, sex };
+    view.bodyEdit = false;
+    view.status = '';
+    save();
+    syncNow();
+    return render();
   }
   if (action === 'claude-retry') {
     const run = (state.claudeRuns || []).find((entry) => String(entry.at) === target.dataset.at);

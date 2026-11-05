@@ -656,7 +656,8 @@ const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
     const bests = { ...(current.bests || {}) };
     for (const [name, value] of Object.entries(incoming.bests || {})) bests[name] = Math.max(Number(bests[name]) || 0, Number(value) || 0);
     const name = incomingNewer ? incoming.name : current.name || incoming.name;
-    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log });
+    const bodyNow = incomingNewer ? incoming.body || current.body : current.body || incoming.body;
+    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log, ...(bodyNow ? { body: bodyNow } : {}) });
   } catch {
     return incomingJson;
   }
@@ -683,7 +684,7 @@ const sync = async (request, env) => {
     .map((change) => ({ date: change.date, updated: Math.round(change.updated), base: Number.isFinite(change.base) ? Math.round(change.base) : null, data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
     .filter((change) => change.data === null || change.data.length <= MAX_RECORD);
   const meta = body?.meta && typeof body.meta === 'object' && Number.isFinite(body.meta.updated)
-    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [] }), updated: Math.round(body.meta.updated) }
+    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex } } : {}) }), updated: Math.round(body.meta.updated) }
     : null;
   if (meta && meta.json.length > MAX_RECORD * 4) return json({ error: 'Too big' }, 400);
   const now = Date.now();
