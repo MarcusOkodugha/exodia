@@ -1120,3 +1120,19 @@ button.calDay:active { transform: scale(0.85); }
 @keyframes pageFromRight { from { transform: translateX(32%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pageFromLeft { from { transform: translateX(-32%); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .page.enter-right, .page.enter-left { animation: none; } }
+/* Bodyweight form: shown on the empty Strength level web and the anatomy's empty Strength view, so it's clear what to
+   fill in instead of the section vanishing. */
+.bodyForm { padding: 4px 8px 12px; }
+.webCard .bodyForm { border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.segment + .bodyForm { padding: 0 0 14px; }
+.bodyForm .bodyTitle { font-size: 16px; }
+.bodyForm .bodyRow { gap: 8px; }
+.bodyKgWrap { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: var(--text2); }
+.bodyKgWrap .bodyKg { width: 78px; height: 40px; font-size: 17px; text-align: center; }
+.bodyForm .chip .chipFace { height: 40px; padding: 0 16px; font-size: 15px; }
+.bodyError { margin: 8px 0 0; font-size: 13px; color: var(--clayText); }
+.webCard.empty .web, .emptyLevels .bodyFig { opacity: 0.55; }
+.bodyForm .chip .chipFace { background: #ECE9E0; border-radius: 999px; }
+.bodyForm .chip[aria-pressed="true"] .chipFace { background: var(--clay); color: #FFFFFF; }
+.bodyForm .saveBody .chipFace { background: var(--text); color: var(--bg); }
+.bodyForm .bodyTitle { color: var(--text); }

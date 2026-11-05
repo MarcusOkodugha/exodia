@@ -1384,7 +1384,9 @@ const renderMuscles = () => {
       }).join('')}</div>
     </div>
     <p class="muscleNote tierLegend"><span><i class="tierBeg"></i>Beginner</span><span><i class="tierNov"></i>Novice</span><span><i class="tierInt"></i>Intermediate</span><span><i class="tierAdv"></i>Advanced</span><span><i class="tierElite"></i>Elite</span></p>`
-    : `<p class="muscleNote">Add your bodyweight under Strength level to see how strong each muscle is.</p>`}`;
+    : `${bodyForm('Add your bodyweight to see your strength across your anatomy')}<div class="muscles emptyLevels">${bodySvg('front', load, {})}${bodySvg('back', load, {})}
+      <div class="muscleList">${MUSCLES.map(([, label]) => `<div class="muscleRow muted"><i class="muscleSwatch tierNone"></i><span>${label}</span><span class="num tierWord">–</span></div>`).join('')}</div>
+    </div>`}`;
   }
   return `<p class="section">Anatomy</p>${toggle}
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
@@ -2164,20 +2166,24 @@ const liftStrength = (lift, body) => {
   const marks = table && lift.reps ? table.map((reps) => (reps >= 1 ? estimate(body.kg, reps) : body.kg * 0.95)) : table;
   return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks) };
 };
-const bodyPrompt = () => `<section class="card bodyCard">
-    <p class="bodyTitle">See your strength level per lift</p>
-    <p class="bodyText">Strength Level's standards depend on bodyweight. Saved on this account only.</p>
-    <div class="bodyRow"><label class="sr" for="bodyKg">Bodyweight in kg</label><input id="bodyKg" class="pill num bodyKg" inputmode="decimal" placeholder="kg" value="${esc(state.body?.kg || '')}">
+// Bodyweight and sex, asked where they're needed (Strength level, and the anatomy's Strength view). Both forms can be
+// on screen at once (computer), so each reads its own field.
+const bodyForm = (title) => `<div class="bodyForm">
+    <p class="bodyTitle">${title}</p>
+    <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Saved on your account, on all your devices.</p>
+    <div class="bodyRow"><label class="bodyKgWrap"><input class="pill num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label>
       ${['male', 'female'].map((sex) => `<button class="chip" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}"><span class="chipFace">${sex === 'male' ? 'Male' : 'Female'}</span></button>`).join('')}
       <button class="chip saveBody" data-action="body-save"><span class="chipFace">Save</span></button></div>
-  </section>`;
+    ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
+  </div>`;
 const renderStrength = () => {
   if (!Object.keys(STANDARDS).length) return '';
-  const body = state.body;
-  // Ask only once this device has heard from the account (a bodyweight saved elsewhere arrives with the first sync).
-  if ((!body?.kg || !body?.sex) && !view.syncedAt && !view.bodyEdit) return '';
-  if (!body?.kg || !body?.sex || view.bodyEdit) return `<p class="section">Strength level</p>${bodyPrompt()}`;
-  const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks);
+  // No bodyweight yet: the web shows empty with the form on it, so it's clear what to fill in (one saved on another
+  // device arrives with the first sync and the form goes away by itself).
+  const known = Boolean(state.body?.kg && state.body?.sex);
+  const body = known ? state.body : { kg: 80, sex: 'male' };
+  const askBody = !known || view.bodyEdit;
+  const lifts = known ? WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks) : WEB_LIFTS.map((lift) => ({ ...lift, value: 0, ever: 0, score: 0, everScore: 0, marks: [1] }));
   if (lifts.length < 3) return '';
   const top = Math.max(5, ...lifts.map((lift) => Math.max(lift.score, lift.everScore)));
   // Elite is the outer coloured ring; the spokes run a little past it, further if you go past Elite.
@@ -2212,7 +2218,7 @@ const renderStrength = () => {
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
     // Not done in the last 3 months: the corner shows the all-time level, marked so, instead of looking empty.
     const swatch = lift.value || lift.ever ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
-    const level = lift.value ? `${swatch}${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `${swatch}<tspan class="webEverWord">${levelWord(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : '<tspan class="webNone">Not logged</tspan>';
+    const level = !known ? '<tspan class="webNone">–</tspan>' : lift.value ? `${swatch}${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `${swatch}<tspan class="webEverWord">${levelWord(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : '<tspan class="webNone">Not logged</tspan>';
     const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 38).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
     return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>${allTime}`;
   }).join('');
@@ -2231,16 +2237,17 @@ const renderStrength = () => {
     return `<text x="${(middle + Math.cos(gap) * reach).toFixed(1)}" y="${(middle + Math.sin(gap) * reach + 4).toFixed(1)}" text-anchor="middle" class="webRingNumber">${level}</text>`;
   }).join('');
   const rings = [[1, 'tierBeg'], [2, 'tierNov'], [3, 'tierInt'], [4, 'tierAdv'], [5, 'tierElite']].map(([level, tier]) => `${ring(level)} class="webRing ${tier}"/>`).join('');
-  return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
-    <section class="card webCard">
-      <div class="webTop"><p class="webIntro">Each lift against Strength Level for your bodyweight</p><p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p></div>
+  return `<p class="section">Strength level ${known ? `<button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button>` : ''}</p>
+    <section class="card webCard${known ? '' : ' empty'}">
+      ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
+      ${!known ? '' : `<div class="webTop"><p class="webIntro">Each lift against Strength Level for your bodyweight</p><p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p></div>`}
       <svg class="web" viewBox="${left.toFixed(0)} -12 ${(right - left).toFixed(0)} 362" style="max-width:${Math.round(((right - left) / 448) * 380)}px" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
-        <path d="${outline(everCorners)}" class="webEverShape"/>
+        ${known ? `<path d="${outline(everCorners)}" class="webEverShape"/>
         <path d="${outline(corners)}" class="webShape"/>
         ${edges}
-        ${everDots}
+        ${everDots}` : ''}
         ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="5" class="webDot ${tierOf(lift.score)?.[2] || 'tierBeg'}"/>` : '').join('')}
         ${ringNumbers}
         ${labels}
@@ -4854,7 +4861,7 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'body-sex') {
     view.bodySex = target.dataset.sex;
-    document.querySelectorAll('[data-action="body-sex"]').forEach((chip) => chip.setAttribute('aria-pressed', String(chip === target)));
+    document.querySelectorAll('[data-action="body-sex"]').forEach((chip) => chip.setAttribute('aria-pressed', String(chip.dataset.sex === target.dataset.sex)));
     return;
   }
   if (action === 'body-edit') {
@@ -4862,15 +4869,15 @@ document.addEventListener('click', (event) => {
     return render();
   }
   if (action === 'body-save') {
-    const kg = Number(String(document.getElementById('bodyKg')?.value || '').replace(',', '.'));
+    const kg = Number(String(target.closest('.bodyForm')?.querySelector('.bodyKg')?.value || '').replace(',', '.'));
     const sex = view.bodySex || state.body?.sex;
     if (!(kg >= 30 && kg <= 250) || !sex) {
-      view.status = !sex ? 'Pick Male or Female for the standards.' : 'Type your bodyweight in kg, like 85.';
+      view.bodyError = !(kg >= 30 && kg <= 250) ? 'Type your bodyweight in kg, like 85.' : 'Pick Male or Female.';
       return render();
     }
     state.body = { kg: Math.round(kg * 10) / 10, sex };
     view.bodyEdit = false;
-    view.status = '';
+    view.bodyError = '';
     save();
     syncNow();
     return render();
