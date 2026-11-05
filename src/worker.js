@@ -413,6 +413,30 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 
 const cleanSet = (set) => ({ kg: Math.min(1000, Math.max(0, Number(set?.kg) || 0)), reps: Math.min(100, Math.max(0, Math.round(Number(set?.reps) || 0))), ...(Number(set?.rpe) >= 1 && Number(set?.rpe) <= 10 ? { rpe: Number(set.rpe) } : {}), ...(set?.warmup === true ? { warmup: true } : {}) });
 
+// A full date said or typed ("26th of July 2024", "July 26, 2024", "26/7/2024", "2024-07-26", "7 mars 2024"), read
+// without AI: when the AI forgets it, the sets would land on today.
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'ma', 'jun', 'jul', 'aug', 'sep', 'o', 'nov', 'dec'];
+const monthOf = (word) => {
+  const name = word.toLowerCase();
+  if (/^(may|maj)/.test(name)) return 5;
+  if (/^(oct|okt)/.test(name)) return 10;
+  if (/^mar/.test(name)) return 3;
+  const index = MONTHS.findIndex((start) => start.length > 2 && name.startsWith(start));
+  return index >= 0 ? index + 1 : 0;
+};
+const MONTH_WORD = '(jan(?:uary|uari)?|feb(?:ruary|ruari)?|mar(?:ch|s)?|apr(?:il)?|ma[yj]|jun[ei]?|jul[iy]?|aug(?:ust|usti)?|sep(?:t|tember)?|o[ck]t(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+const saidDates = (text) => {
+  const found = new Set();
+  const add = (year, month, day) => {
+    if (year >= 1980 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) found.add(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+  };
+  const lower = String(text || '').toLowerCase();
+  for (const match of lower.matchAll(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g)) add(+match[1], +match[2], +match[3]);
+  for (const match of lower.matchAll(/\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b/g)) add(+match[3], +match[2], +match[1]);
+  for (const match of lower.matchAll(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th|e|a)?(?:\\s+of)?\\s+${MONTH_WORD}\\.?,?\\s+(\\d{4})\\b`, 'g'))) add(+match[3], monthOf(match[2]), +match[1]);
+  for (const match of lower.matchAll(new RegExp(`\\b${MONTH_WORD}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b`, 'g'))) add(+match[3], monthOf(match[1]), +match[2]);
+  return [...found];
+};
 const clean = (raw, today) => {
   const exercises = (Array.isArray(raw?.exercises) ? raw.exercises : [])
     .slice(0, 12)
@@ -553,7 +577,7 @@ const parse = async (request, env, ctx) => {
       const result = clean({ ...(await askClaude(env, context, `${words}${heard && hint && !text ? `\n\n(The phone's own speech-to-text heard: "${hint}". Use it only for unclear words.)` : ''}`)), transcript: heard || text }, today);
       logCommand(request, env, ctx, body, text || heard || 'Voice note', { ...result, engine: 'claude' });
       keepAsFeedback(request, env, ctx, body, text || heard, result);
-      return json(result);
+      return json({ ...result, engine: 'claude' });
     } catch (error) {
       console.log('Claude failed, using Gemini', String(error).slice(0, 200));
     }
@@ -598,8 +622,8 @@ const parse = async (request, env, ctx) => {
   const spoken = new Set((said.match(/\d+(?:\.\d+)?/g) || []).map(Number));
   const wordNumbers = /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/.test(said);
   const invented = (result) => !(audio && !heard) && !wordNumbers && (result.exercises || []).some((exercise) => exercise.sets.length && exercise.sets.every((set) => !spoken.has(Number(set.kg)) && !spoken.has(Number(set.reps))));
-  // Voice notes try the full Flash model first: it hears noisy gym audio better than the Lite ones, which stay as fallback.
-  const tries = audio ? [...new Set([env.GEMINI_VOICE_MODEL || 'gemini-3.5-flash', ...models])] : models;
+  // Strongest Flash first (Gemini 3.8 Flash), Lite models only as a last resort, for voice and text alike.
+  const tries = audio && env.GEMINI_VOICE_MODEL ? [...new Set([env.GEMINI_VOICE_MODEL, ...models])] : models;
   let found = await ask(tries, 2);
   // Not understood (and not feedback): a stronger model that thinks first gets one more look before giving up.
   if (!found || (!logs(found.result) && !found.result.feedback)) {
@@ -613,9 +637,11 @@ const parse = async (request, env, ctx) => {
   }
   if (found) {
     const result = found.result;
+    const dates = saidDates(`${text} ${heard}`).filter((date) => !today || date <= today);
+    if (dates.length === 1 && (result.exercises?.length || result.cardioMinutes) && !result.move?.length && result.date !== dates[0]) result.date = dates[0];
     logCommand(request, env, ctx, body, text || result.transcript, { ...result, engine: found.model });
     keepAsFeedback(request, env, ctx, body, text || result.transcript, result);
-    return json(result);
+    return json({ ...result, engine: found.model });
   }
   logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}` });
   if (busy) return json({ error: 'Google’s AI was busy. Your note is fine, try again in a minute.', transcript: heard }, 503);

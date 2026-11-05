@@ -1480,8 +1480,19 @@ const chatStamp = (at, before) => {
   return at - before > 1800000 ? time : '';
 };
 
-const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, voiceId, compact, manual, theirs, laterId, fresh }) => {
+// Who read a message: Marcus sees the exact model ("Gemini 3.8 Flash"), everyone else just "Exodia".
+const engineName = (engine) => {
+  if (!engine) return '';
+  if (!view.isAdmin) return 'Exodia';
+  if (engine === 'phone') return 'the phone, no AI';
+  if (engine === 'claude') return 'Claude';
+  if (engine === 'add') return 'Exodia import';
+  const gemini = engine.match(/^gemini-(.+?)(-lite)?$/);
+  return gemini ? `Gemini ${gemini[1].split('-').map((part) => (/^\d/.test(part) ? part : part[0].toUpperCase() + part.slice(1))).join(' ')}${gemini[2] ? '-Lite' : ''}` : engine;
+};
+const chatEntry = ({ stamp, who, said, heard, voice, did, raw, by, fixIndex: index, voiceId, compact, manual, theirs, laterId, fresh }) => {
   const fixIndex = manual ? undefined : index;
+  const handled = engineName(by || (raw && /"engine":"([^"]+)"/.exec(raw)?.[1]) || '');
   const lines = [].concat(did);
   const failed = OFF_LINE.test(lines[0] || '');
   const off = lines.some((line) => OFF_LINE.test(line));
@@ -1492,7 +1503,7 @@ const chatEntry = ({ stamp, who, said, heard, voice, did, raw, fixIndex: index, 
   return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}${fresh ? ' fresh' : ''}">
   ${theirs ? `${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<p class="chatWho">${esc(who || 'Someone')}</p>` : stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
   ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
-  <div class="bubbleOut"><p>${laterId && laterJobs().some((job) => job.id === laterId) ? `<span class="ghostText">${esc(lines.join(' · '))}</span>` : esc(lines.join(' · '))}</p>${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}${failed && fixIndex !== undefined && view.isAdmin && said !== 'Voice note' ? `<button class="textBtn" data-action="said-builder" data-index="${fixIndex}">Ask Exodia builder</button>` : ''}</div>
+  <div class="bubbleOut"><p>${laterId && laterJobs().some((job) => job.id === laterId) ? `<span class="ghostText">${esc(lines.join(' · '))}</span>` : esc(lines.join(' · '))}</p>${handled && !failed ? `<p class="handledBy">Handled by ${esc(handled)}</p>` : ''}${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}${failed && fixIndex !== undefined && view.isAdmin && said !== 'Voice note' ? `<button class="textBtn" data-action="said-builder" data-index="${fixIndex}">Ask Exodia builder</button>` : ''}</div>
 </div>`;
 };
 
@@ -3630,7 +3641,7 @@ const applyResult = (result, date, said, heard = '') => {
     }),
     ...(result.move || []).map((target) => ({ date: target.to, name: target.exercise ? findExerciseName(target.exercise) || titleCase(target.exercise) : null }))
   ], before);
-  addLog(said, did, { heard: heard.slice(0, 2000), raw: JSON.stringify(result).slice(0, 1500) });
+  addLog(said, did, { heard: heard.slice(0, 2000), raw: JSON.stringify(result).slice(0, 1500), ...(result.engine ? { by: result.engine } : {}) });
 };
 
 const YES = /^(yes|yeah|yep|ja|japp|sure|do it|confirm|ok)\b/i;
@@ -4552,7 +4563,7 @@ const send = async () => {
     if (!desktopQuery.matches) document.activeElement?.blur();
     land(local, date);
     showResult([describeAdd(local, date)], local.exercises.map(({ name }) => ({ date, name })), before);
-    addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500) });
+    addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500), by: 'phone' });
     showChat();
     render();
     scrollChat();
