@@ -30,7 +30,7 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 Everything a new session needs is in this repo: this file, `public/TODO.md` (open list + what waits on Marcus) and `git log`. To continue on another account:
 
 1. On claude.ai/code with the other account, connect GitHub (the account that owns MarcusOkodugha/exodia) and start a session on this repo.
-2. In that session's cloud environment, add the Cloudflare API token as an environment variable `CLOUDFLARE_API_TOKEN` (the same token as here; Marcus copies it from Cloudflare → My Profile → API Tokens, never pasted in chat), so `npx wrangler` can deploy and read D1.
+2. In that session's cloud environment, add the environment variables `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the same values as here; Marcus copies it from Cloudflare → My Profile → API Tokens, never pasted in chat), so `npx wrangler` can deploy and read D1.
 3. The admin panel's "Change the app" fires a scheduled task that belongs to the account that created it. On a new account, create a new "Exodia change" scheduled task there (with this repo attached and an API trigger), then set its URL and token with `npx wrangler secret put CLAUDE_TASK_URL` and `npx wrangler secret put CLAUDE_TASK_TOKEN`.
 4. First message to the new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
 
