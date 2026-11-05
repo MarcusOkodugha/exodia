@@ -2935,41 +2935,67 @@ const endDemo = () => {
   location.hash = '#/';
   render();
 };
-// After an update a small pill says so for about a minute. Tap × or swipe it away; the update itself needs no tap.
+// After an update a small pill says so for about a minute. Swipe it away or let it go; the update itself needs no tap.
 const VERSION_KEY = 'exodia.version';
 const NOTES_KEY = 'exodia.openNotes';
 const updatedLines = () => {
   const list = view.updated?.changes || [];
   return list.length ? list : ['Small improvements and fixes'];
 };
-// One calm clay card for updates: "Exodia updated", tap and the notes open inside the same card, tap outside and it
-// goes. If the new version is still waiting to load, the tap loads it and the card comes back already open.
+// "Exodia updated": one small clay pill with the newest change and "+N more". A tap grows the same element in place to
+// show the rest, a tap outside shrinks it back and it goes. If the new version is still waiting to load, the tap loads
+// it and the pill comes back already open.
 const updatedPill = () => {
   if (state.demo || !(view.updated || view.updateReady)) return '';
   const open = Boolean(view.updated?.open);
-  const lines = view.updated ? updatedLines() : [];
   const still = view.updatedShown ? ' still' : '';
   view.updatedShown = true;
-  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><b>New</b><span class="updatedTeaser">${open ? `in Exodia${view.isAdmin && view.updated ? ` · v${view.updated.version}` : ''}` : esc(lines[0] || 'See what changed')}</span><svg class="updatedChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${open ? `<div class="updatedNotes">${lines.slice(0, 3).map((line) => `<p>${esc(line)}</p>`).join('')}</div>` : ''}</div>`;
+  const [lead, ...rest] = view.updated ? updatedLines() : ['Exodia updated'];
+  const more = !view.updated ? '· Tap to see' : rest.length ? `· +${rest.length} more` : '';
+  const version = view.isAdmin && view.updated ? ` title="v${view.updated.version}"` : '';
+  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"${version}><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span class="updatedDot" aria-hidden="true"></span><span class="updatedLead">${esc(lead)}</span>${more ? `<span class="updatedMore">${more}</span>` : ''}</button>${rest.length ? `<ul class="updatedNotes">${rest.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
 };
-// The card grows and shrinks as one piece: measure it before and after the redraw and animate its own size between.
-const resizeUpdated = (change) => {
-  const before = document.querySelector('.updatedPill')?.getBoundingClientRect();
-  change();
-  render();
-  const card = document.querySelector('.updatedPill');
-  if (!before || !card || reducedMotion.matches) return;
-  const after = card.getBoundingClientRect();
-  card.animate([{ width: `${before.width}px`, height: `${before.height}px` }, { width: `${after.width}px`, height: `${after.height}px` }], { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+// Grow or shrink the pill between its measured sizes without redrawing it. The content is laid out at the end size
+// from the first frame, so no text reflows while the edge moves; closing drops back to one line and the notes fade.
+const sizeUpdated = (pill, open, after) => {
+  const from = pill.getBoundingClientRect();
+  pill.style.transition = 'none';
+  pill.style.width = '';
+  pill.style.height = '';
+  pill.classList.toggle('open', open);
+  const to = pill.getBoundingClientRect();
+  pill.style.setProperty('--updatedW', `${to.width}px`);
+  pill.classList.add('sizing');
+  pill.style.width = `${from.width}px`;
+  pill.style.height = `${from.height}px`;
+  void pill.offsetWidth;
+  pill.style.transition = '';
+  pill.style.width = `${to.width}px`;
+  pill.style.height = `${to.height}px`;
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    pill.classList.remove('sizing');
+    pill.style.width = '';
+    pill.style.height = '';
+    after?.();
+  };
+  pill.addEventListener('transitionend', (event) => { if (event.target === pill && event.propertyName === 'height') finish(); });
+  setTimeout(finish, 380);
+};
+const toggleUpdated = (open = !view.updated?.open, after) => {
+  if (!view.updated) return after?.();
+  view.updated.open = open;
+  const pill = document.querySelector('.updatedPill');
+  pill?.querySelector('.updatedMain')?.setAttribute('aria-expanded', String(open));
+  if (pill && !reducedMotion.matches) return sizeUpdated(pill, open, after);
+  pill?.classList.toggle('open', open);
+  after?.();
 };
 const hideUpdated = () => {
   view.updated = null;
   const pill = document.querySelector('.updatedPill');
-  const card = document.querySelector('.updatedCard');
-  if (card) {
-    card.classList.add('gone');
-    setTimeout(() => card.remove(), 200);
-  }
   if (!pill) return;
   pill.classList.add('gone');
   setTimeout(() => pill.remove(), 220);
@@ -2999,23 +3025,26 @@ const noteUpdate = async () => {
     sessionStorage.removeItem(NOTES_KEY);
   } catch { /* closed */ }
   if (!seen || seen >= version) return;
-  view.updated = { version, from: seen, changes: [], open: openNotes };
-  render();
+  // Shown once its notes are in, so the teaser is right from the first frame (never a placeholder that swaps).
+  const show = (changes) => {
+    if (view.updated?.version === version) return;
+    view.updated = { version, from: seen, changes, open: openNotes };
+    render();
+    setTimeout(() => {
+      if (view.updated?.version === version && !view.updated.open) hideUpdated();
+    }, 60000);
+  };
+  setTimeout(() => show([]), 4000);
   fetch('/changes.json').then((response) => response.json()).then((all) => {
-    if (view.updated?.version !== version) return;
-    view.updated.changes = Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 8);
-    if (view.updated.open) render();
-  }).catch(() => {});
-  setTimeout(() => {
-    if (view.updated?.version === version && !view.updated.open) hideUpdated();
-  }, 60000);
+    show(Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 8));
+  }).catch(() => show([]));
 };
 // Swiping "Exodia updated" away: it follows the finger and fades as it goes; let go far or fast enough and it glides
 // off that way, otherwise it springs back. A plain tap still opens the notes.
 let updatedSwipe = null;
 document.addEventListener('pointerdown', (event) => {
   const pill = event.target.closest('.updatedPill');
-  updatedSwipe = pill && !event.target.closest('.updatedX') ? { pill, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
+  updatedSwipe = pill ? { pill, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
 });
 document.addEventListener('pointermove', (event) => {
   if (!updatedSwipe) return;
@@ -3041,7 +3070,6 @@ for (const type of ['pointerup', 'pointercancel']) document.addEventListener(typ
     const up = -swipe.dy > Math.abs(swipe.dx);
     swipe.pill.style.transform = up ? 'translate(-50%, -80px)' : `translate(calc(-50% + ${Math.sign(swipe.dx) * (window.innerWidth / 2 + 200)}px), 0)`;
     swipe.pill.style.opacity = '0';
-    document.querySelector('.updatedCard')?.remove();
     view.updated = null;
     setTimeout(() => swipe.pill.remove(), 300);
   } else {
@@ -4759,8 +4787,8 @@ const send = async () => {
 
 document.addEventListener('click', (event) => {
   // "What's new" open: a tap anywhere else closes it all, like any dialog, and does nothing else.
-  if (view.updated?.open && !event.target.closest('.updatedPill, .updatedCard')) {
-    hideUpdated();
+  if (view.updated?.open && !event.target.closest('.updatedPill')) {
+    toggleUpdated(false, hideUpdated);
     return;
   }
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
@@ -4888,16 +4916,13 @@ document.addEventListener('click', (event) => {
     return endDemo();
   }
   if (action === 'reload-app') return reloadInPlace();
-  if (action === 'close-updated') return hideUpdated();
   if (action === 'toggle-updated' && Date.now() - (view.updatedSwiped || 0) < 400) return;
   if (action === 'toggle-updated') {
     if (view.updateReady && !view.updated) {
       try { sessionStorage.setItem(NOTES_KEY, '1'); } catch { /* opens closed instead */ }
       return reloadInPlace();
     }
-    return resizeUpdated(() => {
-      if (view.updated) view.updated.open = !view.updated.open;
-    });
+    return toggleUpdated();
   }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
@@ -5887,7 +5912,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // Trends, swipe right back to Home. The page follows the finger and glides out; a short or slow swipe springs back.
 let pageSwipe = null;
 let pageSwipedAt = 0;
-const PAGE_SWIPE_SKIP = '.dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .updatedCard, .drawer, .scrim, .segment, .toast, .confirm';
+const PAGE_SWIPE_SKIP = '.dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .confirm';
 document.addEventListener('pointerdown', (event) => {
   pageSwipe = null;
   if (event.pointerType !== 'touch' || desktopQuery.matches || turn || view.menu || view.composer || !['home', 'trends'].includes(view.route)) return;

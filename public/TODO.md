@@ -6,8 +6,6 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
-  1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
 - [ ] **Your second Claude account (once, when you first use it).** Then switching is one tap in Admin: "Built with Account 1 / Account 2".
   1. On that account start a session on this repo at [claude.ai/code](https://claude.ai/code), add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to its environment
   2. First message: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue. Set up the Exodia change task for this account."
@@ -32,7 +30,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
-- Notes about 4× faster (low thinking, 1.5–2 s; a slow model gets 7 s, then the next one); slim clay update pill that grows in place (UI/UX-reviewed); a writing skeleton on the set grid where the note lands; new users no longer get a stored bench best; Isabella's Home Screen profile filled in by hand (v275–v276)
 - Own private link stays in the address bar once you've started, so Add to Home Screen keeps your log and name (Isabella's name vanished); example data never blocks or mixes into a joined link; football, cycling etc. keep their name and still count for Move; one clay update card that opens in place; set counts only on repeated sets; Brzycki/Epley wording; move-to dates old → new (v274)
 - Notes no longer hang when Google's Gemini is overloaded (503s and 2-minute hangs seen on Nov 5): each model gets 15 s (25 s for voice), a failing one sits out a minute; full dates ("26th of July, 2024") are read without AI; replies say "Handled by Gemini 3.8 Flash" for Marcus, "Handled by Exodia" for friends (v267–v268)
 - Exodia in rounds: hit it → blue for 10 days → back to orange, counted from zero (days after the hit already count) (v265)

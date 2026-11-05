@@ -774,30 +774,6 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .updatePill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); margin: 0; padding: 7px 14px; background: var(--clay); color: #FFFFFF; font-weight: 600; box-shadow: 0 6px 18px rgb(var(--clayRgb) / 0.3); }
 @media (min-width: 1024px) { .updatePill { top: 16px; } }
 .trendsPage [data-trend] { scroll-margin-top: calc(var(--top) + 60px); }
-/* "Exodia updated": a quiet pill at the top for about a minute after an update. × or a swipe closes it. */
-.updatedPill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 0 4px 0 14px; height: 36px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(20, 20, 19, 0.1); font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; touch-action: none; animation: updatedIn 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); transition: opacity 0.2s ease; }
-.updatedPill.gone { opacity: 0; }
-.updatedMain { display: flex; align-items: center; gap: 8px; height: 100%; font: inherit; color: inherit; }
-.updatedCard { position: fixed; z-index: 8; top: calc(var(--top) + 98px); left: 50%; transform: translateX(-50%); width: min(340px, calc(100vw - 32px)); padding: 12px 16px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(20, 20, 19, 0.1); font-size: 14px; color: var(--text); }
-.updatedTitle { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text2); }
-.updatedCard ul { margin: 0; padding-left: 18px; }
-.updatedCard li { margin: 3px 0; line-height: 1.35; }
-/* "See what's new" opens the notes under the pill with a soft drop; a tap outside closes both. */
-.updatedMore { margin-left: 2px; font-weight: 500; color: var(--clayText); }
-.updatedMore:empty { display: none; }
-.updatedChevron { color: var(--text2); transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.updatedChevron.open { transform: rotate(180deg); }
-.updatedCard { transform-origin: 50% 0; animation: updatedCardIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); transition: opacity 0.18s ease, transform 0.18s ease; }
-.updatedCard.gone { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.97); }
-@keyframes updatedCardIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
-@media (prefers-reduced-motion: reduce) { .updatedCard { animation: none; } }
-@media (min-width: 1024px) { .updatedCard { top: 62px; } }
-.updatedDot { width: 8px; height: 8px; border-radius: 50%; background: var(--clay); }
-.updatedX { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 15px; color: var(--text2); }
-.updatedX svg { width: 14px; height: 14px; }
-@keyframes updatedIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
-@media (min-width: 1024px) { .updatedPill { top: 16px; } }
-@media (prefers-reduced-motion: reduce) { .updatedPill { animation: none; } }
 /* Small panel (from tapping the box): the bar bounces twice like the peek did. The arrow next to "Quick add" grows or
    shrinks it: pointing up when it can grow, down when it's full. */
 .sheet.small .grabber::after { animation: grabHint 1.4s ease-in-out 0.4s 2; background: rgba(20, 20, 19, 0.28); }
@@ -816,7 +792,7 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .toast { z-index: 20; }
 @media (min-width: 1024px) {
   .toast, .buildBanner { left: calc(272px + 16px); right: calc(380px + 16px); top: 16px; }
-  .updatePill, .updatedPill, .updatedCard { left: calc(272px + (100% - 652px) / 2); }
+  .updatePill { left: calc(272px + (100% - 652px) / 2); }
 }
 @media (prefers-reduced-motion: reduce) { .buildDot { animation: none; } }
 @media (min-width: 1024px) { .searchBox { height: 44px; margin-top: 12px; } }
@@ -882,7 +858,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
   .desk .page { padding-top: calc(env(titlebar-area-height, 32px) + 32px); }
   .right { padding-top: calc(env(titlebar-area-height, 32px) + 16px); }
   .leftPill, .deskDev, .updatedPill, .updatePill { top: calc(env(titlebar-area-height, 32px) + 8px); -webkit-app-region: no-drag; app-region: no-drag; }
-  .leftPanel, .updatedCard { top: calc(env(titlebar-area-height, 32px) + 52px); }
+  .leftPanel { top: calc(env(titlebar-area-height, 32px) + 52px); }
 }
 
 /* A set row never lets the PR badge or the % column cover the + or the reps: with a PR the % steps aside, and on
@@ -1161,23 +1137,6 @@ main.page { overflow-x: clip; }
 
 .daySummary:empty { display: none; }
 
-/* Update notice: one slim clay pill with a teaser; the same element grows in place to show up to three changes. */
-.updatedPill { position: fixed; z-index: 4; top: calc(var(--top) + 60px); left: 50%; transform: translateX(-50%); display: block; height: auto; width: max-content; max-width: min(300px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 15px; background: var(--clay); color: #FFFFFF; box-shadow: 0 4px 16px rgb(var(--clayRgb) / 0.25); overflow: hidden; white-space: nowrap; font-size: 14px; line-height: 20px; animation: updatedGlowIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: opacity 0.2s ease, border-radius 0.28s ease; }
-.updatedPill.open { width: min(340px, calc(100vw - 32px)); max-width: none; border-radius: 18px; white-space: normal; }
-.updatedMain { display: flex; align-items: center; gap: 6px; width: 100%; height: 30px; padding: 0 12px; font: inherit; color: #FFFFFF; }
-.updatedPill.open .updatedMain { height: 40px; padding: 0 14px; }
-.updatedMain b { font-weight: 600; flex: none; }
-.updatedTeaser { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(255 255 255 / 0.85); font-weight: 400; }
-.updatedChevron { flex: none; margin-left: 2px; color: rgb(255 255 255 / 0.85); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.updatedPill.open .updatedChevron { transform: rotate(180deg); margin-left: auto; }
-.updatedNotes { padding: 0 14px 12px; display: grid; gap: 0; animation: updatedNotesIn 0.18s ease-out 0.12s both; }
-.updatedNotes p { margin: 0; padding: 8px 0; border-top: 1px solid rgb(255 255 255 / 0.15); color: rgb(255 255 255 / 0.92); font-size: 14px; line-height: 20px; font-weight: 400; }
-@keyframes updatedGlowIn { from { opacity: 0; transform: translate(-50%, -6px); box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 60% { box-shadow: 0 4px 24px 2px rgb(var(--clayRgb) / 0.4); } to { opacity: 1; transform: translateX(-50%); box-shadow: 0 4px 16px rgb(var(--clayRgb) / 0.25); } }
-@keyframes updatedNotesIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.updatedPill.still { animation: none; }
-@media (min-width: 1024px) { .updatedPill { top: 16px; } }
-@media (prefers-reduced-motion: reduce) { .updatedPill, .updatedNotes { animation: none; } }
-
 /* Writing skeleton: a name bar and set rows on the real set grid, appearing one by one and shimmering softly. */
 .ghostSaid { color: var(--text2); font-size: 14px; line-height: 19px; font-style: italic; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ghostRows { display: grid; gap: 0; padding: 2px 0; }
@@ -1194,3 +1153,30 @@ main.page { overflow-x: clip; }
 @keyframes ghostRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes ghostSweep { from { background-position: 120% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .ghostName, .ghostRow { animation: none; opacity: 1; } .ghostName i, .ghostRow i { animation: none; } }
+
+/* "Exodia updated": one small clay pill with the newest change and "+N more". A tap grows the same element in place to
+   show the rest (width and height animate between measured sizes in JS, see sizeUpdated); a tap outside shrinks it
+   back and it goes. It comes in once with a soft clay glow that settles. */
+.updatedPill { position: fixed; z-index: 8; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); box-sizing: border-box; width: max-content; max-width: min(320px, calc(100vw - 48px)); height: 32px; overflow: hidden; border-radius: 16px; background: var(--clay); color: #FFFFFF; box-shadow: 0 4px 14px rgb(var(--clayRgb) / 0.22); font-size: 13px; line-height: 18px; touch-action: none; animation: updatedIn 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both, updatedGlow 1.1s ease-out both; transition: width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease, transform 0.18s ease; }
+.updatedPill.still { animation: none; }
+.updatedPill.open { width: min(340px, calc(100vw - 32px)); max-width: none; height: auto; }
+.updatedPill.gone { opacity: 0; transform: translate(-50%, -4px); }
+.updatedMain { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 14px 0 12px; box-sizing: border-box; font: inherit; color: inherit; text-align: left; }
+.updatedPill.sizing { max-width: none; }
+.updatedPill.sizing > * { width: var(--updatedW); }
+.updatedDot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: rgb(255 255 255 / 0.9); }
+.updatedLead { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.updatedMore { flex: none; margin-left: -3px; white-space: nowrap; color: rgb(255 255 255 / 0.78); }
+.updatedPill.open .updatedMain { align-items: flex-start; height: auto; padding-top: 7px; padding-bottom: 1px; }
+.updatedPill.open .updatedDot { margin-top: 6px; }
+.updatedPill.open .updatedLead { white-space: normal; }
+.updatedPill.open .updatedMore { display: none; }
+.updatedNotes { list-style: none; margin: 0; padding: 0 14px 10px 26px; color: rgb(255 255 255 / 0.92); opacity: 0; transition: opacity 0.1s ease; }
+.updatedPill.open .updatedNotes { opacity: 1; transition: opacity 0.2s ease 0.04s; }
+.updatedNotes li { position: relative; margin: 6px 0 0; text-wrap: pretty; }
+.updatedNotes li::before { content: ""; position: absolute; left: -14px; top: 7px; width: 4px; height: 4px; border-radius: 50%; background: rgb(255 255 255 / 0.55); }
+@keyframes updatedIn { from { opacity: 0; transform: translate(-50%, -6px) scale(0.98); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes updatedGlow { from { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 35% { box-shadow: 0 4px 26px 2px rgb(var(--clayRgb) / 0.42); } to { box-shadow: 0 4px 14px rgb(var(--clayRgb) / 0.22); } }
+@media (min-width: 1024px) { .updatedPill { top: 16px; left: calc(272px + (100% - 652px) / 2); } }
+@media (display-mode: window-controls-overlay) { .updatedPill { top: calc(env(titlebar-area-height, 32px) + 8px); -webkit-app-region: no-drag; app-region: no-drag; } }
+@media (prefers-reduced-motion: reduce) { .updatedPill { animation: none; transition: opacity 0.18s ease; } }
