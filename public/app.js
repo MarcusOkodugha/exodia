@@ -784,7 +784,10 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 // One word while the AI works, whether it is a set, a whole workout or an edit.
 // A note on its way: set-shaped rows that build up with a soft shimmer right where the workout will land, and a quiet
 // line that it lands by itself, so nobody has to sit and watch it.
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status"><span class="ghostText">${item.later ? 'Exodia is on it in the background · lands by itself' : 'Writing it down…'}</span>${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
+// While the AI writes: the Exodia hand breathing softly inside a clay line that runs round it, growing and shrinking.
+const exoSpin = '<span class="exoSpin" aria-hidden="true"><svg viewBox="0 0 28 28"><circle class="exoTrack" cx="14" cy="14" r="12.5"/><circle class="exoSnake" cx="14" cy="14" r="12.5" pathLength="100"/></svg><img src="/logo.png" alt="" draggable="false"></span>';
+const writingLine = () => `<span class="ghostHead">${exoSpin}<span class="ghostText">Writing it down…</span></span>`;
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine()}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
 
@@ -2626,7 +2629,7 @@ const nameQuery = () => {
   return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
 };
 
-const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>'}</div>`).join('');
+const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : `<div class="bubbleOut" role="status"><p>${writingLine()}</p></div>`}</div>`).join('');
 
 const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 
@@ -2640,7 +2643,9 @@ const quickShown = () => !nameQuery() && (view.showQuick || (!view.draft.trim() 
 const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedbackChat()}</div>`
   : nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
-  : `${quickShown() ? '' : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`}${quickShown() ? quickAdd() : ''}`);
+  : quickShown()
+  ? `${(state.log || []).length || view.pending.length ? `<div class="chat recentChat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(-12).reverse(), true)}${pendingChat()}</div>` : ''}${quickAdd()}`
+  : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`);
 
 // The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".
 // Drag the bar: let go anywhere and it stays that tall; a quick flick up snaps to the usual size, a flick down closes.
@@ -2686,10 +2691,14 @@ const showChat = () => {
   view.quickHidden = true;
   if (typeof view.sheetH !== 'number' || view.sheetH <= SHEET_PEEK + 4) view.sheetH = SHEET_SMALL;
 };
-// The chat sits at the bottom of the panel (newest last); Quick add reads from the top.
+// The chat sits at the bottom of the panel (newest last). Quick add opens at its top with the newest message just
+// peeking above it, so it's clear the conversation is one scroll up.
+const QUICK_PEEK = 62;
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
-  if (body) body.scrollTop = body.dataset.mode === 'quick' ? 0 : body.scrollHeight;
+  if (!body) return;
+  const quick = body.dataset.mode === 'quick' && body.querySelector('.quickAdd');
+  body.scrollTop = quick ? Math.max(0, quick.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - QUICK_PEEK) : body.scrollHeight;
 };
 
 const animateChat = (opening) => {

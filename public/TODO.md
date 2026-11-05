@@ -29,6 +29,11 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Update pill: one small clay pill with the newest change and "+N more"; tap grows the same element in place to show every change, tap outside shrinks it and it goes; soft glow once (v277)
+- AI: the three full Flash models were out of their daily free Gemini quota, so notes ran on Flash-Lite; such a model now sits out until the quota resets (09:00 Swedish time), search uses Lite first to save the quota for notes, each note logs its time and the models tried (worker)
+- Writing rows land on the day the note is about ("igår", "i fredags" too); Exodia loader (hand + clay line) in the day and the chat; Quick add keeps the latest messages one scroll up (v279, v281)
+- Trends opens faster with years of data (1.16 s → 0.84 s on a 4× slowed phone) (v280)
+
 - "Your most impressive lift" at the bottom of Trends (computer: bottom of the right panel): your highest-level lift all time, its level, and how rare it is. Up to Elite from Strength Level's own definitions (Beginner beats 5% of people training the lift … Elite 95%); past Elite from OpenPowerlifting raw meet results per weight class, doubled for people who never compete, against 2.7 bn adults of your sex. 300 kg deadlift: 15,459 men have done it raw in a meet; at 100 kg bodyweight that's about 1 in 73,000 men (not 1 in millions). Sources in the code comment above MEETS (v278)
 - Strength level key (web and anatomy): tap a level or the i for what each level means, its share beaten and how long it takes (v278)
 - Computer Trends: middle has the lift chart, anatomy and calendar; the right panel has strength level, volume and most impressive lift (it used to repeat the lift chart). Same things as the phone, none twice (v278)
