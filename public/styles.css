@@ -912,10 +912,10 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .webCard { padding: 10px 8px 12px; }
 .web { display: block; width: 100%; max-width: 290px; height: auto; margin: 0 auto; overflow: visible; }
 .webRing { fill: none; stroke: var(--line); stroke-width: 1; }
-.webRing.elite { stroke: #CFCBBE; stroke-width: 1.4; }
+.webRing.elite { stroke: rgb(var(--clayRgb) / 0.55); stroke-width: 1.6; }
 .webRing.past { stroke-dasharray: 2 5; opacity: 0.8; }
 .webSpoke { stroke: var(--line); stroke-width: 1; }
-.webShape { fill: rgb(var(--clayRgb) / 0.18); stroke: var(--clay); stroke-width: 2; stroke-linejoin: round; }
+.webShape { fill: rgb(var(--clayRgb) / 0.18); stroke: var(--clay); stroke-width: 2.6; stroke-linejoin: round; }
 .webDot { fill: var(--clay); }
 .webLift { font-size: 15px; font-weight: 600; fill: var(--text); }
 .webLevel { font-size: 13px; fill: var(--text2); }
@@ -931,10 +931,17 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .bodyKg { width: 72px; }
 .saveBody .chipFace { background: var(--text); color: var(--bg); }
 /* All time sits behind now: a dashed clay outline, so you see how far now is from your best. */
-.webEverShape { fill: none; stroke: var(--clay); stroke-width: 1.4; stroke-dasharray: 4 4; stroke-linejoin: round; opacity: 0.75; }
+.webEverShape { fill: none; stroke: #5B4A3F; stroke-width: 1.8; stroke-dasharray: 5 4; stroke-linejoin: round; }
+.webEverDot { fill: #5B4A3F; }
 .webEver { font-size: 12px; fill: var(--text2); opacity: 0.85; }
 .webLegend { display: flex; justify-content: center; gap: 18px; margin: 2px 0 0; font-size: 12px; color: var(--text2); }
 .webLegend span { display: inline-flex; align-items: center; gap: 6px; }
 .webLegend i { width: 14px; height: 10px; border-radius: 3px; }
 .webLegend i.now { background: rgb(var(--clayRgb) / 0.22); border: 1.5px solid var(--clay); }
-.webLegend i.ever { border: 1.4px dashed var(--clay); }
+.webLegend i.ever { border: 1.8px dashed #5B4A3F; }
+
+.webIntro { margin: 4px 8px 0; font-size: 13px; color: var(--text2); text-align: center; }
+.webNum { fill: var(--text2); font-weight: 400; opacity: 0.8; }
+.webRingName { font-size: 10.5px; fill: var(--text2); paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+.webRingName.elite { fill: var(--clayText); font-weight: 600; }
+.webLegend { margin-top: 6px; font-size: 13px; }

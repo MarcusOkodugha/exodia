@@ -1999,27 +1999,34 @@ const renderStrength = () => {
   const shape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.score)).map((value) => value.toFixed(1)).join(',')).join(' ');
   const everShape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.everScore)).map((value) => value.toFixed(1)).join(',')).join(' ');
   const labels = lifts.map((lift, index) => {
-    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 30), middle + Math.sin(angle(index)) * (radius + 30)];
+    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 26), middle + Math.sin(angle(index)) * (radius + 26)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
-    const now = lift.value ? `${levelWord(lift.score)} · ${lift.score.toFixed(1)}` : lift.ever ? 'Not lately' : 'Not logged';
-    const ever = lift.ever && lift.everScore - lift.score >= 0.1 ? `<text x="${x.toFixed(1)}" y="${(y + 32).toFixed(1)}" text-anchor="${anchor}" class="webEver">best ${levelWord(lift.everScore)} · ${lift.everScore.toFixed(1)}</text>` : '';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 17).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${now}</text>${ever}`;
+    const level = lift.value ? `${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? 'Not lately' : 'Not logged';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 17).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${level}</text>`;
   }).join('');
+  // The level names sit on their rings in the gap at the bottom, where there is room, so you can read where Elite is.
+  const gap = angle(Math.floor(lifts.length / 2)) + Math.PI / lifts.length;
+  const ringNames = [[2, 'Novice'], [3, 'Intermediate'], [4, 'Advanced'], [5, 'Elite']].map(([level, name]) => {
+    const distance = radius * (level / outer) * Math.cos(Math.PI / lifts.length);
+    return `<text x="${(middle + Math.cos(gap) * distance).toFixed(1)}" y="${(middle + Math.sin(gap) * distance + 3.5).toFixed(1)}" text-anchor="middle" class="webRingName${level === 5 ? ' elite' : ''}">${name}</text>`;
+  }).join('');
+  const everDots = lifts.map((lift, index) => lift.ever && lift.everScore - lift.score >= 0.1 ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="2.6" class="webEverDot"/>` : '').join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
-      <svg class="web" viewBox="-40 -14 400 366" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
+      <p class="webIntro">How strong each lift is for your bodyweight</p>
+      <svg class="web" viewBox="-40 -6 400 352" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
         ${[1, 2, 3, 4].map((level) => `<polygon points="${ring(level)}" class="webRing"/>`).join('')}
-        <polygon points="${ring(5)}" class="webRing elite"/>
         <polygon points="${ring(outer)}" class="webRing past"/>
-        <text x="${middle + 5}" y="${(point(0, 5)[1] + 13).toFixed(1)}" class="webRingLabel">Elite</text>
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
+        <polygon points="${ring(5)}" class="webRing elite"/>
         <polygon points="${everShape}" class="webEverShape"/>
         <polygon points="${shape}" class="webShape"/>
+        ${everDots}
         ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="3.5" class="webDot"/>` : '').join('')}
+        ${ringNames}
         ${labels}
       </svg>
-      <p class="webLegend"><span><i class="now"></i>Now · last 3 months</span><span><i class="ever"></i>All time</span></p>
-      <p class="webNote">Levels 1–5 are Beginner, Novice, Intermediate, Advanced and Elite from Strength Level's standards for ${Math.round(body.kg)} kg; past 5 is past Elite. The solid ring is Elite.</p>
+      <p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p>
     </section>`;
 };
 
