@@ -1258,3 +1258,10 @@ main.page { overflow-x: clip; }
 .webPick i { width: 14px; height: 10px; border-radius: 3px; flex: none; }
 .webPick[aria-pressed="true"] i { background: rgb(var(--clayRgb) / 0.22); border: 1.5px solid var(--clay); }
 .webPick[aria-pressed="false"] i { border: 1.8px dashed #5B4A3F; }
+/* Thinking lines: an Exodia line or a Marcus Aurelius quote, fading to the next; room for two lines so nothing jumps. */
+.ghostHead { align-items: center; min-height: 40px; }
+.thinkLine { display: block; transition: opacity 0.22s ease, transform 0.22s ease; }
+.thinkLine.swap { opacity: 0; transform: translateY(3px); }
+.thinkWho { margin-left: 4px; font-size: 13px; font-style: normal; -webkit-text-fill-color: var(--text2); color: var(--text2); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .thinkLine { transition: none; } }
+

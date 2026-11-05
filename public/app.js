@@ -786,7 +786,47 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 // line that it lands by itself, so nobody has to sit and watch it.
 // While the AI writes: the Exodia hand breathing softly inside a clay line that runs round it, growing and shrinking.
 const exoSpin = '<span class="exoSpin" aria-hidden="true"><svg viewBox="0 0 28 28"><circle class="exoTrack" cx="14" cy="14" r="12.5"/><circle class="exoSnake" cx="14" cy="14" r="12.5" pathLength="100"/></svg><img src="/logo.png" alt="" draggable="false"></span>';
-const writingLine = () => `<span class="ghostHead">${exoSpin}<span class="ghostText">Writing it down…</span></span>`;
+// What Exodia says while it thinks: short lines of its own and Marcus Aurelius (Meditations, George Long's public-domain
+// translation), shuffled per visit so it starts somewhere new, fading to the next every few seconds.
+const THINKING = ['Pondering…', 'Weighing it up…', 'Counting the plates…', 'Reading between the reps…', 'Writing it down…', 'Checking the numbers…', 'Finding the right day…', 'Thinking it through…'];
+const WISDOM = [
+  ['The universe is change; our life is what our thoughts make it.', 'Marcus Aurelius'],
+  ['No longer talk about the kind of man a good man ought to be, but be such.', 'Marcus Aurelius'],
+  ['Look within. Within is the fountain of good.', 'Marcus Aurelius'],
+  ['Very little indeed is necessary for living a happy life.', 'Marcus Aurelius'],
+  ['If it is not right, do not do it; if it is not true, do not say it.', 'Marcus Aurelius'],
+  ['Do every act of thy life as if it were the last.', 'Marcus Aurelius'],
+  ['Loss is nothing else than change.', 'Marcus Aurelius'],
+  ['The soul becomes dyed with the colour of its thoughts.', 'Marcus Aurelius'],
+  ['Confine thyself to the present.', 'Marcus Aurelius'],
+  ['No great thing is created suddenly.', 'Epictetus'],
+  ['Difficulties strengthen the mind, as labour does the body.', 'Seneca']
+];
+const shuffled = (list) => list.map((item) => [Math.random(), item]).sort((first, second) => first[0] - second[0]).map(([, item]) => item);
+const THINK_ORDER = (() => {
+  const lines = shuffled(THINKING);
+  const quotes = shuffled(WISDOM);
+  return lines.flatMap((line, index) => [line, quotes[index % quotes.length]]);
+})();
+let thinkStep = 0;
+const thinkText = () => {
+  const line = THINK_ORDER[thinkStep % THINK_ORDER.length];
+  return typeof line === 'string' ? esc(line) : `“${esc(line[0])}” <span class="thinkWho">${esc(line[1])}</span>`;
+};
+const writingLine = () => `<span class="ghostHead">${exoSpin}<span class="ghostText thinkLine">${thinkText()}</span></span>`;
+// While anything is being written, move every thinking line on together, with a soft fade between.
+setInterval(() => {
+  const shown = document.querySelectorAll('.thinkLine');
+  if (!shown.length) return;
+  thinkStep += 1;
+  shown.forEach((line) => {
+    line.classList.add('swap');
+    setTimeout(() => {
+      line.innerHTML = thinkText();
+      line.classList.remove('swap');
+    }, 220);
+  });
+}, 3200);
 const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine()}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
