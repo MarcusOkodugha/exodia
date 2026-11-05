@@ -7,6 +7,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CHANGES = 500;
 const MAX_RECORD = 80000;
 // Logging reads with full Flash models first; the Lite ones are only the fallback when those are busy.
+// Gemini models that just failed or hung, until when to skip them (per Worker instance).
+const COOLING = new Map();
 const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.7-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
 
 const PROMPT = `You turn a lifter's spoken or typed workout note into JSON.
@@ -585,26 +587,51 @@ const parse = async (request, env, ctx) => {
   let lastError = '';
   let busy = false;
   const system = `${PROMPT}\n${RAMBLE}${heard ? `\nWhisper, a strong speech-to-text tuned to gym words, heard: "${heard}". Use it together with the audio; when they disagree on a word, pick what makes sense for lifting.` : ''}${hint ? `\nThe phone's own live speech-to-text heard: "${hint}". It is often wrong, use it only as a last resort for unclear words.` : ''}\nToday is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Treat their words as changes to that workout (use replace or remove with that date) unless they clearly add new sets.` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}`;
-  const ask = async (list, rounds) => {
+  const trace = [];
+  const ask = async (all, rounds) => {
+    // Models that just failed sit out a minute (unless nothing else is left), so the next note doesn't wait on them.
+    const fresh = all.filter((model) => !(COOLING.get(model) > Date.now()));
+    const list = fresh.length ? fresh : all;
     for (let round = 0; round < rounds; round += 1) {
       if (round && !busy) break;
       if (round) await new Promise((resolve) => setTimeout(resolve, 1500 * round));
       for (const model of list) {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        const started = Date.now();
+        // Google sometimes hangs for minutes when busy; a normal answer takes 2–5 s, so give up on a model after a
+        // while and ask the next one instead of keeping the person waiting.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), audio ? 25000 : 15000);
+        let response;
+        try {
+          response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: system }] },
             contents: [{ role: 'user', parts: [...(audio ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }] : []), { text: text || 'Log the sets in this voice note.' }] }],
             generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: SCHEMA }
-          })
+          }),
+          signal: controller.signal
         });
-        if (!response.ok) {
-          lastError = `${model}: ${response.status} ${(await response.text()).slice(0, 160)}`;
-          busy = busy || response.status === 429 || response.status >= 500;
+        } catch (error) {
+          clearTimeout(timer);
+          trace.push({ model, status: 'timeout', ms: Date.now() - started });
+          COOLING.set(model, Date.now() + 60000);
+          lastError = `${model}: no answer in time`;
+          busy = true;
           continue;
         }
-        const data = await response.json();
+        trace.push({ model, status: response.status, ms: Date.now() - started });
+        if (!response.ok) {
+          clearTimeout(timer);
+          lastError = `${model}: ${response.status} ${(await response.text()).slice(0, 160)}`;
+          trace.at(-1).error = lastError.slice(0, 120);
+          busy = busy || response.status === 429 || response.status >= 500;
+          if (response.status === 429 || response.status >= 500) COOLING.set(model, Date.now() + 60000);
+          continue;
+        }
+        const data = await response.json().catch(() => null);
+        clearTimeout(timer);
         const output = data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
         try {
           return { result: clean(JSON.parse(output), today), model };
@@ -641,7 +668,7 @@ const parse = async (request, env, ctx) => {
     if (dates.length === 1 && (result.exercises?.length || result.cardioMinutes) && !result.move?.length && result.date !== dates[0]) result.date = dates[0];
     logCommand(request, env, ctx, body, text || result.transcript, { ...result, engine: found.model });
     keepAsFeedback(request, env, ctx, body, text || result.transcript, result);
-    return json({ ...result, engine: found.model });
+    return json({ ...result, engine: found.model, ...(body?.dry === true ? { trace } : {}) });
   }
   logCommand(request, env, ctx, body, text || 'Voice note', { error: `No AI model accepted it. ${lastError}` });
   if (busy) return json({ error: 'Google’s AI was busy. Your note is fine, try again in a minute.', transcript: heard }, 503);

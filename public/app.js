@@ -1336,26 +1336,28 @@ const muscleLevels = () => {
   }));
 };
 const tierOf = (level) => STRENGTH_TIERS.find(([from]) => level >= from) || null;
-// The head is Exodia's hand-and-eye logo, front and back: Exodia blue while you've hit Exodia; otherwise your average
-// level's colour in the Strength view, Exodia's own orange in Recovery. Drawn as a colour through a mask of the logo,
-// so its lines stay lighter like the real one.
-const headClass = (levels) => {
-  if (exodiaHit()) return 'tierElite';
-  if (!levels) return 'tierAdv';
-  const known = Object.values(levels).filter((level) => level > 0);
-  const tier = known.length ? tierOf(known.reduce((sum, level) => sum + level, 0) / known.length) : null;
-  return tier ? tier[2] : 'tierBeg';
+// The head turns into Exodia's hand once the whole body is there: orange when every muscle with a level is at least
+// Advanced, Exodia blue when every one is at least Elite; until then a normal head. Abs and calves have no standard
+// lift, so they don't count. Front shows the hand with its eye, the back the hand alone. Drawn as a colour through
+// a mask of the logo, so its lines stay lighter like the real one.
+const headTier = () => {
+  const levels = muscleLevels();
+  if (!levels) return null;
+  // Every muscle a standard lift trains counts; one not trained at all keeps the head normal.
+  const lowest = Math.min(...Object.keys(MUSCLE_LIFTS).map((key) => levels[key] || 0));
+  return lowest >= 5 ? 'tierElite' : lowest >= 4 ? 'tierAdv' : null;
 };
-const headLogo = (side, points, levels) => {
+const headLogo = (side, points, tier) => {
   const values = points.split(/[\s,]+/).map(Number);
   const xs = values.filter((_, index) => index % 2 === 0);
   const ys = values.filter((_, index) => index % 2 === 1);
   const size = 30;
   const [x, y] = [((Math.min(...xs) + Math.max(...xs)) / 2 - size / 2).toFixed(1), (Math.max(...ys) - size + 3).toFixed(1)];
-  return `<mask id="hamsa-${side}" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}"><image href="/hamsa-mask.png" x="${x}" y="${y}" width="${size}" height="${size}"/></mask><rect x="${x}" y="${y}" width="${size}" height="${size}" mask="url(#hamsa-${side})" class="bodyHead ${headClass(levels)}"/>`;
+  return `<mask id="hamsa-${side}" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}"><image href="/hamsa-mask${side === 'back' ? '-back' : ''}.png" x="${x}" y="${y}" width="${size}" height="${size}"/></mask><rect x="${x}" y="${y}" width="${size}" height="${size}" mask="url(#hamsa-${side})" class="bodyHead ${tier}"/>`;
 };
+let headTierNow = null;
 const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 -7 100 207" aria-hidden="true">${anatomy[side].map(([key, points]) => {
-  if (key === 'head') return headLogo(side, points, levels);
+  if (key === 'head') return headTierNow ? headLogo(side, points, headTierNow) : `<polygon points="${points}" class="bodyBone"/>`;
   if (levels) {
     const tier = key ? tierOf(levels[key] || 0) : null;
     return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
@@ -1366,6 +1368,7 @@ const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 
 const renderMuscles = () => {
   loadAnatomy();
   if (!anatomy || anatomy === 'loading') return '';
+  headTierNow = headTier();
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
