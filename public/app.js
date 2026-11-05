@@ -1336,7 +1336,16 @@ const MUSCLE_LIFTS = {
 // The same five colours as --tierBeg … in styles.css (SVG gradients need the values).
 const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#A9C4A6', tierInt: '#A88FB5', tierAdv: '#C96442', tierElite: '#7CA3DD' };
 // The level key, the same under the anatomy and under the strength web: the level's number in its colour, then its name.
-const levelKey = () => `<div class="levelKeyBox"><p class="levelKey">${[['tierBeg', 'Beginner'], ['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']].map(([tier, name], index) => `<span><b class="${tier}">${index + 1}</b>${name}</span>`).join('')}</p></div>`;
+// Tap a level (or the i) for what each level means; it opens under the key that was tapped.
+const LEVEL_WHAT = ['Does the movement right, about a month in', 'Has trained it regularly for 6 months', 'Has trained it regularly for 2 years', 'More than 5 years of steady progress', 'Years spent competing in strength sport'];
+const levelKey = (where) => {
+  const open = view.levelInfo?.where === where ? view.levelInfo.level : null;
+  const keys = [['tierBeg', 'Beginner'], ['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']];
+  return `<div class="levelKeyBox"><p class="levelKey">${keys.map(([tier, name], index) => `<button class="levelKeyItem" data-action="level-info" data-where="${where}" data-level="${index + 1}" aria-pressed="${open === index + 1}"><b class="${tier}">${index + 1}</b>${name}</button>`).join('')}<button class="infoBtn" data-action="level-info" data-where="${where}" data-level="0" aria-expanded="${open !== null}" aria-label="What the levels mean">i</button></p></div>
+    ${open === null ? '' : `<div class="levelInfo" role="note"><p class="levelInfoIntro">The share of people training each lift that a level is stronger than, for your bodyweight and sex.</p>
+      <div class="levelRows">${keys.map(([tier, name], index) => `<p class="levelRow${open === index + 1 ? ' on' : ''}"><b class="${tier}">${index + 1}</b><span class="levelName">${name}</span><span class="levelBeats num">Beats ${Math.round(LEVEL_BEATS[index] * 100)}%</span><span class="levelWhat">${LEVEL_WHAT[index]}</span></p>`).join('')}</div>
+      <p class="levelInfoNote">Strength Level, 6.4 million checked lifts, 2015–2026. Past Elite, Exodia counts raw meet results instead (OpenPowerlifting).</p></div>`}`;
+};
 const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
 const muscleLevels = () => {
   const body = state.body;
@@ -1397,7 +1406,7 @@ const renderMuscles = () => {
         return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${Math.min(levels[key], 9.9).toFixed(1)}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
-    ${levelKey()}`
+    ${levelKey('body')}`
     : `${bodyForm('Add your bodyweight to see your strength across your anatomy')}<div class="muscles emptyLevels">${bodySvg('front', load, {})}${bodySvg('back', load, {})}
       <div class="muscleList">${MUSCLES.map(([, label]) => `<div class="muscleRow muted"><i class="muscleSwatch tierNone"></i><span>${label}</span><span class="num tierWord">–</span></div>`).join('')}</div>
     </div>`}`;
@@ -1479,6 +1488,7 @@ const renderTrends = () => {
     ${renderMuscles()}
     ${desktopQuery.matches ? '' : `${renderStrength()}${renderVolume()}`}
     ${renderCalendar()}
+    ${desktopQuery.matches ? '' : renderImpressive()}
   </main>`;
 };
 
@@ -2268,11 +2278,162 @@ const renderStrength = () => {
         ${ringNumbers}
         ${labels}
       </svg>
-      ${levelKey()}
+      ${levelKey('web')}
     </section>`;
 };
 
+// How rare a lift is. Two sources, each where it holds up:
+// 1. Up to Elite: Strength Level's own definition of its levels, the share of people training the lift that each
+//    level is stronger than: Beginner 5%, Novice 20%, Intermediate 50%, Advanced 80%, Elite 95%
+//    (strengthlevel.com/strength-standards, 6,393,746 checked lifts from 16 March 2015 to 10 March 2026). Between two
+//    levels the share moves evenly on a log scale.
+// 2. Past Elite, for squat, bench and deadlift: OpenPowerlifting raw meet results (openpowerlifting.org rankings, every
+//    lifter's best raw lift, read 5 November 2026). MEETS holds, per sex and IPF weight class (999 = the top class),
+//    the number of lifters in that class and the kg at the top 50%, 30%, 20%, 10%, 5%, 2%, 1%, 0.5%, 0.2%, 0.1%,
+//    0.05%, 0.02% and the class record (top 1 lifter). Your kg gives your share of your class; that share of all raw
+//    meet lifters of your sex (`all`) is how many people "at your bodyweight" have done it in a meet. We assume as many
+//    again do it without ever competing (no source counts them; this is our assumption, so we double it). Against
+//    about 2.7 billion adults of each sex (UN World Population Prospects 2024: 4.14 bn men and 4.09 bn women in 2025,
+//    about two thirds of them 20 or older), that gives "about 1 in N".
+//    Example, men's deadlift: 15,459 men have pulled 300 kg or more raw in a meet (of 330,925). At 100 kg bodyweight
+//    300 kg is the top 5.6% of the up-to-105 kg class (72,508 men): 5.6% of 330,925, doubled, is about 37,000 people,
+//    so about 1 in 73,000 men.
+// Below Elite meet results would overstate it (most people who train never compete), so they're only used past Elite.
+const LEVEL_BEATS = [0.05, 0.2, 0.5, 0.8, 0.95];
+const MEET_SHARES = [0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002];
+const ADULTS = 2.7e9;
+const MEETS = {
+  "squat": {
+    male: { all: 287436, classes: [
+      [59, 10878, [120, 140, 152.5, 170, 182.5, 195, 202.5, 210, 225.5, 230.5, 245, 250, 270]],
+      [66, 24563, [145, 163, 175, 190, 202.5, 215, 225, 235, 247.5, 252.5, 258.5, 263, 278]],
+      [74, 52697, [165, 182.5, 192.5, 207.5, 220, 235, 245, 255, 265, 272.5, 280, 290.5, 341]],
+      [83, 79867, [180, 200, 210, 227.5, 240, 255, 265, 275, 288, 297.5, 305, 315.5, 353]],
+      [93, 77693, [195, 215, 227.5, 242.5, 257.5, 275, 285, 295.5, 310, 317.5, 330, 340.6, 365.5]],
+      [105, 62115, [207.5, 230, 242.5, 260, 275, 295, 305, 317.5, 330, 340, 347.5, 367.5, 398]],
+      [120, 37194, [220, 244.9, 260, 280, 297.5, 317.5, 330, 340.5, 355, 367.5, 375, 387.5, 411]],
+      [999, 21396, [233.6, 260, 280, 305, 325.5, 350, 370, 390, 412.5, 425, 435, 468, 490.5]]
+    ] },
+    female: { all: 134157, classes: [
+      [47, 4776, [77.5, 90, 97.5, 107.5, 117.5, 127.5, 133, 141, 150, 152.5, 155, 165, 170.5]],
+      [52, 12894, [87.5, 100, 107.5, 120, 127.5, 140, 145, 152.5, 160, 165, 171.5, 175, 182.5]],
+      [57, 20914, [97.5, 110, 117.5, 127.5, 137.5, 150, 157.5, 165, 172.5, 180, 186.5, 190, 220]],
+      [63, 30897, [102.5, 115, 125, 137.5, 145.5, 157.5, 167.5, 175, 182.5, 190, 200, 208, 230.5]],
+      [69, 30366, [110, 122.5, 132.5, 145, 155, 170, 177.5, 187.5, 197.5, 205, 210, 220, 227.5]],
+      [76, 28059, [115, 130, 140, 152.5, 165, 180, 190, 200, 207.5, 215, 225, 232.5, 282.5]],
+      [84, 19705, [117.9, 135, 145, 160, 170, 185, 195, 205, 220, 227, 230, 245, 290]],
+      [999, 22524, [125, 142.5, 155, 172.5, 187.5, 205, 217.5, 230, 250, 265, 276.5, 282.5, 320]]
+    ] },
+  },
+  "bench-press": {
+    male: { all: 403233, classes: [
+      [59, 16970, [80, 95, 102.5, 115, 125, 140, 155, 168.5, 180, 187, 192.5, 200, 211]],
+      [66, 35435, [95, 107.5, 115, 127.5, 137.5, 150, 158.7, 168, 180, 191, 197.5, 207, 222.5]],
+      [74, 73543, [110, 120.2, 130, 140, 150, 160, 170, 177.5, 190, 197.5, 210, 220, 250.5]],
+      [83, 111463, [122.5, 135, 142.8, 155, 165, 177.5, 185.9, 195, 205, 212.5, 220, 230, 250]],
+      [93, 105881, [132.5, 147.4, 155, 170, 180, 192.5, 200, 208.6, 220, 227.5, 235, 247.5, 280]],
+      [105, 88053, [145, 160, 170, 183.7, 195, 210, 218, 227.5, 238.1, 245, 252.5, 261, 290]],
+      [120, 55205, [155, 172.5, 185, 200, 210.9, 226.8, 235, 245, 255, 265, 272.1, 280, 310]],
+      [999, 32810, [165, 185.9, 200, 217.5, 230, 247.5, 260, 272.1, 285, 294.8, 305, 312.5, 355]]
+    ] },
+    female: { all: 160003, classes: [
+      [47, 6275, [45, 52.1, 57.5, 65, 72.5, 80, 90, 98, 107.5, 112, 118, 127.5, 135]],
+      [52, 16974, [50, 57.5, 61, 70, 75, 85, 92.5, 100, 107.5, 114, 126, 130, 141]],
+      [57, 25981, [52.5, 60, 65.7, 75, 82.5, 90, 97.5, 105, 113, 120, 125, 133.5, 143]],
+      [63, 37111, [57.5, 65, 70, 77.5, 85, 95, 102.5, 110, 117.5, 123, 132.5, 137.5, 145]],
+      [69, 35940, [60, 70, 75, 82.5, 92.5, 102.5, 110, 117.5, 127, 135, 142.5, 147.5, 158]],
+      [76, 32583, [62.5, 72.5, 77.5, 87.5, 97.5, 110, 117.5, 125, 132.5, 140, 145, 150.5, 170.5]],
+      [84, 22858, [65, 74.8, 80, 90, 100, 112.5, 122.5, 131, 140, 147, 152.5, 160, 172.5]],
+      [999, 26495, [67.5, 77.5, 85, 95, 105, 117.9, 130, 138.3, 150, 160, 167.5, 177.5, 207.5]]
+    ] },
+  },
+  "deadlift": {
+    male: { all: 330925, classes: [
+      [59, 12444, [150, 170, 182.5, 200, 215, 227.5, 240, 250, 262.5, 275.5, 283.5, 293, 303]],
+      [66, 27769, [175, 195, 205, 222, 235, 250, 260.5, 272.5, 285, 295, 300, 308, 345]],
+      [74, 59854, [195, 212.5, 225, 240, 252.5, 270, 280, 290, 302.5, 310.5, 320, 330.5, 365]],
+      [83, 91478, [210, 230, 240, 257.5, 272.5, 288, 300, 310, 322.5, 332.5, 342.5, 360, 405]],
+      [93, 88527, [225, 245, 255, 272.5, 287.5, 305, 317.5, 327.5, 340, 352.5, 362.5, 375, 413]],
+      [105, 72508, [235, 257.5, 270, 287.5, 302.5, 320, 332, 342.5, 360, 370, 380, 390, 447.5]],
+      [120, 44528, [245, 270, 280.5, 300, 317.5, 335, 347.5, 362.5, 377.5, 385.5, 400, 415, 472.5]],
+      [999, 26210, [250, 277.5, 292.5, 317.5, 332.5, 352.5, 367.5, 380, 400, 410, 418.5, 437.5, 492.5]]
+    ] },
+    female: { all: 149764, classes: [
+      [47, 5333, [100, 112.5, 120, 132.5, 142.5, 152.5, 160, 167.5, 175, 186, 188.5, 197.5, 212.5]],
+      [52, 14852, [110, 122.5, 130, 142.5, 152.5, 162.5, 170, 177.5, 185, 190, 200, 207.5, 220.5]],
+      [57, 23504, [117.5, 132.5, 140, 152.5, 162.5, 173, 182.5, 190, 200, 205, 212.5, 225, 238]],
+      [63, 34508, [125, 140, 147.5, 160, 170, 182.5, 190, 200, 210, 216, 226, 232.5, 241.5]],
+      [69, 33976, [130, 145, 155, 167.5, 180, 192.5, 201, 210, 222.5, 230, 240, 242.5, 260]],
+      [76, 30995, [137.5, 150, 160, 175, 186, 200, 210, 220, 230, 240, 250, 261.5, 280]],
+      [84, 21690, [140, 155, 165, 180, 192.5, 205, 217.5, 227.5, 240, 252.6, 262.5, 270, 282.5]],
+      [999, 25347, [142.8, 160, 170, 185, 200, 212.5, 227.5, 237.5, 255, 262.5, 272.5, 289, 297.5]]
+    ] },
+  },
+};
+// The share of people training a lift who are at least this strong, from Strength Level's levels (score 1 … 5).
+const topShare = (score) => {
+  if (score >= 5) return 1 - LEVEL_BEATS[4];
+  if (score < 1) return 1 - LEVEL_BEATS[0] * Math.max(0, score);
+  const index = Math.floor(score) - 1;
+  const [from, to] = [1 - LEVEL_BEATS[index], 1 - LEVEL_BEATS[index + 1]];
+  return from * (to / from) ** (score - Math.floor(score));
+};
+const IPF_CLASSES = { male: [59, 66, 74, 83, 93, 105, 120], female: [47, 52, 57, 63, 69, 76, 84] };
+// Your share of your weight class in raw meets, or null when the lift has no meet data or you're below its middle.
+const meetShare = (key, sex, bodyweight, kg) => {
+  const meets = MEETS[key]?.[sex];
+  if (!meets) return null;
+  const limit = IPF_CLASSES[sex].find((top) => bodyweight <= top) || 999;
+  const [, lifters, marks] = meets.classes.find(([top]) => top === limit);
+  const shares = [...MEET_SHARES, 1 / lifters];
+  if (kg < marks[0]) return null;
+  const above = marks.findIndex((mark) => mark > kg);
+  if (above === -1) return { share: 1 / lifters, lifters, limit, all: meets.all, record: true };
+  const share = shares[above - 1] * (shares[above] / shares[above - 1]) ** ((kg - marks[above - 1]) / (marks[above] - marks[above - 1]));
+  return { share, lifters, limit, all: meets.all };
+};
+const roughly = (number) => {
+  if (number >= 1e6) return `${Number((number / 1e6).toPrecision(2))} million`;
+  return Number(number.toPrecision(2)).toLocaleString('en-GB');
+};
+const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 1 : 2))}%`;
+const classText = (limit, sex) => (limit === 999 ? `over ${IPF_CLASSES[sex].at(-1)} kg` : `up to ${limit} kg`);
+// The lift with the highest level, all time, and how rare it is.
+const impressiveLift = () => {
+  const body = state.body;
+  if (!body?.kg || !body?.sex) return null;
+  const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks && lift.ever > 0);
+  const best = lifts.sort((first, second) => second.everScore - first.everScore)[0];
+  if (!best || best.everScore < 1) return null;
+  const people = body.sex === 'male' ? 'men' : 'women';
+  const meet = best.everScore >= 5 && !best.reps ? meetShare(best.key, body.sex, body.kg, best.ever) : null;
+  if (meet) {
+    const odds = ADULTS / (meet.share * meet.all * 2);
+    return { lift: best, rare: `About 1 in ${roughly(odds)} ${people}`, fact: meet.record ? `Heavier than every raw meet result at ${classText(meet.limit, body.sex)} (${meet.lifters.toLocaleString('en-GB')} ${people})` : `Top ${shareText(meet.share)} of ${meet.lifters.toLocaleString('en-GB')} ${people} in raw meets at ${classText(meet.limit, body.sex)}`, source: `OpenPowerlifting raw meet results, doubled for people who never compete, against 2.7 billion adult ${people}.` };
+  }
+  const share = topShare(best.everScore);
+  const next = best.everScore < 5 ? `${LEVELS[Math.floor(best.everScore)]} from ${best.reps ? `${Math.max(0, Math.round(best.marks[Math.floor(best.everScore)] - body.kg))} kg added` : `${Math.round(best.marks[Math.floor(best.everScore)])} kg`}` : '';
+  return { lift: best, rare: best.everScore >= 5 ? `Rarer than 1 in 20 people who train it` : share > 0.5 ? `Stronger than ${Math.round((1 - share) * 100)}% of people who train it` : `About 1 in ${Math.round(1 / share)} people who train it`, fact: next, source: 'Strength Level: 6.4 million checked lifts, 2015–2026.' };
+};
+const renderImpressive = () => {
+  const found = impressiveLift();
+  if (!found) return '';
+  const { lift, rare, fact, source } = found;
+  const tier = tierOf(lift.everScore)?.[2] || 'tierBeg';
+  const kg = lift.reps ? `${Math.max(0, Math.round(lift.ever - state.body.kg))} kg added` : `${Math.round(lift.ever)} kg`;
+  return `<p class="section">Your most impressive lift</p>
+    <div class="feat">
+      <p class="featTop"><span class="featLift">${esc(lift.label === 'Overhead' ? 'Overhead press' : lift.label)} <span class="featKg num">${kg}</span></span><span class="featLevel"><i class="muscleSwatch ${tier}"></i>${levelWord(lift.everScore)} <span class="num">${Math.min(lift.everScore, 9.9).toFixed(1)}</span></span></p>
+      <p class="featRare num">${rare}</p>
+      ${fact ? `<p class="featFact num">${fact}</p>` : ''}
+      <p class="featSource">Best estimated one-rep max, all time. ${source}</p>
+    </div>`;
+};
+
+// The computer's right panel. On Trends the middle already has the lift chart, so the panel holds what the phone shows
+// under it instead (strength level, volume, most impressive lift); nothing appears twice.
 const renderProgress = () => {
+  if (view.route === 'trends') return `<div class="rightTrends">${renderStrength()}${renderVolume()}${renderImpressive()}</div>`;
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
     for (const exercise of session.exercises) {
@@ -5124,6 +5285,11 @@ document.addEventListener('click', (event) => {
     view.rulesEnter = view.exodiaOpen;
   }
   else if (action === 'toggle-info') view.info = !view.info;
+  else if (action === 'level-info') {
+    const level = Number(target.dataset.level);
+    const where = target.dataset.where;
+    view.levelInfo = view.levelInfo?.where === where && (view.levelInfo.level === level || !level) ? null : { where, level };
+  }
   else if (action === 'confirm-yes') answerConfirm(true);
   else if (action === 'import-yes') answerImport(true);
   else if (action === 'import-no') answerImport(false);

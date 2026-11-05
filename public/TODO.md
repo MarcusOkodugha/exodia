@@ -19,9 +19,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Write the note "started 7 March 2024" and tap **↑**
 ## To do (Claude)
 
-- [ ] "Your most impressive lift" at the bottom of Trends: the lift, its level, and how rare it is with real sourced numbers (e.g. 300 kg deadlift ≈ a few thousand people ever, so about 1 in millions), not a percentile guess.
-- [ ] Level info in the strength web: tap a level (Beginner … Elite +) or an (i) to see what it means and how many lifters it beats, with real numbers.
-- [ ] Desktop Trends: decide what sits in the middle and what only on the right, and make phone and desktop show the same things.
 - [ ] Voice: show the words while it's still working.
 - [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
 - [ ] Smoothness pass: find everything that jumps instead of animating.
@@ -31,6 +28,10 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+
+- "Your most impressive lift" at the bottom of Trends (computer: bottom of the right panel): your highest-level lift all time, its level, and how rare it is. Up to Elite from Strength Level's own definitions (Beginner beats 5% of people training the lift … Elite 95%); past Elite from OpenPowerlifting raw meet results per weight class, doubled for people who never compete, against 2.7 bn adults of your sex. 300 kg deadlift: 15,459 men have done it raw in a meet; at 100 kg bodyweight that's about 1 in 73,000 men (not 1 in millions). Sources in the code comment above MEETS (v278)
+- Strength level key (web and anatomy): tap a level or the i for what each level means, its share beaten and how long it takes (v278)
+- Computer Trends: middle has the lift chart, anatomy and calendar; the right panel has strength level, volume and most impressive lift (it used to repeat the lift chart). Same things as the phone, none twice (v278)
 
 - Notes about 4× faster (low thinking, 1.5–2 s; a slow model gets 7 s, then the next one); slim clay update pill that grows in place (UI/UX-reviewed); a writing skeleton on the set grid where the note lands; new users no longer get a stored bench best; Isabella's Home Screen profile filled in by hand (v275–v276)
 - Own private link stays in the address bar once you've started, so Add to Home Screen keeps your log and name (Isabella's name vanished); example data never blocks or mixes into a joined link; football, cycling etc. keep their name and still count for Move; one clay update card that opens in place; set counts only on repeated sets; Brzycki/Epley wording; move-to dates old → new (v274)

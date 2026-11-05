@@ -36,7 +36,7 @@ const log = [
   { at: Date.now() - 400000, said: 'Voice note', did: ['Not logged: no sound recorded (1 KB)'] },
   { at: Date.now() - 300000, said: 'Pasted from a spreadsheet · 412 rows', did: ['Added 118 days, 1904 sets'] }
 ];
-const full = { version: 1, deviceId: 'screens', name: 'Marcus', started: true, bests: {}, sessions, log, feedback: [{ at: Date.now() - 86400000, said: 'Add a rest timer', kind: 'idea', title: 'Rest timer between sets' }], claudeRuns: [{ at: Date.now() - 3600000, said: 'Make the trends buttons bigger', url: '' }] };
+const full = { version: 1, deviceId: 'screens', name: 'Marcus', started: true, bests: {}, body: { kg: 92, sex: 'male' }, sessions, log, feedback: [{ at: Date.now() - 86400000, said: 'Add a rest timer', kind: 'idea', title: 'Rest timer between sets' }], claudeRuns: [{ at: Date.now() - 3600000, said: 'Make the trends buttons bigger', url: '' }] };
 
 const shots = [
   ['home', '#/', null],
@@ -47,6 +47,8 @@ const shots = [
   ['home-chat-pulled', '#/', async (page) => { await page.click('.dock .prompt .hint', { force: true }); await page.waitForTimeout(300); await page.click('.grabber'); }],
   ['trends', '#/trends', null],
   ['trends-more', '#/trends', async (page) => page.click('[data-action="trend-more"]')],
+  ['trends-level-info', '#/trends', async (page) => { await page.click('.webCard [data-action="level-info"][data-level="4"]'); await page.locator('.webCard .levelInfo').scrollIntoViewIfNeeded(); }],
+  ['trends-bottom', '#/trends', async (page) => { await page.evaluate(() => { const right = document.querySelector('.right'); if (right) right.scrollTop = right.scrollHeight; window.scrollTo(0, document.body.scrollHeight); }); }],
   ['log', '#/log', null],
   ['import', '#/import', null],
   ['feedback', '#/feedback', null],
@@ -56,7 +58,7 @@ const shots = [
   ['onboarding', '#/', null, 'all', 'fresh'],
   ['link-offer', 'me/' + 'a'.repeat(32), null, 'all', 'fresh']
 ];
-const sizes = [['phone', 393, 852], ['small', 375, 812], ['desktop', 1440, 900]].filter(([, width]) => !only || width === only);
+const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['desktop', 1440, 900]].filter(([, width]) => !only || width === only);
 
 (async () => {
   const browser = await chromium.launch();
