@@ -27,12 +27,22 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
 
 ## Continuing from another Claude account
 
-Everything a new session needs is in this repo: this file, `public/TODO.md` (open list + what waits on Marcus) and `git log`. To continue on another account:
+Everything a new session needs is in this repo: this file, `public/TODO.md` (open list + what waits on Marcus) and `git log`. Nothing lives only in a chat. To continue on another account:
 
-1. On claude.ai/code with the other account, connect GitHub (the account that owns MarcusOkodugha/exodia) and start a session on this repo.
-2. In that session's cloud environment, add the environment variables `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the same values as here; Marcus copies it from Cloudflare → My Profile → API Tokens, never pasted in chat), so `npx wrangler` can deploy and read D1.
-3. The admin panel's "Change the app" fires a scheduled task that belongs to the account that created it. On a new account, create a new "Exodia change" scheduled task there (with this repo attached and an API trigger), then set its URL and token with `npx wrangler secret put CLAUDE_TASK_URL` and `npx wrangler secret put CLAUDE_TASK_TOKEN`.
-4. First message to the new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
+1. On [claude.ai/code](https://claude.ai/code) with the other account, connect GitHub (the account that owns MarcusOkodugha/exodia) and start a session on this repo.
+2. In that session's cloud environment settings, add the environment variables `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Marcus copies them from Cloudflare → My Profile → API Tokens, and the account ID from the Cloudflare dashboard; never pasted in chat), so `npx wrangler` can deploy and read D1.
+3. First message to the new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
+4. The admin panel's "Change the app" fires a scheduled task that belongs to the account that made it, and today it delivers into one chat on the old account. On the new account:
+   - The new session creates its own "Exodia change → this chat" scheduled task bound to itself (create_trigger, persistent to the session, same prompt as before: find the code, follow CLAUDE.md, push to main, confirm the deploy).
+   - Marcus opens it at [claude.ai/code/scheduled](https://claude.ai/code/scheduled), turns on its API trigger and copies the URL and the token.
+   - Marcus runs in Terminal on his Mac, one at a time: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL` (paste the URL) and `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN` (paste the token).
+   - The session sends a test request from the admin panel and checks it arrives.
+
+## Design decisions (keep unless Marcus changes them)
+
+- Strength levels use five colours everywhere (anatomy Strength view, spider web, keys), defined once as `--tierBeg`, `--tierNov`, `--tierInt` in `styles.css` plus `--clay` and `--exodiaBlue`: grey, sage, soft purple, clay, Exodia blue. `TIER_COLOURS` in `app.js` repeats them for SVG gradients. Recovery stays clay only.
+- Strength web: straight lines (`WEB_CURVE = 0`), legs at the top, push on the right, pull on the left; rings 2–5 (Novice–Elite) in the level colours with their numbers; no Beginner ring.
+- Strength Level standards are per-bodyweight tables in `STANDARDS` (strengthlevel.com itself is blocked from cloud sessions).
 
 ## Open list
 

@@ -6,11 +6,11 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Attach the code to the admin task.** Without it, "Change the app" and "Ask Exodia builder" start a session that has no copy of the app, so nothing gets built.
-  1. Open [claude.ai/code/scheduled](https://claude.ai/code/scheduled)
-  2. Tap **Show** (1 hidden scheduled task)
-  3. Open **Exodia change → this chat**, then **Edit**
-  4. Add the repository **MarcusOkodugha/exodia**, then **Save**
+- [ ] **When you switch Claude account: set up the admin task there.** "Change the app" sends to a scheduled task on the account that made it; a new account needs its own.
+  1. On the new account, start a session on this repo at [claude.ai/code](https://claude.ai/code) and add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to its environment
+  2. First message: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue." It creates the task and tells you the rest
+  3. In [claude.ai/code/scheduled](https://claude.ai/code/scheduled) open the new task, turn on **API trigger**, copy the URL and token
+  4. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL`, paste the URL; then the same with `CLAUDE_TASK_TOKEN` and the token
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
 - [ ] **Add your 7-week program Excel again.** The first try only kept 8 days; those were removed, and the import now reads every sheet.
   1. In Exodia tap **+**, then **Import from a file**, and pick the Excel
@@ -27,6 +27,13 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- "Every session" calendar at the bottom of Trends, GitHub style: orange by tonnage, PR days Exodia blue, scrolls back, tap opens the day (v263)
+- Strength level colours decided (F): grey, sage, soft purple, clay, Exodia blue, the same in anatomy, spider web and keys; traps from deadlift 75% / row 25% (v262)
+- Strength web: straight lines (decided), ring numbers 2–5, legs top / push right / pull left, coloured rings with a key, "Incline bench" (v260–v262)
+- Anatomy: full-width Recovery / Strength switch, traps in the list, full level + number on the computer, stronger recovery colours (v257–v260)
+- Bodyweight set on one device shows on all; no bodyweight question before the first sync (v257)
+- Strength level spider web (Strength Level standards by bodyweight, now + all time), anatomy Strength view, +kg bodyweight lifts, move-date picker, voice dates any year, no invented sets (v250–v256)
+- Busy AI / offline: messages wait and land by themselves; stronger second look; PStack interrogate: 25 problems fixed (v244–v246)
 - Fixed: picking a file did nothing (the picker sat inside a button that redrew on click, so the file was lost); now one permanent picker; voice note with a file becomes its note; clear messages for empty files; tested 21 files by clicking the real button with the live AI (v237)
 - Opens much faster: Exodia hits and PR checks no longer re-read the whole history for every day and set (6 years of data: 7 s → 1 s on a slow phone) (v236)
 - Fixed: changing a past day could change the most recent day with the same weekday, even years away; now only within 7 days of the date you meant (v235)
