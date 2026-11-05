@@ -1436,6 +1436,7 @@ const renderTrends = () => {
     ${names.length ? `<div class="list">${card(view.trendOpen).replace(/<\/section>\s*$/, `${liftPicker(big, rest, history)}</section>`)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
     ${desktopQuery.matches ? '' : `${renderStrength()}${renderVolume()}`}
+    ${renderCalendar()}
   </main>`;
 };
 
@@ -1933,6 +1934,76 @@ const isoWeek = (iso) => {
   const date = new Date(`${iso}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
   return Math.ceil(((date - Date.UTC(date.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+};
+
+// Every training day, GitHub style: one square per day, a column per week (Monday on top), newest on the right.
+// Darker orange is a heavier day (tonnage, in four steps by your own days), Exodia blue a day with a PR.
+// It scrolls back to your first session; tap a day to open it.
+const calendarDays = () => remember('calendar', () => {
+  const days = new Map();
+  const best = new Map();
+  const single = new Map();
+  const seen = new Map();
+  const before = (map, name) => Math.max(0, ...countsFor(name).map((other) => map.get(other) || 0));
+  for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
+    let pr = false;
+    const today = [];
+    for (const exercise of session.exercises) {
+      const sets = validSets(exercise).filter((set) => !set.warmup);
+      if (!sets.length) continue;
+      const topEstimate = Math.max(...sets.map(setEstimate));
+      const topSingle = Math.max(0, ...sets.filter((set) => Number(set.reps) === 1).map((set) => Number(set.kg)));
+      // Same rule as the PR badges: only after three earlier days of the lift, and only against logged sets.
+      if (before(seen, exercise.name) >= 3 && (topSingle > before(single, exercise.name) || topEstimate > before(best, exercise.name) + 0.01)) pr = true;
+      today.push([exercise.name, topEstimate, topSingle]);
+    }
+    for (const [name, topEstimate, topSingle] of today) {
+      best.set(name, Math.max(best.get(name) || 0, topEstimate));
+      single.set(name, Math.max(single.get(name) || 0, topSingle));
+      seen.set(name, (seen.get(name) || 0) + 1);
+    }
+    const known = days.get(session.date);
+    days.set(session.date, { volume: (known?.volume || 0) + sessionVolume(session), pr: Boolean(known?.pr || pr) });
+  }
+  // Four shades by your own heavy and light days, so it reads the same for a beginner and for you.
+  const volumes = [...days.values()].map((day) => day.volume).filter(Boolean).sort((first, second) => first - second);
+  const cut = (share) => volumes[Math.floor((volumes.length - 1) * share)] || 0;
+  return { days, steps: [cut(0.25), cut(0.5), cut(0.75)] };
+});
+const renderCalendar = () => {
+  if (!state.sessions.length) return '';
+  const { days, steps } = calendarDays();
+  const today = todayIso();
+  const monday = (iso) => addDays(iso, -((parseIso(iso).getDay() + 6) % 7));
+  const first = [...days.keys()].sort()[0];
+  const start = monday([first, addDays(today, -364)].sort()[0]);
+  const weeks = [];
+  for (let week = start; week <= today; week = addDays(week, 7)) weeks.push(week);
+  const since = addDays(today, -364);
+  const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
+  const cells = weeks.map((week, index) => {
+    const month = parseIso(week).getMonth();
+    const newMonth = index === 0 || parseIso(weeks[index - 1]).getMonth() !== month;
+    const label = newMonth ? (month === 0 ? week.slice(0, 4) : 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')[month]) : '';
+    const daysOfWeek = [0, 1, 2, 3, 4, 5, 6].map((offset) => {
+      const date = addDays(week, offset);
+      if (date > today) return '<i class="calDay future"></i>';
+      const day = days.get(date);
+      if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
+      const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
+      const text = `${dayLabel(date)} · ${tonnes(day.volume)}${day.pr ? ' · PR' : ''}`;
+      return `<button class="calDay ${day.pr ? 'pr' : `shade${shade}`}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
+    }).join('');
+    return `<span class="calMonth">${label}</span>${daysOfWeek}`;
+  }).join('');
+  return `<p class="section calHead">Every session <span class="calCount num">${lastYear} in the last 12 months</span></p>
+    <section class="card calCard">
+      <div class="calWrap">
+        <div class="calWeekdays" aria-hidden="true"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
+        <div class="calScroll"><div class="calGrid" role="group" aria-label="Training days, newest on the right">${cells}</div></div>
+      </div>
+      <p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span></p>
+    </section>`;
 };
 
 const renderVolume = () => {
