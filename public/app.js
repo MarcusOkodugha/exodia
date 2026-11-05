@@ -375,6 +375,11 @@ const ensureSession = (date) => {
 const validSets = (exercise) => exercise.sets.filter((set) => Number(set.kg) >= 0 && Number(set.reps) > 0 && set.kg !== '' && set.reps !== '');
 const sessionVolume = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).reduce((total, set) => total + Number(set.kg) * Number(set.reps), 0), 0);
 const sessionSets = (session) => session.exercises.reduce((sum, exercise) => sum + validSets(exercise).length, 0);
+// Bodyweight lifts (pull-ups, chin-ups, dips, push-ups, muscle-ups): the kg logged is what was added on top of you,
+// so with a bodyweight saved, estimates use bodyweight + added, like other apps do.
+const BODYWEIGHT_LIFT = /pull-?\s?ups?|chin-?\s?ups?|\bdips?\b|push-?\s?ups?|muscle-?\s?ups?/i;
+const isBodyweightLift = (name) => BODYWEIGHT_LIFT.test(String(name || ''));
+const bodyLoad = (name, kg) => (isBodyweightLift(name) && Number(state.body?.kg) > 0 ? Number(kg || 0) + Number(state.body.kg) : Number(kg));
 const repsInTank = (set) => (Number(set.rpe) >= 1 ? Math.min(5, Math.max(0, 10 - Number(set.rpe))) : 0);
 const setEstimate = (set) => (set.warmup ? 0 : estimate(Number(set.kg), Number(set.reps) + repsInTank(set)));
 // The day's estimate comes from its sets of 1–10 reps (counting reps left in the tank). Higher-rep sets only count
@@ -385,7 +390,7 @@ const estimateSets = (exercise) => {
   return heavy.length ? heavy : sets;
 };
 const estimateSet = (exercise) => estimateSets(exercise).reduce((winner, set) => (!winner || setEstimate(set) > setEstimate(winner) ? set : winner), null);
-const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map(setEstimate));
+const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map((set) => (isBodyweightLift(exercise.name) ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : setEstimate(set))));
 
 const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
 const countsFor = (name) => [name, ...(HARDER_VARIANTS[name] || [])];
@@ -736,7 +741,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   const rows = groups.map(({ start, count }, groupIndex) => {
     const set = exercise.sets[start];
     const lastRow = groupIndex === groups.length - 1;
-    const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(Number(set.kg), Number(set.reps) + repsInTank(set)) : 0;
+    const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : 0;
     const pr = prKind(exercise.name, session.date, set);
     const numbers = count > 1 ? `${count}×` : `${start + 1}`;
     const label = `${esc(exercise.name)}, ${count > 1 ? `${count} sets` : `set ${numbers}`}`;
@@ -744,7 +749,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
     return `<div class="swipe setSwipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
       ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${numbers}</span>`}
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" ${where} data-field="kg">
-      <span class="unit">kg</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
+      <span class="unit">${isBodyweightLift(exercise.name) ? '+kg' : 'kg'}</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
       <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" ${where} data-field="reps">
       ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num"><span class="rpeText">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>${lastRow ? `<button class="rowPlus" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Add a ${esc(exercise.name)} set">${ICONS.plusThin}</button>` : ''}</span>`}
       <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${best && value ? `${Math.round((value / best) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
@@ -809,7 +814,7 @@ const daySummary = (session) => {
     ...(accessoriesOf(session) ? [`Accessories ${accessoriesOf(session)} min`] : [])
   ];
   const row = ({ name, set }) => {
-    return dayRow(name, dayPrKind(session, name), set.kg, set.reps, e1rmCell(estimate(Number(set.kg), Number(set.reps) + repsInTank(set))));
+    return dayRow(name, dayPrKind(session, name), isBodyweightLift(name) ? (Number(set.kg) > 0 ? `+${set.kg}` : 'BW') : set.kg, set.reps, e1rmCell(estimate(bodyLoad(name, set.kg), Number(set.reps) + repsInTank(set))));
   };
   if (!first) return session.cardio ? dayRow('Cardio', false, session.cardio, 'min', '') : dayRow('Nothing logged yet', false, '', '', '');
   return `${row(first)}${second ? row(second) : ''}${others.length ? `<span class="dayOthers">+ ${esc(others.join(', '))}</span>` : ''}`;
@@ -836,7 +841,7 @@ const renderSession = (session) => {
     </div>
     ${open && editing && view.menuEnter ? '<span class="editHint" aria-hidden="true"></span>' : ''}${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
       <p class="dayMenuLabel">Move to</p>
-      <div class="days scroll">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
+      <div class="days scroll"><label class="chip pickDate"><span class="chipFace">${ICONS.calendar || ''}Pick a date</span><input type="date" max="${todayIso()}" value="${session.date}" data-move-from="${session.date}" aria-label="Move ${dayLabel(session.date)} to a date"></label>${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
       <button class="textBtn danger" data-action="delete-day" data-date="${session.date}">Delete day</button>
     </div>` : ''}
     ${open ? `
@@ -1963,15 +1968,16 @@ const liftStrength = (lift, body) => {
     for (const exercise of session.exercises) {
       if (!lift.names.includes(exercise.name.toLowerCase())) continue;
       for (const set of validSets(exercise)) {
-        // Pull-ups: reps at bodyweight against the reps table (added kg counts as extra reps' worth).
-        const value = lift.reps ? Number(set.reps) * (1 + Number(set.kg || 0) / Math.max(40, body.kg)) : setEstimate(set);
+        // Pull-ups: bodyweight + added kg, as a one-rep max, against the reps table turned into the same kind of number.
+        const value = lift.reps ? (set.warmup ? 0 : estimate(body.kg + Number(set.kg || 0), Number(set.reps) + repsInTank(set))) : setEstimate(set);
         if (value > ever) ever = value;
         if (session.date >= since && value > now) now = value;
       }
     }
   }
   if (!lift.reps) for (const [name, kg] of Object.entries(state.bests || {})) if (lift.names.includes(name.toLowerCase()) && Number(kg) > ever) ever = Number(kg);
-  const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
+  const table = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
+  const marks = table && lift.reps ? table.map((reps) => (reps >= 1 ? estimate(body.kg, reps) : body.kg * 0.95)) : table;
   return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks) };
 };
 const bodyPrompt = () => `<section class="card bodyCard">
@@ -5138,6 +5144,20 @@ const takeFile = (picked) => {
   }
   attachFile(picked);
 };
+// Move to a date from the picker (any past day, not just the last three weeks).
+document.addEventListener('change', (event) => {
+  const input = event.target.closest?.('input[data-move-from]');
+  if (!input || !input.value || input.value === input.dataset.moveFrom || input.value > todayIso()) return;
+  const session = sessionFor(input.dataset.moveFrom);
+  if (!session) return;
+  const to = input.value;
+  view.editDay = null;
+  changeWithUndo(`Moved ${dayLabel(session.date)} to ${dayLabel(to)}`, () => moveSession(session, to), `Move to ${dayLabel(to)}`);
+  glowFor([{ date: to, name: null }]);
+  view.open.add(to);
+  view.scrollTarget = to;
+  render();
+});
 const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files');
 let dragDepth = 0;
 document.addEventListener('dragenter', (event) => {

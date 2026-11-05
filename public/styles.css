@@ -945,3 +945,8 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .webRingName { font-size: 10.5px; fill: var(--text2); paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
 .webRingName.elite { fill: var(--clayText); font-weight: 600; }
 .webLegend { margin-top: 6px; font-size: 13px; }
+
+/* Move to: a chip that opens the phone's own date picker (the input sits invisibly over the chip). */
+.pickDate { position: relative; overflow: hidden; }
+.pickDate .chipFace { color: var(--clayText); font-weight: 600; }
+.pickDate input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }

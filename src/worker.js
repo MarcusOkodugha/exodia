@@ -6,7 +6,8 @@ const PROFILE_KEY = /^[a-f0-9]{32}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CHANGES = 500;
 const MAX_RECORD = 80000;
-const DEFAULT_MODELS = 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite';
+// Logging reads with full Flash models first; the Lite ones are only the fallback when those are busy.
+const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.7-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
 
 const PROMPT = `You turn a lifter's spoken or typed workout note into JSON.
 Feedback only when the user literally says the word "feedback" or "feature" (for example "feedback: the mic is slow"): then put that part in feedback in their own words and log nothing for it. Without one of those words, everything is training, never feedback.
@@ -17,7 +18,7 @@ Weights are kilograms. Return only sets that were actually done.
 Bodyweight exercises use kg 0, or the added weight.
 Running, cycling, walking or other cardio goes in cardioMinutes. If the user changes or corrects the cardio already logged for a day ("change the cardio to 50", "50 minutes instead of 60", "it was 50, not 60"), put the new total in cardioMinutes and set cardioTotal true; otherwise cardioMinutes is added to what is there.
 Keep the exercise the user named, in Title Case English: "single arm tricep extension" is "Single Arm Tricep Extension", never a different exercise like "Triceps Pushdown". Use a name from the known list only when it is the same exercise, differing just in spelling, plural or word order. If they name no specific variant, use common names like "Bench Press", "Deadlift", "Hack Squat".
-If the user says which day it happened, set date as YYYY-MM-DD from the calendar below. "Last Friday" or "on Friday" means the most recent Friday before today, never the week before. "Yesterday" is the day before today. If no day is mentioned, leave date out.
+If the user says which day it happened, set date as YYYY-MM-DD from the calendar below; a full date with a year ("26th of July 2024") is used exactly as said, however long ago. A note that only says when something happened, with no lifts or numbers ("this was 26th of July 2024", "that was yesterday"), is about the newest entry in the recent log: use move from that day to the new date (with the exercise when only one exercise was just added). Never log sets the user did not say in this note. "Last Friday" or "on Friday" means the most recent Friday before today, never the week before. "Yesterday" is the day before today. If no day is mentioned, leave date out.
 When a voice note is attached, listen to it, write what was said in transcript, and log from it. If text comes with the voice note, the text is the user's own corrected transcript of it: follow the text and do not log anything twice. Expect gym words: exercise names, kilos, reps and sets. Words you will hear often: paused or pause, close-grip, incline, reps, sets, RPE, RIR, warm-up, worked up, plates, per side, top set, back-off. Do not mishear "paused" as "post" or "pots", or "reps" as "wraps". "Paused" or "pause" said with bench or squat means the lift Pause Bench Press or Pause Squat. "At 9" or "at an 8" after a set means that rpe. "Three sets 130 for two" means three sets of 130 kg for 2 reps. Example: "I did 120 for two paused and then three sets 130 kg for two paused at 9" is Pause Bench Press 120x2, then 130x2 rpe 9 three times.
 The user can also fix what is already logged. The recent log below lists their sessions. "This session" or "today" means the day in view. To delete a whole day, add it to remove with no exercise. To delete one exercise from a day, add it to remove with that exercise name. To change sets of an exercise already logged, add it to replace with the full new list of sets for that exercise on that day. Use exact dates and exercise names from the recent log. For edits and deletes, a weekday like "Friday" means the newest logged day in the recent log that falls on that weekday, not an empty day. When changing a set, the replace list must contain every set of that exercise on that day, with only the mentioned set changed. Keep each set's rpe and warmup from the recent log unless the user changes them: "I did the 130 for three sets" turns one 130x2@9 into three 130x2@9. If something logged was really done on another day ("that was actually Friday", "switch those two"), use move with from and to dates, and the exercise name when only one exercise moves. To switch two days, add a move each way. Never use remove and replace to move things. If the user names the session or says where it happened, like a gym or place ("at Sathedvik", "call it leg day"), put that short name in label, without words like "at". Only fill exercises for new sets that were actually done; leave it empty for pure edits or deletes.`;
 
@@ -425,7 +426,8 @@ const clean = (raw, today) => {
     .filter((exercise) => exercise.name && exercise.sets.length > 0);
   const cardioMinutes = Math.min(600, Math.max(0, Math.round(Number(raw?.cardioMinutes) || 0)));
   const date = typeof raw?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null;
-  const valid = date && today && date <= today && Date.parse(today) - Date.parse(date) <= 60 * 86400000;
+  // Any past day the user names counts (old training added later), but nothing in the future or before 1980.
+  const valid = date && today && date <= today && date >= '1980-01-01';
   const transcript = typeof raw?.transcript === 'string' ? raw.transcript.slice(0, MAX_TEXT).trim() : '';
   const remove = (Array.isArray(raw?.remove) ? raw.remove : [])
     .filter((item) => typeof item?.date === 'string' && DATE.test(item.date))
@@ -590,6 +592,12 @@ const parse = async (request, env, ctx) => {
     return null;
   };
   const logs = (result) => Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
+  // A set is only real if its weight or reps were actually said (typed, or heard in the voice note): an AI that copies
+  // a day from the recent log ("this was 26 July" became five deadlift sets) is caught here.
+  const said = `${text} ${heard} ${hint}`.toLowerCase().replace(/(\d),(\d)/g, '$1.$2');
+  const spoken = new Set((said.match(/\d+(?:\.\d+)?/g) || []).map(Number));
+  const wordNumbers = /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/.test(said);
+  const invented = (result) => !(audio && !heard) && !wordNumbers && (result.exercises || []).some((exercise) => exercise.sets.length && exercise.sets.every((set) => !spoken.has(Number(set.kg)) && !spoken.has(Number(set.reps))));
   // Voice notes try the full Flash model first: it hears noisy gym audio better than the Lite ones, which stay as fallback.
   const tries = audio ? [...new Set([env.GEMINI_VOICE_MODEL || 'gemini-3.5-flash', ...models])] : models;
   let found = await ask(tries, 2);
@@ -598,6 +606,10 @@ const parse = async (request, env, ctx) => {
     const strong = (env.GEMINI_IMPORT_MODELS || IMPORT_MODELS).split(',').map((model) => model.trim()).filter((model) => model && !/pro/.test(model));
     const second = await ask(strong, 2);
     if (second && (!found || logs(second.result) || second.result.feedback)) found = second;
+  }
+  if (found && invented(found.result)) {
+    found.result.exercises = found.result.exercises.filter((exercise) => exercise.sets.some((set) => spoken.has(Number(set.kg)) || spoken.has(Number(set.reps))));
+    if (!logs(found.result) && !found.result.unclear) found.result.unclear = 'Which lift and numbers? Say it like "bench 100 for 5".';
   }
   if (found) {
     const result = found.result;
