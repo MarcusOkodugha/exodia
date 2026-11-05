@@ -19,6 +19,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Write the note "started 7 March 2024" and tap **↑**
 ## To do (Claude)
 
+- [ ] Anatomy heading: Marcus said "Anatomy" over the Strength / Recovery switch should be "under"; asked whether that means moving Anatomy below the strength web, or the switch first with no heading. Waiting on his answer.
 - [ ] Voice: show the words while it's still working.
 - [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
 - [ ] Smoothness pass: find everything that jumps instead of animating.
@@ -33,6 +34,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - AI: the three full Flash models were out of their daily free Gemini quota, so notes ran on Flash-Lite; such a model now sits out until the quota resets (09:00 Swedish time), search uses Lite first to save the quota for notes, each note logs its time and the models tried (worker)
 - Writing rows land on the day the note is about ("igår", "i fredags" too); Exodia loader (hand + clay line) in the day and the chat; Quick add keeps the latest messages one scroll up (v279, v281)
 - Trends opens faster with years of data (1.16 s → 0.84 s on a 4× slowed phone) (v280)
+- Strength web and anatomy on all-time bests (a 20 kg squat today no longer drops the level); the web shows one shape, no Now/All time (v283)
+- Most impressive lift = a set actually done (290 × 3 beats 300 × 1 when its estimate is higher; a tie goes to the heavier set), best squat/bench/deadlift always shown, plus any other lift that ranks higher (26 more lifts from Strength Level, e.g. hip abduction, hip thrust, leg press) (v283)
+- Anatomy: Strength / Recovery switch keeps the same height; the level list fades in only when opened, not on every redraw; "Best lifts" under the chart is now "Your lifts · best set · Tap one to see its trend"; calendar checked: past November days are drawn, only future days are blank like GitHub (v283)
 
 - "Your most impressive lift" at the bottom of Trends (computer: bottom of the right panel): your highest-level lift all time, its level, and how rare it is. Up to Elite from Strength Level's own definitions (Beginner beats 5% of people training the lift … Elite 95%); past Elite from OpenPowerlifting raw meet results per weight class, doubled for people who never compete, against 2.7 bn adults of your sex. 300 kg deadlift: 15,459 men have done it raw in a meet; at 100 kg bodyweight that's about 1 in 73,000 men (not 1 in millions). Sources in the code comment above MEETS (v278)
 - Strength level key (web and anatomy): tap a level or the i for what each level means, its share beaten and how long it takes (v278)

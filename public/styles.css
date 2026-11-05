@@ -1188,7 +1188,8 @@ main.page { overflow-x: clip; }
 /* The key holds an i too, so it runs a touch smaller to stay on one line at 375. */
 .levelKey { gap: 0 clamp(3px, 1.2cqw, 12px); font-size: clamp(8.5px, 3.05cqw, 12.5px); }
 .levelKey b { width: clamp(11px, 3.6cqw, 15px); height: clamp(11px, 3.6cqw, 15px); }
-.levelInfo { margin: 12px 4px 4px; text-align: left; font-size: 13px; line-height: 18px; color: var(--text2); animation: levelInfoIn 0.22s ease-out; }
+.levelInfo { margin: 12px 4px 4px; text-align: left; font-size: 13px; line-height: 18px; color: var(--text2); }
+.levelInfo.enter { animation: levelInfoIn 0.22s ease-out; }
 @keyframes levelInfoIn { from { opacity: 0; transform: translateY(-4px); } }
 .levelInfo p { margin: 0; }
 .levelRows { display: grid; row-gap: 8px; margin: 10px 0; }
@@ -1232,3 +1233,9 @@ main.page { overflow-x: clip; }
 .sheet.quickMode .recentChat { margin-top: 8px; margin-bottom: 4px; }
 .sheet.quickMode .quickAdd { scroll-margin-top: 62px; }
 
+.featItem + .featItem { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sep); }
+/* Anatomy: the key (Strength) and the note (Recovery) sit in the same fixed-height line, so switching never resizes. */
+.anatomyFoot { display: flow-root; min-height: 26px; }
+.anatomyFoot > .muscleNote { margin: 8px 4px 0; line-height: 18px; }
+.featKg { white-space: nowrap; }
+.featKg { margin-left: 0; }

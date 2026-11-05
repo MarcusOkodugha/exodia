@@ -1345,7 +1345,7 @@ const levelKey = (where) => {
   const open = view.levelInfo?.where === where ? view.levelInfo.level : null;
   const keys = [['tierBeg', 'Beginner'], ['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']];
   return `<div class="levelKeyBox"><p class="levelKey">${keys.map(([tier, name], index) => `<button class="levelKeyItem" data-action="level-info" data-where="${where}" data-level="${index + 1}" aria-pressed="${open === index + 1}"><b class="${tier}">${index + 1}</b>${name}</button>`).join('')}<button class="infoBtn" data-action="level-info" data-where="${where}" data-level="0" aria-expanded="${open !== null}" aria-label="What the levels mean">i</button></p></div>
-    ${open === null ? '' : `<div class="levelInfo" role="note"><p class="levelInfoIntro">The share of people training each lift that a level is stronger than, for your bodyweight and sex.</p>
+    ${open === null ? '' : `<div class="levelInfo${view.levelInfoEnter ? ' enter' : ''}" role="note"><p class="levelInfoIntro">The share of people training each lift that a level is stronger than, for your bodyweight and sex.</p>
       <div class="levelRows">${keys.map(([tier, name], index) => `<p class="levelRow${open === index + 1 ? ' on' : ''}"><b class="${tier}">${index + 1}</b><span class="levelName">${name}</span><span class="levelBeats num">Beats ${Math.round(LEVEL_BEATS[index] * 100)}%</span><span class="levelWhat">${LEVEL_WHAT[index]}</span></p>`).join('')}</div>
       <p class="levelInfoNote">Strength Level, 6.4 million checked lifts, 2015–2026. Past Elite, Exodia counts raw meet results instead (OpenPowerlifting).</p></div>`}`;
 };
@@ -1355,7 +1355,7 @@ const muscleLevels = () => {
   if (!body?.kg || !body?.sex) return null;
   const scores = Object.fromEntries(WEB_LIFTS.map((lift) => {
     const result = liftStrength(lift, body);
-    return [lift.key, result.score || result.everScore || 0];
+    return [lift.key, result.everScore || 0];
   }));
   return Object.fromEntries(MUSCLES.map(([key]) => {
     const parts = Object.entries(MUSCLE_LIFTS[key] || {}).filter(([lift]) => scores[lift] > 0);
@@ -1409,7 +1409,7 @@ const renderMuscles = () => {
         return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${Math.min(levels[key], 9.9).toFixed(1)}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
-    ${levelKey('body')}`
+    <div class="anatomyFoot">${levelKey('body')}</div>`
     : `${bodyForm('Add your bodyweight to see your strength across your anatomy')}<div class="muscles emptyLevels">${bodySvg('front', load, {})}${bodySvg('back', load, {})}
       <div class="muscleList">${MUSCLES.map(([, label]) => `<div class="muscleRow muted"><i class="muscleSwatch tierNone"></i><span>${label}</span><span class="num tierWord">–</span></div>`).join('')}</div>
     </div>`}`;
@@ -1418,7 +1418,7 @@ const renderMuscles = () => {
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><i class="muscleSwatch" style="opacity:${muscleStrength(load, key) || 1}"></i><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
     </div>
-    <p class="muscleNote">Sets in the last 7 days. Red means still recovering.</p>`;
+    <div class="anatomyFoot"><p class="muscleNote">Sets in the last 7 days. Red means still recovering.</p></div>`;
 };
 
 // Days in the range where this lift set a PR (a heavier single or a new estimated max).
@@ -1440,7 +1440,7 @@ const liftPicker = (big, rest, history, action = 'pick-trend', current = view.tr
   const all = [...LIFT_ORDER.filter((name) => big.includes(name)), ...rest];
   const first = 6;
   const visible = view.trendMore || all.length <= first ? all : [...all.slice(0, first), ...(all.indexOf(current) >= first ? [current] : [])];
-  return `${action === 'pick-trend' ? '<p class="liftHead"><span>Best lifts</span><span class="liftHint">Tap one to show it on the chart</span></p>' : ''}<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
+  return `${action === 'pick-trend' ? '<p class="liftHead"><span>Your lifts · best set</span><span class="liftHint">Tap one to see its trend</span></p>' : ''}<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
     ${all.length > first ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${all.length} lifts`}${ICONS.chev}</button>` : ''}`;
 };
 
@@ -2133,8 +2133,39 @@ const STANDARDS = {
   'pull-ups': {
     male: [[60, 0.5, 7, 14, 23, 33], [80, 1, 7, 13, 21, 29], [90, 1, 7, 12, 19, 27], [100, 0.5, 6, 11, 18, 25], [110, 0.5, 6, 10, 17, 23], [120, 0.5, 5, 10, 16, 22], [140, 0.5, 4, 9, 13, 19]],
     female: [[60, 0.5, 1, 6, 12, 19]]
-  }
+  },
+  // Other lifts, only to rank "your most impressive lift" (not on the web): the same Strength Level tables, read from
+  // strengthlevel.com/strength-standards/<key>/kg on 5 November 2026. Dumbbell lifts are per dumbbell.
+  'sumo-deadlift': { male: [[60, 72, 100, 134, 174, 216], [80, 102, 135, 174, 218, 265], [90, 116, 150, 192, 238, 287], [100, 128, 165, 208, 256, 307], [110, 141, 179, 224, 273, 325], [120, 152, 192, 238, 289, 343], [140, 174, 216, 265, 319, 375]], female: [[50, 43, 62, 87, 115, 146], [60, 47, 68, 93, 122, 154], [70, 51, 73, 99, 129, 161], [80, 55, 77, 104, 135, 168], [90, 58, 81, 108, 140, 173], [100, 61, 84, 112, 144, 179], [120, 67, 91, 120, 153, 188]] },
+  'front-squat': { male: [[60, 40, 57, 79, 104, 130], [80, 59, 79, 104, 133, 163], [90, 68, 90, 116, 146, 177], [100, 76, 99, 127, 158, 190], [110, 84, 108, 137, 169, 203], [120, 91, 117, 147, 180, 215], [140, 106, 133, 165, 200, 236]], female: [[50, 26, 39, 54, 72, 91], [60, 31, 44, 60, 79, 99], [70, 35, 48, 65, 85, 106], [80, 38, 53, 70, 90, 112], [90, 41, 56, 75, 95, 118], [100, 44, 60, 79, 100, 123], [120, 50, 66, 86, 108, 132]] },
+  'romanian-deadlift': { male: [[60, 43, 65, 93, 127, 163], [80, 65, 92, 125, 163, 203], [90, 75, 104, 139, 179, 221], [100, 85, 115, 152, 194, 238], [110, 95, 126, 164, 208, 254], [120, 104, 137, 176, 221, 268], [140, 121, 156, 198, 245, 295]], female: [[50, 27, 42, 61, 84, 109], [60, 31, 47, 67, 90, 116], [70, 34, 51, 71, 96, 122], [80, 37, 54, 75, 100, 128], [90, 40, 57, 79, 105, 132], [100, 42, 60, 83, 109, 137], [120, 46, 65, 89, 116, 145]] },
+  'hip-thrust': { male: [[60, 32, 63, 107, 163, 227], [80, 56, 96, 149, 213, 285], [90, 68, 111, 168, 236, 311], [100, 80, 126, 186, 257, 335], [110, 91, 140, 203, 277, 358], [120, 102, 154, 219, 295, 379], [140, 123, 179, 249, 330, 419]], female: [[50, 30, 56, 92, 137, 187], [60, 35, 63, 100, 147, 199], [70, 39, 69, 108, 155, 209], [80, 43, 74, 114, 163, 218], [90, 47, 78, 120, 170, 226], [100, 50, 83, 125, 177, 234], [120, 57, 91, 135, 188, 247]] },
+  'hip-abduction': { male: [[60, 28, 50, 79, 115, 156], [80, 38, 63, 95, 135, 179], [90, 43, 69, 103, 143, 188], [100, 47, 74, 109, 151, 197], [110, 51, 79, 115, 158, 205], [120, 55, 84, 121, 165, 213], [140, 62, 92, 131, 177, 227]], female: [[50, 23, 41, 65, 93, 126], [60, 26, 45, 69, 99, 132], [70, 29, 48, 73, 103, 137], [80, 31, 50, 76, 107, 142], [90, 33, 53, 79, 111, 146], [100, 34, 55, 82, 114, 150], [120, 38, 59, 87, 120, 157]] },
+  'sled-leg-press': { male: [[60, 71, 115, 173, 242, 319], [80, 109, 162, 230, 309, 395], [90, 127, 184, 255, 338, 429], [100, 144, 205, 280, 366, 460], [110, 160, 224, 302, 392, 489], [120, 176, 243, 324, 417, 516], [140, 206, 278, 364, 462, 567]], female: [[50, 39, 73, 122, 183, 252], [60, 49, 87, 140, 204, 277], [70, 58, 100, 155, 223, 299], [80, 67, 111, 170, 240, 319], [90, 76, 122, 183, 256, 337], [100, 83, 132, 195, 270, 353], [120, 98, 150, 217, 296, 383]] },
+  'leg-extension': { male: [[60, 36, 57, 85, 119, 156], [80, 48, 72, 103, 140, 180], [90, 53, 79, 111, 149, 191], [100, 58, 85, 119, 158, 201], [110, 63, 91, 126, 166, 209], [120, 68, 97, 132, 173, 218], [140, 76, 107, 144, 187, 233]], female: [[50, 19, 34, 55, 80, 109], [60, 22, 38, 59, 86, 115], [70, 24, 41, 64, 91, 121], [80, 27, 44, 67, 95, 126], [90, 29, 47, 71, 99, 131], [100, 31, 49, 74, 103, 135], [120, 34, 54, 79, 109, 142]] },
+  'seated-leg-curl': { male: [[60, 29, 45, 67, 94, 123], [80, 39, 58, 83, 112, 144], [90, 44, 64, 90, 120, 152], [100, 48, 69, 96, 127, 161], [110, 52, 74, 102, 134, 168], [120, 56, 79, 107, 140, 175], [140, 63, 88, 118, 152, 188]], female: [[50, 17, 28, 43, 62, 83], [60, 19, 31, 47, 67, 88], [70, 21, 34, 51, 70, 93], [80, 23, 36, 53, 74, 97], [90, 25, 39, 56, 77, 100], [100, 26, 41, 59, 80, 103], [120, 29, 44, 63, 85, 109]] },
+  'lat-pulldown': { male: [[60, 35, 50, 69, 90, 113], [80, 47, 64, 85, 108, 133], [90, 52, 70, 92, 116, 142], [100, 57, 76, 98, 123, 150], [110, 62, 81, 104, 130, 157], [120, 66, 86, 110, 136, 164], [140, 74, 95, 120, 148, 177]], female: [[50, 20, 30, 42, 56, 72], [60, 23, 33, 46, 60, 76], [70, 25, 36, 49, 64, 81], [80, 27, 38, 52, 68, 85], [90, 29, 41, 55, 71, 88], [100, 31, 43, 57, 74, 91], [120, 34, 47, 62, 79, 97]] },
+  'dumbbell-bench-press': { male: [[60, 13, 20, 30, 42, 55], [80, 19, 28, 40, 53, 68], [90, 22, 32, 44, 58, 74], [100, 25, 36, 48, 63, 79], [110, 28, 39, 52, 68, 84], [120, 31, 42, 56, 72, 89], [140, 36, 48, 63, 80, 97]], female: [[50, 5, 10, 16, 25, 34], [60, 7, 12, 19, 28, 38], [70, 8, 14, 21, 30, 41], [80, 9, 15, 23, 33, 44], [90, 10, 17, 25, 35, 46], [100, 12, 18, 27, 37, 48], [120, 14, 21, 30, 41, 53]] },
+  'incline-dumbbell-bench-press': { male: [[60, 14, 21, 29, 39, 49], [80, 22, 29, 39, 50, 62], [90, 25, 33, 44, 55, 68], [100, 28, 37, 48, 60, 73], [110, 31, 41, 52, 65, 78], [120, 34, 44, 56, 69, 83], [140, 40, 51, 63, 77, 91]], female: [[50, 6, 10, 16, 23, 31], [60, 7, 12, 19, 26, 35], [70, 9, 14, 21, 29, 38], [80, 10, 16, 23, 31, 41], [90, 12, 18, 25, 34, 43], [100, 13, 19, 27, 36, 46], [120, 15, 22, 30, 40, 50]] },
+  'barbell-curl': { male: [[60, 15, 24, 36, 50, 66], [80, 22, 33, 46, 63, 80], [90, 25, 36, 51, 68, 87], [100, 28, 40, 55, 73, 92], [110, 31, 44, 60, 78, 97], [120, 34, 47, 63, 82, 102], [140, 39, 53, 71, 90, 111]], female: [[50, 6, 12, 20, 31, 43], [60, 8, 14, 23, 34, 47], [70, 9, 16, 26, 37, 51], [80, 11, 18, 28, 40, 54], [90, 12, 20, 30, 43, 57], [100, 13, 21, 32, 45, 59], [120, 15, 24, 36, 49, 64]] },
+  'dumbbell-curl': { male: [[60, 6, 11, 18, 26, 36], [80, 8, 14, 22, 32, 42], [90, 9, 16, 24, 34, 45], [100, 11, 17, 26, 36, 48], [110, 12, 19, 28, 38, 50], [120, 13, 20, 29, 40, 52], [140, 15, 22, 32, 44, 56]], female: [[50, 3, 6, 11, 16, 22], [60, 4, 7, 12, 18, 24], [70, 4, 8, 13, 19, 26], [80, 5, 9, 14, 20, 27], [90, 6, 10, 15, 22, 29], [100, 6, 10, 16, 23, 30], [120, 7, 12, 18, 25, 32]] },
+  'hammer-curl': { male: [[60, 7, 12, 18, 26, 34], [80, 11, 16, 24, 33, 42], [90, 12, 19, 27, 36, 46], [100, 14, 21, 29, 39, 49], [110, 16, 23, 31, 41, 52], [120, 17, 25, 34, 44, 55], [140, 20, 28, 38, 49, 61]], female: [[50, 4, 7, 11, 15, 20], [60, 5, 8, 12, 17, 22], [70, 6, 9, 13, 18, 24], [80, 6, 10, 14, 19, 25], [90, 7, 10, 15, 20, 26], [100, 7, 11, 16, 22, 28], [120, 9, 12, 17, 23, 30]] },
+  'tricep-pushdown': { male: [[60, 14, 26, 43, 64, 89], [80, 22, 36, 56, 80, 107], [90, 25, 41, 62, 87, 115], [100, 29, 46, 67, 93, 122], [110, 32, 50, 72, 99, 129], [120, 35, 54, 77, 105, 135], [140, 41, 61, 86, 115, 147]], female: [[50, 7, 14, 24, 38, 53], [60, 9, 17, 28, 42, 59], [70, 11, 19, 31, 46, 63], [80, 12, 22, 34, 50, 67], [90, 14, 24, 37, 53, 71], [100, 16, 26, 40, 56, 75], [120, 19, 30, 44, 62, 81]] },
+  'hack-squat': { male: [[60, 41, 73, 117, 171, 231], [80, 63, 102, 152, 213, 280], [90, 74, 115, 168, 232, 302], [100, 84, 127, 183, 249, 321], [110, 93, 139, 197, 265, 340], [120, 102, 150, 210, 281, 357], [140, 119, 171, 235, 309, 389]], female: [[50, 19, 43, 78, 124, 176], [60, 24, 50, 87, 135, 190], [70, 28, 56, 95, 145, 202], [80, 32, 62, 102, 154, 212], [90, 36, 67, 109, 162, 221], [100, 40, 72, 115, 169, 230], [120, 46, 80, 126, 182, 245]] },
+  'close-grip-bench-press': { male: [[60, 35, 49, 66, 86, 107], [80, 55, 72, 93, 116, 140], [90, 64, 83, 105, 129, 155], [100, 73, 93, 116, 142, 169], [110, 82, 103, 127, 154, 182], [120, 90, 112, 137, 165, 194], [140, 106, 129, 156, 186, 217]], female: [[50, 16, 26, 39, 55, 72], [60, 20, 31, 46, 63, 82], [70, 24, 37, 52, 70, 90], [80, 28, 41, 58, 77, 97], [90, 32, 46, 63, 83, 104], [100, 36, 50, 68, 88, 110], [120, 42, 58, 77, 99, 122]] },
+  'dumbbell-lateral-raise': { male: [[60, 3, 7, 13, 20, 29], [80, 5, 10, 16, 25, 34], [90, 6, 11, 18, 27, 37], [100, 7, 12, 19, 28, 39], [110, 8, 13, 21, 30, 40], [120, 8, 14, 22, 32, 42], [140, 10, 16, 25, 34, 46]], female: [[50, 3, 5, 8, 12, 16], [60, 3, 6, 9, 13, 17], [70, 3, 6, 9, 14, 18], [80, 4, 6, 10, 14, 19], [90, 4, 7, 10, 15, 20], [100, 4, 7, 11, 15, 20], [120, 5, 8, 12, 16, 21]] },
+  'machine-calf-raise': { male: [[60, 31, 63, 110, 168, 236], [80, 49, 88, 141, 207, 282], [90, 57, 99, 155, 224, 302], [100, 65, 110, 169, 240, 320], [110, 73, 120, 181, 255, 337], [120, 81, 129, 193, 269, 353], [140, 95, 147, 214, 294, 382]], female: [[50, 16, 40, 75, 121, 176], [60, 21, 47, 84, 133, 190], [70, 25, 53, 93, 144, 203], [80, 30, 59, 101, 154, 215], [90, 33, 65, 108, 163, 225], [100, 37, 70, 115, 171, 234], [120, 44, 79, 126, 185, 251]] },
+  'lying-tricep-extension': { male: [[60, 12, 20, 31, 45, 60], [80, 20, 30, 43, 59, 76], [90, 24, 35, 49, 65, 83], [100, 27, 39, 54, 71, 90], [110, 31, 44, 59, 77, 96], [120, 35, 48, 64, 83, 103], [140, 41, 56, 73, 93, 114]], female: [[50, 6, 11, 18, 27, 37], [60, 7, 12, 20, 29, 40], [70, 8, 14, 22, 32, 43], [80, 9, 15, 24, 34, 45], [90, 10, 17, 25, 36, 48], [100, 11, 18, 27, 38, 50], [120, 13, 20, 30, 41, 53]] },
+  'dumbbell-bulgarian-split-squat': { male: [[60, 8, 15, 25, 38, 52], [80, 13, 22, 33, 47, 63], [90, 15, 25, 37, 52, 68], [100, 18, 28, 40, 56, 72], [110, 20, 30, 44, 59, 77], [120, 22, 33, 47, 63, 81], [140, 26, 38, 52, 69, 88]], female: [[50, 6, 11, 18, 28, 38], [60, 7, 12, 20, 30, 41], [70, 8, 14, 22, 32, 43], [80, 9, 15, 23, 33, 45], [90, 9, 16, 24, 35, 46], [100, 10, 17, 26, 36, 48], [120, 11, 18, 28, 39, 51]] },
+  'stiff-leg-deadlift': { male: [[60, 45, 68, 99, 135, 175], [80, 66, 94, 130, 170, 215], [90, 76, 106, 143, 186, 232], [100, 85, 117, 156, 201, 248], [110, 94, 128, 168, 214, 264], [120, 103, 138, 180, 227, 278], [140, 119, 156, 201, 251, 304]], female: [[50, 24, 39, 59, 84, 111], [60, 29, 45, 67, 93, 121], [70, 33, 51, 74, 100, 130], [80, 37, 56, 80, 108, 138], [90, 41, 61, 85, 114, 145], [100, 45, 65, 91, 120, 152], [120, 51, 73, 100, 131, 164]] },
+  'paused-bench-press': { male: [[60, 47, 62, 79, 99, 120], [80, 69, 87, 108, 131, 155], [90, 79, 98, 120, 145, 170], [100, 89, 109, 132, 158, 184], [110, 99, 120, 144, 170, 198], [120, 108, 129, 155, 182, 210], [140, 124, 148, 175, 204, 234]], female: [[50, 22, 32, 46, 62, 79], [60, 28, 40, 54, 71, 90], [70, 33, 46, 62, 80, 100], [80, 38, 52, 69, 88, 109], [90, 43, 58, 76, 96, 117], [100, 48, 63, 82, 103, 124], [120, 57, 73, 93, 115, 138]] },
+  'face-pull': { male: [[60, 10, 21, 37, 57, 80], [80, 15, 29, 47, 69, 95], [90, 18, 32, 51, 75, 101], [100, 21, 35, 55, 80, 107], [110, 23, 39, 59, 84, 112], [120, 25, 42, 63, 89, 117], [140, 30, 47, 70, 97, 127]], female: [[50, 9, 17, 28, 43, 60], [60, 10, 19, 32, 47, 65], [70, 12, 22, 35, 51, 69], [80, 14, 24, 38, 54, 73], [90, 15, 26, 40, 57, 77], [100, 17, 28, 43, 60, 80], [120, 20, 31, 47, 65, 86]] },
+  'cable-fly': { male: [[60, 4, 12, 26, 46, 69], [80, 8, 19, 36, 58, 84], [90, 10, 23, 41, 64, 91], [100, 13, 26, 45, 69, 98], [110, 15, 29, 49, 74, 104], [120, 17, 32, 53, 79, 109], [140, 21, 38, 60, 88, 119]], female: [[50, 2, 7, 15, 26, 39], [60, 3, 9, 18, 29, 43], [70, 4, 10, 19, 31, 46], [80, 5, 12, 21, 34, 48], [90, 6, 13, 23, 36, 51], [100, 7, 14, 24, 38, 53], [120, 8, 16, 27, 41, 57]] },
+  'dumbbell-tricep-extension': { male: [[60, 3, 8, 16, 26, 38], [80, 6, 12, 22, 33, 47], [90, 7, 14, 24, 37, 51], [100, 9, 16, 27, 40, 54], [110, 10, 18, 29, 43, 58], [120, 12, 20, 32, 45, 61], [140, 14, 24, 36, 51, 67]], female: [[50, 3, 6, 10, 16, 22], [60, 3, 7, 11, 17, 24], [70, 4, 7, 12, 18, 25], [80, 4, 8, 13, 20, 27], [90, 5, 9, 14, 21, 28], [100, 5, 10, 15, 22, 29], [120, 6, 11, 16, 23, 31]] }
 };
+// Exercise names (lower case) for those, from the library.
+const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Bulgarian Split Squat': 'dumbbell-bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
+  .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || [])] }));
 const standardAt = (rows, bodyweight) => {
   if (!rows?.length) return null;
   if (bodyweight <= rows[0][0]) return rows[0].slice(1);
@@ -2171,12 +2202,16 @@ const textWidth = (text, font) => {
   return measurer.measureText(text).width;
 };
 const levelWord = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
-// Now = best estimated 1RM of the last 3 months; all time = the best ever (logged sets and saved bests).
+// All time = the best ever (logged sets and saved bests); that's what the web and the anatomy show, so one light day
+// never pulls a level down. Now (the last 3 months) is still worked out but not shown.
 const STRENGTH_NOW_DAYS = 90;
 const liftStrength = (lift, body) => {
   const since = addDays(todayIso(), -STRENGTH_NOW_DAYS);
   let now = 0;
   let ever = 0;
+  // The best set you actually did, ranked by its estimated one-rep max; when two come out the same (within 0.5 kg),
+  // the heavier one wins, so 300 × 1 beats 285 × 2.
+  let best = null;
   for (const session of state.sessions) {
     for (const exercise of session.exercises) {
       if (!lift.names.includes(exercise.name.toLowerCase())) continue;
@@ -2185,13 +2220,14 @@ const liftStrength = (lift, body) => {
         const value = lift.reps ? (set.warmup ? 0 : estimate(body.kg + Number(set.kg || 0), Number(set.reps) + repsInTank(set))) : setEstimate(set);
         if (value > ever) ever = value;
         if (session.date >= since && value > now) now = value;
+        if (value > 0 && (!best || value > best.value + 0.5 || (value >= best.value - 0.5 && Number(set.kg) > Number(best.set.kg)))) best = { value, set, date: session.date, name: exercise.name };
       }
     }
   }
   if (!lift.reps) for (const [name, kg] of Object.entries(state.bests || {})) if (lift.names.includes(name.toLowerCase()) && Number(kg) > ever) ever = Number(kg);
   const table = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
   const marks = table && lift.reps ? table.map((reps) => (reps >= 1 ? estimate(body.kg, reps) : body.kg * 0.95)) : table;
-  return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks) };
+  return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) } };
 };
 // Bodyweight and sex, asked where they're needed (Strength level, and the anatomy's Strength view). Both forms can be
 // on screen at once (computer), so each reads its own field.
@@ -2212,7 +2248,7 @@ const renderStrength = () => {
   const askBody = !known || view.bodyEdit;
   const lifts = known ? WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks) : WEB_LIFTS.map((lift) => ({ ...lift, value: 0, ever: 0, score: 0, everScore: 0, marks: [1] }));
   if (lifts.length < 3) return '';
-  const top = Math.max(5, ...lifts.map((lift) => Math.max(lift.score, lift.everScore)));
+  const top = Math.max(5, ...lifts.map((lift) => lift.everScore));
   // Elite is the outer coloured ring; the spokes run a little past it, further if you go past Elite.
   const outer = Math.min(8, Math.max(5.6, top + 0.25));
   const size = 320;
@@ -2231,10 +2267,9 @@ const renderStrength = () => {
   };
   const outline = (points) => `M${fixed(points[0])}${points.map((_, index) => segment(points, index)).join('')}Z`;
   const ring = (score) => `<polygon points="${lifts.map((lift, index) => fixed(point(index, score))).join(' ')}"`;
-  // A lift not done lately keeps its all-time place in the shape (its corner says "all time"), rather than falling to zero.
-  const shownScore = (lift) => (lift.value ? lift.score : lift.everScore);
+  // Every corner is your all-time best, so a light day or a break never shrinks the shape.
+  const shownScore = (lift) => lift.everScore;
   const corners = lifts.map((lift, index) => point(index, Math.max(0.15, shownScore(lift))));
-  const everCorners = lifts.map((lift, index) => point(index, Math.max(0.15, lift.everScore)));
   // The picture is as wide as its words: long level names on a side corner widen it instead of being cut off.
   let [left, right] = [-6, size + 6];
   const labels = lifts.map((lift, index) => {
@@ -2243,11 +2278,9 @@ const renderStrength = () => {
     const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelWord(shownScore(lift))} 0.0`, '500 15px'));
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
-    // Not done in the last 3 months: the corner shows the all-time level, marked so, instead of looking empty.
-    const swatch = lift.value || lift.ever ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
-    const level = !known ? '<tspan class="webNone">–</tspan>' : lift.value ? `${swatch}${levelWord(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `${swatch}<tspan class="webEverWord">${levelWord(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : '<tspan class="webNone">Not logged</tspan>';
-    const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 38).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>${allTime}`;
+    const swatch = lift.ever ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
+    const level = !known ? '<tspan class="webNone">–</tspan>' : lift.ever ? `${swatch}${levelWord(lift.everScore)} <tspan class="webNum">${lift.everScore.toFixed(1)}</tspan>` : '<tspan class="webNone">Not logged</tspan>';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
   }).join('');
   // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
   const half = Math.max(middle - left, right - middle) + 4;
@@ -2257,7 +2290,6 @@ const renderStrength = () => {
     const next = corners[(index + 1) % corners.length];
     return `<linearGradient id="webEdge${index}" gradientUnits="userSpaceOnUse" x1="${corner[0].toFixed(1)}" y1="${corner[1].toFixed(1)}" x2="${next[0].toFixed(1)}" y2="${next[1].toFixed(1)}"><stop offset="0" stop-color="${colours[index]}"/><stop offset="1" stop-color="${colours[(index + 1) % colours.length]}"/></linearGradient>`;
   }).join('')}</defs>${corners.map((corner, index) => `<path d="M${fixed(corner)}${segment(corners, index)}" stroke="url(#webEdge${index})" class="webEdge"/>`).join('')}`;
-  const everDots = lifts.map((lift, index) => lift.ever && lift.everScore - lift.score >= 0.1 ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="2.6" class="webEverDot"/>` : '').join('');
   // Rings 1 Beginner to 5 Elite, each in its level's colour.
   // Each ring's number, the same scale as the corners' numbers, on the gap between Squat and Bench.
   const gap = -Math.PI / 2 + Math.PI / lifts.length;
@@ -2269,15 +2301,13 @@ const renderStrength = () => {
   return `<p class="section">Strength level ${known ? `<button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button>` : ''}</p>
     <section class="card webCard${known ? '' : ' empty'}">
       ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
-      ${!known ? '' : `<div class="webTop"><p class="webIntro">Each lift against Strength Level for your bodyweight</p><p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p></div>`}
-      <svg class="web" viewBox="${(middle - half).toFixed(0)} -12 ${(half * 2).toFixed(0)} 362" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
+      ${!known ? '' : `<div class="webTop"><p class="webIntro">Your best ever in each lift, against Strength Level's standards for your bodyweight</p></div>`}
+      <svg class="web" viewBox="${(middle - half).toFixed(0)} -12 ${(half * 2).toFixed(0)} 362" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, all time: ${lifts.map((lift) => `${lift.label} ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
-        ${known ? `<path d="${outline(everCorners)}" class="webEverShape"/>
-        <path d="${outline(corners)}" class="webShape"/>
-        ${edges}
-        ${everDots}` : ''}
-        ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="5" class="webDot ${tierOf(lift.score)?.[2] || 'tierBeg'}"/>` : '').join('')}
+        ${known ? `<path d="${outline(corners)}" class="webShape"/>
+        ${edges}` : ''}
+        ${lifts.map((lift, index) => lift.ever ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="5" class="webDot ${tierOf(lift.everScore)?.[2] || 'tierBeg'}"/>` : '').join('')}
         ${ringNumbers}
         ${labels}
       </svg>
@@ -2401,38 +2431,51 @@ const roughly = (number) => {
 };
 const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 1 : 2))}%`;
 const classText = (limit, sex) => (limit === 999 ? `over ${IPF_CLASSES[sex].at(-1)} kg` : `up to ${limit} kg`);
-// The lift with the highest level, all time, and how rare it is.
-const impressiveLift = () => {
-  const body = state.body;
-  if (!body?.kg || !body?.sex) return null;
-  const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks && lift.ever > 0);
-  const best = lifts.sort((first, second) => second.everScore - first.everScore)[0];
-  if (!best || best.everScore < 1) return null;
+// Your most impressive lift: a set you actually did, never an estimate. Every set is ranked by its estimated one-rep
+// max against Strength Level for your bodyweight (liftStrength keeps each lift's best set). The best squat, bench or
+// deadlift always shows; any other lift (overhead press, hip abduction…) shows under it when it ranks higher.
+const BIG_KEYS = ['squat', 'bench-press', 'deadlift'];
+const rarityOf = (lift, body) => {
+  const { value, score } = lift.best;
   const people = body.sex === 'male' ? 'men' : 'women';
-  const meet = best.everScore >= 5 && !best.reps ? meetShare(best.key, body.sex, body.kg, best.ever) : null;
+  const meet = score >= 5 ? meetShare(lift.key, body.sex, body.kg, value) : null;
   if (meet) {
     const odds = ADULTS / (meet.share * meet.all * 2);
-    return { lift: best, rare: `About 1 in ${roughly(odds)} ${people}`, fact: meet.record ? `Heavier than every raw meet result at ${classText(meet.limit, body.sex)} (${meet.lifters.toLocaleString('en-GB')} ${people})` : `Top ${shareText(meet.share)} of ${meet.lifters.toLocaleString('en-GB')} ${people} in raw meets at ${classText(meet.limit, body.sex)}`, source: `OpenPowerlifting raw meet results, doubled for people who never compete, against 2.7 billion adult ${people}.` };
+    return { meet: true, rare: `About 1 in ${roughly(odds)} ${people}`, fact: meet.record ? `Heavier than every raw meet result at ${classText(meet.limit, body.sex)} (${meet.lifters.toLocaleString('en-GB')} ${people})` : `Top ${shareText(meet.share)} of ${meet.lifters.toLocaleString('en-GB')} ${people} in raw meets at ${classText(meet.limit, body.sex)}` };
   }
-  const share = topShare(best.everScore);
-  const next = best.everScore < 5 ? `${LEVELS[Math.floor(best.everScore)]} from ${best.reps ? `${Math.max(0, Math.round(best.marks[Math.floor(best.everScore)] - body.kg))} kg added` : `${Math.round(best.marks[Math.floor(best.everScore)])} kg`}` : '';
-  return { lift: best, rare: best.everScore >= 5 ? `Rarer than 1 in 20 people who train it` : share > 0.5 ? `Stronger than ${Math.round((1 - share) * 100)}% of people who train it` : `About 1 in ${Math.round(1 / share)} people who train it`, fact: next, source: 'Strength Level: 6.4 million checked lifts, 2015–2026.' };
+  const share = topShare(score);
+  const level = Math.floor(score);
+  const mark = level < 5 ? lift.marks[level] : 0;
+  const fact = level < 5 ? `${LEVELS[level]} at ${lift.reps ? `+${Math.max(0, Math.round(mark - body.kg))}` : Math.round(mark)} kg for one` : '';
+  return { meet: false, fact, rare: score >= 5 ? 'Rarer than 1 in 20 who train it' : share > 0.5 ? `Stronger than ${Math.max(1, Math.round((1 - share) * 100))}% of people who train it` : `About 1 in ${Math.round(1 / share)} people who train it` };
+};
+const impressiveLifts = () => {
+  const body = state.body;
+  if (!body?.kg || !body?.sex) return [];
+  const ranked = [...WEB_LIFTS, ...OTHER_LIFTS].map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks && lift.best?.score > 0).sort((first, second) => second.best.score - first.best.score);
+  const big = ranked.find((lift) => BIG_KEYS.includes(lift.key));
+  const other = ranked.find((lift) => !BIG_KEYS.includes(lift.key));
+  const shown = big ? [big, ...(other && other.best.score > big.best.score ? [other] : [])] : other ? [other] : [];
+  return shown.map((lift) => ({ lift, ...rarityOf(lift, body) }));
 };
 const renderImpressive = () => {
-  const found = impressiveLift();
-  if (!found) return '';
-  const { lift, rare, fact, source } = found;
-  const tier = tierOf(lift.everScore)?.[2] || 'tierBeg';
-  const kg = lift.reps ? `${Math.max(0, Math.round(lift.ever - state.body.kg))} kg added` : `${Math.round(lift.ever)} kg`;
+  const found = impressiveLifts();
+  if (!found.length) return '';
+  const setText = (lift) => {
+    const { set } = lift.best;
+    const kg = Number(set.kg);
+    return lift.reps ? (kg > 0 ? `+${kg} kg × ${set.reps}` : `${set.reps} reps`) : `${kg} kg × ${set.reps}`;
+  };
   return `<p class="section">Your most impressive lift</p>
     <div class="feat">
-      <p class="featTop"><span class="featLift">${esc(lift.label === 'Overhead' ? 'Overhead press' : lift.label)} <span class="featKg num">${kg}</span></span><span class="featLevel"><i class="muscleSwatch ${tier}"></i>${levelWord(lift.everScore)} <span class="num">${Math.min(lift.everScore, 9.9).toFixed(1)}</span></span></p>
-      <p class="featRare num">${rare}</p>
-      ${fact ? `<p class="featFact num">${fact}</p>` : ''}
-      <p class="featSource">Best estimated one-rep max, all time. ${source}</p>
+      ${found.map(({ lift, rare, fact }) => `<div class="featItem">
+        <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score) || 'Below Beginner'} <span class="num">${Math.min(lift.best.score, 9.9).toFixed(1)}</span></span></p>
+        <p class="featRare num">${rare}</p>
+        ${fact ? `<p class="featFact num">${fact}</p>` : ''}
+      </div>`).join('')}
+      <p class="featSource">Sets you did, ranked by their estimated one-rep max. Strength Level: 6.4 million checked lifts, 2015–2026.${found.some((item) => item.meet) ? ` Past Elite: OpenPowerlifting raw meet results, doubled for people who never compete, against 2.7 billion adult ${state.body.sex === 'male' ? 'men' : 'women'}.` : ''}</p>
     </div>`;
 };
-
 // The computer's right panel. On Trends the middle already has the lift chart, so the panel holds what the phone shows
 // under it instead (strength level, volume, most impressive lift); nothing appears twice.
 const renderProgress = () => {
@@ -3535,6 +3578,7 @@ const render = () => {
   view.opening = null;
   view.menuEnter = false;
   view.rulesEnter = false;
+  view.levelInfoEnter = false;
   view.reveal = false;
   tuckCards();
   fitNames();
@@ -5312,7 +5356,9 @@ document.addEventListener('click', (event) => {
   else if (action === 'level-info') {
     const level = Number(target.dataset.level);
     const where = target.dataset.where;
-    view.levelInfo = view.levelInfo?.where === where && (view.levelInfo.level === level || !level) ? null : { where, level };
+    const wasOpen = view.levelInfo?.where === where;
+    view.levelInfo = wasOpen && (view.levelInfo.level === level || !level) ? null : { where, level };
+    view.levelInfoEnter = Boolean(view.levelInfo) && !wasOpen;
   }
   else if (action === 'confirm-yes') answerConfirm(true);
   else if (action === 'import-yes') answerImport(true);
