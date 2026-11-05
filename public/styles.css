@@ -1136,3 +1136,19 @@ button.calDay:active { transform: scale(0.85); }
 .bodyForm .chip[aria-pressed="true"] .chipFace { background: var(--clay); color: #FFFFFF; }
 .bodyForm .saveBody .chipFace { background: var(--text); color: var(--bg); }
 .bodyForm .bodyTitle { color: var(--text); }
+/* Level key, one line, the same under the anatomy and the strength web: the number in a small badge of the level's
+   colour, then the name. Shrinks a little on narrow phones so it never wraps. */
+.levelKey { display: flex; flex-wrap: nowrap; justify-content: center; gap: 0 clamp(6px, 2.2vw, 12px); margin: 10px 0 0; font-size: clamp(10.5px, 2.95vw, 12.5px); line-height: 16px; color: var(--text2); white-space: nowrap; }
+.levelKey span { display: inline-flex; align-items: center; gap: 4px; }
+.levelKey b { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #FFFFFF; }
+.levelKey b.tierBeg { color: #4A4740; }
+.levelKey b.tierNov { color: #2F4A33; }
+.webCard .levelKey { margin: 8px 4px 4px; }
+.levelKey { gap: 0 clamp(5px, 1.5vw, 12px); font-size: clamp(10px, 2.75vw, 12.5px); }
+.levelKey span { gap: 3px; }
+.levelKey b { width: 14px; height: 14px; font-size: 9.5px; }
+.webCard .levelKey { margin: 8px 0 4px; }
+/* Sized to its own box (phone page, card, the computer's narrow side panel), so it always stays one line. */
+.levelKeyBox { container-type: inline-size; }
+.levelKey { gap: 0 clamp(4px, 1.6cqw, 12px); font-size: clamp(9px, 3.25cqw, 12.5px); }
+.levelKey b { width: clamp(12px, 3.9cqw, 15px); height: clamp(12px, 3.9cqw, 15px); font-size: clamp(8px, 2.6cqw, 10px); }

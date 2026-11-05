@@ -1303,7 +1303,7 @@ const muscleStrength = ({ sets, fresh }, key) => (!sets[key] ? 0 : fresh[key] > 
 // Strength view (like Symmetric Strength): each muscle takes the level of the lifts that train it, weighted, from
 // the same Strength Level scores as the spider web (now, or all time when a lift isn't done lately).
 try {
-  view.muscleMode = localStorage.getItem('exodia.muscleMode') || 'recovery';
+  view.muscleMode = localStorage.getItem('exodia.muscleMode') || 'strength';
 } catch {
   // private mode: recovery
 }
@@ -1323,6 +1323,8 @@ const MUSCLE_LIFTS = {
 };
 // The same five colours as --tierBeg … in styles.css (SVG gradients need the values).
 const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#A9C4A6', tierInt: '#A88FB5', tierAdv: '#C96442', tierElite: '#7CA3DD' };
+// The level key, the same under the anatomy and under the strength web: the level's number in its colour, then its name.
+const levelKey = () => `<div class="levelKeyBox"><p class="levelKey">${[['tierBeg', 'Beginner'], ['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']].map(([tier, name], index) => `<span><b class="${tier}">${index + 1}</b>${name}</span>`).join('')}</p></div>`;
 const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
 const muscleLevels = () => {
   const body = state.body;
@@ -1359,7 +1361,7 @@ const headLogo = (side, points, tier) => {
 };
 let headTierNow = null;
 const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 -7 100 207" aria-hidden="true">${anatomy[side].map(([key, points]) => {
-  if (key === 'head') return headTierNow ? headLogo(side, points, headTierNow) : `<polygon points="${points}" class="bodyBone"/>`;
+  if (key === 'head') return headTierNow ? headLogo(side, points, headTierNow).replace('<rect ', '<rect data-head ') : `<polygon data-head points="${points}" class="bodyBone"/>`;
   if (levels) {
     const tier = key ? tierOf(levels[key] || 0) : null;
     return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
@@ -1374,7 +1376,7 @@ const renderMuscles = () => {
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
-  const toggle = `<div class="segment full" role="group" aria-label="Show">${[['recovery', 'Recovery'], ['strength', 'Strength']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'recovery') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'strength' ? ' on' : ''}" aria-hidden="true"></i></div>`;
+  const toggle = `<div class="segment full" role="group" aria-label="Show">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `<p class="section">Anatomy</p>${toggle}
     ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
@@ -1383,7 +1385,7 @@ const renderMuscles = () => {
         return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${Math.min(levels[key], 9.9).toFixed(1)}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
-    <p class="muscleNote tierLegend"><span><i class="tierBeg"></i>Beginner</span><span><i class="tierNov"></i>Novice</span><span><i class="tierInt"></i>Intermediate</span><span><i class="tierAdv"></i>Advanced</span><span><i class="tierElite"></i>Elite</span></p>`
+    ${levelKey()}`
     : `${bodyForm('Add your bodyweight to see your strength across your anatomy')}<div class="muscles emptyLevels">${bodySvg('front', load, {})}${bodySvg('back', load, {})}
       <div class="muscleList">${MUSCLES.map(([, label]) => `<div class="muscleRow muted"><i class="muscleSwatch tierNone"></i><span>${label}</span><span class="num tierWord">–</span></div>`).join('')}</div>
     </div>`}`;
@@ -2143,7 +2145,7 @@ const textWidth = (text, font) => {
   measurer.font = `${font} ${getComputedStyle(document.body).fontFamily}`;
   return measurer.measureText(text).width;
 };
-const levelWord = (score) => (score >= 5.25 ? 'Elite+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
+const levelWord = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
 // Now = best estimated 1RM of the last 3 months; all time = the best ever (logged sets and saved bests).
 const STRENGTH_NOW_DAYS = 90;
 const liftStrength = (lift, body) => {
@@ -2252,7 +2254,7 @@ const renderStrength = () => {
         ${ringNumbers}
         ${labels}
       </svg>
-      <p class="webRings">${[['tierBeg', 'Beginner', 1], ['tierNov', 'Novice', 2], ['tierInt', 'Intermediate', 3], ['tierAdv', 'Advanced', 4], ['tierElite', 'Elite', 5]].map(([tier, name, level]) => `<span><i class="${tier}"></i>${level} ${name}</span>`).join('')}</p>
+      ${levelKey()}
     </section>`;
 };
 
@@ -2760,8 +2762,23 @@ const placeTopRight = () => {
     dev.style.right = `${Math.round(right - edge + 2)}px`;
   }
 };
+// Phone: the back figure shifts a few pixels so its head sits right under the Exodia logo in the header as you scroll,
+// a hint that the head can become Exodia.
+const alignBackHead = () => {
+  const back = document.querySelectorAll('.page .bodyFig')[1];
+  const logo = document.querySelector('.logo');
+  if (!back) return;
+  back.style.transform = '';
+  if (desktopQuery.matches || !logo) return;
+  const head = back.querySelector('[data-head]')?.getBoundingClientRect();
+  const mark = logo.getBoundingClientRect();
+  if (!head?.width || !mark.width) return;
+  const shift = mark.x + mark.width / 2 - (head.x + head.width / 2);
+  if (Math.abs(shift) < 24) back.style.transform = `translateX(${shift.toFixed(1)}px)`;
+};
 const tuckCards = () => {
   placeTopRight();
+  alignBackHead();
   const dock = document.querySelector('.dock');
   if (!dock) return;
   const sheet = dock.querySelector('.sheet');
@@ -4850,7 +4867,7 @@ document.addEventListener('click', (event) => {
     view.muscleMode = target.dataset.mode;
     // The knob slides over first, then the body recolours.
     const segment = target.closest('.segment');
-    segment?.querySelector('.segmentKnob')?.classList.toggle('on', view.muscleMode === 'strength');
+    segment?.querySelector('.segmentKnob')?.classList.toggle('on', view.muscleMode === 'recovery');
     segment?.querySelectorAll('.segmentOption').forEach((option) => option.setAttribute('aria-pressed', String(option === target)));
     try {
       localStorage.setItem('exodia.muscleMode', view.muscleMode);
