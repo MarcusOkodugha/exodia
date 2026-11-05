@@ -2224,6 +2224,8 @@ const renderStrength = () => {
     const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 38).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
     return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>${allTime}`;
   }).join('');
+  // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
+  const half = Math.max(middle - left, right - middle) + 4;
   // The outline takes each corner's level colour and blends along each edge, so a lift past Elite shows blue there.
   const colours = lifts.map((lift) => TIER_COLOURS[tierOf(shownScore(lift))?.[2] || 'tierBeg']);
   const edges = `<defs>${corners.map((corner, index) => {
@@ -2243,7 +2245,7 @@ const renderStrength = () => {
     <section class="card webCard${known ? '' : ' empty'}">
       ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
       ${!known ? '' : `<div class="webTop"><p class="webIntro">Each lift against Strength Level for your bodyweight</p><p class="webLegend"><span><i class="now"></i>Now</span><span><i class="ever"></i>All time</span></p></div>`}
-      <svg class="web" viewBox="${left.toFixed(0)} -12 ${(right - left).toFixed(0)} 362" style="max-width:${Math.round(((right - left) / 448) * 380)}px" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
+      <svg class="web" viewBox="${(middle - half).toFixed(0)} -12 ${(half * 2).toFixed(0)} 362" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
         ${known ? `<path d="${outline(everCorners)}" class="webEverShape"/>
@@ -2776,6 +2778,8 @@ const alignBackHead = () => {
   const shift = mark.x + mark.width / 2 - (head.x + head.width / 2);
   if (Math.abs(shift) < 24) back.style.transform = `translateX(${shift.toFixed(1)}px)`;
 };
+// The figure moves a little once the text font has loaded; line it up again then.
+document.fonts?.ready.then(() => requestAnimationFrame(alignBackHead));
 const tuckCards = () => {
   placeTopRight();
   alignBackHead();

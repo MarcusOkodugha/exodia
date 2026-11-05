@@ -1152,3 +1152,6 @@ button.calDay:active { transform: scale(0.85); }
 .levelKeyBox { container-type: inline-size; }
 .levelKey { gap: 0 clamp(4px, 1.6cqw, 12px); font-size: clamp(9px, 3.25cqw, 12.5px); }
 .levelKey b { width: clamp(12px, 3.9cqw, 15px); height: clamp(12px, 3.9cqw, 15px); font-size: clamp(8px, 2.6cqw, 10px); }
+/* Phone: the web is centred on the screen (same room both sides) and may use 10px of each side margin, so balancing it
+   doesn't make it smaller. */
+@media (max-width: 1023px) { .trendsPage .webCard .web { width: calc(100% + 20px); max-width: none !important; margin: 0 -10px; } }
