@@ -2005,7 +2005,8 @@ const standardAt = (rows, bodyweight) => {
   return low.slice(1).map((value, index) => value + (high[index + 1] - value) * share);
 };
 const LEVELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
-const WEB_CURVED = false;
+// How much the shape bends between corners: 0 straight, 1 a full smooth curve.
+const WEB_CURVE = 0;
 // Clockwise from the top: legs at the top, push down the right side, pull down the left.
 const WEB_LIFTS = [
   { label: 'Squat', key: 'squat', names: ['squat', 'back squat'] },
@@ -2079,13 +2080,13 @@ const renderStrength = () => {
   // Straight edges, or one smooth curve through the corners (Catmull-Rom as cubic Béziers).
   const segment = (points, index) => {
     const [before, from, to, after] = [-1, 0, 1, 2].map((step) => points[(index + step + points.length) % points.length]);
-    if (!WEB_CURVED) return `L${fixed(to)}`;
-    const control1 = [from[0] + (to[0] - before[0]) / 6, from[1] + (to[1] - before[1]) / 6];
-    const control2 = [to[0] - (after[0] - from[0]) / 6, to[1] - (after[1] - from[1]) / 6];
+    if (!WEB_CURVE) return `L${fixed(to)}`;
+    const control1 = [from[0] + ((to[0] - before[0]) / 6) * WEB_CURVE, from[1] + ((to[1] - before[1]) / 6) * WEB_CURVE];
+    const control2 = [to[0] - ((after[0] - from[0]) / 6) * WEB_CURVE, to[1] - ((after[1] - from[1]) / 6) * WEB_CURVE];
     return `C${fixed(control1)} ${fixed(control2)} ${fixed(to)}`;
   };
   const outline = (points) => `M${fixed(points[0])}${points.map((_, index) => segment(points, index)).join('')}Z`;
-  const ring = (score) => (WEB_CURVED ? `<circle cx="${middle}" cy="${middle}" r="${(radius * (score / outer)).toFixed(1)}"` : `<polygon points="${lifts.map((lift, index) => fixed(point(index, score))).join(' ')}"`);
+  const ring = (score) => `<polygon points="${lifts.map((lift, index) => fixed(point(index, score))).join(' ')}"`;
   // A lift not done lately keeps its all-time place in the shape (its corner says "all time"), rather than falling to zero.
   const shownScore = (lift) => (lift.value ? lift.score : lift.everScore);
   const corners = lifts.map((lift, index) => point(index, Math.max(0.15, shownScore(lift))));
@@ -2112,6 +2113,12 @@ const renderStrength = () => {
   }).join('')}</defs>${corners.map((corner, index) => `<path d="M${fixed(corner)}${segment(corners, index)}" stroke="url(#webEdge${index})" class="webEdge"/>`).join('')}`;
   const everDots = lifts.map((lift, index) => lift.ever && lift.everScore - lift.score >= 0.1 ? `<circle cx="${point(index, lift.everScore)[0].toFixed(1)}" cy="${point(index, lift.everScore)[1].toFixed(1)}" r="2.6" class="webEverDot"/>` : '').join('');
   // Rings from Novice to Elite, each in its level's colour (no Beginner ring: Novice is the first circle).
+  // Each ring's number, the same scale as the corners' numbers, on the gap between Squat and Bench.
+  const gap = -Math.PI / 2 + Math.PI / lifts.length;
+  const ringNumbers = [2, 3, 4, 5].map((level) => {
+    const reach = radius * (level / outer) * Math.cos(Math.PI / lifts.length);
+    return `<text x="${(middle + Math.cos(gap) * reach).toFixed(1)}" y="${(middle + Math.sin(gap) * reach + 4).toFixed(1)}" text-anchor="middle" class="webRingNumber">${level}</text>`;
+  }).join('');
   const rings = [[2, 'tierNov'], [3, 'tierInt'], [4, 'tierAdv'], [5, 'tierElite']].map(([level, tier]) => `${ring(level)} class="webRing ${tier}"/>`).join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
@@ -2124,9 +2131,10 @@ const renderStrength = () => {
         ${edges}
         ${everDots}
         ${lifts.map((lift, index) => lift.value ? `<circle cx="${point(index, lift.score)[0].toFixed(1)}" cy="${point(index, lift.score)[1].toFixed(1)}" r="5" class="webDot ${tierOf(lift.score)?.[2] || 'tierBeg'}"/>` : '').join('')}
+        ${ringNumbers}
         ${labels}
       </svg>
-      <p class="webRings">${[['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']].map(([tier, name]) => `<span><i class="${tier}"></i>${name}</span>`).join('')}</p>
+      <p class="webRings">${[['tierNov', 'Novice', 2], ['tierInt', 'Intermediate', 3], ['tierAdv', 'Advanced', 4], ['tierElite', 'Elite', 5]].map(([tier, name, level]) => `<span><i class="${tier}"></i>${level} ${name}</span>`).join('')}</p>
     </section>`;
 };
 
