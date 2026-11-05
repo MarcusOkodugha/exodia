@@ -1158,3 +1158,20 @@ button.calDay:active { transform: scale(0.85); }
 /* Nothing may make the page wider than the screen (a chart dot's touch area at the right edge did, by 1px), or Safari lets
    the whole page sit a little to one side. */
 main.page { overflow-x: clip; }
+
+.daySummary:empty { display: none; }
+
+/* Update card (replaces the pill + separate notes): clay, calm entrance with a soft glow, grows in place to show notes. */
+.updatedPill { flex-direction: column; align-items: stretch; height: auto; padding: 0; border: 0; border-radius: 20px; background: var(--clay); color: #FFFFFF; box-shadow: 0 8px 24px rgb(var(--clayRgb) / 0.32); width: max-content; max-width: calc(100vw - 32px); overflow: hidden; animation: updatedGlowIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: opacity 0.2s ease, width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.updatedPill.open { width: min(340px, calc(100vw - 32px)); white-space: normal; }
+.updatedMain { justify-content: center; height: 38px; padding: 0 16px; gap: 8px; color: #FFFFFF; font-weight: 600; }
+.updatedMore { color: rgb(255 255 255 / 0.82); font-weight: 500; }
+.updatedChevron { color: #FFFFFF; }
+.updatedPill.open .updatedChevron { transform: rotate(180deg); }
+.updatedPill.open .updatedMain { justify-content: flex-start; }
+.updatedNotes { margin: 0; padding: 0 18px 14px 34px; font-size: 14px; font-weight: 400; line-height: 1.4; color: #FFFFFF; animation: updatedNotesIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.updatedNotes li { margin: 4px 0; }
+@keyframes updatedGlowIn { from { opacity: 0; transform: translate(-50%, -6px) scale(0.97); box-shadow: 0 0 0 rgb(var(--clayRgb) / 0); } 60% { box-shadow: 0 8px 34px rgb(var(--clayRgb) / 0.5); } to { opacity: 1; transform: translateX(-50%); box-shadow: 0 8px 24px rgb(var(--clayRgb) / 0.32); } }
+@keyframes updatedNotesIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .updatedPill, .updatedNotes { animation: none; } }
+.updatedPill.still { animation: none; }

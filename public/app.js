@@ -76,7 +76,7 @@ const ICONS = {
 const esc = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 const estimate = (kg, reps) => (reps <= 1 ? kg : reps <= 10 ? (kg * 36) / (37 - reps) : kg * (1 + reps / 30));
 const weightFor = (oneRepMax, reps) => (reps <= 1 ? oneRepMax : reps <= 10 ? (oneRepMax * (37 - reps)) / 36 : oneRepMax / (1 + reps / 30));
-const ESTIMATE_INFO = `<div class="info" role="note"><p>Estimated 1RM uses the same math as the Strength Level one rep max calculator.</p><p>Up to 10 reps it is the Brzycki formula: weight × 36 ÷ (37 − reps). Above 10 reps it is the Epley formula: weight × (1 + reps ÷ 30). Example: 120 × 7 gives about 144 kg.</p><p>Each day counts its strongest set of 1–10 reps; RPE adds the reps you had left. Sets of more than 10 reps only count when there is nothing heavier, because they say little about a one-rep max. A single you actually lifted is never estimated; it counts as it is.</p><p><a href="https://strengthlevel.com/one-rep-max-calculator" target="_blank" rel="noopener">Strength Level calculator</a></p></div>`;
+const ESTIMATE_INFO = `<div class="info" role="note"><p>Estimated 1RM uses the Brzycki formula up to 10 reps: weight × 36 ÷ (37 − reps), and the Epley formula above 10: weight × (1 + reps ÷ 30). Example: 120 × 7 gives about 144 kg.</p><p>Each day counts its strongest set of 1–10 reps; RPE adds the reps you had left. Sets of more than 10 reps only count when there is nothing heavier, because they say little about a one-rep max. A single you actually lifted is never estimated; it counts as it is.</p></div>`;
 const infoButton = () => `<button class="infoBtn" data-action="toggle-info" aria-expanded="${Boolean(view.info)}" aria-label="How the estimate works">i</button>`;
 const round = (value) => Math.round(value * 10) / 10;
 const pad = (number) => String(number).padStart(2, '0');
@@ -336,6 +336,8 @@ const applyFlavor = () => {
 
 const joinProfile = async (key) => {
   if (key === syncState.profile) return true;
+  // Example data never joins a real log: drop it first, or the join can't sync and Alex's days would merge in.
+  if (state.demo) Object.assign(state, { sessions: [], name: '', bests: {}, demo: false });
   const previous = { sessions: state.sessions, name: state.name, bests: state.bests, sync: syncState };
   syncState = freshSync(key);
   state.sessions = [];
@@ -692,6 +694,7 @@ const addEntries = (result, date = todayIso()) => {
   // "Change the cardio to 50" sets the day's cardio; "30 min cardio" adds to it. A note that says
   // "instead of", "change" or "not" also counts as a correction when the AI forgets to flag it.
   if (result.cardioMinutes) session.cardio = result.cardioTotal || (session.cardio && /\b(instead|change|changed|correct|should be|not \d+|was \d+)\b/i.test(`${result.transcript || ''} ${view.lastSaid || ''}`)) ? Number(result.cardioMinutes) : (session.cardio || 0) + Number(result.cardioMinutes);
+  if (result.cardioMinutes && result.cardioName) session.cardioName = result.cardioName;
   view.open.add(date);
   save();
   return names;
@@ -753,7 +756,8 @@ const renderExercise = (session, exercise, exerciseIndex) => {
     const lastRow = groupIndex === groups.length - 1;
     const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : 0;
     const pr = prKind(exercise.name, session.date, set);
-    const numbers = count > 1 ? `${count}×` : `${start + 1}`;
+    // Only repeated sets carry a count ("3×"); a single set has none, so a lone number never reads as a count.
+    const numbers = count > 1 ? `${count}×` : '';
     const label = `${esc(exercise.name)}, ${count > 1 ? `${count} sets` : `set ${numbers}`}`;
     const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${start}" data-count="${count}"`;
     return `<div class="swipe setSwipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
@@ -799,12 +803,14 @@ const glowing = (date, name) => {
 };
 
 const KINDS = { legs: 'Leg day', pull: 'Pull day', push: 'Push day', arms: 'Arm day' };
+// What the cardio was (Football, Cycling), or plain Cardio when nobody said.
+const cardioLabel = (session) => session.cardioName || 'Cardio';
 const dayKind = (session) => {
   if (session.label) return session.label[0].toUpperCase() + session.label.slice(1);
   const pieces = [...new Set(session.exercises.filter((exercise) => validSets(exercise).length).map((exercise) => libraryEntry(exercise.name)?.piece).filter(Boolean))];
   if (pieces.length === 1) return KINDS[pieces[0]];
   if (pieces.length > 1) return pieces.slice(0, 2).map((piece) => piece[0].toUpperCase() + piece.slice(1)).join(' + ');
-  return session.cardio ? 'Cardio' : '';
+  return session.cardio ? cardioLabel(session) : '';
 };
 
 const dayPrKind = (session, name) => {
@@ -820,13 +826,14 @@ const daySummary = (session) => {
   const second = rest.find(({ name }) => hasPr(session, name)) || rest[0];
   const others = [
     ...rest.filter((item) => item !== second).map(({ name }) => name),
-    ...(session.cardio ? [`Cardio ${session.cardio} min`] : []),
+    ...(session.cardio ? [`${cardioLabel(session)} ${session.cardio} min`] : []),
     ...(accessoriesOf(session) ? [`Accessories ${accessoriesOf(session)} min`] : [])
   ];
   const row = ({ name, set }) => {
     return dayRow(name, dayPrKind(session, name), isBodyweightLift(name) ? (Number(set.kg) > 0 ? `+${set.kg}` : 'BW') : set.kg, set.reps, e1rmCell(estimate(bodyLoad(name, set.kg), Number(set.reps) + repsInTank(set))));
   };
-  if (!first) return session.cardio ? dayRow('Cardio', false, session.cardio, 'min', '') : dayRow('Nothing logged yet', false, '', '', '');
+  // A cardio-only day already says what and how long in its header ("Football · 90 min").
+  if (!first) return session.cardio ? '' : dayRow('Nothing logged yet', false, '', '', '');
   return `${row(first)}${second ? row(second) : ''}${others.length ? `<span class="dayOthers">+ ${esc(others.join(', '))}</span>` : ''}`;
 };
 
@@ -844,20 +851,20 @@ const renderSession = (session) => {
       </div>` : `<button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
         <span class="headName dayDate">${dayLabel(session.date)}</span>
         <span class="dayKind">${esc(dayKind(session))}</span>
-        <span class="meta num">${open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
+        <span class="meta num">${!sessionSets(session) && session.cardio ? `${session.cardio} min` : open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
       </button>`}
       ${open ? `<button class="editBtn" data-action="edit-day" data-date="${session.date}">${editing ? 'Done' : 'Edit'}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
     ${open && editing && view.menuEnter ? '<span class="editHint" aria-hidden="true"></span>' : ''}${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
       <p class="dayMenuLabel">Move to</p>
-      <div class="days scroll"><label class="chip pickDate"><span class="chipFace">${ICONS.calendar || ''}Pick a date</span><input type="date" max="${todayIso()}" value="${session.date}" data-move-from="${session.date}" aria-label="Move ${dayLabel(session.date)} to a date"></label>${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), -index)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}</div>
+      <div class="days scroll moveDays">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), index - 20)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}<label class="chip pickDate"><span class="chipFace">${ICONS.calendar || ''}Pick a date</span><input type="date" max="${todayIso()}" value="${session.date}" data-move-from="${session.date}" aria-label="Move ${dayLabel(session.date)} to a date"></label></div>
       <button class="textBtn danger" data-action="delete-day" data-date="${session.date}">Delete day</button>
     </div>` : ''}
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${session.cardio ? `<div class="swipe"><button class="swipeDel" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>Cardio</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
+      ${session.cardio ? `<div class="swipe"><button class="swipeDel" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
         <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
@@ -1528,7 +1535,7 @@ const renderDayNow = (date) => {
   const session = sessionFor(date);
   return `<section class="card dayNow">
     <p class="dayNowTitle">${dayLabel(date)} right now</p>
-    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">Cardio</span><span class="dayNowSets num">${session.cardio} min</span></div>` : ''}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${accessoriesOf(session)} min</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
+    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">${esc(cardioLabel(session))}</span><span class="dayNowSets num">${session.cardio} min</span></div>` : ''}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${accessoriesOf(session)} min</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
     <p class="dayNowHint">Say or type what's wrong. Changes go to this day.</p>
   </section>`;
 };
@@ -2286,7 +2293,7 @@ const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'C
 
 const dayName = (session) => {
   const peaks = topSets(session).map(({ name, set }) => `${SHORT_NAMES[name] || name}${prKind(name, session.date, set) === 'max' ? ' PR' : ''} ${set.kg}×${set.reps}`);
-  const text = [...peaks, ...(session.cardio ? [`Cardio ${session.cardio}m`] : [])].join(', ') || 'Session';
+  const text = [...peaks, ...(session.cardio ? [`${cardioLabel(session)} ${session.cardio}m`] : [])].join(', ') || 'Session';
   return session.label ? `${text} · ${session.label}` : text;
 };
 
@@ -2925,11 +2932,20 @@ const endDemo = () => {
 };
 // After an update a small pill says so for about a minute. Tap × or swipe it away; the update itself needs no tap.
 const VERSION_KEY = 'exodia.version';
+const NOTES_KEY = 'exodia.openNotes';
 const updatedLines = () => {
   const list = view.updated?.changes || [];
   return list.length ? list : ['Small improvements and fixes'];
 };
-const updatedPill = () => (view.updated && !view.updateReady ? `<div class="updatedPill" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${view.updated.open ? 'true' : 'false'}"><span class="updatedDot" aria-hidden="true"></span>Exodia updated${view.isAdmin ? ` · v${view.updated.version}` : ''}<span class="updatedMore">${view.updated.open ? '' : 'See what’s new'}</span><svg class="updatedChevron${view.updated.open ? ' open' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><button class="updatedX" data-action="close-updated" aria-label="Close">${ICONS.close}</button></div>${view.updated.open ? `<div class="updatedCard"><p class="updatedTitle">What's new</p><ul>${updatedLines().map((line) => `<li>${esc(line)}</li>`).join('')}</ul></div>` : ''}` : '');
+// One calm clay card for updates: "Exodia updated", tap and the notes open inside the same card, tap outside and it
+// goes. If the new version is still waiting to load, the tap loads it and the card comes back already open.
+const updatedPill = () => {
+  if (state.demo || !(view.updated || view.updateReady)) return '';
+  const open = Boolean(view.updated?.open);
+  const still = view.updatedShown ? ' still' : '';
+  view.updatedShown = true;
+  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span>Exodia updated${view.isAdmin && view.updated ? ` · v${view.updated.version}` : ''}</span><span class="updatedMore">${open ? '' : 'See what’s new'}</span><svg class="updatedChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${open ? `<ul class="updatedNotes">${updatedLines().map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
+};
 const hideUpdated = () => {
   view.updated = null;
   const pill = document.querySelector('.updatedPill');
@@ -2961,8 +2977,13 @@ const noteUpdate = async () => {
   } catch {
     return;
   }
+  let openNotes = false;
+  try {
+    openNotes = sessionStorage.getItem(NOTES_KEY) === '1';
+    sessionStorage.removeItem(NOTES_KEY);
+  } catch { /* closed */ }
   if (!seen || seen >= version) return;
-  view.updated = { version, from: seen, changes: [] };
+  view.updated = { version, from: seen, changes: [], open: openNotes };
   render();
   fetch('/changes.json').then((response) => response.json()).then((all) => {
     if (view.updated?.version !== version) return;
@@ -3012,7 +3033,7 @@ for (const type of ['pointerup', 'pointercancel']) document.addEventListener(typ
     swipe.pill.style.opacity = '';
   }
 });
-const updatePill = () => (view.updateReady && !state.demo ? '<button class="updatePill" data-action="reload-app">New version ready · Tap to update</button>' : '');
+
 // A new version loads by itself as soon as nothing would be lost (no text typed, nothing being sent, recorded or edited).
 // The page, scroll position, open days and the lift on the chart are kept, so you land where you were.
 const RESUME_KEY = 'exodia.resume';
@@ -3209,7 +3230,16 @@ const watchDock = () => {
   });
   dockObserver.observe(dock);
 };
+// Once someone has started, the address is their own private link, so Add to Home Screen (which on iPhone gets
+// its own empty storage) opens their log instead of a blank app.
+const keepPrivateUrl = () => {
+  if (view.sandbox || state.demo || !(state.started || state.name || state.sessions.length)) return;
+  const own = `/me/${syncState.profile}`;
+  if (location.pathname !== own) history.replaceState(history.state, '', `${own}${location.search}${location.hash}`);
+};
+
 const render = () => {
+  keepPrivateUrl();
   const app = document.getElementById('app');
   const hit = exodiaHit();
   if (view.wasHit === false && hit && !view.celebrating) celebrate();
@@ -3260,7 +3290,7 @@ const render = () => {
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${renderLeft()}${updatePill()}${updatedPill()}${devExtras()}${demoPill()}`;
+    </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
   if (view.toast) view.toast.shown = true;
   watchDock();
   const draft = document.getElementById('draft');
@@ -3289,6 +3319,7 @@ const render = () => {
   if (body) body.scrollTop = chatScroll ?? body.scrollHeight;
   if (view.trayEnter) animateChat(true);
   view.trayEnter = false;
+  document.querySelectorAll('.moveDays').forEach((row) => { row.scrollLeft = row.scrollWidth; });
   if (view.trendScroll && view.route === 'trends') {
     const card = [...document.querySelectorAll('[data-trend]')].find((item) => item.dataset.trend === view.trendScroll);
     view.trendScroll = null;
@@ -3542,7 +3573,7 @@ const resultDetail = (touched) => {
     const session = sessionFor(date);
     if (!session) return '';
     const rows = session.exercises.filter((exercise) => !names.size || names.has(exercise.name)).map((exercise) => [exercise.name, condenseSets(exercise.sets)]);
-    if (!names.size && session.cardio) rows.push(['Cardio', `${session.cardio} min`]);
+    if (!names.size && session.cardio) rows.push([cardioLabel(session), `${session.cardio} min`]);
     return `<p class="toastDay">${dayLabel(date)}</p>${rows.map(([name, sets]) => `<div class="toastRow"><span class="toastLift">${esc(name)}</span><span class="toastSets num">${esc(sets)}</span></div>`).join('')}`;
   }).join('');
 };
@@ -3591,6 +3622,7 @@ const applyEdits = (result) => {
     } else {
       session.exercises = [];
       session.cardio = 0;
+      delete session.cardioName;
       done.push(`Removed ${dayLabel(item.date)}`);
     }
     if (session.exercises.length === 0 && !session.cardio) state.sessions = state.sessions.filter((other) => other !== session);
@@ -3666,7 +3698,7 @@ const addLog = (said, did, extra = {}) => {
   if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
-const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${result.cardioMinutes} min on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`cardio ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
+const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${result.cardioMinutes} min on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 const applyResult = (result, date, said, heard = '') => {
   const before = JSON.stringify(state.sessions);
@@ -4843,6 +4875,10 @@ document.addEventListener('click', (event) => {
   if (action === 'close-updated') return hideUpdated();
   if (action === 'toggle-updated' && Date.now() - (view.updatedSwiped || 0) < 400) return;
   if (action === 'toggle-updated') {
+    if (view.updateReady && !view.updated) {
+      try { sessionStorage.setItem(NOTES_KEY, '1'); } catch { /* opens closed instead */ }
+      return reloadInPlace();
+    }
     if (view.updated) view.updated.open = !view.updated.open;
     return render();
   }
@@ -5190,6 +5226,7 @@ document.addEventListener('click', (event) => {
   } else if (action === 'remove-cardio' && session) {
     changeWithUndo(`Removed cardio on ${dayLabel(date)}`, () => {
       session.cardio = 0;
+      delete session.cardioName;
     }, 'Remove cardio');
   } else if (action === 'quick-all') {
     view.quickAll = !view.quickAll;

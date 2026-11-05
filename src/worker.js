@@ -18,7 +18,7 @@ Weights are kilograms. Return only sets that were actually done.
 "warm up 100 6, 140 4" means warm-up sets; keep them and set warmup true. Never invent warm-up sets: add them only when the user says they warmed up or worked up. If they say they warmed up or worked up plate by plate without exact numbers, add warm-up sets below the first working weight in steps of one 20 kg plate per side (40 kg), starting at 60 kg, with fewer reps as it gets heavier (60x6, 100x4, 140x2, 180x1 style), and copy their usual warm-ups from the recent log if it has any. Reps in reserve N means rpe 10 minus N, never rpe N: "3 in reserve" is rpe 7, "8 reps in reserve" is rpe 2. Accessory work in minutes ("30 minutes of accessories") goes in accessoriesMinutes. For lifts measured in lengths, distance or time (sled drag, sled push, farmer's walk, carries), log kg as the load and reps as the number of lengths or rounds. If part of the note cannot be logged at all, put that part, in the user's words, in unclear, and still log everything else. Unclear holds only the user's own words or a short question to them, never your reasoning. A number said with "kg" or "kilos" is always the weight, never reps: "two sets of 12 kg curls" is two sets at kg 12. Never invent a number the user did not say. If the sets or weight are known but the reps are not ("two sets of 12 kg curls", "three sets reps"), still log those sets with reps 0, which means reps unknown, and put a short question in unclear, like "Dumbbell Curl 12 kg: how many reps?". If the weight is unknown, use kg 0 only for bodyweight lifts; otherwise ask in unclear.
 "effort 70%" or "felt light" can become rpe (70% effort is about rpe 7).
 Bodyweight exercises use kg 0, or the added weight.
-Running, cycling, walking or other cardio goes in cardioMinutes. If the user changes or corrects the cardio already logged for a day ("change the cardio to 50", "50 minutes instead of 60", "it was 50, not 60"), put the new total in cardioMinutes and set cardioTotal true; otherwise cardioMinutes is added to what is there.
+Running, cycling, walking, sports and other cardio go in cardioMinutes, and what it was goes in cardioName in short Title Case English ("Football", "Cycling", "Running", "Walk", "Plyometrics", "Padel"); leave cardioName out when they only said "cardio". If the user changes or corrects the cardio already logged for a day ("change the cardio to 50", "50 minutes instead of 60", "it was 50, not 60"), put the new total in cardioMinutes and set cardioTotal true; otherwise cardioMinutes is added to what is there.
 Keep the exercise the user named, in Title Case English: "single arm tricep extension" is "Single Arm Tricep Extension", never a different exercise like "Triceps Pushdown". Use a name from the known list only when it is the same exercise, differing just in spelling, plural or word order. If they name no specific variant, use common names like "Bench Press", "Deadlift", "Hack Squat".
 If the user says which day it happened, set date as YYYY-MM-DD from the calendar below; a full date with a year ("26th of July 2024") is used exactly as said, however long ago. A note that only says when something happened, with no lifts or numbers ("this was 26th of July 2024", "that was yesterday"), is about the newest entry in the recent log: use move from that day to the new date (with the exercise when only one exercise was just added). Never log sets the user did not say in this note. "Last Friday" or "on Friday" means the most recent Friday before today, never the week before. "Yesterday" is the day before today. If no day is mentioned, leave date out.
 When a voice note is attached, listen to it, write what was said in transcript, and log from it. If text comes with the voice note, the text is the user's own corrected transcript of it: follow the text and do not log anything twice. Expect gym words: exercise names, kilos, reps and sets. Words you will hear often: paused or pause, close-grip, incline, reps, sets, RPE, RIR, warm-up, worked up, plates, per side, top set, back-off. Do not mishear "paused" as "post" or "pots", or "reps" as "wraps". "Paused" or "pause" said with bench or squat means the lift Pause Bench Press or Pause Squat. "At 9" or "at an 8" after a set means that rpe. "Three sets 130 for two" means three sets of 130 kg for 2 reps. Example: "I did 120 for two paused and then three sets 130 kg for two paused at 9" is Pause Bench Press 120x2, then 130x2 rpe 9 three times.
@@ -46,6 +46,7 @@ const SCHEMA = {
       }
     },
     cardioMinutes: { type: 'INTEGER' },
+    cardioName: { type: 'STRING' },
     cardioTotal: { type: 'BOOLEAN' },
     accessoriesMinutes: { type: 'INTEGER' },
     unclear: { type: 'STRING' },
@@ -108,7 +109,7 @@ const IMPORT_PROMPT = `You turn a lifter's training history into JSON days. The 
 Each day gets its date as YYYY-MM-DD. Use the calendar below for relative dates like "yesterday" or "last Friday". If a date has no year, use the most recent past date with that day and month. Training with no date at all goes on today's date only if the text says it was today; otherwise put it in unclear in the user's words.
 Training programs and plans often have no real dates, only days and weeks (Day 7, Week 2 Day 3, W3D2, "Day A", a sheet called "Day 6-10"). Never invent dates for them. Give each such day programDay: its number counted from the program's first training day across the whole file, using sheet names, sheet order ("Sheet 3 of 7") and day labels to know where you are (a sheet "Day 6-10" holds days 6 to 10; "Week 2 Day 3" with 5 days a week is day 8). Set date to "" for those days. Set programStart (YYYY-MM-DD) if the user's note or the text says when the program started, and daysPerWeek if it says or shows how many training days a week. Every day in the text is a separate day: never merge two days into one.
 Get as much in as you can. A missing value never drops an exercise: "4x5" or "4 sets of 5" is four sets of 5 reps; reps without a weight get weight 0; a weight without reps gets reps 0; a percentage of a max becomes kg from the known best in the note (best × percentage, rounded to 2.5), otherwise weight 0. Ranges like "8-10" take the low end.
-Weights are kilograms; convert pounds (lb, lbs) to kg rounded to 0.5. "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps. "3x5 at 100" means three sets of 100 kg for 5 reps. Reps in reserve N means rpe 10 minus N. "At 9" after a set means rpe 9. Keep warm-up sets only when they are marked as warm-ups, and set warmup true. "Paused" or "pause" with bench or squat means the lift Pause Bench Press or Pause Squat. A number said with "kg" is always the weight. Never invent reps or weights; unknown reps are 0. Keep the exercise the user named in Title Case ("single arm tricep extension" is "Single Arm Tricep Extension"); use a known-list name only when it is the same exercise. Cardio goes in cardioMinutes, accessory work in minutes goes in accessoriesMinutes. If they named the session or said where it was, put a short name in label. Log each set once even if it is mentioned twice.`;
+Weights are kilograms; convert pounds (lb, lbs) to kg rounded to 0.5. "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps. "3x5 at 100" means three sets of 100 kg for 5 reps. Reps in reserve N means rpe 10 minus N. "At 9" after a set means rpe 9. Keep warm-up sets only when they are marked as warm-ups, and set warmup true. "Paused" or "pause" with bench or squat means the lift Pause Bench Press or Pause Squat. A number said with "kg" is always the weight. Never invent reps or weights; unknown reps are 0. Keep the exercise the user named in Title Case ("single arm tricep extension" is "Single Arm Tricep Extension"); use a known-list name only when it is the same exercise. Cardio and sports go in cardioMinutes, with what it was in cardioName ("Football", "Cycling"); accessory work in minutes goes in accessoriesMinutes. If they named the session or said where it was, put a short name in label. Log each set once even if it is mentioned twice.`;
 
 const DAY_SCHEMA = {
   type: 'OBJECT',
@@ -123,6 +124,7 @@ const DAY_SCHEMA = {
           label: { type: 'STRING' },
           exercises: SCHEMA.properties.exercises,
           cardioMinutes: { type: 'INTEGER' },
+          cardioName: { type: 'STRING' },
           accessoriesMinutes: { type: 'INTEGER' }
         },
         required: ['date', 'exercises']
@@ -257,7 +259,7 @@ const readDays = async (env, text, today, known, context = '', defer = false) =>
     let start = startText;
     if (!start && defer) {
       // The app sends a long file in parts; without a start date only the app sees the whole program, so it dates it.
-      program = { perWeek, days: numbered.map((day) => ({ programDay: day.programDay, ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today) })) };
+      program = { perWeek, days: numbered.map((day) => ({ programDay: day.programDay, ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, cardioName: day.cardioName, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today) })) };
       for (const day of numbered) day.date = '';
     } else {
       if (!start) {
@@ -269,7 +271,7 @@ const readDays = async (env, text, today, known, context = '', defer = false) =>
   }
   const days = all
     .filter((day) => DATE.test(day?.date ?? '') && day.date <= today)
-    .map((day) => ({ ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today), date: day.date }));
+    .map((day) => ({ ...clean({ exercises: day.exercises, cardioMinutes: day.cardioMinutes, cardioName: day.cardioName, accessoriesMinutes: day.accessoriesMinutes, label: day.label }, today), date: day.date }));
   const unclear = [guessed, ...parts.map((part) => part?.unclear)].filter(Boolean).join(' ').slice(0, 500);
   return { days, unclear, failed, models: [...new Set(parts.map((part) => part?.model).filter(Boolean))], refused: [...new Set(refusals)].slice(0, 8), program };
 };
@@ -308,6 +310,7 @@ const mergeDays = (sessions, days) => {
       added += sets.length;
     }
     if (day.cardioMinutes && !session.cardio) session.cardio = day.cardioMinutes;
+    if (day.cardioName && !session.cardioName) session.cardioName = day.cardioName;
     if (day.accessoriesMinutes) session.accessories = day.accessoriesMinutes;
     if (day.label && !session.label) session.label = day.label;
     sessions.set(day.date, session);
@@ -451,6 +454,7 @@ const clean = (raw, today) => {
     }))
     .filter((exercise) => exercise.name && exercise.sets.length > 0);
   const cardioMinutes = Math.min(600, Math.max(0, Math.round(Number(raw?.cardioMinutes) || 0)));
+  const cardioName = cardioMinutes && typeof raw?.cardioName === 'string' && !/^cardio$/i.test(raw.cardioName.trim()) ? raw.cardioName.trim().replace(/\s+/g, ' ').slice(0, 30) : '';
   const date = typeof raw?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null;
   // Any past day the user names counts (old training added later), but nothing in the future or before 1980.
   const valid = date && today && date <= today && date >= '1980-01-01';
@@ -471,7 +475,7 @@ const clean = (raw, today) => {
   const accessoriesMinutes = Math.min(300, Math.max(0, Math.round(Number(raw?.accessoriesMinutes) || 0)));
   const unclear = typeof raw?.unclear === 'string' ? raw.unclear.trim().slice(0, 1000) : '';
   const feedback = typeof raw?.feedback === 'string' ? raw.feedback.trim().slice(0, 2000) : '';
-  return { exercises, cardioMinutes, transcript, remove, replace, move, ...(cardioMinutes && raw?.cardioTotal === true ? { cardioTotal: true } : {}), ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
+  return { exercises, cardioMinutes, ...(cardioName ? { cardioName } : {}), transcript, remove, replace, move, ...(cardioMinutes && raw?.cardioTotal === true ? { cardioTotal: true } : {}), ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
 
 // A friend's message that isn't training (nothing to log, AI couldn't read it) goes to Marcus as feedback, so it shows
@@ -807,7 +811,7 @@ const describe = (raw) => {
   const sets = (list) => list.map((set) => `${set.kg}×${set.reps}${set.rpe ? `@${set.rpe}` : ''}${set.warmup ? 'w' : ''}`).join(', ');
   return [
     ...(result.exercises || []).map((exercise) => `Add ${exercise.name} ${sets(exercise.sets)}`),
-    ...(result.cardioMinutes ? [`Add cardio ${result.cardioMinutes} min`] : []),
+    ...(result.cardioMinutes ? [`Add ${result.cardioName || 'cardio'} ${result.cardioMinutes} min`] : []),
     ...(result.remove || []).map((item) => `Remove ${item.exercise ? `${item.exercise} from ` : ''}${item.date}`),
     ...(result.replace || []).map((item) => `Change ${item.exercise} on ${item.date} to ${sets(item.sets)}`),
     ...(result.move || []).map((item) => `Move ${item.exercise ? `${item.exercise} ` : ''}from ${item.from} to ${item.to}`),
