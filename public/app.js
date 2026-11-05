@@ -110,7 +110,7 @@ const loadState = () => {
   } catch (error) {
     console.error('Could not read saved data', error);
   }
-  return { version: 1, deviceId: crypto.randomUUID(), sessions: [], bests: { 'Bench Press': 145 } };
+  return { version: 1, deviceId: crypto.randomUUID(), sessions: [], bests: {} };
 };
 
 let state = loadState();
