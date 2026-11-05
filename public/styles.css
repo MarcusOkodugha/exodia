@@ -901,3 +901,9 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
    the same way, so the top left reads as one soft surface. */
 .side { background: linear-gradient(180deg, var(--bg) 0, var(--drawer) 72px); border-right-color: transparent; }
 .side::after { content: ""; position: fixed; top: 0; bottom: 0; left: 271px; width: 1px; background: linear-gradient(180deg, rgb(0 0 0 / 0) 0, var(--line) 72px); pointer-events: none; }
+
+/* Trends: a range with nothing in it keeps the chart's frame, faint, with a calm note in the middle. */
+.trendEmpty .tick { opacity: 0.5; }
+.emptyChart { position: absolute; inset: 0 0 0 28px; background: radial-gradient(ellipse 60% 70% at 50% 50%, var(--bg) 40%, rgb(250 249 245 / 0) 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+.emptyTitle { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.emptySub { margin: 0 0 8px; font-size: 13px; color: var(--text2); }

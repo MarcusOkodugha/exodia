@@ -1160,6 +1160,24 @@ const monthlyBest = (points) => {
   return kept;
 };
 
+// A range with no sessions keeps the chart's frame (same height, faint grid in this lift's own kg range) with a
+// calm line in the middle: when it was last done, and one tap to see all of it.
+const emptyChart = (name, all) => {
+  const values = all.map((point) => point.value).filter((value) => value > 0);
+  const top = Math.max(...values, 20);
+  const bottom = Math.min(...values, top);
+  const step = niceStep(top - bottom || 10);
+  const low = Math.floor(bottom / step) * step;
+  const high = Math.max(low + step, Math.ceil(top / step) * step);
+  const ticks = Array.from({ length: Math.round((high - low) / step) + 1 }, (unused, index) => high - index * step).filter((tick, index, list) => list.length <= 6 || index % 2 === 0);
+  const last = all.at(-1);
+  const range = view.range === 90 ? '3 months' : view.range === 180 ? '6 months' : 'year';
+  return `<div class="trend trendEmpty" role="img" aria-label="No ${esc(name)} in the last ${range}">
+    ${ticks.map((tick) => `<span class="tick" style="top:${(((high - tick) / (high - low)) * 100).toFixed(2)}%"><b class="num">${tick}</b></span>`).join('')}
+    <div class="emptyChart"><p class="emptyTitle">No ${esc(name)} in the last ${range}</p>${last ? `<p class="emptySub">Last time ${dayLabel(last.date)}</p>` : ''}<button class="chip" data-action="range" data-days="0"><span class="chipFace">Show all time</span></button></div>
+  </div>
+  <div class="axis num"><span>${dayLabel(addDays(todayIso(), -view.range))}</span><span>Today</span></div>`;
+};
 const chartFor = (allPoints) => {
   const points = monthlyBest(allPoints);
   if (points.length === 0) return '';
@@ -1338,7 +1356,7 @@ const renderTrends = () => {
           <p class="chartTitle">Trend <span class="chartPrs">${prCount(name, view.range ? since : '') || 'No'} ${prCount(name, view.range ? since : '') === 1 ? 'PR' : 'PRs'}</span></p>
           ${[[90, '3M'], [180, '6M'], [365, '1Y'], [0, 'All']].map(([days, label]) => `<button class="chip" data-action="range" data-days="${days}" aria-pressed="${view.range === days}"><span class="chipFace">${label}</span></button>`).join('')}
         </div>
-        ${points.length ? chartFor(points) : '<p class="empty">No sessions in this range.</p>'}
+        ${points.length ? chartFor(points) : emptyChart(name, all)}
 ` : `<p class="summary num">${all.length} ${all.length === 1 ? 'session' : 'sessions'} · last ${dayLabel(last.date)}</p>`}
     </section>`;
   };
