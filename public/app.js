@@ -5087,7 +5087,6 @@ const send = async () => {
 };
 
 document.addEventListener('click', (event) => {
-  // "What's new" open: a tap anywhere else closes it all, like any dialog, and does nothing else.
   // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
   if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
@@ -5593,8 +5592,9 @@ document.addEventListener('click', (event) => {
     render();
     return;
   } else if (action === 'open-quick') {
+    // Opens calm, like tapping the box: the latest message, then Import and the first lifts; the arrow shows them all.
     openChat();
-    view.sheetH = null;
+    view.sheetH = SHEET_SMALL;
     view.showQuick = true;
     view.quickHidden = false;
     if (!desktopQuery.matches) document.activeElement?.blur();
