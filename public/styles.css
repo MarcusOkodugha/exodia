@@ -968,3 +968,12 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .tierLegend span { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 .tierLegend i { width: 9px; height: 9px; border-radius: 2px; }
 @media (max-width: 379px) { .tierWord { display: none; } }
+
+/* Strength card: intro and legend left, like every other card, on one line above the web. */
+.webTop { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 8px 0; }
+.webTop .webIntro { margin: 0; text-align: left; flex: 1 1 180px; }
+.webTop .webLegend { margin: 0; justify-content: flex-start; gap: 12px; }
+.webEverWord { fill: #5B4A3F; font-style: italic; }
+/* Every page scrolls far enough that its last card clears the fade above the box. */
+.page { padding-bottom: calc(var(--dock-h, 150px) + 76px); }
+.desk .page { padding-bottom: calc(var(--dock-h, 160px) + 76px); }
