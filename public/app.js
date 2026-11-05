@@ -2752,14 +2752,14 @@ const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedba
   : nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
   : quickShown()
-  ? `${(state.log || []).length || view.pending.length ? `<div class="chat recentChat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(-12).reverse(), true)}${pendingChat()}</div>` : ''}${quickAdd()}`
+  ? `${(state.log || []).length || view.pending.length ? `<div class="recentChat"><div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(-6).reverse(), true)}${pendingChat()}</div></div>` : ''}${quickAdd()}`
   : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`);
 
 // The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".
 // Drag the bar: let go anywhere and it stays that tall; a quick flick up snaps to the usual size, a flick down closes.
 const SHEET_PEEK = 30;
 // Tapping the box opens the panel this tall: Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more.
-const SHEET_SMALL = 214;
+const SHEET_SMALL = 286;
 const sheetSmall = () => typeof view.sheetH === 'number' && view.sheetH > SHEET_PEEK + 4 && view.sheetH <= SHEET_SMALL + 4;
 const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:var(--sheet-room, none)"` : '');
 const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
@@ -2799,14 +2799,11 @@ const showChat = () => {
   view.quickHidden = true;
   if (typeof view.sheetH !== 'number' || view.sheetH <= SHEET_PEEK + 4) view.sheetH = SHEET_SMALL;
 };
-// The chat sits at the bottom of the panel (newest last). Quick add opens at its top with the newest message just
-// peeking above it, so it's clear the conversation is one scroll up.
-const QUICK_PEEK = 62;
+// The chat sits at the bottom of the panel (newest last). With Quick add, the latest messages sit in a short strip
+// above it (newest showing, scroll it for older) and Quick add stays in full view under it.
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
-  if (!body) return;
-  const quick = body.dataset.mode === 'quick' && body.querySelector('.quickAdd');
-  body.scrollTop = quick ? Math.max(0, quick.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - QUICK_PEEK) : body.scrollHeight;
+  if (body) body.scrollTop = body.dataset.mode === 'quick' ? 0 : body.scrollHeight;
 };
 
 const animateChat = (opening) => {
