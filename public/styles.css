@@ -913,14 +913,14 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .web { display: block; width: 100%; max-width: 290px; height: auto; margin: 0 auto; overflow: visible; }
 .webRing { fill: none; stroke: var(--line); stroke-width: 1; }
 .webRing.elite { stroke: #CFCBBE; stroke-width: 1.4; }
-.webRing.past { stroke-dasharray: 3 4; }
+.webRing.past { stroke-dasharray: 2 5; opacity: 0.8; }
 .webSpoke { stroke: var(--line); stroke-width: 1; }
 .webShape { fill: rgb(var(--clayRgb) / 0.18); stroke: var(--clay); stroke-width: 2; stroke-linejoin: round; }
 .webDot { fill: var(--clay); }
-.webLift { font-size: 13px; font-weight: 600; fill: var(--text); }
-.webLevel { font-size: 11.5px; fill: var(--text2); }
+.webLift { font-size: 15px; font-weight: 600; fill: var(--text); }
+.webLevel { font-size: 13px; fill: var(--text2); }
 .webLevel.elite { fill: var(--clayText); font-weight: 600; }
-.webRingLabel { font-size: 10px; fill: var(--text2); letter-spacing: 0.02em; }
+.webRingLabel { font-size: 11px; fill: var(--text2); letter-spacing: 0.02em; }
 .webNote { margin: 4px 8px 0; font-size: 12px; line-height: 16px; color: var(--text2); text-align: center; }
 .section:has(.bodyEdit) { display: flex; align-items: baseline; justify-content: space-between; }
 .bodyEdit { font-weight: 500; font-size: 13px; color: var(--text2); }
@@ -932,7 +932,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .saveBody .chipFace { background: var(--text); color: var(--bg); }
 /* All time sits behind now: a dashed clay outline, so you see how far now is from your best. */
 .webEverShape { fill: none; stroke: var(--clay); stroke-width: 1.4; stroke-dasharray: 4 4; stroke-linejoin: round; opacity: 0.75; }
-.webEver { font-size: 10.5px; fill: var(--text2); opacity: 0.85; }
+.webEver { font-size: 12px; fill: var(--text2); opacity: 0.85; }
 .webLegend { display: flex; justify-content: center; gap: 18px; margin: 2px 0 0; font-size: 12px; color: var(--text2); }
 .webLegend span { display: inline-flex; align-items: center; gap: 6px; }
 .webLegend i { width: 14px; height: 10px; border-radius: 3px; }

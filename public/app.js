@@ -1891,17 +1891,49 @@ const renderVolume = () => {
 
 // Strength levels (Strength Level standards: one-rep max by bodyweight and sex, Beginner → Elite) as a spider web.
 // Each corner is a lift, placed by your best estimated 1RM of the last 12 months. The rings are the levels, the
-// outer solid ring is Elite; anyone past Elite pushes the web outward. STANDARDS holds Strength Level's
-// "entire community" thresholds as multiples of bodyweight (1RM ÷ bodyweight) for Beginner, Novice, Intermediate,
-// Advanced and Elite; pull-ups are reps. Source: strengthlevel.com/strength-standards (2014–2026 community lifts).
+// outer solid ring is Elite; anyone past Elite reaches into the ring beyond it. STANDARDS holds Strength Level's
+// one-rep max tables by bodyweight: [bodyweight, Beginner, Novice, Intermediate, Advanced, Elite] in kg (pull-ups:
+// reps; Strength Level lists "under 1" for the lowest levels, here 0.5). Between two rows it is the straight line
+// between them. Source: strengthlevel.com/strength-standards (community lifts 2014–2026; women's pull-ups have
+// one row for every bodyweight).
 const STANDARDS = {
-  squat: { male: [0.75, 1.25, 1.75, 2.25, 2.75], female: [0.5, 0.75, 1.25, 1.75, 2.25] },
-  'bench-press': { male: [0.5, 1, 1.25, 1.5, 2], female: [0.3, 0.5, 0.75, 1.1, 1.45] },
-  deadlift: { male: [1, 1.5, 2, 2.5, 3.25], female: [0.75, 1, 1.5, 2, 2.5] },
-  'shoulder-press': { male: [0.35, 0.55, 0.8, 1.05, 1.35], female: [0.2, 0.35, 0.5, 0.7, 0.95] },
-  'bent-over-row': { male: [0.5, 0.75, 1, 1.5, 1.75], female: [0.3, 0.45, 0.7, 0.95, 1.25] },
-  'incline-bench-press': { male: [0.5, 0.75, 1, 1.5, 1.75], female: [0.25, 0.4, 0.65, 0.95, 1.25] },
-  'pull-ups': { male: [1, 7, 13, 21, 30], female: [0.5, 1, 6, 12, 19] }
+  'squat': {
+    male: [[60, 49, 71, 98, 129, 162], [80, 75, 101, 132, 168, 206], [90, 87, 115, 148, 186, 226], [100, 98, 128, 163, 203, 244], [110, 109, 140, 177, 218, 261], [120, 120, 152, 191, 233, 278], [140, 140, 175, 215, 261, 307]],
+    female: [[50, 26, 42, 63, 88, 116], [60, 32, 49, 72, 99, 129], [70, 37, 56, 80, 109, 140], [80, 42, 62, 88, 117, 149], [90, 47, 68, 94, 125, 158], [100, 52, 74, 101, 132, 166], [120, 60, 83, 112, 145, 181]]
+  },
+  'bench-press': {
+    male: [[60, 37, 53, 72, 95, 119], [80, 56, 75, 98, 124, 151], [90, 65, 85, 109, 137, 165], [100, 73, 95, 120, 149, 179], [110, 81, 104, 131, 160, 191], [120, 89, 113, 140, 171, 203], [140, 104, 129, 158, 191, 225]],
+    female: [[50, 14, 25, 40, 58, 79], [60, 19, 31, 47, 66, 88], [70, 22, 36, 53, 74, 96], [80, 26, 40, 59, 80, 104], [90, 30, 45, 64, 86, 111], [100, 33, 49, 69, 92, 117], [120, 39, 56, 77, 102, 128]]
+  },
+  'deadlift': {
+    male: [[60, 61, 86, 117, 153, 191], [80, 89, 119, 155, 196, 239], [90, 102, 134, 172, 215, 260], [100, 114, 148, 188, 232, 279], [110, 126, 161, 203, 249, 298], [120, 137, 174, 217, 265, 315], [140, 159, 198, 243, 294, 346]],
+    female: [[50, 34, 52, 76, 105, 136], [60, 40, 60, 86, 116, 149], [70, 46, 68, 95, 126, 160], [80, 52, 74, 102, 135, 170], [90, 57, 80, 109, 143, 180], [100, 61, 86, 116, 151, 188], [120, 70, 96, 128, 164, 203]]
+  },
+  'shoulder-press': {
+    male: [[60, 21, 32, 45, 62, 79], [80, 33, 46, 62, 81, 101], [90, 38, 53, 70, 90, 111], [100, 44, 59, 77, 98, 120], [110, 49, 65, 84, 105, 128], [120, 54, 71, 90, 113, 136], [140, 63, 81, 102, 126, 151]],
+    female: [[50, 10, 17, 27, 38, 51], [60, 12, 20, 31, 43, 57], [70, 15, 23, 34, 47, 62], [80, 17, 26, 37, 51, 66], [90, 19, 28, 40, 54, 70], [100, 21, 31, 43, 58, 74], [120, 24, 35, 48, 64, 80]]
+  },
+  'bent-over-row': {
+    male: [[60, 31, 46, 65, 87, 111], [80, 48, 66, 88, 114, 141], [90, 56, 75, 99, 125, 154], [100, 63, 84, 108, 136, 166], [110, 70, 92, 118, 147, 178], [120, 77, 100, 127, 157, 188], [140, 90, 114, 143, 175, 208]],
+    female: [[50, 15, 25, 38, 54, 72], [60, 18, 29, 43, 59, 78], [70, 20, 32, 46, 64, 83], [80, 23, 35, 50, 68, 87], [90, 25, 37, 53, 71, 91], [100, 27, 40, 56, 74, 95], [120, 30, 44, 61, 80, 102]]
+  },
+  'incline-bench-press': {
+    male: [[60, 32, 45, 62, 82, 103], [80, 50, 66, 87, 109, 134], [90, 58, 76, 98, 122, 147], [100, 66, 86, 108, 134, 160], [110, 74, 94, 118, 145, 172], [120, 82, 103, 128, 155, 184], [140, 96, 119, 145, 175, 205]],
+    female: [[50, 11, 20, 33, 49, 67], [60, 14, 25, 39, 56, 76], [70, 18, 29, 45, 63, 84], [80, 21, 34, 50, 69, 91], [90, 24, 38, 55, 75, 97], [100, 28, 42, 59, 80, 104], [120, 33, 49, 68, 90, 114]]
+  },
+  'pull-ups': {
+    male: [[60, 0.5, 7, 14, 23, 33], [80, 1, 7, 13, 21, 29], [90, 1, 7, 12, 19, 27], [100, 0.5, 6, 11, 18, 25], [110, 0.5, 6, 10, 17, 23], [120, 0.5, 5, 10, 16, 22], [140, 0.5, 4, 9, 13, 19]],
+    female: [[60, 0.5, 1, 6, 12, 19]]
+  }
+};
+const standardAt = (rows, bodyweight) => {
+  if (!rows?.length) return null;
+  if (bodyweight <= rows[0][0]) return rows[0].slice(1);
+  if (bodyweight >= rows.at(-1)[0]) return rows.at(-1).slice(1);
+  const upper = rows.findIndex((row) => row[0] >= bodyweight);
+  const [low, high] = [rows[upper - 1], rows[upper]];
+  const share = (bodyweight - low[0]) / (high[0] - low[0]);
+  return low.slice(1).map((value, index) => value + (high[index + 1] - value) * share);
 };
 const LEVELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
 const WEB_LIFTS = [
@@ -1939,8 +1971,7 @@ const liftStrength = (lift, body) => {
     }
   }
   if (!lift.reps) for (const [name, kg] of Object.entries(state.bests || {})) if (lift.names.includes(name.toLowerCase()) && Number(kg) > ever) ever = Number(kg);
-  const table = STANDARDS[lift.key]?.[body.sex];
-  const marks = table ? (lift.reps ? table : table.map((ratio) => ratio * body.kg)) : null;
+  const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
   return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks) };
 };
 const bodyPrompt = () => `<section class="card bodyCard">
@@ -1957,7 +1988,8 @@ const renderStrength = () => {
   const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks);
   if (lifts.length < 3) return '';
   const top = Math.max(5, ...lifts.map((lift) => Math.max(lift.score, lift.everScore)));
-  const outer = Math.min(8, Math.ceil(top * 2) / 2);
+  // Elite is always the second ring from the outside; the outer ring is past Elite and moves out if you do.
+  const outer = Math.min(8, Math.max(6, Math.ceil(top + 0.25)));
   const size = 320;
   const middle = size / 2;
   const radius = 108;
@@ -1967,18 +1999,19 @@ const renderStrength = () => {
   const shape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.score)).map((value) => value.toFixed(1)).join(',')).join(' ');
   const everShape = lifts.map((lift, index) => point(index, Math.max(0.15, lift.everScore)).map((value) => value.toFixed(1)).join(',')).join(' ');
   const labels = lifts.map((lift, index) => {
-    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 26), middle + Math.sin(angle(index)) * (radius + 26)];
+    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 30), middle + Math.sin(angle(index)) * (radius + 30)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
-    const now = lift.value ? levelWord(lift.score) : lift.ever ? 'Not lately' : 'Not logged';
-    const ever = lift.ever && levelWord(lift.everScore) !== levelWord(lift.score) ? `<text x="${x.toFixed(1)}" y="${(y + 29).toFixed(1)}" text-anchor="${anchor}" class="webEver">best ${levelWord(lift.everScore)}</text>` : '';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${now}</text>${ever}`;
+    const now = lift.value ? `${levelWord(lift.score)} · ${lift.score.toFixed(1)}` : lift.ever ? 'Not lately' : 'Not logged';
+    const ever = lift.ever && lift.everScore - lift.score >= 0.1 ? `<text x="${x.toFixed(1)}" y="${(y + 32).toFixed(1)}" text-anchor="${anchor}" class="webEver">best ${levelWord(lift.everScore)} · ${lift.everScore.toFixed(1)}</text>` : '';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 17).toFixed(1)}" text-anchor="${anchor}" class="webLevel${lift.score >= 5 ? ' elite' : ''}">${now}</text>${ever}`;
   }).join('');
   return `<p class="section">Strength level <button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button></p>
     <section class="card webCard">
       <svg class="web" viewBox="-40 -14 400 366" role="img" aria-label="Strength level per lift, now and all time: ${lifts.map((lift) => `${lift.label} ${lift.value ? levelWord(lift.score) : 'not lately'}, best ${lift.ever ? levelWord(lift.everScore) : 'not logged'}`).join('; ')}">
         ${[1, 2, 3, 4].map((level) => `<polygon points="${ring(level)}" class="webRing"/>`).join('')}
         <polygon points="${ring(5)}" class="webRing elite"/>
-        ${outer > 5 ? `<polygon points="${ring(outer)}" class="webRing past"/>` : ''}
+        <polygon points="${ring(outer)}" class="webRing past"/>
+        <text x="${middle + 5}" y="${(point(0, 5)[1] + 13).toFixed(1)}" class="webRingLabel">Elite</text>
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         <polygon points="${everShape}" class="webEverShape"/>
         <polygon points="${shape}" class="webShape"/>
@@ -1986,7 +2019,7 @@ const renderStrength = () => {
         ${labels}
       </svg>
       <p class="webLegend"><span><i class="now"></i>Now · last 3 months</span><span><i class="ever"></i>All time</span></p>
-      <p class="webNote">Estimated 1RM against Strength Level's standards (multiples of your ${Math.round(body.kg)} kg). The solid ring is Elite.</p>
+      <p class="webNote">Levels 1–5 are Beginner, Novice, Intermediate, Advanced and Elite from Strength Level's standards for ${Math.round(body.kg)} kg; past 5 is past Elite. The solid ring is Elite.</p>
     </section>`;
 };
 
