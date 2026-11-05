@@ -1,4 +1,9 @@
 {
+  "259": [
+    "Strength levels: Novice is now sage green, so every level has its own colour",
+    "Anatomy switch: more room under the heading, softer corners",
+    "Strength web: level names as small squares and plain words, no more blobs"
+  ],
   "258": [
     "Anatomy: the Recovery / Strength switch now runs across the whole width",
     "Strength web: the outline takes each lift's level colour (blue past Elite), level names in the same colours as the anatomy",

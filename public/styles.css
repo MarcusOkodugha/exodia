@@ -958,7 +958,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .muscleToggle .chipFace { padding: 0 10px; height: 26px; font-size: 12.5px; }
 .bodyTier { transition: fill 0.35s ease; }
 .tierBeg { fill: #BDB7AA; background: #BDB7AA; }
-.tierNov { fill: #F0C9B5; background: #F0C9B5; }
+.tierNov { fill: #95B79A; background: #95B79A; }
 .tierInt { fill: #E2967A; background: #E2967A; }
 .tierAdv { fill: var(--clay); background: var(--clay); }
 .tierElite { fill: var(--exodiaBlue); background: var(--exodiaBlue); }
@@ -998,7 +998,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .webRingName.tierElite { fill: #4F7FC4; }
 .webDot { stroke: var(--card); stroke-width: 1.5; }
 .webDot.tierBeg { fill: #A9A396; }
-.webDot.tierNov { fill: #EBB89F; }
+.webDot.tierNov { fill: #95B79A; }
 .webDot.tierInt { fill: #E2967A; }
 .webDot.tierAdv { fill: var(--clay); }
 .webDot.tierElite { fill: var(--exodiaBlue); }
@@ -1022,10 +1022,19 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .webEdge { stroke-width: 3; stroke-linecap: round; }
 .webLevel, .webLevel.tierInt, .webLevel.tierNov, .webLevel.tierBeg, .webLevel.tierAdv, .webLevel.tierElite { fill: var(--text); font-weight: 500; }
 .webSwatch { font-size: 12px; }
-.webSwatch.tierBeg { fill: #BDB7AA; } .webSwatch.tierNov { fill: #F0C9B5; } .webSwatch.tierInt { fill: #E2967A; } .webSwatch.tierAdv { fill: var(--clay); } .webSwatch.tierElite { fill: var(--exodiaBlue); }
+.webSwatch.tierBeg { fill: #BDB7AA; } .webSwatch.tierNov { fill: #95B79A; } .webSwatch.tierInt { fill: #E2967A; } .webSwatch.tierAdv { fill: var(--clay); } .webSwatch.tierElite { fill: var(--exodiaBlue); }
 .webPill { stroke: var(--card); stroke-width: 1.5; }
-.webPill.tierNov { fill: #F0C9B5; } .webPill.tierInt { fill: #E2967A; } .webPill.tierAdv { fill: var(--clay); } .webPill.tierElite { fill: var(--exodiaBlue); }
+.webPill.tierNov { fill: #95B79A; } .webPill.tierInt { fill: #E2967A; } .webPill.tierAdv { fill: var(--clay); } .webPill.tierElite { fill: var(--exodiaBlue); }
 .webRingName, .webRingName.tierNov, .webRingName.tierInt { font-size: 11.5px; font-weight: 600; fill: #3F2E25; stroke: none; }
 .webRingName.tierAdv, .webRingName.tierElite { fill: #FFFFFF; stroke: none; }
-.webDot.tierBeg { fill: #BDB7AA; } .webDot.tierNov { fill: #F0C9B5; } .webDot.tierInt { fill: #E2967A; }
+.webDot.tierBeg { fill: #BDB7AA; } .webDot.tierNov { fill: #95B79A; } .webDot.tierInt { fill: #E2967A; }
 .webDot { r: 5; stroke-width: 2; }
+/* Ring names: a small square in the level colour and a quiet word, like the anatomy legend (no pills). */
+.webMark { stroke: var(--card); stroke-width: 1.5; paint-order: stroke; }
+.webMark.tierNov { fill: #95B79A; } .webMark.tierInt { fill: #E2967A; } .webMark.tierAdv { fill: var(--clay); } .webMark.tierElite { fill: var(--exodiaBlue); }
+.webRingName { font-size: 12px; font-weight: 500; fill: var(--text2); paint-order: stroke; stroke: var(--card); stroke-width: 3.5px; stroke-linejoin: round; }
+/* Anatomy switch, calmer: room under the heading, soft 10px corners, a hairline edge. */
+.segment.full { margin: 10px 0 18px; padding: 3px; border-radius: 10px; background: #EFECE4; box-shadow: inset 0 0 0 0.5px rgb(20 20 19 / 0.08); }
+.segment.full .segmentOption { height: 36px; border-radius: 8px; font-size: 14px; font-weight: 500; }
+.segment.full .segmentOption[aria-pressed="true"] { font-weight: 600; }
+.segment.full .segmentKnob { top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 8px; box-shadow: 0 1px 2px rgb(20 20 19 / 0.1), 0 0 0 0.5px rgb(20 20 19 / 0.08); }

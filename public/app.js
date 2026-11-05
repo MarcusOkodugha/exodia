@@ -1318,7 +1318,7 @@ const MUSCLE_LIFTS = {
   adductors: { squat: 0.6, deadlift: 0.4 }
 };
 // The same five colours as .tierBeg … .tierElite in styles.css, for SVG gradients.
-const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#F0C9B5', tierInt: '#E2967A', tierAdv: '#C96442', tierElite: '#7CA3DD' };
+const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#95B79A', tierInt: '#E2967A', tierAdv: '#C96442', tierElite: '#7CA3DD' };
 const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
 const muscleLevels = () => {
   const body = state.body;
@@ -2096,8 +2096,7 @@ const renderStrength = () => {
   // same colours as the anatomy's Strength view.
   const ringNames = [[2, 'Novice', 'tierNov'], [3, 'Intermediate', 'tierInt'], [4, 'Advanced', 'tierAdv'], [5, 'Elite', 'tierElite']].map(([level, name, tier]) => {
     const y = middle - radius * (level / outer);
-    const wide = textWidth(name, '600 11.5px') + 12;
-    return `<rect x="${middle + 5}" y="${(y - 8.5).toFixed(1)}" width="${wide.toFixed(1)}" height="17" rx="8.5" class="webPill ${tier}"/><text x="${(middle + 5 + wide / 2).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" class="webRingName ${tier}">${name}</text>`;
+    return `<rect x="${middle + 6}" y="${(y - 4).toFixed(1)}" width="8" height="8" rx="2" class="webMark ${tier}"/><text x="${middle + 18}" y="${(y + 4).toFixed(1)}" class="webRingName">${name}</text>`;
   }).join('');
   // The outline takes each corner's level colour and blends along each edge, so a lift past Elite shows blue there.
   const corners = lifts.map((lift, index) => ({ at: point(index, Math.max(0.15, lift.value ? lift.score : lift.everScore)), colour: TIER_COLOURS[tierOf(lift.value ? lift.score : lift.everScore)?.[2] || 'tierBeg'] }));
