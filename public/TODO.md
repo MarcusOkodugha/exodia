@@ -15,8 +15,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] **Add your 7-week program Excel again.** The first try only kept 8 days; those were removed, and the import now reads every sheet.
   1. In Exodia tap **+**, then **Import from a file**, and pick the Excel
   2. Write the note "started 7 March 2024" and tap **↑**
-- [ ] **Tell Claude: Chrome or Safari on the Mac?** The Mac app's top bar can blend into the sidebar only when it was installed from Chrome or Edge.
-
 ## To do (Claude)
 
 - [ ] Voice: show the words while it's still working.
