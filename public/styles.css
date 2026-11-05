@@ -1267,3 +1267,10 @@ main.page { overflow-x: clip; }
 .thinkWho { margin-left: 4px; font-size: 13px; font-style: normal; -webkit-text-fill-color: var(--text2); color: var(--text2); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .thinkLine { transition: none; } }
 
+/* Trends top, tighter: the lift's name sits closer under "Trends" and its tiles right under the name. */
+.trendsPage .card.open > .trendHead { height: 32px; min-height: 0; margin: 10px 0 8px; }
+.trendsPage .card.open > .tiles { padding-top: 0; }
+/* The computer's right panel is narrow: its impressive-lift tiles run a size smaller so every number fits. */
+.right .featTiles { column-gap: 8px; }
+.right .featTiles .tileValue { font-size: 17px; }
+.right .featTiles .tileLabel, .right .featTiles .tileSub { font-size: 11px; }

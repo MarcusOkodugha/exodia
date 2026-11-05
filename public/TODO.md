@@ -29,6 +29,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Most impressive lift: leads with "1 in N men/women on Earth" (everyone of your sex, UN WPP 2024, ÷ exact OpenPowerlifting raw meet count; 300 kg deadlift → 1 in 268,000 men), then Strength Level's share of people who train it; past Elite on a lift with no meet data it says "Past Elite, beyond the data" and how far over Elite, never a capped 1 in 20. Bulgarian split squat on Strength Level's barbell table. Level numbers cut, not rounded (4.99 → 4.9). Heading stays singular (v287)
+- Trends top tighter: lift name 8 px under the title, tiles right under it; chart and the lift list ~34 px higher, same style (v287)
+
 - Strength = actual weight lifted, all time: each lift's heaviest set (warm-ups out) against Strength Level; reps and RPE never raise it, they only break a tie at the same weight (more reps wins). Same for the web, the anatomy, the head and the most impressive lift; saved "bests" without a set no longer count. Pull-ups: most reps in one set (v285)
 - Strength web: all time solid (default), last 3 months dotted, tap "Last 3 months" to swap (v285)
 - Most impressive lift: number tiles, no "about"/"estimated": 1 in N people (Elite and up: adults ÷ exact OpenPowerlifting count, e.g. 300 kg deadlift → 15,459 men → 1 in 175,000), exact count who lifted it in a raw meet, your weight class or the next level; sources line (Strength Level, OpenPowerlifting, UN WPP 2024); the lift's first letter lines up with the heading (v285)

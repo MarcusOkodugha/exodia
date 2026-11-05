@@ -1446,7 +1446,7 @@ const renderMuscles = () => {
     ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
-        return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${Math.min(levels[key], 9.9).toFixed(1)}</span>` : '–'}</span></div>`;
+        return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
     <div class="anatomyFoot">${levelKey('body')}</div>`
@@ -2196,7 +2196,8 @@ const STANDARDS = {
   'dumbbell-lateral-raise': { male: [[60, 3, 7, 13, 20, 29], [80, 5, 10, 16, 25, 34], [90, 6, 11, 18, 27, 37], [100, 7, 12, 19, 28, 39], [110, 8, 13, 21, 30, 40], [120, 8, 14, 22, 32, 42], [140, 10, 16, 25, 34, 46]], female: [[50, 3, 5, 8, 12, 16], [60, 3, 6, 9, 13, 17], [70, 3, 6, 9, 14, 18], [80, 4, 6, 10, 14, 19], [90, 4, 7, 10, 15, 20], [100, 4, 7, 11, 15, 20], [120, 5, 8, 12, 16, 21]] },
   'machine-calf-raise': { male: [[60, 31, 63, 110, 168, 236], [80, 49, 88, 141, 207, 282], [90, 57, 99, 155, 224, 302], [100, 65, 110, 169, 240, 320], [110, 73, 120, 181, 255, 337], [120, 81, 129, 193, 269, 353], [140, 95, 147, 214, 294, 382]], female: [[50, 16, 40, 75, 121, 176], [60, 21, 47, 84, 133, 190], [70, 25, 53, 93, 144, 203], [80, 30, 59, 101, 154, 215], [90, 33, 65, 108, 163, 225], [100, 37, 70, 115, 171, 234], [120, 44, 79, 126, 185, 251]] },
   'lying-tricep-extension': { male: [[60, 12, 20, 31, 45, 60], [80, 20, 30, 43, 59, 76], [90, 24, 35, 49, 65, 83], [100, 27, 39, 54, 71, 90], [110, 31, 44, 59, 77, 96], [120, 35, 48, 64, 83, 103], [140, 41, 56, 73, 93, 114]], female: [[50, 6, 11, 18, 27, 37], [60, 7, 12, 20, 29, 40], [70, 8, 14, 22, 32, 43], [80, 9, 15, 24, 34, 45], [90, 10, 17, 25, 36, 48], [100, 11, 18, 27, 38, 50], [120, 13, 20, 30, 41, 53]] },
-  'dumbbell-bulgarian-split-squat': { male: [[60, 8, 15, 25, 38, 52], [80, 13, 22, 33, 47, 63], [90, 15, 25, 37, 52, 68], [100, 18, 28, 40, 56, 72], [110, 20, 30, 44, 59, 77], [120, 22, 33, 47, 63, 81], [140, 26, 38, 52, 69, 88]], female: [[50, 6, 11, 18, 28, 38], [60, 7, 12, 20, 30, 41], [70, 8, 14, 22, 32, 43], [80, 9, 15, 23, 33, 45], [90, 9, 16, 24, 35, 46], [100, 10, 17, 26, 36, 48], [120, 11, 18, 28, 39, 51]] },
+  // Barbell (the total weight on your back), as people log it; the dumbbell table is per dumbbell.
+  'bulgarian-split-squat': { male: [[60, 10, 25, 47, 77, 112], [80, 21, 41, 68, 103, 143], [90, 26, 48, 78, 115, 157], [100, 32, 55, 87, 126, 170], [110, 37, 62, 96, 136, 182], [120, 42, 69, 104, 146, 193], [140, 52, 82, 120, 165, 214]], female: [[50, 8, 18, 32, 50, 72], [60, 10, 20, 36, 55, 77], [70, 12, 23, 39, 59, 82], [80, 13, 25, 42, 63, 87], [90, 15, 27, 45, 66, 90], [100, 16, 29, 47, 69, 94], [120, 19, 33, 52, 74, 100]] },
   'stiff-leg-deadlift': { male: [[60, 45, 68, 99, 135, 175], [80, 66, 94, 130, 170, 215], [90, 76, 106, 143, 186, 232], [100, 85, 117, 156, 201, 248], [110, 94, 128, 168, 214, 264], [120, 103, 138, 180, 227, 278], [140, 119, 156, 201, 251, 304]], female: [[50, 24, 39, 59, 84, 111], [60, 29, 45, 67, 93, 121], [70, 33, 51, 74, 100, 130], [80, 37, 56, 80, 108, 138], [90, 41, 61, 85, 114, 145], [100, 45, 65, 91, 120, 152], [120, 51, 73, 100, 131, 164]] },
   'paused-bench-press': { male: [[60, 47, 62, 79, 99, 120], [80, 69, 87, 108, 131, 155], [90, 79, 98, 120, 145, 170], [100, 89, 109, 132, 158, 184], [110, 99, 120, 144, 170, 198], [120, 108, 129, 155, 182, 210], [140, 124, 148, 175, 204, 234]], female: [[50, 22, 32, 46, 62, 79], [60, 28, 40, 54, 71, 90], [70, 33, 46, 62, 80, 100], [80, 38, 52, 69, 88, 109], [90, 43, 58, 76, 96, 117], [100, 48, 63, 82, 103, 124], [120, 57, 73, 93, 115, 138]] },
   'face-pull': { male: [[60, 10, 21, 37, 57, 80], [80, 15, 29, 47, 69, 95], [90, 18, 32, 51, 75, 101], [100, 21, 35, 55, 80, 107], [110, 23, 39, 59, 84, 112], [120, 25, 42, 63, 89, 117], [140, 30, 47, 70, 97, 127]], female: [[50, 9, 17, 28, 43, 60], [60, 10, 19, 32, 47, 65], [70, 12, 22, 35, 51, 69], [80, 14, 24, 38, 54, 73], [90, 15, 26, 40, 57, 77], [100, 17, 28, 43, 60, 80], [120, 20, 31, 47, 65, 86]] },
@@ -2204,7 +2205,7 @@ const STANDARDS = {
   'dumbbell-tricep-extension': { male: [[60, 3, 8, 16, 26, 38], [80, 6, 12, 22, 33, 47], [90, 7, 14, 24, 37, 51], [100, 9, 16, 27, 40, 54], [110, 10, 18, 29, 43, 58], [120, 12, 20, 32, 45, 61], [140, 14, 24, 36, 51, 67]], female: [[50, 3, 6, 10, 16, 22], [60, 3, 7, 11, 17, 24], [70, 4, 7, 12, 18, 25], [80, 4, 8, 13, 20, 27], [90, 5, 9, 14, 21, 28], [100, 5, 10, 15, 22, 29], [120, 6, 11, 16, 23, 31]] }
 };
 // Exercise names (lower case) for those, from the library.
-const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Bulgarian Split Squat': 'dumbbell-bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
+const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Bulgarian Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
   .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || [])] }));
 const standardAt = (rows, bodyweight) => {
   if (!rows?.length) return null;
@@ -2241,6 +2242,8 @@ const textWidth = (text, font) => {
   measurer.font = `${font} ${getComputedStyle(document.body).fontFamily}`;
   return measurer.measureText(text).width;
 };
+// A level's number cut, not rounded, to one decimal, so 4.99 reads 4.9 next to "Advanced", never 5.0.
+const levelNumber = (score) => (Math.floor(Math.min(score, 9.99) * 10) / 10).toFixed(1);
 const levelWord = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
 // All time = the heaviest you've ever lifted: the web's solid shape and the anatomy, so one light day never pulls a
 // level down. Now = the heaviest of the last 3 months, the web's dotted line (tap "Last 3 months" to swap them).
@@ -2323,7 +2326,7 @@ const renderStrength = () => {
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
     const swatch = shown(lift) ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
-    const level = !known ? '<tspan class="webNone">–</tspan>' : shown(lift) ? `${swatch}${levelWord(shownScore(lift))} <tspan class="webNum">${shownScore(lift).toFixed(1)}</tspan>` : `<tspan class="webNone">${lift.ever ? 'Not lately' : 'Not logged'}</tspan>`;
+    const level = !known ? '<tspan class="webNone">–</tspan>' : shown(lift) ? `${swatch}${levelWord(shownScore(lift))} <tspan class="webNum">${levelNumber(shownScore(lift))}</tspan>` : `<tspan class="webNone">${lift.ever ? 'Not lately' : 'Not logged'}</tspan>`;
     return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
   }).join('');
   // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
@@ -2369,14 +2372,13 @@ const renderStrength = () => {
 //   who have lifted at least each weight, every 2.5 kg from `from` (the weight 90% of them have lifted) to the
 //   record; a weight between two steps counts from the step below it. MEETS holds the same per IPF weight class (999 = the top class): lifters in the class and the kg at
 //   the top 50%, 30%, 20%, 10%, 5%, 2%, 1%, 0.5%, 0.2%, 0.1%, 0.05%, 0.02%, then the class record.
-// - "1 in N": adults of your sex divided by that count. UN World Population Prospects 2024: 4.14 bn men and 4.09 bn
-//   women in 2025, about two thirds of them 20 or older, so 2.7 bn each. Only from Elite up: below that most people
-//   who can lift the weight never compete, so a meet count would make it look rarer than it is; there the number is
-//   Strength Level's share instead.
-//   Example: 15,459 men have deadlifted 300 kg or more raw in a meet (of 330,925), so 1 in 175,000 men.
+// - "1 in N men (women) on Earth": everyone of your sex (UN World Population Prospects 2024: 4.14 bn men and
+//   4.09 bn women in 2025) divided by how many have lifted it in a raw meet. A count, not a guess: people who never
+//   compete aren't in it. Other lifts have no such count, so they show Strength Level's share of the people who
+//   train them; past its Elite there's no recorded share, and the app says so.
+//   Example: 15,459 men have deadlifted 300 kg or more raw in a meet (of 330,925): 1 in 268,000 men on Earth.
 const LEVEL_BEATS = [0.05, 0.2, 0.5, 0.8, 0.95];
 const MEET_SHARES = [0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002];
-const ADULTS = 2.7e9;
 const MEETS_ALL = {
   "squat": {
     male: { from: 125, record: 490.5, counts: [259378, 256505, 255081, 251422, 249851, 246644, 244523, 239602, 236299, 231783, 229348, 222646, 219730, 214510, 211792, 203982, 200809, 194162, 191112, 182355, 178575, 171657, 168724, 160618, 154295, 146549, 142696, 133778, 128832, 122225, 119327, 109138, 105605, 98339, 94892, 87270, 84086, 77677, 74803, 68179, 65918, 61334, 56708, 51319, 48743, 44792, 42563, 37894, 35722, 32750, 31268, 27241, 25813, 23387, 22379, 19682, 18596, 16690, 16043, 14457, 12955, 11460, 10859, 9513, 8806, 7840, 7373, 6424, 6060, 5452, 5298, 4327, 4057, 3563, 3343, 2925, 2736, 2527, 2265, 1872, 1754, 1563, 1457, 1226, 1137, 1012, 961, 788, 726, 643, 607, 498, 474, 417, 410, 384, 359, 284, 268, 229, 220, 189, 183, 152, 144, 130, 120, 106, 100, 93, 89, 73, 63, 57, 57, 44, 39, 36, 32, 28, 25, 21, 19, 15, 12, 10, 10, 9, 9, 8, 8, 8, 8, 6, 6, 6, 6, 5, 4, 3, 3, 3, 3, 3, 3, 2, 2] },
@@ -2494,24 +2496,34 @@ const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 
 // compared by level (actual kg against Strength Level for your bodyweight). Your best squat, bench or deadlift always
 // shows; any other lift (overhead press, hip abduction…) shows under it when its level is higher.
 const BIG_KEYS = ['squat', 'bench-press', 'deadlift'];
+// Everyone on Earth of your sex (UN World Population Prospects 2024, 2025): men and women.
+const ON_EARTH = { male: 4.14e9, female: 4.09e9 };
+// The tiles, all from counts: 1 in how many men (or women) on Earth have lifted this in a raw meet (squat, bench,
+// deadlift); then Strength Level's share of the people who train the lift; then the next level, or past Elite your
+// weight class. Past Strength Level's Elite on another lift there is no recorded number, so it says so instead of
+// a made-up one.
 const rarityTiles = (lift, body) => {
   const { value, score } = lift.best;
   const people = body.sex === 'male' ? 'men' : 'women';
-  const count = BIG_KEYS.includes(lift.key) ? meetCount(lift.key, body.sex, value) : null;
+  const big = BIG_KEYS.includes(lift.key);
+  const count = big ? meetCount(lift.key, body.sex, value) : null;
+  const level = Math.floor(score);
   const share = topShare(score);
   const tiles = [];
-  if (score >= 5 && count) tiles.push({ value: `<small>1 in </small>${figures(ADULTS / count)}`, label: people, sub: `of 2.7 bn adults` });
-  else if (score >= 5) tiles.push({ value: 'Top 5%', label: 'who train it', sub: 'Strength Level' });
-  else if (share <= 0.5) tiles.push({ value: `<small>1 in </small>${Math.round(1 / share)}`, label: 'who train it', sub: 'Strength Level' });
-  else tiles.push({ value: `${Math.max(1, Math.round((1 - share) * 100))}%`, label: 'Stronger than', sub: 'who train it' });
-  if (count !== null && BIG_KEYS.includes(lift.key)) tiles.push(count === 0 ? { value: 'None', label: 'lifted more', sub: 'raw meets' } : { value: count.toLocaleString('en-GB'), label: `${people} lifted it`, sub: 'raw meets' });
-  const level = Math.floor(score);
+  if (count === 0) tiles.push({ value: 'Record', label: `no ${body.sex === 'male' ? 'man' : 'woman'} lifted more`, sub: 'in a raw meet' });
+  else if (count) tiles.push({ value: `<small>1 in </small>${figures(ON_EARTH[body.sex] / count)}`, label: `${people} on Earth`, sub: 'in raw meets' });
+  if (score < 5) tiles.push(share <= 0.5 ? { value: `<small>1 in </small>${Math.round(1 / share)}`, label: 'who train it', sub: 'Strength Level' } : { value: `${Math.max(1, Math.round((1 - share) * 100))}%`, label: 'Stronger than', sub: 'who train it' });
+  else if (count) tiles.push({ value: count.toLocaleString('en-GB'), label: `${people} did it`, sub: 'raw meets, ever' });
+  else if (!big) tiles.push({ value: 'Past Elite', label: 'beyond the data', sub: 'Strength Level' });
   if (level < 5) {
     const mark = lift.marks[level];
     tiles.push({ value: lift.reps ? `${Math.ceil(mark)}<small> reps</small>` : `${Math.round(mark)}<small> kg</small>`, label: LEVELS[level], sub: 'next level' });
-  } else {
-    const inClass = BIG_KEYS.includes(lift.key) ? meetShare(lift.key, body.sex, body.kg, value) : null;
+  } else if (big) {
+    const inClass = meetShare(lift.key, body.sex, body.kg, value);
     if (inClass) tiles.push({ value: `Top ${shareText(inClass.share)}`, label: 'your weight class', sub: inClass.limit === 999 ? `over ${IPF_CLASSES[body.sex].at(-1)} kg, raw` : `up to ${inClass.limit} kg, raw` });
+  } else {
+    const elite = lift.marks[4];
+    tiles.push({ value: `+${Math.round((value / elite - 1) * 100)}%`, label: 'over Elite', sub: `Elite is ${lift.reps ? `${Math.ceil(elite)} reps` : `${Math.round(elite)} kg`}` });
   }
   return { tiles, meet: count !== null };
 };
@@ -2535,10 +2547,10 @@ const renderImpressive = () => {
   return `<p class="section">Your most impressive lift</p>
     <div class="feat">
       ${found.map(({ lift, tiles }) => `<div class="featItem">
-        <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${Math.min(lift.best.score, 9.9).toFixed(1)}</span></span></p>
+        <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${levelNumber(lift.best.score)}</span></span></p>
         <div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileValue num">${tile.value}</p><p class="tileLabel">${tile.label}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>
       </div>`).join('')}
-      <p class="featSource">Levels: Strength Level, 6.4 million checked lifts (2015–2026).${found.some((item) => item.meet) ? ' Counts: OpenPowerlifting, every raw meet result. People: UN World Population Prospects 2024.' : ''}</p>
+      <p class="featSource">Strength Level: 6.4 million checked lifts, 2015–2026.${found.some((item) => item.meet) ? ` OpenPowerlifting: every raw meet result. UN World Population Prospects 2024: ${state.body.sex === 'male' ? '4.14 bn men' : '4.09 bn women'}.` : ''}</p>
     </div>`;
 };
 // The computer's right panel. On Trends the middle already has the lift chart, so the panel holds what the phone shows
