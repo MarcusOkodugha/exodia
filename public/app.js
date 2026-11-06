@@ -159,7 +159,7 @@ let lastSaved = localJson();
 let lastMeta = metaJson();
 
 const writeLocal = () => {
-  if (view.sandbox) return;
+  if (view.sandbox || view.preview) return;
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
     localStorage.setItem(SYNC_KEY, JSON.stringify(syncState));
@@ -3627,7 +3627,7 @@ const updateQuietly = () => {
 };
 setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
-const demoPill = () => (state.demo ? `<div class="demoPill" role="status">${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button></div>` : '');
+const demoPill = () => (state.demo ? `<div class="demoPill" role="status">${view.preview ? 'Example data<a href="/join" target="_blank" rel="noopener">Get your own</a>' : `${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button>`}</div>` : '');
 
 // Two people ended up on one log (a shared private link). The server lists those logs in SPLIT_PROFILES; each phone on
 // one is asked once who uses it. The first name keeps the log; anyone else gets their own, empty, with their name.
@@ -6341,6 +6341,14 @@ if (linkedProfile && linkedProfile[1] !== syncState.profile) {
       })
       .catch(() => null);
   }
+}
+// ?demo (the portfolio's iframe): example data held in memory only, so it never saves over a real log or syncs.
+if (new URLSearchParams(location.search).has('demo')) {
+  view.preview = true;
+  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(), bests: {}, name: '', demo: true };
+  Object.assign(view, { onboard: null, linkOffer: null, open: new Set() });
+  lastSaved = localJson();
+  lastMeta = metaJson();
 }
 applyFlavor();
 const resume = (() => {
