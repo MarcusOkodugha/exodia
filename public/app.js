@@ -846,7 +846,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
 const exoSpin = '<span class="exoSpin" aria-hidden="true"><svg viewBox="0 0 28 28"><circle class="exoTrack" cx="14" cy="14" r="12.5"/><circle class="exoSnake" cx="14" cy="14" r="12.5" pathLength="100"/></svg><img src="/logo.png" alt="" draggable="false"></span>';
 // What Exodia says while it thinks: short lines of its own and Marcus Aurelius (Meditations, George Long's public-domain
 // translation), shuffled per visit so it starts somewhere new, fading to the next every few seconds.
-const THINKING = ['Pondering…', 'Weighing it up…', 'Counting the plates…', 'Reading between the reps…', 'Writing it down…', 'Checking the numbers…', 'Finding the right day…', 'Thinking it through…'];
+const THINKING = ['Pondering…', 'Weighing it up…', 'Counting the plates…', 'Reading between the reps…', 'Writing it down…', 'Checking the numbers…', 'Finding the right day…', 'Thinking it through…', 'Chalking up…', 'Loading the bar…', 'Lining up the sets…', 'Doing the maths…', 'Checking the form…', 'Racking it…'];
 const WISDOM = [
   ['The universe is change; our life is what our thoughts make it.', 'Marcus Aurelius'],
   ['No longer talk about the kind of man a good man ought to be, but be such.', 'Marcus Aurelius'],
@@ -866,7 +866,27 @@ const WISDOM = [
   ['They didn’t believe in us. God did.', 'DJ Khaled'],
   ['Forget the RPE. Stare into your soul and find out who you really are.', ''],
   ['What we do in life echoes in eternity.', 'Maximus, Gladiator'],
-  ['How big would you dream if you knew you couldn’t fail?', '']
+  ['How big would you dream if you knew you couldn’t fail?', ''],
+  ['We suffer more often in imagination than in reality.', 'Seneca'],
+  ['Luck is what happens when preparation meets opportunity.', 'Seneca'],
+  ['He who is brave is free.', 'Seneca'],
+  ['You have power over your mind, not outside events. Realise this, and you will find strength.', 'Marcus Aurelius'],
+  ['Waste no more time arguing what a good man should be. Be one.', 'Marcus Aurelius'],
+  ['First say to yourself what you would be; and then do what you have to do.', 'Epictetus'],
+  ['It does not matter how slowly you go as long as you do not stop.', 'Confucius'],
+  ['We are what we repeatedly do.', 'Will Durant, on Aristotle'],
+  ['The journey of a thousand miles begins with one step.', 'Lao Tzu'],
+  ['Knowing others is intelligence; knowing yourself is true wisdom.', 'Lao Tzu'],
+  ['Well done is better than well said.', 'Benjamin Franklin'],
+  ['Energy and persistence conquer all things.', 'Benjamin Franklin'],
+  ['It always seems impossible until it’s done.', 'Nelson Mandela'],
+  ['Strength does not come from winning. Your struggles develop your strengths.', 'Arnold Schwarzenegger'],
+  ['The last three or four reps is what makes the muscle grow.', 'Arnold Schwarzenegger'],
+  ['Everybody wants to be a bodybuilder, but nobody wants to lift no heavy-ass weights.', 'Ronnie Coleman'],
+  ['Hard work beats talent when talent doesn’t work hard.', 'Tim Notke'],
+  ['Discipline is choosing between what you want now and what you want most.', ''],
+  ['Small daily improvements are the key to staggering long-term results.', ''],
+  ['The best time to plant a tree was 20 years ago. The second best time is now.', '']
 ];
 // Short true things about Exodia, every third line, so a wait teaches something. Each is checked against the app.
 const TIPS = [
@@ -881,7 +901,16 @@ const TIPS = [
   'Say “at 8” after a set and it keeps the RPE.',
   'Heavy means a top set at least 80% of your best.',
   'Any language works. Lifts are saved in English.',
-  'Type /help to see what Exodia understands.'
+  'Type /help to see what Exodia understands.',
+  'Paste a whole week of notes at once. Each day lands on its own date.',
+  'Mark warm-ups and they stay out of your bests.',
+  'Typing help, feedback or / shows the commands.',
+  'Est. 1RM uses Brzycki up to 10 reps, Epley above.',
+  'The bar under a lift compares your last 4 weeks with your best.',
+  'Add your bodyweight in Trends to see your strength level.',
+  'Tap a point on a chart to see that day’s top set.',
+  'Your log syncs to every device on your link.',
+  'Download a backup of everything in Settings.'
 ].map((tip) => ({ tip }));
 const shuffled = (list) => list.map((item) => [Math.random(), item]).sort((first, second) => first[0] - second[0]).map(([, item]) => item);
 // In threes: one of its own lines, a tip, a quote.
@@ -3265,7 +3294,10 @@ const paintSlash = () => {
   if (!prompt) return;
   prompt.classList.toggle('slashOn', slashOn());
   const mirror = prompt.querySelector('.promptMirror');
-  if (mirror) mirror.innerHTML = slashHtml();
+  if (mirror) {
+    mirror.innerHTML = slashHtml();
+    mirror.scrollTop = document.getElementById('draft')?.scrollTop || 0;
+  }
   const list = document.querySelector('.slashList');
   if (list) {
     const html = slashListHtml();
@@ -3278,7 +3310,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${view.outlierAsk?.length && !view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Check a set"><p>${esc(outlierText())}</p><div class="confirmRow"><button class="textBtn" data-action="outlier-no">Leave out</button><button class="confirmYes" data-action="outlier-yes">Add it</button></div></div>` : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? writingLine('Sending to Exodia builder') : 'Exodia builds whatever you write or say here'}</p>` : ''}
   <div class="slashList"${slashSuggest() ? '' : ' hidden'}>${slashListHtml()}</div>
   <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
@@ -6502,6 +6534,12 @@ document.addEventListener('paste', (event) => {
   takeFiles(files);
 });
 
+// The orange copy of the text scrolls with the box, so a long message never drifts from the cursor.
+document.addEventListener('scroll', (event) => {
+  if (event.target.id !== 'draft') return;
+  const mirror = document.querySelector('.promptMirror');
+  if (mirror) mirror.scrollTop = event.target.scrollTop;
+}, true);
 document.addEventListener('keydown', (event) => {
   if (event.target.id === 'search' && event.key === 'Enter') {
     event.preventDefault();
