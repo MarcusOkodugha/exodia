@@ -3383,22 +3383,25 @@ const onboardExample = { index: 0, fading: false };
 
 // Example data for people who just want to look around: about eight weeks of steady training for "Alex",
 // ending at 4 of 5 Exodia pieces so one logged walk or run plays the hit.
-const demoSessions = () => {
+const demoSessions = (weeks = 8) => {
   const today = todayIso();
   const sets = (kg, reps, count, rpe) => Array.from({ length: count }, () => ({ kg: String(kg), reps: String(reps), ...(rpe ? { rpe } : {}), edited: true }));
   const round = (kg) => Math.round(kg / 2.5) * 2.5;
   const days = [];
-  for (let week = 7; week >= 0; week -= 1) {
-    const step = 7 - week;
+  for (let week = weeks - 1; week >= 0; week -= 1) {
+    // Same start and end weights however long the example runs.
+    const step = ((weeks - 1 - week) * 7) / (weeks - 1);
     const at = (offset) => addDays(today, -(week * 7 + offset));
     days.push({ date: at(6), label: 'Push day', exercises: [
       { name: 'Bench Press', sets: [...sets(round(80 + step * 2), 5, 3), ...sets(round(85 + step * 2), 3, 1, 8)] },
       { name: 'Overhead Press', sets: sets(round(45 + step), 8, 3) },
+      { name: 'Incline Bench Press', sets: sets(round(62.5 + step * 1.5), 8, 3) },
       { name: 'Dumbbell Bench Press', sets: sets(round(26 + step * 0.5), 10, 3) },
     ] });
     days.push({ date: at(4), label: 'Pull day', exercises: [
       { name: 'Deadlift', sets: [...sets(round(140 + step * 3), 5, 2), ...sets(round(150 + step * 3), 3, 1, 8)] },
       { name: 'Barbell Row', sets: sets(round(65 + step * 1.5), 8, 3) },
+      { name: 'Pull-up', sets: sets(0, Math.round(7 + step / 2), 3) },
       { name: 'Lat Pulldown', sets: sets(round(55 + step), 10, 3) },
     ] });
     days.push({ date: at(2), label: 'Leg day', exercises: [
@@ -6345,7 +6348,9 @@ if (linkedProfile && linkedProfile[1] !== syncState.profile) {
 // ?demo (the portfolio's iframe): example data held in memory only, so it never saves over a real log or syncs.
 if (new URLSearchParams(location.search).has('demo')) {
   view.preview = true;
-  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(), bests: {}, name: '', demo: true };
+  // A year of example training and a bodyweight, so Trends fills every chart; it opens there.
+  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(52), bests: {}, name: '', body: { kg: 85, sex: 'male' }, demo: true };
+  if (!location.hash) history.replaceState(null, '', '#/trends');
   Object.assign(view, { onboard: null, linkOffer: null, open: new Set() });
   lastSaved = localJson();
   lastMeta = metaJson();
