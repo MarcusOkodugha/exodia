@@ -2928,7 +2928,7 @@ const runAiSearch = () => {
 
 const drawerContent = () => {
   const history = exodiaHistory();
-  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ['help', 'Help', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>
       <div class="drawerTools"><button class="drawerTool" data-action="undo-change" ${undoSteps.length ? '' : 'disabled'}>Undo</button><button class="drawerTool" data-action="redo-change" ${redoSteps.length ? '' : 'disabled'}>Redo</button></div>`;
@@ -2945,6 +2945,35 @@ const exportHelp = (open) => `<details class="onboardHow"${open ? ' open' : ''}>
       </ul>
       <p>Using something else? Paste whatever it gives you, or tell Exodia about your last weeks with the mic.</p>
     </details>`;
+
+// Help: what to type, how to bring data from another app or an AI, and the commands. /help in any box opens it.
+const HELP_EXAMPLES = [
+  ['bench 100 for 5, 3 sets', 'three sets of 5 at 100 kg, today'],
+  ['squat 140x5x3 yesterday', 'sets × reps, on another day'],
+  ['ran 30 min', 'cardio counts for Move'],
+  ['bench was 105, not 100', 'fixes the last set'],
+  ['last friday deadlift 200 for 2', 'any day, any language'],
+];
+const renderHelp = () => `<main class="page">
+    <p class="eyebrow">How Exodia works</p>
+    <h1 class="title">Help</h1>
+    <p class="section">Log by typing or talking</p>
+    <section class="card helpList">${HELP_EXAMPLES.map(([said, means]) => `<div class="row"><span class="helpSaid">${esc(said)}</span><span class="muted">${esc(means)}</span></div>`).join('')}</section>
+    <p class="feedbackLead">Tap the mic and just say it. Or use + for Quick add: tap a lift, fill in kg and reps. Hold a day to edit it; Undo is in the menu.</p>
+    <p class="section">Bring your history</p>
+    <div class="onboardChoices"><button class="onboardChoice" data-action="pick-file"><b>Choose a file</b><span>Excel, CSV, Numbers export, text or notes</span></button></div>
+    ${exportHelp(true)}
+    <p class="section">Let an AI do it</p>
+    <section class="card">
+      <div class="row"><span class="muted" style="flex:1;font-size:15px">Copy this, paste it into ChatGPT, Gemini or Claude, and it walks you through adding your training</span><button class="textBtn" data-action="copy-ai">${view.copiedAi ? 'Copied' : 'Copy'}</button></div>
+    </section>
+    <p class="section">Commands for the box</p>
+    <section class="card helpList">
+      <div class="row"><span class="helpSaid"><span class="slashCmd">/feedback</span> …</span><span class="muted">an idea or a bug, straight to Marcus</span></div>
+      <div class="row"><span class="helpSaid"><span class="slashCmd">/help</span></span><span class="muted">opens this page</span></div>
+      ${view.isAdmin ? '<div class="row"><span class="helpSaid"><span class="slashCmd">/admin</span> …</span><span class="muted">Exodia builds the change (only you)</span></div>' : ''}
+    </section>
+  </main>`;
 
 // Always reachable from the menu: bring in history from another app, a file or notes.
 const renderImport = () => `<main class="page">
@@ -3115,7 +3144,7 @@ const showSheet = () => view.composer && view.route !== 'admin' && view.route !=
 // /admin typed in any box turns clay (the box can't colour part of its own text, so a copy sits behind it) and is suggested while you type "/".
 // Slash commands in the box turn red: /admin (Marcus only) sends the rest to Claude to build; /feedback (anyone)
 // sends the rest as feedback to Marcus. Typing "/" or the start of one offers it.
-const SLASHES = [['/admin', 'Send this to Exodia', true], ['/feedback', 'Send this as feedback', false]];
+const SLASHES = [['/admin', 'Send this to Exodia', true], ['/feedback', 'Send this as feedback', false], ['/help', 'How Exodia works', false]];
 const slashCommand = () => SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && new RegExp(`^\\${cmd}(\\s|$)`, 'i').test(view.draft))?.[0] || '';
 const slashOn = () => Boolean(slashCommand());
 const slashOffer = () => (/^\/[a-z]*$/i.test(view.draft) ? SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin') && cmd.startsWith(view.draft.toLowerCase())) || null : null);
@@ -3209,7 +3238,7 @@ const syncDock = () => {
   tuckCards();
 };
 
-const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Feedback: add a rest timer between sets', 'Bench 100 for 5 at RPE 8, then dips 3x10', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8'];
+const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Type / for commands, /help for tips', 'Bench 100 for 5 at RPE 8, then dips 3x10', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8'];
 // After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
 const QUIET_HINT = 'Log training, paste notes or give feedback';
 const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
@@ -3904,7 +3933,7 @@ const render = () => {
   const setFocus = focused && focused.dataset?.field && focused.matches('input') ? { ...focused.dataset, caret: [focused.selectionStart, focused.selectionEnd] } : null;
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
-  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : renderHome();
+  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : view.route === 'help' ? renderHelp() : renderHome();
   const dock = `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
@@ -5374,6 +5403,14 @@ const send = async () => {
     render();
     return;
   }
+  // /help from any box opens Help.
+  if (/^\/help(\s|$)/i.test(text)) {
+    view.draft = '';
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    closeTray();
+    location.hash = '#/help';
+    return;
+  }
   // /feedback from any box, for anyone: the rest goes to Marcus as feedback.
   if (/^\/feedback(\s|$)/i.test(text)) {
     const rest = text.replace(/^\/feedback\s*/i, '');
@@ -6399,7 +6436,7 @@ const route = () => {
   }
   // Leaving Home remembers how far down you were; coming back puts you there again, not at the top.
   if (view.route === 'home') view.homeScroll = scroller().scrollTop;
-  view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import'].includes(name) ? name : 'home';
+  view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help'].includes(name) ? name : 'home';
   if (view.route !== 'log') {
     view.logDate = null;
     view.logLift = null;
