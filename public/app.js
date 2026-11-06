@@ -852,7 +852,11 @@ const THINK_ORDER = (() => {
 let thinkStep = 0;
 let thinkIdle = true;
 let thinkSince = 0;
-const THINK_BEAT = 3200;
+// A short line stays 3.2 s; a quote stays long enough to read it calmly (5.5–9 s by its length).
+const thinkBeat = () => {
+  const line = THINK_ORDER[thinkStep % THINK_ORDER.length];
+  return typeof line === 'string' ? 3200 : Math.min(9000, Math.max(5500, 2500 + line[0].length * 55));
+};
 const thinkText = () => {
   if (thinkIdle) {
     thinkIdle = false;
@@ -872,7 +876,7 @@ setInterval(() => {
     thinkIdle = true;
     return;
   }
-  if (!shown.length || Date.now() - thinkSince < THINK_BEAT) return;
+  if (!shown.length || Date.now() - thinkSince < thinkBeat()) return;
   thinkSince = Date.now();
   thinkStep += 1;
   shown.forEach((line) => {
@@ -1750,7 +1754,7 @@ const buildBanner = () => {
   const seen = bannerSeen === run.at;
   bannerSeen = run.at;
   // The whole request, as you sent it, with its orange /admin; a long one scrolls inside the banner.
-  return `<div class="buildBanner${seen ? ' still' : ''}" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText buildSaid"><span class="slashCmd">/admin</span> ${esc(run.said)}</p></div></div>`;
+  return `<div class="buildBanner${seen ? ' still' : ''}" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText buildSaid"><span class="slashCmd">/admin</span> ${esc(run.said)}</p><p class="bannerThink"><span class="ghostText thinkLine">${thinkText()}</span></p></div></div>`;
 };
 let buildWatch = 0;
 const watchBuilds = () => {
@@ -2895,7 +2899,7 @@ const nameQuery = () => {
   return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
 };
 
-const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p></div></div>`).join('');
+const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p><p class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</p></div></div>`).join('');
 
 const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 

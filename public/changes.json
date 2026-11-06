@@ -318,5 +318,9 @@
   "300": [
     "Speak or type in Swedish: everything is saved in English",
     "Offline: simple notes save right away, the rest land when you're back online"
+  ],
+  "301": [
+    "Quotes stay up long enough to read, and the build banner shows them too",
+    "While a note is written, the chat also says what you can do meanwhile"
   ]
 }

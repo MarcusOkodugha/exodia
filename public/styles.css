@@ -1315,3 +1315,7 @@ main.page { overflow-x: clip; }
 .sheet.quickMode .quickLog { flex: none; margin-top: auto; gap: 12px; padding: 14px 0 6px; }
 .logHint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 6px; padding-bottom: 8px; border-bottom: 1px solid var(--sep); font-size: 12px; line-height: 16px; color: var(--text2); }
 .logHint svg { width: 12px; height: 12px; }
+/* The build banner thinks out loud too: the same rotating lines and quotes under your request. */
+.bannerThink { margin: 6px 0 0; font-size: 13px; line-height: 18px; }
+.bannerThink .ghostText { font-size: 13px; line-height: 18px; }
+.bubbleOut .ghostHint { margin: 4px 0 0 38px; font-size: 13px; line-height: 18px; color: var(--text2); }
