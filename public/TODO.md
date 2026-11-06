@@ -25,6 +25,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Box on the phone: opens with the latest messages above and Quick add's heading + first rows below, and settles again when the iPhone keyboard shrinks it (the keyboard used to cut Quick add off). Harder variants count for the main lift in charts, bests, PRs, strength web and anatomy: Pause/Close-Grip/Spoto/Larsen/Pin bench → Bench, Pause/Pin/Tempo squat → Squat, Deficit/Pause deadlift → Deadlift; never the other way (v312)
+
 - Portfolio: Exodia is the first project on marcusokodugha.com, live in a MacBook or a silver iPhone 18 Pro Max (toggle on the card, tap around inside), with Visit / Get your own Exodia / GitHub and the self-improving agent story. `/?demo` opens Trends with a year of example data in memory only (never saves over a real log, never syncs), "Example data · Get your own" in the date line (v309–v311)
 
 - Calendar 12-month view scrolls back to the first day again (v290 had limited it to 12 months, wrongly), one empty column between years; Show every year stays. Computer right panel keeps its scroll on every redraw (it jumped to the top on Strength/Recovery and syncs). Opening: index.html shows the hand breathing (pure CSS, fades in after 0.2 s, replaced by the first draw) (v305)

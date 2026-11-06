@@ -427,7 +427,13 @@ const estimateSets = (exercise) => {
 const estimateSet = (exercise) => estimateSets(exercise).reduce((winner, set) => (!winner || setEstimate(set) > setEstimate(winner) ? set : winner), null);
 const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map((set) => (isBodyweightLift(exercise.name) ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : setEstimate(set))));
 
-const HARDER_VARIANTS = { 'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press'] };
+// Harder variants count for their main lift (a 140 kg paused bench means you bench at least 140), never the other way.
+const HARDER_VARIANTS = {
+  'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press', 'Paused Bench Press', 'Spoto Press', 'Larsen Press', 'Pin Press'],
+  Squat: ['Pause Squat', 'Paused Squat', 'Pin Squat', 'Tempo Squat'],
+  Deadlift: ['Deficit Deadlift', 'Pause Deadlift', 'Paused Deadlift'],
+};
+const MAIN_LIFT = Object.fromEntries(Object.entries(HARDER_VARIANTS).flatMap(([main, variants]) => variants.map((variant) => [variant.toLowerCase(), main.toLowerCase()])));
 const countsFor = (name) => [name, ...(HARDER_VARIANTS[name] || [])];
 
 // Answers about your history ("best before this day", "days before this one") are remembered until your log changes,
@@ -2409,7 +2415,8 @@ const liftStrength = (lift, body) => {
   const better = (current, value, tie, set, date, name) => (!current || value > current.value || (value === current.value && tie > current.tie) ? { value, tie, set, date, name } : current);
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
     for (const exercise of session.exercises) {
-      if (!lift.names.includes(exercise.name.toLowerCase())) continue;
+      const named = exercise.name.toLowerCase();
+      if (!lift.names.includes(named) && !lift.names.includes(MAIN_LIFT[named])) continue;
       for (const set of validSets(exercise)) {
         if (set.warmup) continue;
         const [kg, reps] = [Number(set.kg) || 0, Number(set.reps)];
@@ -3009,14 +3016,23 @@ const showChat = () => {
 // above it (newest showing, scroll it for older) and Quick add stays in full view under it.
 // Where the panel rests when it opens: the chat at its newest message; with Quick add, the "Your log" line just under
 // the middle, so the latest messages show above it and Quick add's first rows below.
+// Quick add always keeps its heading and about two rows in view (150 px), however short the panel is; the log gets the rest.
 const restingScroll = (body) => {
   const hint = body.querySelector('.logHint');
   if (!hint) return body.scrollHeight;
-  return Math.max(0, hint.offsetTop - body.offsetTop - Math.round(body.clientHeight * 0.48));
+  const logRoom = Math.max(body.clientHeight * 0.35, body.clientHeight - 150);
+  return Math.max(0, hint.offsetTop - body.offsetTop - Math.round(logRoom));
 };
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
-  if (body) body.scrollTop = restingScroll(body);
+  if (!body) return;
+  body.scrollTop = restingScroll(body);
+  body.dataset.rest = String(body.scrollTop);
+};
+// The iPhone keyboard shrinks the panel after it opened; settle it again unless you've scrolled it yourself.
+const resettle = () => {
+  const body = document.querySelector('.dock .sheetBody');
+  if (body && view.composer && body.dataset.rest && Math.abs(body.scrollTop - Number(body.dataset.rest)) < 4) scrollChat();
 };
 
 const animateChat = (opening) => {
@@ -3368,6 +3384,7 @@ const fitKeyboard = () => {
 for (const type of ['resize', 'scroll']) window.visualViewport?.addEventListener(type, () => requestAnimationFrame(() => {
   fitKeyboard();
   tuckCards();
+  resettle();
 }));
 document.addEventListener('focusout', () => setTimeout(fitKeyboard, 60));
 
@@ -5970,8 +5987,7 @@ document.addEventListener('click', (event) => {
     view.quickHidden = false;
     if (!desktopQuery.matches) document.activeElement?.blur();
     render();
-    const body = document.querySelector('.sheetBody');
-    if (body) body.scrollTop = restingScroll(body);
+    scrollChat();
     return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
