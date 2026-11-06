@@ -469,33 +469,29 @@ const bestBeforeFresh = (name, date, logged = false) => {
   return best;
 };
 const bestOverall = (name) => bestBefore(name, '9999-12-31');
-// Now vs best, in weight actually lifted: the heaviest set in the chart's range (3M / 6M / 1Y) against the heaviest
-// ever, so you see if you're at your peak, coming back, or slipping. On All it is always your best.
-const RANGE_WORDS = { 90: 'last 3 months', 180: 'last 6 months', 365: 'last year' };
+// Form vs best: your best estimated one-rep max from the last 4 weeks against your best ever (the Est. 1RM tile),
+// both from sets of 1–10 reps. The best ever includes these 4 weeks, so it tops out at 100%: "At your best".
 const nowVsBest = (name) => {
-  const since = view.range ? addDays(todayIso(), -view.range) : '';
-  let best = Number(state.bests?.[name]) || 0;
+  const best = bestOverall(name);
+  if (!best) return null;
+  const since = addDays(todayIso(), -28);
   let now = 0;
   for (const session of state.sessions) {
-    for (const exercise of session.exercises) {
-      if (!countsFor(name).includes(exercise.name)) continue;
-      const top = Math.max(0, ...validSets(exercise).filter((set) => !set.warmup).map((set) => Number(set.kg)));
-      best = Math.max(best, top);
-      if (session.date >= since) now = Math.max(now, top);
-    }
+    if (session.date < since) continue;
+    for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) now = Math.max(now, bestDayEstimate(name, exercise));
   }
-  if (!best) return null;
-  const words = RANGE_WORDS[view.range] || '';
-  if (!view.range || now >= best) return { pct: 100, now, best, words, text: 'At your best' };
-  const pct = now ? Math.min(99, Math.round((now / best) * 100)) : 0;
-  return { pct, now, best, words, text: now ? `Now ${pct}% of your best` : 'Nothing lifted' };
+  const pct = Math.min(100, Math.round((now / best) * 100));
+  return { pct, now: Math.round(now), best: Math.round(best) };
 };
 const nowLine = (name) => {
-  const now = nowVsBest(name);
-  if (!now) return '';
-  const numbers = now.pct >= 100 ? ` · ${now.best} kg` : now.now ? ` · ${now.now} vs ${now.best} kg` : '';
-  return `<div class="nowBest"><p><b>${now.text}</b>${numbers ? `<span class="muted num">${numbers}</span>` : ''}${now.pct < 100 ? `<span class="muted"> · ${now.words}</span>` : ''}</p><div class="nowBar" aria-hidden="true"><i style="width:${now.pct}%"></i></div></div>`;
+  const form = nowVsBest(name);
+  if (!form) return '';
+  const head = !form.now ? 'Not lifted in 4 weeks' : form.pct >= 100 ? 'At your best' : `${form.pct}% of your best`;
+  const numbers = !form.now ? `best ${form.best} kg` : form.pct >= 100 ? `${form.best} kg est.` : `${form.now} vs ${form.best} kg`;
+  return `<div class="nowBest"><p><b>${head}</b><span class="muted num"> · <span class="nw">${numbers}</span></span>${form.now ? '<span class="muted"> · <span class="nw">last 4 weeks</span></span>' : ''}</p><div class="nowBar" aria-hidden="true"><i style="width:${form.pct}%"></i></div></div>`;
 };
+// How many days a lift (with its harder variants) was logged, shown under its name in the lift list.
+const liftDays = (name) => remember(`days|${name}`, () => state.sessions.filter((session) => session.exercises.some((exercise) => countsFor(name).includes(exercise.name) && validSets(exercise).length > 0)).length);
 const setsOf = (name) => state.sessions.flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets)).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), rpe: set.rpe }));
 const bestSingle = (name) => Math.max(Number(state.bests?.[name]) || 0, ...setsOf(name).filter((set) => set.reps === 1).map((set) => set.kg));
 const heaviestLifted = (name) => {
@@ -1605,7 +1601,7 @@ const liftPicker = (big, rest, history, action = 'pick-trend', current = view.tr
   const all = [...LIFT_ORDER.filter((name) => big.includes(name)), ...rest];
   const first = 6;
   const visible = view.trendMore || all.length <= first ? all : [...all.slice(0, first), ...(all.indexOf(current) >= first ? [current] : [])];
-  return `${action === 'pick-trend' ? '<p class="liftHead"><span>Your lifts · best set</span><span class="liftHint">Tap one to see its trend</span></p>' : ''}<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName">${esc(name)}</span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
+  return `${action === 'pick-trend' ? '<p class="liftHead"><span>Your lifts · best set</span><span class="liftHint">Tap one to see its trend</span></p>' : ''}<div class="liftList">${visible.map((name, index) => `<button class="liftItem" data-action="${action}" data-name="${esc(name)}"${index >= 3 ? ' data-scroll="1"' : ''} aria-pressed="${current === name}"><span class="liftDot" aria-hidden="true"></span><span class="liftItemName"><span class="liftItemText">${esc(name)}</span><small class="liftCount num">${liftDays(name)} ${liftDays(name) === 1 ? "session" : "sessions"}</small></span>${current === name ? '<span class="onChart">On chart</span>' : ''}<span class="liftItemBest">${liftKg(name)}</span></button>`).join('')}</div>
     ${all.length > first ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${all.length} lifts`}${ICONS.chev}</button>` : ''}`;
 };
 

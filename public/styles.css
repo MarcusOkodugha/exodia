@@ -755,6 +755,9 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .liftItem[aria-pressed="true"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 1px; background: var(--clay); }
 .liftDot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); }
 .liftItemName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; color: var(--text); }
+.liftItemName { display: flex; flex-direction: column; padding: 5px 0; }
+.liftItemText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.liftCount { font-size: 12px; line-height: 15px; font-weight: 400; color: var(--text2); }
 .liftItemBest { flex: none; display: grid; grid-template-columns: 54px 24px 38px; align-items: baseline; font-variant-numeric: tabular-nums; }
 .liftNum { text-align: right; font-size: 16px; line-height: 20px; font-weight: 600; color: var(--text); white-space: nowrap; }
 .liftUnit { padding-left: 4px; font-size: 13px; font-weight: 500; color: var(--text2); }
@@ -824,6 +827,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 /* Now vs best: one line and a thin clay bar under a lift's numbers. */
 .nowBest { margin: 2px 0 14px; }
 .nowBest p { margin: 0 0 6px; font-size: 14px; line-height: 20px; }
+.nowBest .nw { white-space: nowrap; }
 .nowBar { height: 4px; border-radius: 2px; background: var(--sep); overflow: hidden; }
 .nowBar i { display: block; height: 100%; border-radius: 2px; background: var(--clay); }
 .right .nowBest { margin: 0 0 10px; }

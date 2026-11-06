@@ -409,5 +409,9 @@
     "The box sometimes shows a command like /help, in orange",
     "While Exodia thinks it shares tips on using it, not only quotes",
     "A short tip while the app opens"
+  ],
+  "327": [
+    "The bar under each lift compares your last 4 weeks with your best ever",
+    "Each lift in the list shows how many sessions you've logged"
   ]
 }
