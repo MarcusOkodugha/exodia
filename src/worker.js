@@ -995,6 +995,32 @@ const manifest = async (request, env, url) => {
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'no-store' } });
 };
 
+// The portfolio's demo link (?demo) shows Marcus's real training: dates, lifts, kg and reps only, never a name,
+// key, note or log. Cached an hour so visitors don't read the database each time.
+const demo = async (env) => {
+  if (!env.ADMIN_PROFILE) return json({ sessions: [] });
+  const [rows, profile] = await Promise.all([
+    env.DB.prepare('SELECT data FROM sessions WHERE profile = ? AND data IS NOT NULL ORDER BY date').bind(env.ADMIN_PROFILE).all(),
+    env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(env.ADMIN_PROFILE).first(),
+  ]);
+  const number = (value) => (Number.isFinite(Number(value)) && String(value).trim() !== '' ? String(value) : '');
+  const sessions = (rows.results || []).map((row) => {
+    const day = JSON.parse(row.data);
+    return {
+      date: String(day.date),
+      ...(day.label ? { label: String(day.label).slice(0, 30) } : {}),
+      ...(Number(day.cardio) > 0 ? { cardio: Number(day.cardio) } : {}),
+      ...(Number(day.accessories) > 0 ? { accessories: Number(day.accessories) } : {}),
+      exercises: (day.exercises || []).map((exercise) => ({
+        name: String(exercise.name).slice(0, 60),
+        sets: (exercise.sets || []).map((set) => ({ kg: number(set.kg), reps: number(set.reps), ...(number(set.rpe) ? { rpe: number(set.rpe) } : {}), ...(set.warmup ? { warmup: true } : {}) })),
+      })),
+    };
+  }).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day.date) && day.exercises.length);
+  const body = JSON.parse(profile?.meta || '{}').body;
+  return new Response(JSON.stringify({ sessions, ...(body ? { body } : {}) }), { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' } });
+};
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1010,6 +1036,7 @@ export default {
       const data = await response.json().catch(() => ({}));
       return json((data.models || []).filter((model) => (model.supportedGenerationMethods || []).includes('generateContent')).map((model) => model.name.replace('models/', '')));
     }
+    if (url.pathname === '/api/demo') return demo(env);
     if (url.pathname === '/api/feedback') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return feedback(request, env, ctx);

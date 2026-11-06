@@ -3648,7 +3648,7 @@ const updateQuietly = () => {
 setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
 // The demo link (?demo) says it's example data quietly in the date line instead of a floating pill.
-const todayLine = () => (view.preview ? 'Example data · <a class="eyebrowLink" href="/join" target="_blank" rel="noopener">Get your own</a>' : new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }));
+const todayLine = () => (view.preview ? `${view.realDemo ? 'A real training log' : 'Example data'} · <a class="eyebrowLink" href="/join" target="_blank" rel="noopener">Get your own</a>` : new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }));
 const demoPill = () => (state.demo && !view.preview ? `<div class="demoPill" role="status">${`${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button>`}</div>` : '');
 
 // Two people ended up on one log (a shared private link). The server lists those logs in SPLIT_PROFILES; each phone on
@@ -6366,9 +6366,21 @@ if (linkedProfile && linkedProfile[1] !== syncState.profile) {
 // ?demo (the portfolio's iframe): example data held in memory only, so it never saves over a real log or syncs.
 if (new URLSearchParams(location.search).has('demo')) {
   view.preview = true;
-  // A year of example training and a bodyweight, so Trends fills every chart; it opens there.
-  state = { version: 1, deviceId: state.deviceId, sessions: demoSessions(52), bests: {}, name: '', body: { kg: 85, sex: 'male' }, demo: true };
+  // Marcus's real training (from /api/demo), opening on Trends; made-up example data only if that can't load.
+  state = { version: 1, deviceId: state.deviceId, sessions: [], bests: {}, name: '', started: true, demo: true };
   if (!location.hash) history.replaceState(null, '', '#/trends');
+  fetch('/api/demo').then((response) => (response.ok ? response.json() : Promise.reject(new Error('no demo'))))
+    .then((data) => {
+      if (!data.sessions?.length) throw new Error('no demo');
+      Object.assign(state, { sessions: data.sessions, ...(data.body ? { body: data.body } : {}) });
+      view.realDemo = true;
+    })
+    .catch(() => Object.assign(state, { sessions: demoSessions(52), body: { kg: 85, sex: 'male' } }))
+    .finally(() => {
+      lastSaved = localJson();
+      lastMeta = metaJson();
+      render();
+    });
   Object.assign(view, { onboard: null, linkOffer: null, open: new Set() });
   lastSaved = localJson();
   lastMeta = metaJson();
