@@ -426,7 +426,8 @@ const estimateSets = (exercise) => {
   return heavy.length ? heavy : sets;
 };
 const estimateSet = (exercise) => estimateSets(exercise).reduce((winner, set) => (!winner || setEstimate(set) > setEstimate(winner) ? set : winner), null);
-const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map((set) => (isBodyweightLift(exercise.name) ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : setEstimate(set))));
+const setValue = (name, set) => estimate(bodyLoad(name, set.kg), Number(set.reps) + repsInTank(set));
+const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map((set) => setValue(exercise.name, set)));
 
 // Harder variants count for their main lift (a 140 kg paused bench means you bench at least 140), never the other way.
 const HARDER_VARIANTS = {
@@ -454,34 +455,46 @@ const remember = (key, compute) => {
   return memo.get(key);
 };
 const bestBefore = (name, date, logged = false) => remember(`best|${name}|${date}|${logged}`, () => bestBeforeFresh(name, date, logged));
+// Sets over 10 reps say little about a one-rep max (100 × 14 "estimates" 147), so once a lift has any set of 1–10
+// reps they never make its all-time best. The day's own point on the chart still uses them when that day has nothing heavier.
+const heavySet = (set) => !set.warmup && Number(set.reps) + repsInTank(set) <= 10;
+const liftHasHeavy = (name) => remember(`heavy|${name}`, () => state.sessions.some((session) => session.exercises.some((exercise) => countsFor(name).includes(exercise.name) && validSets(exercise).some(heavySet))));
+const bestDayEstimate = (name, exercise) => (liftHasHeavy(name) ? Math.max(0, ...validSets(exercise).filter(heavySet).map((set) => setValue(exercise.name, set))) : topEstimate(exercise));
 const bestBeforeFresh = (name, date, logged = false) => {
   let best = logged ? 0 : Number(state.bests?.[name]) || 0;
   for (const session of state.sessions) {
     if (session.date >= date) continue;
-    for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) best = Math.max(best, topEstimate(exercise));
+    for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) best = Math.max(best, bestDayEstimate(name, exercise));
   }
   return best;
 };
 const bestOverall = (name) => bestBefore(name, '9999-12-31');
-// Now vs best: the best estimated 1RM of the last 4 weeks against the all-time best, so you see if you're at your
-// peak, coming back, or slipping.
-const NOW_DAYS = 28;
+// Now vs best, in weight actually lifted: the heaviest set in the chart's range (3M / 6M / 1Y) against the heaviest
+// ever, so you see if you're at your peak, coming back, or slipping. On All it is always your best.
+const RANGE_WORDS = { 90: 'last 3 months', 180: 'last 6 months', 365: 'last year' };
 const nowVsBest = (name) => {
-  const best = bestOverall(name);
-  if (!best) return null;
-  const since = addDays(todayIso(), -(NOW_DAYS - 1));
+  const since = view.range ? addDays(todayIso(), -view.range) : '';
+  let best = Number(state.bests?.[name]) || 0;
   let now = 0;
   for (const session of state.sessions) {
-    if (session.date < since) continue;
-    for (const exercise of session.exercises) if (countsFor(name).includes(exercise.name)) now = Math.max(now, topEstimate(exercise));
+    for (const exercise of session.exercises) {
+      if (!countsFor(name).includes(exercise.name)) continue;
+      const top = Math.max(0, ...validSets(exercise).filter((set) => !set.warmup).map((set) => Number(set.kg)));
+      best = Math.max(best, top);
+      if (session.date >= since) now = Math.max(now, top);
+    }
   }
-  const pct = now ? Math.min(100, Math.round((now / best) * 100)) : 0;
-  return { pct, now: Math.round(now), best: Math.round(best), text: !now ? 'No heavy set in the last 4 weeks' : pct >= 100 ? 'At your best' : `Now ${pct}% of your best` };
+  if (!best) return null;
+  const words = RANGE_WORDS[view.range] || '';
+  if (!view.range || now >= best) return { pct: 100, now, best, words, text: 'At your best' };
+  const pct = now ? Math.min(99, Math.round((now / best) * 100)) : 0;
+  return { pct, now, best, words, text: now ? `Now ${pct}% of your best` : 'Nothing lifted' };
 };
 const nowLine = (name) => {
   const now = nowVsBest(name);
   if (!now) return '';
-  return `<div class="nowBest"><p><b>${now.text}</b>${now.pct && now.pct < 100 ? `<span class="muted num"> · ${now.now} vs ${now.best} kg</span>` : ''}<span class="muted"> · last 4 weeks</span></p><div class="nowBar" aria-hidden="true"><i style="width:${now.pct}%"></i></div></div>`;
+  const numbers = now.pct >= 100 ? ` · ${now.best} kg` : now.now ? ` · ${now.now} vs ${now.best} kg` : '';
+  return `<div class="nowBest"><p><b>${now.text}</b>${numbers ? `<span class="muted num">${numbers}</span>` : ''}${now.pct < 100 ? `<span class="muted"> · ${now.words}</span>` : ''}</p><div class="nowBar" aria-hidden="true"><i style="width:${now.pct}%"></i></div></div>`;
 };
 const setsOf = (name) => state.sessions.flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets)).map((set) => ({ kg: Number(set.kg), reps: Number(set.reps), rpe: set.rpe }));
 const bestSingle = (name) => Math.max(Number(state.bests?.[name]) || 0, ...setsOf(name).filter((set) => set.reps === 1).map((set) => set.kg));
@@ -609,9 +622,19 @@ const parseChunk = (chunk) => {
   if (!match) return null;
   const name = findExerciseName(match[1]);
   if (!name) return null;
-  const numbers = match[2].replace(/\s+(reps?|sets?)\b/g, ' ');
+  const numbers = match[2].replace(/\s+reps?\b/g, ' ').replace(/\s+/g, ' ').trim();
   // Anything that looks off (dozens of sets, reps over 50, a 2 kg squat) goes to the AI instead of being guessed.
   const sane = (sets) => sets.length > 0 && sets.length <= 15 && sets.every((set) => Number(set.reps) > 0 && Number(set.reps) <= 50 && Number(set.kg) >= 0 && Number(set.kg) <= 500) ? { name, sets } : null;
+  // "N sets" means N of the same set: "100 for 5, 3 sets", "3 sets of 5 at 100", "3x5 100".
+  const copies = (count, kg, reps) => sane(Array.from({ length: Number(count) }, () => ({ kg: kg.replace(',', '.'), reps })));
+  const forSets = numbers.match(/^(\d+(?:[.,]\d+)?)\s*(?:for|x)\s*(\d+)\s*,?\s*(\d+)\s*sets?$/);
+  if (forSets) return copies(forSets[3], forSets[1], forSets[2]);
+  const setsOf = numbers.match(/^(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*(?:at|@|with|x)\s*(\d+(?:[.,]\d+)?)$/);
+  if (setsOf) return copies(setsOf[1], setsOf[3], setsOf[2]);
+  const setsFirst = numbers.match(/^(\d+)\s*x\s*(\d+)\s+(?:at\s*|@\s*)?(\d+(?:[.,]\d+)?)$/);
+  if (setsFirst) return Number(setsFirst[1]) <= 12 && Number(setsFirst[3].replace(',', '.')) > 20 ? copies(setsFirst[1], setsFirst[3], setsFirst[2]) : null;
+  // Any other way of saying sets is left to the AI rather than guessed.
+  if (/\bsets?\b/.test(numbers)) return null;
   const straight = numbers.match(/^(\d+(?:[.,]\d+)?)\s*x\s*(\d+)\s*x\s*(\d+(?:[.,]\d+)?)\s*$/);
   if (straight) {
     const [first, second, third] = [straight[1], straight[2], straight[3]].map((value) => Number(value.replace(',', '.')));
@@ -669,7 +692,7 @@ const parseWithAi = async (text, audio, hint = '', saved = null) => {
   });
   const body = await response.json().catch(() => ({}));
   // Busy, rate-limited or down: worth trying again later by itself. A note the AI read but couldn't use is not.
-  if (!response.ok) throw Object.assign(new Error(body.error || 'The AI could not read that.'), { heard: body.transcript || '', later: response.status === 429 || response.status >= 500 });
+  if (!response.ok) throw Object.assign(new Error(body.error || 'The AI could not read that.'), { heard: body.transcript || '', later: response.status === 429 || response.status === 503 });
   return body;
 };
 
@@ -697,6 +720,7 @@ const prKind = (name, date, set) => {
   const today = earlierToday(name, date, set);
   // PRs compare against logged history only; imported all-time bests would hide every climb up to them.
   if (reps === 1 && kg > Math.max(singleBefore(name, date, true), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)))) return 'max';
+  if (!heavySet(set) && liftHasHeavy(name)) return null;
   return setEstimate(set) > Math.max(bestBefore(name, date, true), ...today.map(setEstimate)) + 0.01 ? 'est' : null;
 };
 
@@ -799,9 +823,9 @@ const renderExercise = (session, exercise, exerciseIndex) => {
     const pr = prKind(exercise.name, session.date, set);
     // Only repeated sets carry a count ("3×"); a single set has none, so a lone number never reads as a count.
     const numbers = count > 1 ? `${count}×` : '';
-    const label = `${esc(exercise.name)}, ${count > 1 ? `${count} sets` : `set ${numbers}`}`;
+    const label = `${esc(exercise.name)}, ${count > 1 ? `sets ${start + 1} to ${start + count}` : `set ${start + 1}`}`;
     const where = `data-date="${session.date}" data-exercise="${exerciseIndex}" data-set="${start}" data-count="${count}"`;
-    return `<div class="swipe setSwipe"><button class="swipeDel" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
+    return `<div class="swipe setSwipe"><button class="swipeDel" tabindex="-1" data-action="delete-set" ${where} aria-label="Delete ${label}">Delete</button><div class="setRow swipeFace">
       ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${numbers}</span>`}
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" ${where} data-field="kg">
       <span class="unit">${isBodyweightLift(exercise.name) ? '+kg' : 'kg'}</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
@@ -813,7 +837,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   }).join('');
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.names.has(exercise.name);
   return `<div class="exercise${landing ? ' landing' : ''}${glowing(session.date, exercise.name) ? ' glow' : ''}">
-    <div class="swipe"><button class="swipeDel" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button> <div class="exHead swipeFace">${editing ? `<button class="minus" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}"></button>` : ''}<button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}"><span class="exNameText">${esc(exercise.name)}</span>${ICONS.chevRight}</button>${exerciseIndex === 0 ? COLUMN_HEAD : ''}<button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
+    <div class="swipe"><button class="swipeDel" tabindex="-1" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">Delete</button> <div class="exHead swipeFace">${editing ? `<button class="minus" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}"></button>` : ''}<button class="exName" data-action="open-trend" data-name="${esc(exercise.name)}"><span class="exNameText">${esc(exercise.name)}</span>${ICONS.chevRight}</button>${exerciseIndex === 0 ? COLUMN_HEAD : ''}<button class="rowX" data-action="delete-exercise" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Delete ${esc(exercise.name)}">×</button></div></div>
     ${rows}
     ${editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}">Add set</button>` : ''}
   </div>`;
@@ -985,7 +1009,7 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${session.cardio ? `<div class="swipe"><button class="swipeDel" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
+      ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
         <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
@@ -3030,7 +3054,8 @@ const showChat = () => {
 // Quick add always keeps its heading and about two rows in view (150 px), however short the panel is; the log gets the rest.
 const restingScroll = (body) => {
   const hint = body.querySelector('.logHint');
-  if (!hint) return body.scrollHeight;
+  // Quick add with no log yet opens at its top, so Import and the first lifts show.
+  if (!hint) return body.querySelector('.quickAdd') ? 0 : body.scrollHeight;
   const logRoom = Math.max(body.clientHeight * 0.35, body.clientHeight - 150);
   return Math.max(0, hint.offsetTop - body.offsetTop - Math.round(logRoom));
 };
@@ -3870,6 +3895,8 @@ const render = () => {
   const draftFocused = focused && focused.id === 'draft';
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
   const searchFocused = focused && focused.id === 'search';
+  // A set's kg / reps / @ box has no id, so it is found again by what it edits, and keeps its caret.
+  const setFocus = focused && focused.dataset?.field && focused.matches('input') ? { ...focused.dataset, caret: [focused.selectionStart, focused.selectionEnd] } : null;
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
   const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : renderHome();
@@ -3919,6 +3946,23 @@ const render = () => {
     const search = document.getElementById('search');
     search?.focus();
     search?.setSelectionRange(search.value.length, search.value.length);
+  }
+  // A lift just added with an empty set: its first empty kg box gets the caret. On a phone only when the box already
+  // sits above where the keyboard will open (about 360 px with its bar), so the page never moves.
+  if (view.focusSet) {
+    const index = (sessionFor(view.focusSet.date)?.exercises || []).findIndex((exercise) => exercise.name === view.focusSet.name);
+    const box = [...document.querySelectorAll(`input[data-field="kg"][data-date="${view.focusSet.date}"][data-exercise="${index}"]`)].find((input) => !input.value);
+    const spot = box?.getBoundingClientRect();
+    const screenH = window.visualViewport?.height || window.innerHeight;
+    if (box && (desktopQuery.matches || (spot.top > 60 && spot.bottom < screenH - 360))) box.focus({ preventScroll: true });
+    view.focusSet = null;
+  }
+  if (setFocus) {
+    const box = document.querySelector(`input[data-field="${setFocus.field}"][data-date="${setFocus.date}"][data-exercise="${setFocus.exercise}"][data-set="${setFocus.set}"]`);
+    if (box) {
+      box.focus({ preventScroll: true });
+      box.setSelectionRange(...setFocus.caret);
+    }
   }
   view.focusDraft = false;
   view.selectDraft = false;
@@ -4344,13 +4388,8 @@ const applyResult = (result, date, said, heard = '') => {
     did.push(`Accessories ${result.accessoriesMinutes} min on ${dayLabel(day)}`);
   }
   // When the AI only echoes the whole note back, say it plainly instead of repeating it: the words are already in the bubble.
-  // A friend's message that isn't training went to Marcus as feedback on the server; say so, and keep it in their
-  // Feedback list. Marcus's own messages stay "didn't understand".
-  if (did.length === 0 && result.unclear && !view.isAdmin && !view.sandbox) {
-    state.feedback = [...(state.feedback || []), { at: Date.now(), said, kind: 'idea', title: said.slice(0, 80) }].slice(-50);
-    throw Object.assign(new Error('Not training, so it went to Marcus as feedback.'), { unclear: true, feedback: true });
-  }
-  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true, engine: result.engine || '', raw: JSON.stringify(result).slice(0, 1500) });
+  // Nothing to log plus a question: it is a question back to them, never feedback (feedback comes as result.feedback).
+  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true, question: result.unclear || '', engine: result.engine || '', raw: JSON.stringify(result).slice(0, 1500) });
   if (result.unclear) {
     did.push(`Didn't understand: ${result.unclear}`);
   }
@@ -5234,7 +5273,7 @@ const runLater = async (force = false) => {
           else if (result.remove?.length && job.voice) view.confirm = { result, date: job.date, said, heard: result.transcript || '', text: describeRemoval(result) };
           else applyResult(result, job.date, said, job.voice ? result.transcript || '' : '');
         } catch (error) {
-          addLog(said, error.feedback ? ['Sent to Marcus as feedback'] : [`Not logged: ${error.message}`], error.feedback ? { manual: true } : error.engine ? { by: error.engine, raw: error.raw } : {});
+          addLog(said, [`Not logged: ${error.message}`], error.engine ? { by: error.engine, raw: error.raw } : {});
         }
         if (job.voice) dropVoice(job.id);
       } catch (error) {
@@ -5405,9 +5444,13 @@ const send = async () => {
     view.retryVoice = null;
     done = !view.confirm && !result.unclear && !view.draft.trim() && !view.listening && view.pending.length === 1;
   } catch (error) {
-    if (error.feedback) {
-      addLog(text || heard || error.heard || live || 'Voice note', ['Sent to Marcus as feedback'], { manual: true });
-      note('Sent to Marcus', 'As feedback');
+    // A friend's note the AI has a question about: the question shows above the box, their words stay in it to fix and
+    // send again, and nothing is logged.
+    if (error.question && (text || heard) && !view.isAdmin && !view.sandbox && !view.fixing) {
+      view.draft = text || heard;
+      view.status = error.question;
+      view.focusDraft = desktopQuery.matches;
+      openChat();
       return;
     }
     // Busy or offline: it waits and tries again by itself; nothing for the person to do.
@@ -5971,6 +6014,7 @@ document.addEventListener('click', (event) => {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
     changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: false }), 'Add set');
+    if (last.kg === '') view.focusSet = { date, name: exercise.name };
   } else if (action === 'remove-cardio' && session) {
     changeWithUndo(`Removed cardio on ${dayLabel(date)}`, () => {
       session.cardio = 0;
@@ -6007,6 +6051,7 @@ document.addEventListener('click', (event) => {
     const last = lastSetsFor(name, day);
     changeWithUndo(`Added ${name} to ${dayLabel(day)}`, () => addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps })) : [{ kg: '', reps: '' }] }] }, day), `Add ${name}`);
     closeComposer();
+    if (!last) view.focusSet = { date: day, name };
   } else if (action === 'pick-cardio') {
     const day = view.composerDate || todayIso();
     changeWithUndo(`Added cardio 30 min to ${dayLabel(day)}`, () => addEntries({ exercises: [], cardioMinutes: 30 }, day), 'Add cardio');
@@ -6147,7 +6192,11 @@ document.addEventListener('input', (event) => {
     if (field === 'kg') {
       for (const set of group) set.edited = true;
       for (let next = index + group.length; next < exercise.sets.length; next += 1) {
-        if (!exercise.sets[next].edited && exercise.sets[next].kg === previous) exercise.sets[next].kg = exercise.sets[index].kg;
+        if (!exercise.sets[next].edited && exercise.sets[next].kg === previous) {
+          exercise.sets[next].kg = exercise.sets[index].kg;
+          const box = document.querySelector(`input[data-field="kg"][data-date="${target.dataset.date}"][data-exercise="${target.dataset.exercise}"][data-set="${next}"]`);
+          if (box) box.value = exercise.sets[next].kg;
+        }
       }
     }
     save();
@@ -6177,14 +6226,21 @@ document.addEventListener('change', (event) => {
     const session = sessionFor(target.dataset.date);
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const set = exercise.sets[Number(target.dataset.set)];
-    if (set && set.kg === '' && set.reps === '') exercise.sets.splice(Number(target.dataset.set), Number(target.dataset.count) || 1);
+    const removed = set && set.kg === '' && set.reps === '';
+    if (removed) exercise.sets.splice(Number(target.dataset.set), Number(target.dataset.count) || 1);
     if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
     if (session.exercises.length === 0 && !session.cardio) state.sessions = state.sessions.filter((item) => item !== session);
     const changed = exercise.sets[Number(target.dataset.set)];
     if (changed && changed.kg !== '' && changed.reps !== '') addLog('Edit numbers', [`${exercise.name} set ${Number(target.dataset.set) + 1} is now ${changed.kg} × ${changed.reps}${changed.rpe ? ` @${changed.rpe}` : ''} on ${dayLabel(session.date)}`], { manual: true, merge: `set:${session.date}:${exercise.name}:${target.dataset.set}` });
     checkPr(exercise.name, session.date);
     save();
-    render();
+    // Going from kg to reps (a tap or Tab) fires this first. Redrawing then would swap the box being typed in and drop
+    // the phone's keyboard, so while the next box is another set's, the redraw waits until you leave the numbers.
+    if (removed) render();
+    else setTimeout(() => {
+      if (document.activeElement?.matches?.('.page input[data-field]')) view.renderOnBlur = true;
+      else render();
+    });
   } else if (target.dataset.action === 'import-file' && target.files[0]) {
     const picked = target.files[0];
     target.value = '';
@@ -6504,9 +6560,14 @@ document.addEventListener('mousedown', (event) => {
 });
 let swipe = null;
 let lastSwipe = 0;
+// The Delete behind a row is out of the Tab order until a swipe shows it.
+const openSwipe = (row, open) => {
+  row.classList.toggle('open', open);
+  row.querySelector('.swipeDel')?.setAttribute('tabindex', open ? '0' : '-1');
+};
 document.addEventListener('pointerdown', (event) => {
   const face = event.target.closest('.swipeFace');
-  for (const open of document.querySelectorAll('.swipe.open')) if (open !== face?.parentElement) open.classList.remove('open');
+  for (const open of document.querySelectorAll('.swipe.open')) if (open !== face?.parentElement) openSwipe(open, false);
   swipe = face && event.pointerType !== 'mouse' ? { face, ...uiPoint(event), dx: 0, active: false } : null;
 });
 document.addEventListener('pointermove', (event) => {
@@ -6536,7 +6597,7 @@ const endSwipe = () => {
     return;
   }
   lastSwipe = Date.now();
-  face.parentElement.classList.toggle('open', dx < -40);
+  openSwipe(face.parentElement, dx < -40);
 };
 document.addEventListener('pointerup', endSwipe);
 document.addEventListener('pointercancel', endSwipe);

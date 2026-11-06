@@ -25,6 +25,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Audit fixes: kg→reps keeps focus (no redraw while moving between set boxes); "N sets" parsed as N sets; unclear notes show the AI's question instead of "sent as feedback"; only 429/503/offline wait for later, a 502 is "Not logged" + Try again; Quick add with no log opens at the top; new set focuses kg; set numbers for screen readers, hidden swipe Delete out of Tab order, 44 px hit areas; >10-rep sets never set the all-time estimate; At your best = real kg, now vs all-time over the chart's range (v321)
+
 - Harder variants also draw on the main lift's chart and PR count (one point per day, the best of both); front squat, safety bar and high-bar squat count for squat (v318–v320)
 
 - Demo link (?demo, the portfolio) shows Marcus's real training from /api/demo (dates, labels, lifts, sets and bodyweight only; cached 1 h; made-up example only if it can't load), says "A real training log · Get your own", no Exodia animation over it (v313–v315)

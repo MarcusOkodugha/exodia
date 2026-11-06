@@ -1342,3 +1342,6 @@ main.page { overflow-x: clip; }
 .editBtn.done { margin-left: 8px; padding: 0 2px; color: var(--clayText); font-weight: 600; }
 .session.editing .headRow { position: sticky; z-index: 3; top: calc(var(--top) + 52px); background: var(--bg); }
 .desk .session.editing .headRow { top: 0; }
+/* Small buttons get a 44 × 44 tap area from an invisible layer centred on them; nothing they sit in moves. */
+.rowX, .rowPlus, .editBtn, .chevBtn { position: relative; }
+.rowX::before, .rowPlus::before, .editBtn::before, .chevBtn::before { content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }

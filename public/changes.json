@@ -385,5 +385,11 @@
   ],
   "320": [
     "Paused and close-grip sets now show on the bench chart, and the same for squat and deadlift variants"
+  ],
+  "321": [
+    "Moving from kg to reps keeps the keyboard and cursor where you tapped",
+    "\"3 sets\" in a note now logs three sets",
+    "At your best compares real weight lifted, over the range you pick on the chart",
+    "Clearer messages when a note can't be read, bigger tap areas on set rows"
   ]
 }
