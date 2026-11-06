@@ -621,7 +621,8 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 /* Example data: a slim pill on every page until the person starts their own log. */
 .demoPill { position: fixed; z-index: 6; top: calc(var(--top) + 54px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 6px 18px rgba(20, 20, 19, 0.16); }
 .updatePill { display: block; width: max-content; max-width: 100%; margin: 0 auto 8px; padding: 5px 12px; border-radius: 999px; background: var(--claySoft); color: var(--clayText); font-size: 13px; line-height: 18px; font-weight: 600; animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.demoPill button, .demoPill a { padding: 7px 14px; text-decoration: none; border-radius: 999px; background: var(--clay); color: #FFFFFF; font-size: 14px; font-weight: 600; }
+.demoPill button { padding: 7px 14px; border-radius: 999px; background: var(--clay); color: #FFFFFF; font-size: 14px; font-weight: 600; }
+.eyebrowLink { color: var(--clayText); font-weight: 600; text-decoration: none; }
 .demo .page { padding-top: calc(var(--top) + 112px); }
 
 .onboardHow { margin: -4px 0 18px; color: var(--text2); font-size: 15px; line-height: 21px; }

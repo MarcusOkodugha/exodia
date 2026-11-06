@@ -1237,7 +1237,7 @@ const renderHome = () => {
   const greeting = hour < 5 ? 'Late session?' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const sessions = sortedSessions().filter((session) => session.exercises.length > 0 || session.cardio > 0);
   return `<main class="page homePage">
-    <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+    <p class="eyebrow">${todayLine()}</p>
     <h1 class="title${view.reveal ? ' reveal' : ''}">${exodiaHit() && !view.celebrating ? `${esc(state.name || 'You')} hit Exodia` : state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
     <section class="card exodiaCard${view.exodiaOpen ? ' open' : ''}${view.reveal ? ' reveal' : ''}${view.blue ? ' hit' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
@@ -1595,7 +1595,7 @@ const renderTrends = () => {
     </section>`;
   };
   return `<main class="page trendsPage">
-    <p class="eyebrow">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+    <p class="eyebrow">${todayLine()}</p>
     <h1 class="title">Trends</h1>
     ${names.length ? `<div class="list">${card(view.trendOpen).replace(/<\/section>\s*$/, `${liftPicker(big, rest, history)}</section>`)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
@@ -3630,7 +3630,9 @@ const updateQuietly = () => {
 };
 setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
-const demoPill = () => (state.demo ? `<div class="demoPill" role="status">${view.preview ? 'Example data<a href="/join" target="_blank" rel="noopener">Get your own</a>' : `${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button>`}</div>` : '');
+// The demo link (?demo) says it's example data quietly in the date line instead of a floating pill.
+const todayLine = () => (view.preview ? 'Example data · <a class="eyebrowLink" href="/join" target="_blank" rel="noopener">Get your own</a>' : new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }));
+const demoPill = () => (state.demo && !view.preview ? `<div class="demoPill" role="status">${`${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button>`}</div>` : '');
 
 // Two people ended up on one log (a shared private link). The server lists those logs in SPLIT_PROFILES; each phone on
 // one is asked once who uses it. The first name keeps the log; anyone else gets their own, empty, with their name.
@@ -3818,7 +3820,7 @@ const render = () => {
   if (view.wasHit === false && hit && !view.celebrating) celebrate();
   view.wasHit = hit;
   view.blue = hit && view.celebrating !== 'orange';
-  document.documentElement.classList.toggle('demo', Boolean(state.demo));
+  document.documentElement.classList.toggle('demo', Boolean(state.demo && !view.preview));
   if (view.splitAsk) {
     app.innerHTML = renderSplit();
     return;
