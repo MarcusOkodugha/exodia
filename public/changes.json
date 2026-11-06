@@ -391,5 +391,8 @@
     "\"3 sets\" in a note now logs three sets",
     "At your best compares real weight lifted, over the range you pick on the chart",
     "Clearer messages when a note can't be read, bigger tap areas on set rows"
+  ],
+  "322": [
+    "Sending with the mic on can no longer get stuck; you always see what happened"
   ]
 }

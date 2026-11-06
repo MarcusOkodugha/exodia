@@ -1964,18 +1964,22 @@ const askClaude = async (text, run = null) => {
   return run;
 };
 
+// voice is the recording, or the promise of it while the mic is still finishing.
 const sendToClaude = async (text, voice) => {
   view.draft = '';
-  if (!desktopQuery.matches) document.activeElement?.blur();
-  closeTray();
-  // The request is on screen before anything is sent; a voice note shows as "Voice note" until its words are in.
+  // The request is on screen before anything is sent or awaited; a voice note shows as "Voice note" until its words are in.
   const run = { at: Date.now(), said: text || 'Voice note…', status: 'sending' };
   state.claudeRuns = [run, ...(state.claudeRuns || [])].slice(0, 20);
-  addLog(run.said, ['Sending to Exodia builder…'], { manual: true, merge: `claude-${run.at}` });
-  save();
-  render();
   let ask = text;
   try {
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    closeTray();
+    addLog(run.said, ['Sending to Exodia builder…'], { manual: true, merge: `claude-${run.at}` });
+    save();
+    render();
+    const recorded = await voice;
+    voice = recorded?.size > 4000 ? recorded : null;
+    if (!text && !voice) throw new Error(recorded ? `no sound recorded (${Math.round(recorded.size / 1024)} KB)` : 'nothing to send');
     if (voice) {
       const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
       const body = await response.json().catch(() => ({}));
@@ -1998,6 +2002,7 @@ const sendToClaude = async (text, voice) => {
       run.error = error.message;
       const entry = (state.log || []).find((item) => item.merge === `claude-${run.at}`);
       if (entry) entry.did = [`Not sent to Exodia builder: ${run.error}`];
+      else view.status = `Not sent to Exodia builder: ${run.error}`;
     }
   } finally {
     save();
@@ -4026,7 +4031,7 @@ const startLiveText = () => {};
 
 const stopRecording = async () => {
   if (!recording) return null;
-  const { recorder, context, frame, timer, done, recognizer } = recording;
+  const { recorder, context, frame, timer, done, chunks, recognizer } = recording;
   recording = null;
   try {
     recognizer?.stop();
@@ -4035,11 +4040,16 @@ const stopRecording = async () => {
   }
   clearTimeout(timer);
   cancelAnimationFrame(frame);
-  recorder.stop();
-  context.close();
+  try {
+    if (recorder.state !== 'inactive') recorder.stop();
+  } catch {
+    // the phone already ended it
+  }
+  context.close().catch(() => null);
   view.listening = false;
   view.speaking = false;
-  return done;
+  // If the phone never says the recording stopped, go on after 3 s with what came in, instead of waiting for ever.
+  return Promise.race([done, new Promise((resolve) => setTimeout(() => resolve(new Blob(chunks, { type: recorder.mimeType })), 3000))]);
 };
 
 const watchLevel = (stream, context) => {
@@ -4095,7 +4105,7 @@ const startListening = async () => {
     };
   });
   recorder.start();
-  recording = { recorder, context, done, frame: 0, timer: setTimeout(send, 360000) };
+  recording = { recorder, context, done, chunks, frame: 0, timer: setTimeout(send, 360000) };
   watchLevel(stream, context);
   view.live = '';
   startLiveText();
@@ -5310,6 +5320,25 @@ for (const run of state.claudeRuns || []) {
 
 let sentContext = null;
 const send = async () => {
+  // /admin from any box, and anything in the Admin page's box, goes to the builder before anything is awaited: the
+  // request is on screen at once, and a recording that is still finishing goes along as a promise.
+  const typed = view.draft.trim();
+  const toAdmin = view.isAdmin && !view.files?.length && view.route !== 'admin' && /^\/admin(\s|$)/i.test(typed);
+  if (toAdmin || (view.isAdmin && !view.files?.length && view.route === 'admin' && !/^\/feedback(\s|$)/i.test(typed))) {
+    const rest = typed.replace(/^\/admin\s*/i, '');
+    const voice = recording ? stopRecording() : view.voiceBlob;
+    view.voiceBlob = null;
+    view.live = '';
+    view.draft = '';
+    if (toAdmin) {
+      if (location.hash !== '#/admin') location.hash = '#/admin';
+      view.route = 'admin';
+    }
+    if (rest || voice) return sendToClaude(rest, voice);
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    render();
+    return;
+  }
   const recorded = recording ? await stopRecording() : view.voiceBlob;
   view.voiceBlob = null;
   const live = (view.live || '').trim();
@@ -5345,18 +5374,6 @@ const send = async () => {
     render();
     return;
   }
-  // Admin shortcut: /admin from any box opens Admin; anything after it goes straight to Claude there.
-  // A voice note recorded after /admin goes to the builder too, never into the training log.
-  if (view.isAdmin && view.route !== 'admin' && /^\/admin(\s|$)/i.test(text)) {
-    const rest = text.replace(/^\/admin\s*/i, '');
-    view.draft = '';
-    if (!desktopQuery.matches) document.activeElement?.blur();
-    if (location.hash !== '#/admin') location.hash = '#/admin';
-    view.route = 'admin';
-    if (rest || voice) return sendToClaude(rest, voice);
-    render();
-    return;
-  }
   // /feedback from any box, for anyone: the rest goes to Marcus as feedback.
   if (/^\/feedback(\s|$)/i.test(text)) {
     const rest = text.replace(/^\/feedback\s*/i, '');
@@ -5368,7 +5385,6 @@ const send = async () => {
     return sendFeedback(rest, voice);
   }
   if (view.route === 'feedback') return sendFeedback(text, voice);
-  if (view.route === 'admin' && view.isAdmin) return sendToClaude(text, voice);
   const date = view.composerDate || todayIso();
   // Long text, or rows pasted from a spreadsheet (they come with tabs), is a history to import.
   if (!voice && (text.length > 600 || (/\t/.test(view.draft) && view.draft.trim().includes('\n'))) && !view.fixing && !view.editContext) {
