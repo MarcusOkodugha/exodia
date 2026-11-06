@@ -322,5 +322,8 @@
   "301": [
     "Quotes stay up long enough to read, and the build banner shows them too",
     "While a note is written, the chat also says what you can do meanwhile"
+  ],
+  "302": [
+    "Small fixes"
   ]
 }
