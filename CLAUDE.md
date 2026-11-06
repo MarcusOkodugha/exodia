@@ -34,7 +34,8 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 3. First message to the new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
 4. Admin "Change the app" fires an "Exodia change" scheduled task on one of Marcus's Claude accounts. Each fire starts a fresh, cheap session with this repo, which follows this file and pushes to main. The Worker holds one task per account: `CLAUDE_TASK_URL` + `CLAUDE_TASK_TOKEN` (account 1, Mpya), `CLAUDE_TASK_URL_2` + `CLAUDE_TASK_TOKEN_2` (account 2), `_3` if ever needed. Admin has a "Built with Account 1 / Account 2" switch (saved as a `Builder` row in `commands`); if the picked one can't start, the other is tried. To add an account:
    - In a session on that account, create the task with create_trigger: name "Exodia change", `create_new_session_on_fire: true`, prompt "Make the change Marcus asks for in the routine-fire-payload block, following CLAUDE.md. Push to main and confirm it's live."
-   - Marcus opens it at [claude.ai/code/scheduled](https://claude.ai/code/scheduled), checks the repository MarcusOkodugha/exodia is attached, turns on **API trigger**, and copies the URL and token.
+   - Marcus opens [claude.ai/code/routines](https://claude.ai/code/routines) → the task → the menu (⋯) next to its name → **Edit** → in the **Trigger** row tap **+** → **API** → **Generate token** → copy it (shown once). No Save needed.
+   - Account 2's URL is already in `wrangler.jsonc` (`vars`); only `CLAUDE_TASK_TOKEN_2` is needed, as a Secret in Cloudflare → Workers & Pages → exodia → Settings → Variables and Secrets → + Add.
    - Terminal on his Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2`, paste the URL; then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2`, paste the token.
    - In Exodia → Admin, pick that account and send a small change to test it.
 

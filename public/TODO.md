@@ -8,10 +8,10 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 - [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
   1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
-- [ ] **Admin builds on your second Claude account.** The "Exodia change" task now exists on it; 3 taps and 2 commands connect it to Admin's "Change the app".
-  1. Open [the Exodia change task](https://claude.ai/code/routines/trig_01YTmBu1zKvXCvCHAwZvnYxG), turn on **API trigger**, copy the URL and the token
-  2. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2` (paste the URL), then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2` (paste the token)
-  3. In Exodia → Admin, pick "Built with Account 2" and send a small change to test it
+- [ ] **Admin builds on your second Claude account.** Builder 1's builds haven't landed since 4 Nov; Builder 2 works and is already the default. It only needs its token, all from the phone.
+  1. Open [the Exodia change task](https://claude.ai/code/routines/trig_01YTmBu1zKvXCvCHAwZvnYxG) → menu (⋯) next to its name → **Edit** → in the **Trigger** row tap **+** → **API** → **Generate token** → copy it (shown once, no Save needed)
+  2. Open [Cloudflare → exodia → Settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/exodia/production/settings) → **Variables and Secrets** → **+ Add** → Type **Secret**, name `CLAUDE_TASK_TOKEN_2`, paste → **Deploy**
+  3. Send a small change from /admin to test it
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
 ## To do (Claude)
 
