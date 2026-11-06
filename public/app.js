@@ -3382,7 +3382,7 @@ const updatedPill = () => {
   const lines = view.updated ? updatedLines() : [];
   const more = !view.updated ? 'Tap to see' : lines.length > 1 ? `Show all ${lines.length}` : 'Show more';
   const version = view.isAdmin && view.updated ? ` · v${view.updated.version}` : '';
-  return `<div class="updatedPill${open ? ' open' : ''}${still}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span class="updatedDot" aria-hidden="true"></span><span class="updatedLead">${esc(lines[0] || 'Exodia updated')}</span><span class="updatedTitle">What’s new${version}</span><span class="updatedMore">${more}</span><svg class="updatedChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${lines.length ? `<ul class="updatedNotes">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
+  return `<div class="updatedPill${open ? ' open' : ''}${still}" data-sig="${view.updated?.version || 'ready'}-${open}-${lines.length}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span class="updatedDot" aria-hidden="true"></span><span class="updatedLead">${esc(lines[0] || 'Exodia updated')}</span><span class="updatedTitle">What’s new${version}</span><span class="updatedMore">${more}</span><svg class="updatedChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${lines.length ? `<ul class="updatedNotes">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
 };
 // Grow or shrink the pill between its measured sizes without redrawing it. The content is laid out at the end size
 // from the first frame, so no text reflows while the edge moves; closing drops back to one line and the notes fade.
@@ -3418,6 +3418,7 @@ const toggleUpdated = (open = !view.updated?.open, after) => {
   view.updated.open = open;
   const pill = document.querySelector('.updatedPill');
   pill?.querySelector('.updatedMain')?.setAttribute('aria-expanded', String(open));
+  if (pill) pill.dataset.sig = `${view.updated.version}-${open}-${updatedLines().length}`;
   if (pill && !reducedMotion.matches) return sizeUpdated(pill, open, after);
   pill?.classList.toggle('open', open);
   after?.();
@@ -3461,21 +3462,31 @@ const noteUpdate = async () => {
     render();
     setTimeout(() => {
       if (view.updated?.version === version && !view.updated.open) hideUpdated();
-    }, 60000);
+    }, 120000);
   };
   setTimeout(() => show([]), 4000);
   fetch('/changes.json').then((response) => response.json()).then((all) => {
     show(Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 40));
   }).catch(() => show([]));
 };
-// A touch anywhere outside the pill puts it away (open or not). pointerdown, because iPhone Safari sends no click for a
-// tap on plain page, so a click listener alone never saw those taps.
+// Closed, the pill waits: a tap on it (or within a finger's width of it) opens it, a tap elsewhere leaves it be, and
+// it goes by itself after 2 minutes. Open, a tap anywhere outside shrinks it and it goes for good. pointerdown,
+// because iPhone Safari sends no click for a tap on plain page.
+const UPDATED_SLOP = 16;
 document.addEventListener('pointerdown', (event) => {
   if (!view.updated || event.target.closest('.updatedPill')) return;
+  const pill = document.querySelector('.updatedPill');
   if (view.updated.open) {
     view.updatedClosedAt = Date.now();
     toggleUpdated(false, hideUpdated);
-  } else hideUpdated();
+    return;
+  }
+  const box = pill?.getBoundingClientRect();
+  if (box && event.clientX > box.left - UPDATED_SLOP && event.clientX < box.right + UPDATED_SLOP && event.clientY > box.top - UPDATED_SLOP && event.clientY < box.bottom + UPDATED_SLOP) {
+    // A near miss counts as a tap on the pill; the click that follows is swallowed so nothing under it fires.
+    view.updatedClosedAt = Date.now();
+    toggleUpdated(true);
+  }
 }, true);
 // Swiping "Exodia updated" away: it follows the finger and fades as it goes; let go far or fast enough and it glides
 // off that way, otherwise it springs back. A plain tap still opens the notes.
@@ -3768,12 +3779,17 @@ const render = () => {
         ${view.route === 'home' ? `<a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>` : `<a class="iconBtn" href="#/" aria-label="Home">${ICONS.home}</a>`}
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
+  // The update pill keeps its own element across redraws (sync and checks redraw often), so a tap that is under way
+  // on it is never lost to a fresh copy.
+  const keptPill = document.querySelector('.updatedPill');
   app.innerHTML = `
     ${layout}
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
+  const freshPill = document.querySelector('.updatedPill');
+  if (keptPill && freshPill && keptPill !== freshPill && keptPill.dataset.sig === freshPill.dataset.sig && !keptPill.classList.contains('gone')) freshPill.replaceWith(keptPill);
   if (view.toast) view.toast.shown = true;
   watchDock();
   const draft = document.getElementById('draft');
