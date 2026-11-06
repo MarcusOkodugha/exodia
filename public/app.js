@@ -1642,7 +1642,7 @@ const chatEntry = ({ stamp, who, said, heard, voice, did, raw, by, fixIndex: ind
   return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}${fresh ? ' fresh' : ''}">
   ${theirs ? `${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<p class="chatWho">${esc(who || 'Someone')}</p>` : stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
   ${fixIndex === undefined ? `<div class="bubbleIn">${youSaid}</div>` : `<button class="bubbleIn" data-action="edit-said" data-index="${fixIndex}">${youSaid}</button>`}
-  <div class="bubbleOut"><p>${laterId && laterJobs().some((job) => job.id === laterId) ? `<span class="ghostText">${esc(lines.join(' · '))}</span>` : esc(lines.join(' · '))}</p>${handled && !failed ? `<p class="handledBy">Handled by ${esc(handled)}</p>` : ''}${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}${failed && fixIndex !== undefined && view.isAdmin && said !== 'Voice note' ? `<button class="textBtn" data-action="said-builder" data-index="${fixIndex}">Ask Exodia builder</button>` : ''}</div>
+  <div class="bubbleOut"><p>${laterId && laterJobs().some((job) => job.id === laterId) ? `<span class="ghostText">${esc(lines.join(' · '))}</span>` : esc(lines.join(' · '))}</p>${handled ? `<p class="handledBy">${failed ? `Tried by ${esc(handled)}${/Didn.t understand|Nothing to log/.test(lines.join(' ')) && !/phone|import/.test(handled) ? ` · ${view.isAdmin ? 'needs a stronger model' : 'needs a stronger Exodia, Marcus can turn one on'}` : ''}` : `Handled by ${esc(handled)}`}</p>` : ''}${compact ? '' : rawDetails(raw)}${voiceId ? `<button class="textBtn" data-action="retry-voice" data-voice="${voiceId}">Try again</button>` : failed && fixIndex !== undefined && said !== 'Voice note' ? `<button class="textBtn" data-action="retry-said" data-index="${fixIndex}">Try again</button>` : ''}${failed && fixIndex !== undefined && /Didn't understand/.test(lines[0]) && said.split(/\s+/).length >= 8 ? `<button class="textBtn" data-action="said-feedback" data-index="${fixIndex}">Send as feedback</button>` : ''}${failed && fixIndex !== undefined && view.isAdmin && said !== 'Voice note' ? `<button class="textBtn" data-action="said-builder" data-index="${fixIndex}">Ask Exodia builder</button>` : ''}</div>
 </div>`;
 };
 
@@ -4302,7 +4302,7 @@ const applyResult = (result, date, said, heard = '') => {
     state.feedback = [...(state.feedback || []), { at: Date.now(), said, kind: 'idea', title: said.slice(0, 80) }].slice(-50);
     throw Object.assign(new Error('Not training, so it went to Marcus as feedback.'), { unclear: true, feedback: true });
   }
-  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true });
+  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true, engine: result.engine || '', raw: JSON.stringify(result).slice(0, 1500) });
   if (result.unclear) {
     did.push(`Didn't understand: ${result.unclear}`);
   }
@@ -5186,7 +5186,7 @@ const runLater = async (force = false) => {
           else if (result.remove?.length && job.voice) view.confirm = { result, date: job.date, said, heard: result.transcript || '', text: describeRemoval(result) };
           else applyResult(result, job.date, said, job.voice ? result.transcript || '' : '');
         } catch (error) {
-          addLog(said, error.feedback ? ['Sent to Marcus as feedback'] : [`Not logged: ${error.message}`], error.feedback ? { manual: true } : {});
+          addLog(said, error.feedback ? ['Sent to Marcus as feedback'] : [`Not logged: ${error.message}`], error.feedback ? { manual: true } : error.engine ? { by: error.engine, raw: error.raw } : {});
         }
         if (job.voice) dropVoice(job.id);
       } catch (error) {
@@ -5373,7 +5373,7 @@ const send = async () => {
     if (voiceId) keepVoice(voiceId, voice);
     const words = text || heard || error.heard || live || 'Voice note';
     const kept = voice && !error.unclear ? (words !== 'Voice note' ? ' Your words are saved, tap Try again.' : ' Your recording is saved, tap Try again.') : '';
-    addLog(words, [`Not logged: ${error.message}${kept}`], { ...(voiceId ? { voiceId } : {}), ...(voice && !text && words !== 'Voice note' ? { heard: words } : {}) });
+    addLog(words, [`Not logged: ${error.message}${kept}`], { ...(voiceId ? { voiceId } : {}), ...(voice && !text && words !== 'Voice note' ? { heard: words } : {}), ...(error.engine ? { by: error.engine, raw: error.raw } : {}) });
   } finally {
     view.pending = view.pending.filter((item) => item !== pending);
     if (done && !desktopQuery.matches) document.activeElement?.blur();

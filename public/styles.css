@@ -1319,3 +1319,7 @@ main.page { overflow-x: clip; }
 .bannerThink { margin: 6px 0 0; font-size: 13px; line-height: 18px; }
 .bannerThink .ghostText { font-size: 13px; line-height: 18px; }
 .bubbleOut .ghostHint { margin: 4px 0 0 38px; font-size: 13px; line-height: 18px; color: var(--text2); }
+/* Buttons under a reply (Try again, Send as feedback, Ask Exodia builder): the gap sits after each button, so one
+   that wraps to a new line starts flush left, on the same edge as the first. */
+.bubbleOut .textBtn + .textBtn { margin-left: 0; }
+.bubbleOut .textBtn { margin-right: 16px; }

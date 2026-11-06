@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Failed messages show "Tried by Gemini 3.5 Flash · needs a stronger model" (friends: "Tried by Exodia 3.5 Flash · needs a stronger Exodia, Marcus can turn one on"); the model now travels with a "didn't understand" error into the log; reply buttons wrap flush left (v304)
+
 - Pull-ups (and chin-ups): level = the better of most reps in one set (Strength Level reps table) and most weight added (Strength Level 1RM-weight table, by bodyweight); +50 kg × 2 at 100 kg was "Beginner 1.2" because v285 counted only reps, now Intermediate 3.6 on the actual +50; corner and tiles read "+50 kg × 2", next level "+59 kg"; women's pull-up reps table filled in. Dips aren't scored anywhere (v303)
 
 - Box panel: opens at 360 px (was 286) with the latest messages above a small grey "↑ Your log · scroll up for more" line and Quick add's first rows below; the whole log (last 60) scrolls in the same panel (the old 76 px strip showed the oldest 6 and couldn't scroll), tap a message to fix it (v299)
