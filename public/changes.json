@@ -404,5 +404,10 @@
   ],
   "325": [
     "Help in the menu, or type /help: what to type, how to bring data from other apps or an AI, and the commands"
+  ],
+  "326": [
+    "The box sometimes shows a command like /help, in orange",
+    "While Exodia thinks it shares tips on using it, not only quotes",
+    "A short tip while the app opens"
   ]
 }

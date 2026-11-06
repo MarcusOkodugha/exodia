@@ -872,48 +872,73 @@ const WISDOM = [
   ['What we do in life echoes in eternity.', 'Maximus, Gladiator'],
   ['How big would you dream if you knew you couldn’t fail?', '']
 ];
+// Short true things about Exodia, every third line, so a wait teaches something. Each is checked against the app.
+const TIPS = [
+  'Say 3 sets and Exodia adds three.',
+  'Hold a day to edit it.',
+  'Paused and close-grip sets count for your bench too.',
+  'Type /feedback to tell Marcus anything.',
+  'Tap a lift’s name to open its chart in Trends.',
+  'Import a Strong, Hevy or StrengthLog export from Add your data.',
+  'Hit push, pull, legs, arms and move in 10 days for Exodia.',
+  'Say “last Friday” and it lands on that day.',
+  'Say “at 8” after a set and it keeps the RPE.',
+  'Heavy means a top set at least 80% of your best.',
+  'Any language works. Lifts are saved in English.',
+  'Type /help to see what Exodia understands.'
+].map((tip) => ({ tip }));
 const shuffled = (list) => list.map((item) => [Math.random(), item]).sort((first, second) => first[0] - second[0]).map(([, item]) => item);
+// In threes: one of its own lines, a tip, a quote.
 const THINK_ORDER = (() => {
   const lines = shuffled(THINKING);
+  const tips = shuffled(TIPS);
   const quotes = shuffled(WISDOM);
-  return lines.flatMap((line, index) => [line, quotes[index % quotes.length]]);
+  return tips.flatMap((tip, index) => [lines[index % lines.length], tip, quotes[index % quotes.length]]);
 })();
 // Every time Exodia starts thinking it opens on one of its own lines ("Pondering…") and holds it a full beat before
-// the first quote, instead of picking up wherever the last message left off.
+// the first tip, instead of picking up wherever the last message left off.
 let thinkStep = 0;
 let thinkIdle = true;
 let thinkSince = 0;
-// A short line stays 3.2 s; a quote stays long enough to read it calmly (5.5–9 s by its length).
+// A short line stays 1.6 s, so even a quick answer gets to its tip; a tip or quote stays long enough to read it
+// calmly (5.5–9 s by its length).
 const thinkBeat = () => {
   const line = THINK_ORDER[thinkStep % THINK_ORDER.length];
-  return typeof line === 'string' ? 3200 : Math.min(9000, Math.max(5500, 2500 + line[0].length * 55));
+  return typeof line === 'string' ? 1600 : Math.min(9000, Math.max(5500, 2500 + (line.tip || line[0]).length * 55));
 };
-const thinkText = () => {
+// sub: the small line under a progress note ("Reading the file…") skips the own lines, which would only repeat it.
+const thinkText = (sub = false) => {
   if (thinkIdle) {
     thinkIdle = false;
-    thinkStep = Math.ceil(thinkStep / 2) * 2;
+    thinkStep = Math.ceil(thinkStep / 3) * 3;
     thinkSince = Date.now();
   }
-  const line = THINK_ORDER[thinkStep % THINK_ORDER.length];
-  return typeof line === 'string' ? esc(line) : `“${esc(line[0])}”${line[1] ? ` <span class="thinkWho">${esc(line[1])}</span>` : ''}`;
+  let line = THINK_ORDER[thinkStep % THINK_ORDER.length];
+  if (sub && typeof line === 'string') line = THINK_ORDER[(thinkStep + 1) % THINK_ORDER.length];
+  if (typeof line === 'string') return esc(line);
+  if (line.tip) return hintHtml(line.tip);
+  return `“${esc(line[0])}”${line[1] ? ` <span class="thinkWho">${esc(line[1])}</span>` : ''}`;
 };
 // One look from the first moment: the hand and its clay line, with what's happening ("Reading the file…") while there
-// is something to say, then the thinking lines, in the same place, so nothing swaps style halfway.
-const writingLine = (progress = '') => `<span class="ghostHead">${exoSpin}<span class="ghostText thinkLine"${progress ? ' data-hold="1"' : ''}>${progress ? esc(progress) : thinkText()}</span></span>`;
+// is something to say and a tip under it, then the thinking lines, in the same place, so nothing swaps style halfway.
+const writingLine = (progress = '') => `<span class="ghostHead">${exoSpin}${progress ? `<span class="ghostStack"><span class="ghostText">${esc(progress)}</span><span class="ghostText thinkLine thinkSub">${thinkText(true)}</span></span>` : `<span class="ghostText thinkLine">${thinkText()}</span>`}</span>`;
 // While anything is being written, move every thinking line on together, with a soft fade between.
 setInterval(() => {
-  const shown = [...document.querySelectorAll('.thinkLine')].filter((line) => !line.dataset.hold);
-  if (!document.querySelector('.thinkLine')) {
+  const shown = [...document.querySelectorAll('.thinkLine')];
+  if (!shown.length) {
     thinkIdle = true;
     return;
   }
-  if (!shown.length || Date.now() - thinkSince < thinkBeat()) return;
+  if (Date.now() - thinkSince < thinkBeat()) return;
   thinkSince = Date.now();
   thinkStep += 1;
   shown.forEach((line) => {
+    const next = thinkText(line.classList.contains('thinkSub'));
+    if (line.dataset.said === next) return;
+    line.dataset.said = next;
     line.classList.add('swap');
     setTimeout(() => {
-      line.innerHTML = thinkText();
+      line.innerHTML = next;
       line.classList.remove('swap');
     }, 220);
   });
@@ -1745,7 +1770,7 @@ const renderFeedback = () => `<main class="page">
     <p class="eyebrow">Ideas and bugs</p>
     <h1 class="title">Feedback</h1>
     <p class="feedbackLead">Missing something, or did something break? Say it or type it in the box below, any way you like. Exodia writes it up and sends it to Marcus, who reads every one and decides what gets built.</p>
-    <div class="chat">${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut typing" role="status" aria-label="Sending"><i></i><i></i><i></i></div></div>`).join('')}</div>
+    <div class="chat">${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine()}</p></div></div>`).join('')}</div>
   </main>`;
 
 const sendFeedback = async (text, voice) => {
@@ -3022,8 +3047,8 @@ const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><
 const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
-const typingBubble = '<div class="bubbleOut typing" role="status" aria-label="Working on it"><i></i><i></i><i></i></div>';
-const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
+const typingBubble = () => `<div class="bubbleOut" role="status"><p>${writingLine()}</p></div>`;
+const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble()}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 // Quick add gets the whole panel when it shows; the log stays on the Log page.
 const quickShown = () => !nameQuery() && (view.showQuick || (!view.draft.trim() && !view.quickHidden));
@@ -3185,7 +3210,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : view.voiceBlob && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Voice note ready · tap ↑ to log it</span></span>'
       : view.files?.length && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Add a note (like when it started) or tap ↑</span></span>'
-      : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${esc(typewriter.text)}</span>`}
+      : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${hintHtml(typewriter.text)}</span>`}
     <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `${state.sessions.length ? '<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">' + ICONS.plus + '</button>' : `<button class="roundBtn soft plusBtn" data-action="pick-file" aria-label="Add a file with your training">${ICONS.clip}</button>`}<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
 </div>`;
@@ -3238,7 +3263,10 @@ const syncDock = () => {
   tuckCards();
 };
 
-const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Type / for commands, /help for tips', 'Bench 100 for 5 at RPE 8, then dips 3x10', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8'];
+// About one in four is a command, its /word typed in clay like a command you type yourself; never the first.
+const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', '/help for tips', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Bench 100 for 5 at RPE 8, then dips 3x10', '/feedback add a rest timer', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8', 'Type / to see commands'];
+// The hint is a span over the box, so the /word in it can take the same clay look as .slashCmd.
+const hintHtml = (text) => esc(text).replace(/(^|\s)(\/[a-z]*)/i, '$1<span class="slashCmd">$2</span>');
 // After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
 const QUIET_HINT = 'Log training, paste notes or give feedback';
 const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
@@ -3281,7 +3309,7 @@ const tickTypewriter = () => {
   const hint = document.querySelector('.dock:not(.onboardDock) .prompt .hint:not(.live)');
   if (hint) {
     hint.classList.toggle('fading', typewriter.fading);
-    hint.textContent = typewriter.text;
+    hint.innerHTML = hintHtml(typewriter.text);
   }
   setTimeout(tickTypewriter, delay);
 };
@@ -3803,7 +3831,7 @@ const renderOnboard = () => {
     <input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="Your name (optional)" value="${esc(view.onboard.name)}" ${busy ? 'disabled' : ''}>
     <p class="onboardMove"><b>Have a history?</b> Paste or drop it in the box below, in any format. Exodia turns it into days, sets and trends in seconds.</p>
     ${exportHelp(false)}
-    ${status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
+    ${busy ? `<p class="onboardStatus" role="status">${writingLine(status)}</p>` : status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
     <div class="onboardChoices">
       <p class="onboardOr">Nothing to bring?</p>
       <button class="onboardChoice" data-action="onboard-blank" ${locked ? 'disabled' : ''}><b>Start blank</b><span>Log as you go. Add or upload old workouts any time from the menu</span></button>

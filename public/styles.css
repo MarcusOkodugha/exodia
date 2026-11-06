@@ -234,11 +234,6 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .chatItem.off .bubbleIn { background: #FBEDE5; box-shadow: inset 0 0 0 1px #EBC3AE; }
 .chatItem.off .bubbleOut p { color: var(--text2); }
 .bubbleOut .textBtn { min-height: 36px; }
-.bubbleOut.typing { display: flex; gap: 5px; padding: 8px 2px; }
-.bubbleOut.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--clay); opacity: 0.25; animation: typing 1.2s ease-in-out infinite; }
-.bubbleOut.typing i:nth-child(2) { animation-delay: 0.15s; }
-.bubbleOut.typing i:nth-child(3) { animation-delay: 0.3s; }
-@keyframes typing { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
 @keyframes breathe { 0%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
 .status { flex: 1; font-size: 13px; line-height: 18px; color: var(--text2); }
 .picks { margin-bottom: 8px; }
@@ -360,7 +355,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 @keyframes wave { 0%, 100% { height: 5px; opacity: 0.6; } 50% { height: 18px; opacity: 1; } }
 .wave:not(.speaking) i { animation-name: idle; }
 @keyframes idle { 0%, 100% { height: 4px; } 50% { height: 8px; } }
-@media (prefers-reduced-motion: reduce) { .wave i { animation: none; height: 10px; } .prompt::before, .landing, .exercise.landing, .shimmer, .bubbleOut.typing i, .scrim, .drawer, .session.opening *, .dayMenu, .rules { animation: none !important; } .prompt::before { opacity: 0.6; } .hint { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wave i { animation: none; height: 10px; } .prompt::before, .landing, .exercise.landing, .shimmer, .scrim, .drawer, .session.opening *, .dayMenu, .rules { animation: none !important; } .prompt::before { opacity: 0.6; } .hint { transition: none; } }
 
 .exodiaHits { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--clay); color: #FFFFFF; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .homePage .list { gap: 0; }
@@ -1261,6 +1256,9 @@ main.page { overflow-x: clip; }
 .thinkLine { display: block; transition: opacity 0.22s ease, transform 0.22s ease; }
 .thinkLine.swap { opacity: 0; transform: translateY(3px); }
 .thinkWho { margin-left: 4px; font-size: 13px; font-style: normal; -webkit-text-fill-color: var(--text2); color: var(--text2); white-space: nowrap; }
+/* A progress note ("Reading the file…") with a small tip under it, so a long read still teaches something. */
+.ghostStack { display: flex; flex-direction: column; min-width: 0; }
+.thinkSub { font-size: 13px; line-height: 18px; }
 @media (prefers-reduced-motion: reduce) { .thinkLine { transition: none; } }
 
 /* Trends top, tighter: the lift's name sits closer under "Trends" and its tiles right under the name. */
@@ -1333,6 +1331,8 @@ main.page { overflow-x: clip; }
 .boot img { width: 56px; height: 56px; object-fit: contain; animation: bootBreathe 1.8s ease-in-out infinite; }
 @keyframes bootIn { from { opacity: 0; } }
 @keyframes bootBreathe { 50% { transform: scale(1.07); filter: drop-shadow(0 0 10px rgb(var(--clayRgb) / 0.35)); } }
+/* One line under the hand, only once the open takes longer than ~0.35 s; placed apart so the hand stays centred. */
+.bootTip { position: absolute; top: calc(50% + 46px); left: 16px; right: 16px; margin: 0; text-align: center; font-size: 13px; line-height: 18px; color: var(--text2); animation: bootIn 0.4s ease 0.35s both; }
 @media (prefers-reduced-motion: reduce) { .boot img { animation: none; } }
 /* A day you hit Exodia: the small blue Exodia hand after the date, inside the date's own space so nothing moves. */
 .dayHand { width: 16px; height: 16px; margin: 0 -21px 0 5px; vertical-align: -2px; object-fit: contain; }
