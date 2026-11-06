@@ -1538,7 +1538,7 @@ const renderMuscles = () => {
 };
 
 // Days in the range where this lift set a PR (a heavier single or a new estimated max).
-const prCount = (name, since) => state.sessions.filter((session) => session.date >= since && session.exercises.some((exercise) => exercise.name === name && validSets(exercise).some((set) => prKind(name, session.date, set)))).length;
+const prCount = (name, since) => state.sessions.filter((session) => session.date >= since && session.exercises.some((exercise) => countsFor(name).includes(exercise.name) && validSets(exercise).some((set) => prKind(name, session.date, set)))).length;
 
 // A blank start still shows the real charts and lifts, just with nothing in them yet.
 const emptyLift = (name) => `<section class="card"><div class="head"><span class="headName">${esc(name)}</span><span class="meta num">–</span></div><p class="summary">No sessions yet</p></section>`;
@@ -1568,6 +1568,17 @@ const renderTrends = () => {
       if (!history.has(exercise.name)) history.set(exercise.name, []);
       history.get(exercise.name).push({ date: session.date, value: topEstimate(exercise), sets: validSets(exercise) });
     }
+  }
+  // Harder variants also draw on their main lift's chart (a paused 130 × 2 is a bench point); one point per day.
+  for (const [main, variants] of Object.entries(HARDER_VARIANTS)) {
+    const points = [main, ...variants].flatMap((name) => history.get(name) || []);
+    if (!variants.some((name) => history.has(name))) continue;
+    const byDate = new Map();
+    for (const point of points) {
+      const day = byDate.get(point.date);
+      byDate.set(point.date, day ? { date: point.date, value: Math.max(day.value, point.value), sets: [...day.sets, ...point.sets] } : point);
+    }
+    history.set(main, [...byDate.values()].sort((first, second) => first.date.localeCompare(second.date)));
   }
   const names = [...history.keys()].sort((first, second) => history.get(second).at(-1).date.localeCompare(history.get(first).at(-1).date));
   const big = BIG_THREE.filter((name) => history.has(name));

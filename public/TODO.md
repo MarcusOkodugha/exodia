@@ -25,6 +25,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Harder variants also draw on the main lift's chart and PR count (one point per day, the best of both); front squat, safety bar and high-bar squat count for squat (v318–v320)
+
 - Demo link (?demo, the portfolio) shows Marcus's real training from /api/demo (dates, labels, lifts, sets and bodyweight only; cached 1 h; made-up example only if it can't load), says "A real training log · Get your own", no Exodia animation over it (v313–v315)
 
 - Home edit: a quiet pencil instead of the word Edit; while editing, the day row stays pinned under the top bar with Done in clay; one Delete day (the top one is gone); the × on "Editing …" in the box ends editing; holding an open day also starts Edit (v314)
