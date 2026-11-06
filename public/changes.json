@@ -413,5 +413,8 @@
   "327": [
     "The bar under each lift compares your last 4 weeks with your best ever",
     "Each lift in the list shows how many sessions you've logged"
+  ],
+  "328": [
+    "The day you tap on a chart now shows under the dates, so the dates read as the chart's start and end"
   ]
 }
