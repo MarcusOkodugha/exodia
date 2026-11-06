@@ -29,6 +29,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Most impressive lift: "1 in 268,000 men on Earth" full size (no small "1 in"), one plain sentence ("15,459 men in the world have deadlifted 300 kg or more in a raw meet. Among people who train it: past Elite, stronger than 95% (Strength Level)."); "who train it" only in that sentence; other lifts get a world number by matching their level to the same-level deadlift at your bodyweight (v290)
+- Every session calendar: Exodia hit days in Exodia blue, PRs as a small dark dot on the day; key shows Lighter…Heavier, PR, Exodia. On the computer it sits in the middle of Trends under the anatomy (v290)
+
 - Most impressive lift: leads with "1 in N men/women on Earth" (everyone of your sex, UN WPP 2024, ÷ exact OpenPowerlifting raw meet count; 300 kg deadlift → 1 in 268,000 men), then Strength Level's share of people who train it; past Elite on a lift with no meet data it says "Past Elite, beyond the data" and how far over Elite, never a capped 1 in 20. Bulgarian split squat on Strength Level's barbell table. Level numbers cut, not rounded (4.99 → 4.9). Heading stays singular (v287)
 - Trends top tighter: lift name 8 px under the title, tiles right under it; chart and the lift list ~34 px higher, same style (v287)
 

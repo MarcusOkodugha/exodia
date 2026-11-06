@@ -1280,3 +1280,17 @@ main.page { overflow-x: clip; }
 .dayActions .chipFace::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: 4px; height: 2px; border-radius: 1px; background: var(--clay); transform: scaleX(0); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .dayActions .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 @media (prefers-reduced-motion: reduce) { .dayActions .chipFace::after { transition: none; } }
+/* Every session: Exodia days in Exodia blue; a PR is a small dark dot on its day (on top of the day's own colour). */
+.calDay.shade1, .calDay.shade1.pr { background: rgb(var(--clayRgb) / 0.28); }
+.calDay.shade2, .calDay.shade2.pr { background: rgb(var(--clayRgb) / 0.5); }
+.calDay.shade3, .calDay.shade3.pr { background: rgb(var(--clayRgb) / 0.75); }
+.calDay.shade4, .calDay.shade4.pr { background: var(--clay); }
+.calDay.exodia, .calDay.exodia.pr { background: var(--exodiaBlue); }
+.calDay.pr { position: relative; }
+.calDay.pr::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgb(20 20 19 / 0.72); }
+.calKey .calDay.pr::after { width: 3.5px; height: 3.5px; margin: -1.75px 0 0 -1.75px; }
+/* Most impressive lift: the world number in plain full-size type, one sentence that says it in words, then tiles. */
+.featRare { font-family: inherit; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; }
+.featFact { margin-top: 4px !important; font-size: 14px; line-height: 20px; color: var(--text2); }
+.featTiles { padding: 12px 0 0; }
+.right .featRare { font-size: 21px; line-height: 27px; }

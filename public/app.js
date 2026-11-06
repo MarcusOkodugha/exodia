@@ -511,13 +511,15 @@ const dayHits = () => {
 const exodiaHistory = () => {
   const today = todayIso();
   const empty = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
-  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty } };
+  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty }, days: [] };
   const hits = dayHits();
   if (hitsCache.history?.today === today) return hitsCache.history.value;
   const first = [...hits.keys()].sort()[0];
   let counts = { ...empty };
   let total = 0;
   let last = null;
+  // The days Exodia was hit, for the calendar.
+  const days = [];
   const add = (iso, sign) => {
     const hit = hits.get(iso);
     if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += sign;
@@ -529,10 +531,11 @@ const exodiaHistory = () => {
     if (PIECES.every((piece) => counts[piece.id] >= piece.target)) {
       total += 1;
       last = iso;
+      days.push(iso);
       counts = { ...empty };
     }
   }
-  const value = { hits: total, last, counts };
+  const value = { hits: total, last, counts, days };
   hitsCache.history = { today, value };
   return value;
 };
@@ -2090,6 +2093,8 @@ const renderCalendar = () => {
   for (let week = start; week <= today; week = addDays(week, 7)) weeks.push(week);
   const since = addDays(today, -364);
   const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
+  // Exodia days are Exodia blue; a PR is a small dot on the day, so the two never fight over one colour.
+  const exodiaDays = new Set(exodiaHistory().days || []);
   const cells = weeks.map((week, index) => {
     const month = parseIso(week).getMonth();
     const newMonth = index === 0 || parseIso(weeks[index - 1]).getMonth() !== month;
@@ -2100,8 +2105,9 @@ const renderCalendar = () => {
       const day = days.get(date);
       if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
       const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
-      const text = `${dayLabel(date)} · ${tonnes(day.volume)}${day.pr ? ' · PR' : ''}`;
-      return `<button class="calDay ${day.pr ? 'pr' : `shade${shade}`}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
+      const hit = exodiaDays.has(date);
+      const text = `${dayLabel(date)} · ${tonnes(day.volume)}${hit ? ' · Exodia' : ''}${day.pr ? ' · PR' : ''}`;
+      return `<button class="calDay ${hit ? 'exodia' : `shade${shade}`}${day.pr ? ' pr' : ''}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
     }).join('');
     return `<span class="calMonth">${label}</span>${daysOfWeek}`;
   }).join('');
@@ -2111,7 +2117,7 @@ const renderCalendar = () => {
         <div class="calWeekdays" aria-hidden="true"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
         <div class="calScroll"><div class="calGrid" role="group" aria-label="Training days, newest on the right">${cells}</div></div>
       </div>
-      <p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span></p>
+      <p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay shade2 pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>
     </section>`;
 };
 
@@ -2489,8 +2495,6 @@ const meetShare = (key, sex, bodyweight, kg) => {
   if (above === -1) return { share: 1 / lifters, lifters, limit };
   return { share: shares[above - 1] * (shares[above] / shares[above - 1]) ** ((kg - marks[above - 1]) / (marks[above] - marks[above - 1])), lifters, limit };
 };
-// Big numbers to three figures (174,656 → 175,000), millions with one decimal.
-const figures = (number, digits = 3) => (number >= 1e6 ? `${Number((number / 1e6).toPrecision(2))}<small> million</small>` : Number(number.toPrecision(digits)).toLocaleString('en-GB'));
 const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 1 : 2))}%`;
 // Your most impressive lift: the heaviest set you actually did, its level and how rare that weight is. Lifts are
 // compared by level (actual kg against Strength Level for your bodyweight). Your best squat, bench or deadlift always
@@ -2498,34 +2502,42 @@ const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 
 const BIG_KEYS = ['squat', 'bench-press', 'deadlift'];
 // Everyone on Earth of your sex (UN World Population Prospects 2024, 2025): men and women.
 const ON_EARTH = { male: 4.14e9, female: 4.09e9 };
-// The tiles, all from counts: 1 in how many men (or women) on Earth have lifted this in a raw meet (squat, bench,
-// deadlift); then Strength Level's share of the people who train the lift; then the next level, or past Elite your
-// weight class. Past Strength Level's Elite on another lift there is no recorded number, so it says so instead of
-// a made-up one.
-const rarityTiles = (lift, body) => {
+// The weight for a level (the reverse of levelScore): past Elite it keeps going by the Advanced→Elite step.
+const kgAtScore = (marks, score) => {
+  if (score < 1) return marks[0] * score;
+  if (score >= 5) return marks[4] + (score - 5) * (marks[4] - marks[3]);
+  const index = Math.floor(score) - 1;
+  return marks[index] + (score - index - 1) * (marks[index + 1] - marks[index]);
+};
+const plain = (number) => (number >= 1e6 ? `${Number((number / 1e6).toPrecision(2))} million` : Number(number.toPrecision(3)).toLocaleString('en-GB'));
+const LIFT_VERB = { squat: 'squatted', 'bench-press': 'benched', deadlift: 'deadlifted' };
+// How rare, world first. Squat, bench, deadlift: 1 in how many men (women) on Earth have lifted it in a raw meet.
+// Other lifts have no world count, so they're matched by level: the deadlift at the same Strength Level level for
+// your bodyweight, and its meet count. Strength Level's share of the people who train the lift goes in the sentence.
+// Below the meet tables (light lifts, where most people who can lift it never compete) there is no world number.
+const rarityOf = (lift, body) => {
   const { value, score } = lift.best;
   const people = body.sex === 'male' ? 'men' : 'women';
   const big = BIG_KEYS.includes(lift.key);
-  const count = big ? meetCount(lift.key, body.sex, value) : null;
-  const level = Math.floor(score);
+  const deadlift = !big && standardAt(STANDARDS.deadlift[body.sex], body.kg);
+  const matched = deadlift ? Math.round(kgAtScore(deadlift, score) / 2.5) * 2.5 : 0;
+  const count = big ? meetCount(lift.key, body.sex, value) : meetCount('deadlift', body.sex, matched);
   const share = topShare(score);
+  const trained = `Among people who train it: ${score >= 5 ? 'past Elite, stronger than 95%' : share <= 0.5 ? `1 in ${Math.round(1 / share)} lift this much` : `stronger than ${Math.max(1, Math.round((1 - share) * 100))}%`} (Strength Level).`;
+  const level = Math.floor(score);
   const tiles = [];
-  if (count === 0) tiles.push({ value: 'Record', label: `no ${body.sex === 'male' ? 'man' : 'woman'} lifted more`, sub: 'in a raw meet' });
-  else if (count) tiles.push({ value: `<small>1 in </small>${figures(ON_EARTH[body.sex] / count)}`, label: `${people} on Earth`, sub: 'in raw meets' });
-  if (score < 5) tiles.push(share <= 0.5 ? { value: `<small>1 in </small>${Math.round(1 / share)}`, label: 'who train it', sub: 'Strength Level' } : { value: `${Math.max(1, Math.round((1 - share) * 100))}%`, label: 'Stronger than', sub: 'who train it' });
-  else if (count) tiles.push({ value: count.toLocaleString('en-GB'), label: `${people} did it`, sub: 'raw meets, ever' });
-  else if (!big) tiles.push({ value: 'Past Elite', label: 'beyond the data', sub: 'Strength Level' });
-  if (level < 5) {
-    const mark = lift.marks[level];
-    tiles.push({ value: lift.reps ? `${Math.ceil(mark)}<small> reps</small>` : `${Math.round(mark)}<small> kg</small>`, label: LEVELS[level], sub: 'next level' });
-  } else if (big) {
+  if (big && score >= 5) {
     const inClass = meetShare(lift.key, body.sex, body.kg, value);
     if (inClass) tiles.push({ value: `Top ${shareText(inClass.share)}`, label: 'your weight class', sub: inClass.limit === 999 ? `over ${IPF_CLASSES[body.sex].at(-1)} kg, raw` : `up to ${inClass.limit} kg, raw` });
-  } else {
-    const elite = lift.marks[4];
-    tiles.push({ value: `+${Math.round((value / elite - 1) * 100)}%`, label: 'over Elite', sub: `Elite is ${lift.reps ? `${Math.ceil(elite)} reps` : `${Math.round(elite)} kg`}` });
   }
-  return { tiles, meet: count !== null };
+  if (level < 5) tiles.push({ value: lift.reps ? `${Math.ceil(lift.marks[level])} reps` : `${Math.round(lift.marks[level])} kg`, label: LEVELS[level], sub: 'next level' });
+  else if (!big) tiles.push({ value: `+${Math.round((value / lift.marks[4] - 1) * 100)}%`, label: 'over Elite', sub: `Elite is ${lift.reps ? `${Math.ceil(lift.marks[4])} reps` : `${Math.round(lift.marks[4])} kg`}` });
+  if (count === 0) return { meet: true, tiles, rare: `No ${body.sex === 'male' ? 'man' : 'woman'} has lifted more`, sentence: `Heavier than every raw meet result on record (OpenPowerlifting). ${trained}` };
+  if (count) {
+    const sentence = big ? `${count.toLocaleString('en-GB')} ${people} in the world have ${LIFT_VERB[lift.key]} ${value} kg or more in a raw meet. ${trained}` : `Matched by level: as rare as a ${matched} kg deadlift at your bodyweight, which ${count.toLocaleString('en-GB')} ${people} in the world have done in a raw meet. ${trained}`;
+    return { meet: true, tiles, rare: `1 in ${plain(ON_EARTH[body.sex] / count)} ${people} on Earth`, sentence };
+  }
+  return { meet: false, tiles, rare: score >= 5 ? 'Past Elite' : share <= 0.5 ? `1 in ${Math.round(1 / share)} who train it` : `Stronger than ${Math.max(1, Math.round((1 - share) * 100))}% who train it`, sentence: 'Strength Level, for your bodyweight. Most people who can lift this never compete, so there is no world count at this weight.' };
 };
 const impressiveLifts = () => {
   const body = state.body;
@@ -2534,7 +2546,7 @@ const impressiveLifts = () => {
   const big = ranked.find((lift) => BIG_KEYS.includes(lift.key));
   const other = ranked.find((lift) => !BIG_KEYS.includes(lift.key));
   const shown = big ? [big, ...(other && other.best.score > big.best.score ? [other] : [])] : other ? [other] : [];
-  return shown.map((lift) => ({ lift, ...rarityTiles(lift, body) }));
+  return shown.map((lift) => ({ lift, ...rarityOf(lift, body) }));
 };
 const renderImpressive = () => {
   const found = impressiveLifts();
@@ -2546,9 +2558,11 @@ const renderImpressive = () => {
   };
   return `<p class="section">Your most impressive lift</p>
     <div class="feat">
-      ${found.map(({ lift, tiles }) => `<div class="featItem">
+      ${found.map(({ lift, tiles, rare, sentence }) => `<div class="featItem">
         <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${levelNumber(lift.best.score)}</span></span></p>
-        <div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileValue num">${tile.value}</p><p class="tileLabel">${tile.label}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>
+        <p class="featRare num">${rare}</p>
+        <p class="featFact">${sentence}</p>
+        ${tiles.length ? `<div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileValue num">${tile.value}</p><p class="tileLabel">${tile.label}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>` : ''}
       </div>`).join('')}
       <p class="featSource">Strength Level: 6.4 million checked lifts, 2015–2026.${found.some((item) => item.meet) ? ` OpenPowerlifting: every raw meet result. UN World Population Prospects 2024: ${state.body.sex === 'male' ? '4.14 bn men' : '4.09 bn women'}.` : ''}</p>
     </div>`;
