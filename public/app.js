@@ -945,7 +945,7 @@ const daySummary = (session) => {
   return `${row(first)}${second ? row(second) : ''}${others.length ? `<span class="dayOthers">+ ${esc(others.join(', '))}</span>` : ''}`;
 };
 
-// Days you hit Exodia get the same blue outline on Home as in the Trends calendar, so a tap there lands on a match.
+// Days you hit Exodia get the small blue Exodia hand after the date, the same blue as in the Trends calendar.
 let exodiaDayCache = { from: null, set: new Set() };
 const exodiaDaySet = () => {
   const history = exodiaHistory();
@@ -957,14 +957,14 @@ const renderSession = (session) => {
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
-  return `<section class="card session${open ? ' open' : ''}${exodiaDaySet().has(session.date) ? ' exodiaDay' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
+  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
     <div class="headRow">
       ${editing ? `<div class="head">
-        <span class="headName dayDate">${dayLabel(session.date)}</span>
+        <span class="headName dayDate">${dayLabel(session.date)}${exodiaDaySet().has(session.date) ? '<img class="dayHand" src="/logo-blue.png" alt="Exodia hit" title="You hit Exodia this day" draggable="false">' : ''}</span>
         <label class="sr" for="label-${session.date}">Name this day</label><input id="label-${session.date}" class="dayKindInput" placeholder="${esc(dayKind(session) || 'Name this day')}" value="${esc(session.label || '')}" data-day-label="${session.date}" autocomplete="off">
         <span class="meta num">${tonnes(sessionVolume(session))}</span>
       </div>` : `<button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
-        <span class="headName dayDate">${dayLabel(session.date)}</span>
+        <span class="headName dayDate">${dayLabel(session.date)}${exodiaDaySet().has(session.date) ? '<img class="dayHand" src="/logo-blue.png" alt="Exodia hit" title="You hit Exodia this day" draggable="false">' : ''}</span>
         <span class="dayKind">${esc(dayKind(session))}</span>
         <span class="meta num">${!sessionSets(session) && session.cardio ? `${session.cardio} min` : open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
       </button>`}

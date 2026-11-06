@@ -339,6 +339,9 @@
     "Small fixes"
   ],
   "306": [
-    "Days you hit Exodia have a blue outline on Home, the same blue as in the calendar"
+    "Days you hit Exodia are marked on Home, the same blue as in the calendar"
+  ],
+  "307": [
+    "Days you hit Exodia show a small blue Exodia hand next to the date instead of an outline"
   ]
 }
