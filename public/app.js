@@ -2103,7 +2103,7 @@ const calendarDays = () => remember('calendar', () => {
   return { days, steps: [cut(0.25), cut(0.5), cut(0.75)] };
 });
 // Every session, GitHub style: the last 12 months, or (Show every year) one row per year back to your first session.
-// Clay by the day's tonnage, a PR day in Exodia blue, a day you hit Exodia outlined in blue.
+// Clay by the day's tonnage, a PR day in Exodia blue, a day you hit Exodia an empty grey square outlined in blue.
 const CAL_MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const renderCalendar = () => {
   if (!state.sessions.length) return '';
@@ -2119,9 +2119,9 @@ const renderCalendar = () => {
     const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
     const hit = exodiaDays.has(date);
     const text = `${dayLabel(date)} · ${tonnes(day.volume)}${day.pr ? ' · PR' : ''}${hit ? ' · Exodia' : ''}`;
-    return `<button class="calDay shade${shade}${day.pr ? ' pr' : ''}${hit ? ' exodia' : ''}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
+    return `<button class="calDay ${hit ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
   };
-  const key = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay shade2 exodia calKeyPr"></i><span>Exodia</span></p>';
+  const key = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>';
   const all = Boolean(view.calAll);
   const since = addDays(today, -364);
   const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
@@ -2584,10 +2584,10 @@ const rarityOf = (lift, body) => {
   const tiles = [];
   if (big && score >= 5) {
     const inClass = meetShare(lift.key, body.sex, body.kg, value);
-    if (inClass) tiles.push({ value: `Top ${shareText(inClass.share)}`, label: 'your weight class', sub: inClass.limit === 999 ? `over ${IPF_CLASSES[body.sex].at(-1)} kg, raw` : `up to ${inClass.limit} kg, raw` });
+    if (inClass) tiles.push({ label: 'Your weight class', value: `Top ${shareText(inClass.share)}`, sub: inClass.limit === 999 ? `over ${IPF_CLASSES[body.sex].at(-1)} kg, raw` : `up to ${inClass.limit} kg, raw` });
   }
-  if (level < 5) tiles.push({ value: lift.reps ? `${Math.ceil(lift.marks[level])} reps` : `${Math.round(lift.marks[level])} kg`, label: LEVELS[level], sub: 'next level' });
-  else if (!big) tiles.push({ value: `+${Math.round((value / lift.marks[4] - 1) * 100)}%`, label: 'over Elite', sub: `Elite is ${lift.reps ? `${Math.ceil(lift.marks[4])} reps` : `${Math.round(lift.marks[4])} kg`}` });
+  if (level < 5) tiles.push({ label: 'Next level', value: lift.reps ? `${Math.ceil(lift.marks[level])} reps` : `${Math.round(lift.marks[level])} kg`, sub: LEVELS[level] });
+  else if (!big) tiles.push({ label: 'Over Elite', value: `+${Math.round((value / lift.marks[4] - 1) * 100)}%`, sub: `Elite is ${lift.reps ? `${Math.ceil(lift.marks[4])} reps` : `${Math.round(lift.marks[4])} kg`}` });
   if (count === 0) return { meet: true, tiles, rare: `No ${body.sex === 'male' ? 'man' : 'woman'} has lifted more`, sentence: `Heavier than every raw meet result on record (OpenPowerlifting). ${trained}` };
   if (count) {
     const sentence = big ? `${count.toLocaleString('en-GB')} ${people} in the world have ${LIFT_VERB[lift.key]} ${value} kg or more in a raw meet. ${trained}` : `Matched by level: as rare as a ${matched} kg deadlift at your bodyweight, which ${count.toLocaleString('en-GB')} ${people} in the world have done in a raw meet. ${trained}`;
@@ -2618,7 +2618,7 @@ const renderImpressive = () => {
         <p class="featTop"><span class="featLift">${esc(BIG_KEYS.includes(lift.key) ? lift.best.name : lift.label)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${levelNumber(lift.best.score)}</span></span></p>
         <p class="featRare num">${rare}</p>
         <p class="featFact">${sentence}</p>
-        ${tiles.length ? `<div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileValue num">${tile.value}</p><p class="tileLabel">${tile.label}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>` : ''}
+        ${tiles.length ? `<div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileLabel featCaption">${tile.label}</p><p class="tileValue num">${tile.value}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>` : ''}
       </div>`).join('')}
       <p class="featSource">Strength Level: 6.4 million checked lifts, 2015–2026.${found.some((item) => item.meet) ? ` OpenPowerlifting: every raw meet result. UN World Population Prospects 2024: ${state.body.sex === 'male' ? '4.14 bn men' : '4.09 bn women'}.` : ''}</p>
     </div>`;
@@ -3417,7 +3417,8 @@ document.addEventListener('pointermove', (event) => {
   const swipe = updatedSwipe;
   swipe.dx = event.clientX - swipe.x;
   swipe.dy = Math.min(0, event.clientY - swipe.y);
-  if (!swipe.moved && Math.hypot(swipe.dx, swipe.dy) < 6) return;
+  // A tap that wobbles a few pixels is still a tap (iPhone fingers move a little); only a real drag swipes it.
+  if (!swipe.moved && Math.hypot(swipe.dx, swipe.dy) < 14) return;
   swipe.moved = true;
   swipe.pill.style.transition = 'none';
   swipe.pill.style.transform = `translate(calc(-50% + ${swipe.dx}px), ${swipe.dy}px)`;

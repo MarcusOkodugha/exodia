@@ -29,6 +29,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Calendar Exodia days: grey middle, blue outline only; impressive-lift tiles caption first ("Next level" / 170 kg / Elite); What's new pill opens even when the finger moves up to 14 px (was 6) (v292)
+
 - Every session: PRs Exodia blue again, Exodia hit days outlined in blue (white inner line on a PR day), year above the months (sticks to the left edge while scrolling), "Show every year" stacks one fitted block per year back to the first logged day with its session count (v291)
 - Strength web corners show the set each level comes from ("300 × 1 · 13 Apr 2024"), tap opens that day; most impressive lift always shows the best other lift under the Big 3 one; "Bulgarian Split Squat" renamed "Split Squat" (barbell table, old logs renamed through a normal save so every device gets it); level numbers centred in their squares (v291)
 
