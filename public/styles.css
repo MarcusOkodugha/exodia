@@ -1283,28 +1283,17 @@ main.page { overflow-x: clip; }
 /* Every session: clay by tonnage, a PR day filled Exodia blue, a day you hit Exodia outlined in Exodia blue (with a
    white line inside it on a PR day, so the outline still shows). A year row sits above the months. */
 .calDay.pr { background: var(--exodiaBlue); }
-.calDay.exodia { box-shadow: inset 0 0 0 2px var(--exodiaBlue); }
-.calDay.exodia.pr { box-shadow: inset 0 0 0 1.5px var(--exodiaBlue), inset 0 0 0 3px #FFFFFF; }
-.calGrid, .calWeekdays { grid-template-rows: 12px 14px repeat(7, 12px); }
-.calYear { font-size: 10px; line-height: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: visible; }
 /* Every year: one block per year, fitted to the width, newest first. */
 .calYears.enter { animation: levelInfoIn 0.25s ease-out; }
 .calYearBlock + .calYearBlock { margin-top: 14px; }
 .calYearHead { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 4px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text); }
 .calYearHead .calCount { font-weight: 400; color: var(--text2); }
-.calYearGrid { display: grid; grid-template-rows: 13px repeat(7, auto); gap: 1.5px; }
-.calYearGrid .calDay { width: auto; height: auto; aspect-ratio: 1; border-radius: 1.5px; }
-.calYearGrid .calDay.exodia { box-shadow: inset 0 0 0 1.2px var(--exodiaBlue); }
-.calYearGrid .calDay.exodia.pr { box-shadow: inset 0 0 0 1px var(--exodiaBlue), inset 0 0 0 2px #FFFFFF; }
-.calYearMonth { grid-row: 1; font-size: 9px; line-height: 12px; color: var(--text2); white-space: nowrap; overflow: visible; }
 .calMore { margin-top: 2px; border-top: 0; }
 /* Most impressive lift: the world number in plain full-size type, one sentence that says it in words, then tiles. */
 .featRare { font-family: inherit; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; }
 .featFact { margin-top: 4px !important; font-size: 14px; line-height: 20px; color: var(--text2); }
 .featTiles { padding: 12px 0 0; }
 .right .featRare { font-size: 21px; line-height: 27px; }
-/* The year stays in view: each year's label sticks to the left edge until the next year's label slides over it. */
-.calYear { position: sticky; left: 0; z-index: 1; justify-self: start; width: max-content; padding-right: 6px; background: var(--bg); }
 /* Level numbers sit in the optical middle of their squares (a 16px line made them sit low). */
 .levelKey b, .levelRow b { line-height: 1; padding-top: 0.5px; box-sizing: border-box; }
 /* Strength web corners: the set each level comes from, tap to open that day. */
@@ -1313,7 +1302,6 @@ main.page { overflow-x: clip; }
 .webCorner:active .webLift { opacity: 0.6; }
 /* An Exodia day: the empty grey of a day with nothing, outlined in Exodia blue. */
 .calDay.exodia { background: rgb(20 20 19 / 0.06); box-shadow: inset 0 0 0 2px var(--exodiaBlue); }
-.calYearGrid .calDay.exodia { box-shadow: inset 0 0 0 1.2px var(--exodiaBlue); }
 /* Impressive-lift tiles read top-down: what it is ("Next level"), the number, then what the number is. */
 .featTiles .featCaption { margin: 0 0 2px; color: var(--text2); font-weight: 500; }
 /* Every year: sessions against the year before, clay when it went up. */

@@ -1605,15 +1605,17 @@ const chatStamp = (at, before) => {
   return at - before > 1800000 ? time : '';
 };
 
-// Who read a message: Marcus sees the exact model ("Gemini 3.8 Flash"), everyone else just "Exodia".
+// Who read a message (see the note inside).
 const engineName = (engine) => {
   if (!engine) return '';
-  if (!view.isAdmin) return 'Exodia';
-  if (engine === 'phone') return 'the phone, no AI';
-  if (engine === 'claude') return 'Claude';
+  // Marcus sees the real model ("Gemini 3.5 Flash-Lite"); friends see the same model under Exodia's name ("Exodia 3.5
+  // Flash-Lite"), so a friend's screenshot still says which one handled it.
+  const brand = (name) => (view.isAdmin ? name : 'Exodia');
+  if (engine === 'phone') return view.isAdmin ? 'the phone, no AI' : 'Exodia';
+  if (engine === 'claude') return view.isAdmin ? 'Claude' : 'Exodia Sonnet';
   if (engine === 'add') return 'Exodia import';
   const gemini = engine.match(/^gemini-(.+?)(-lite)?$/);
-  return gemini ? `Gemini ${gemini[1].split('-').map((part) => (/^\d/.test(part) ? part : part[0].toUpperCase() + part.slice(1))).join(' ')}${gemini[2] ? '-Lite' : ''}` : engine;
+  return gemini ? `${brand('Gemini')} ${gemini[1].split('-').map((part) => (/^\d/.test(part) ? part : part[0].toUpperCase() + part.slice(1))).join(' ')}${gemini[2] ? '-Lite' : ''}` : view.isAdmin ? engine : 'Exodia';
 };
 const chatEntry = ({ stamp, who, said, heard, voice, did, raw, by, fixIndex: index, voiceId, compact, manual, theirs, laterId, fresh }) => {
   const fixIndex = manual ? undefined : index;
@@ -1854,7 +1856,7 @@ const renderLeft = () => {
       </div>`).join('')}
       ${items.map((item, index) => `<div class="leftItem${view.leftItem === index ? ' open' : ''}">
         <button class="leftTitle" data-action="left-item" data-index="${index}" aria-expanded="${view.leftItem === index}">${inlineMd(item.title.replace(/^Decide:\s*/i, '').replace(/^\p{Ll}/u, (letter) => letter.toUpperCase()))}${item.decide ? '<span class="leftTag">Decide</span>' : ''}</button>
-        ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}<div class="leftAnswer">${item.decide ? `<button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button>` : ''}<button class="chip" data-action="left-reply" data-index="${index}"><span class="chipFace">Reply</span></button></div></div>` : ''}
+        ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}<div class="leftAnswer">${item.decide ? `<button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button>` : ''}<button class="chip" data-action="left-reply" data-index="${index}"><span class="chipFace">Add context</span></button></div></div>` : ''}
       </div>`).join('')}
     </section>` : ''}`;
 };
@@ -2135,8 +2137,32 @@ const calendarDays = () => remember('calendar', () => {
   const cut = (share) => volumes[Math.floor((volumes.length - 1) * share)] || 0;
   return { days, steps: [cut(0.25), cut(0.5), cut(0.75)] };
 });
-// Every session, GitHub style: the last 12 months, or (Show every year) one row per year back to your first session.
+// Every session, GitHub style: the last 12 months, or (Show every year) one strip per year back to your first session.
 // Clay by the day's tonnage, a PR day in Exodia blue, a day you hit Exodia an empty grey square outlined in blue.
+// How much stronger a year made you: every lift you did in both this year and the year before, the heaviest set you
+// actually lifted in each (warm-ups out), this year's against last year's, averaged over those lifts. New lifts don't
+// count, so adding more kinds of training never inflates it. This year counts up to today.
+const yearStrength = (year, to) => {
+  const best = (from, until) => {
+    const top = new Map();
+    for (const session of state.sessions) {
+      if (session.date < from || session.date > until) continue;
+      for (const exercise of session.exercises) for (const set of exercise.sets || []) {
+        const kg = Number(set.kg) || 0;
+        if (set.warmup || !(kg > 0) || !(Number(set.reps) > 0)) continue;
+        const name = exercise.name.toLowerCase();
+        if (kg > (top.get(name) || 0)) top.set(name, kg);
+      }
+    }
+    return top;
+  };
+  const now = best(`${year}-01-01`, to);
+  const before = best(`${year - 1}-01-01`, `${year - 1}-12-31`);
+  const shared = [...now.keys()].filter((name) => before.has(name));
+  if (!shared.length) return null;
+  const change = shared.reduce((sum, name) => sum + now.get(name) / before.get(name) - 1, 0) / shared.length;
+  return { change: Math.round(change * 100), lifts: shared.length };
+};
 const CAL_MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const renderCalendar = () => {
   if (!state.sessions.length) return '';
@@ -2160,41 +2186,33 @@ const renderCalendar = () => {
   const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
   const ever = [...days.keys()].filter((date) => date <= today).length;
   const count = all ? `${ever} since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}` : `${lastYear} in the last 12 months`;
-  let body;
-  if (!all) {
-    // A year row (where a year starts, and at the left edge), a month row, then the days; scrolls back from today.
+  // One strip of weeks, the original look: a month row (the year where January starts), then Monday to Sunday;
+  // it scrolls back from its newest week.
+  const strip = (from, to, label) => {
     const weeks = [];
-    for (let week = monday(since); week <= today; week = addDays(week, 7)) weeks.push(week);
+    for (let week = monday(from); week <= to; week = addDays(week, 7)) weeks.push(week);
     const columns = weeks.map((week, index) => {
       const date = parseIso(week);
-      const before = index ? parseIso(weeks[index - 1]) : null;
-      const year = !before || before.getFullYear() !== date.getFullYear() ? week.slice(0, 4) : '';
-      const month = !before || before.getMonth() !== date.getMonth() ? CAL_MONTHS[date.getMonth()] : '';
-      return `${year ? `<span class="calYear">${year}</span>` : '<span></span>'}<span class="calMonth">${month}</span>${[0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset))).join('')}`;
+      const newMonth = index === 0 || parseIso(weeks[index - 1]).getMonth() !== date.getMonth();
+      const month = newMonth ? (date.getMonth() === 0 ? week.slice(0, 4) : CAL_MONTHS[date.getMonth()]) : '';
+      return `<span class="calMonth">${month}</span>${[0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to < today ? to : today)).join('')}`;
     }).join('');
-    body = `<div class="calWrap">
-        <div class="calWeekdays" aria-hidden="true"><span></span><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
-        <div class="calScroll"><div class="calGrid" role="group" aria-label="Training days, newest on the right">${columns}</div></div>
+    return `<div class="calWrap">
+        <div class="calWeekdays" aria-hidden="true"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
+        <div class="calScroll"><div class="calGrid" role="group" aria-label="${label}">${columns}</div></div>
       </div>`;
-  } else {
-    // One block per year, newest first, each fitted to the width: 53 week columns, Monday at the top.
+  };
+  let body;
+  if (!all) body = strip(since, today, 'Training days, newest on the right');
+  else {
     const years = [];
     for (let year = Number(today.slice(0, 4)); year >= Number(first.slice(0, 4)); year -= 1) years.push(year);
     body = `<div class="calYears${view.calEnter ? ' enter' : ''}">${years.map((year) => {
       const [from, to] = [`${year}-01-01`, `${year}-12-31` < today ? `${year}-12-31` : today];
-      const weeks = [];
-      for (let week = monday(from); week <= `${year}-12-31`; week = addDays(week, 7)) weeks.push(week);
       const sessions = [...days.keys()].filter((date) => date >= from && date <= to).length;
-      // Against the year before over the same dates (this year: 1 January to today, so it's a fair race).
-      const before = [...days.keys()].filter((date) => date >= `${year - 1}-01-01` && date <= `${year - 1}${to.slice(4)}`).length;
-      const change = before ? Math.round((sessions / before - 1) * 100) : null;
-      const versus = change === null ? '' : `<span class="calChange${change > 0 ? ' up' : ''}">${change > 0 ? '+' : change < 0 ? '−' : '±'}${Math.abs(change)}% vs ${year - 1}${to < `${year}-12-31` ? ' so far' : ''}</span>`;
-      const months = CAL_MONTHS.map((name, month) => {
-        const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        return `<span class="calYearMonth" style="grid-column:${Math.floor((Number(parseIso(firstDay)) - Number(parseIso(monday(from)))) / 6048e5) + 1}">${name}</span>`;
-      }).join('');
-      const cells = weeks.map((week, column) => [0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to).replace(/^<(i|button) class="/, `<$1 style="grid-column:${column + 1};grid-row:${offset + 2}" class="`)).join('')).join('');
-      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'}${versus ? ` · ${versus}` : ''}</span></p><div class="calYearGrid" style="grid-template-columns:repeat(${weeks.length}, minmax(0, 1fr))">${months}${cells}</div></div>`;
+      const stronger = yearStrength(year, to);
+      const versus = stronger ? ` · <span class="calChange${stronger.change > 0 ? ' up' : ''}">${stronger.change > 0 ? '+' : stronger.change < 0 ? '−' : '±'}${Math.abs(stronger.change)}% stronger</span> than ${year - 1}` : '';
+      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'}${versus}</span></p>${strip(from, `${year}-12-31`, `Training days in ${year}`)}</div>`;
     }).join('')}</div>`;
   }
   return `<p class="section calHead">Every session <span class="calCount num">${count}</span></p>
@@ -2951,7 +2969,8 @@ const contextChip = () => {
   return chips ? `<div class="promptChips">${chips}</div>` : '';
 };
 const otherChip = () => {
-  const [kind, label, action, aria] = view.fixing ? ['Fixing', 'an earlier message', 'clear-edit', 'Stop fixing']
+  const [kind, label, action, aria] = view.replyTo ? ['Replying to', view.replyTo.title, 'clear-reply', 'Stop replying']
+    : view.fixing ? ['Fixing', 'an earlier message', 'clear-edit', 'Stop fixing']
     : view.editContext ? ['Editing', `${view.editContext.label || view.editContext.names.join(', ') || 'Workout'} · ${dayLabel(view.editContext.date)}`, 'clear-edit', 'Stop editing']
     : view.composerDate && view.composerDate !== todayIso() ? ['Adding to', dayLabel(view.composerDate), 'clear-day', 'Add to today instead'] : [];
   return kind ? `<div class="contextChip"><span class="contextKind">${kind}</span><span class="contextLabel">${esc(label)}</span><button class="contextX" data-action="${action}" aria-label="${aria}">${ICONS.close}</button></div>` : '';
@@ -2961,9 +2980,17 @@ const otherChip = () => {
 const showSheet = () => view.composer && view.route !== 'admin' && view.route !== 'feedback';
 
 // /admin typed in any box turns clay (the box can't colour part of its own text, so a copy sits behind it) and is suggested while you type "/".
-const slashOn = () => Boolean(view.isAdmin && /^\/admin(\s|$)/i.test(view.draft));
-const slashSuggest = () => Boolean(view.isAdmin && view.route !== 'admin' && /^\/(a(d(m(i(n)?)?)?)?)?$/i.test(view.draft));
-const slashHtml = () => (slashOn() ? `<span class="slashCmd">${esc(view.draft.slice(0, 6))}</span>${esc(view.draft.slice(6))}\u200b` : '');
+// Slash commands in the box turn red: /admin (Marcus only) sends the rest to Claude to build; /feedback (anyone)
+// sends the rest as feedback to Marcus. Typing "/" or the start of one offers it.
+const SLASHES = [['/admin', 'Send this to Exodia', true], ['/feedback', 'Send this as feedback', false]];
+const slashCommand = () => SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && new RegExp(`^\\${cmd}(\\s|$)`, 'i').test(view.draft))?.[0] || '';
+const slashOn = () => Boolean(slashCommand());
+const slashOffer = () => (/^\/[a-z]*$/i.test(view.draft) ? SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin') && cmd.startsWith(view.draft.toLowerCase())) || null : null);
+const slashSuggest = () => Boolean(slashOffer());
+const slashHtml = () => {
+  const cmd = slashCommand();
+  return cmd ? `<span class="slashCmd">${esc(view.draft.slice(0, cmd.length))}</span>${esc(view.draft.slice(cmd.length))}\u200b` : '';
+};
 const paintSlash = () => {
   const prompt = document.querySelector('.prompt');
   if (!prompt) return;
@@ -2971,7 +2998,14 @@ const paintSlash = () => {
   const mirror = prompt.querySelector('.promptMirror');
   if (mirror) mirror.innerHTML = slashHtml();
   const hint = document.querySelector('.slashSuggest');
-  if (hint) hint.hidden = !slashSuggest();
+  if (hint) {
+    const offer = slashOffer();
+    hint.hidden = !offer;
+    if (offer) {
+      hint.dataset.cmd = offer[0];
+      hint.innerHTML = `<b>${offer[0]}</b> ${offer[1]}`;
+    }
+  }
 };
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
@@ -2979,7 +3013,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
-  <button class="slashSuggest" data-action="slash-admin"${slashSuggest() ? '' : ' hidden'}><b>/admin</b> Send this to Exodia</button>
+  <button class="slashSuggest" data-action="slash-admin" data-cmd="${slashOffer()?.[0] || '/admin'}"${slashSuggest() ? '' : ' hidden'}><b>${slashOffer()?.[0] || '/admin'}</b> ${slashOffer()?.[1] || ''}</button>
   <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
@@ -5154,6 +5188,16 @@ const send = async () => {
     render();
     return;
   }
+  // /feedback from any box, for anyone: the rest goes to Marcus as feedback.
+  if (/^\/feedback(\s|$)/i.test(text)) {
+    const rest = text.replace(/^\/feedback\s*/i, '');
+    if (!rest && !voice) {
+      view.draft = '';
+      render();
+      return;
+    }
+    return sendFeedback(rest, voice);
+  }
   if (view.route === 'feedback') return sendFeedback(text, voice);
   if (view.route === 'admin' && view.isAdmin) return sendToClaude(text, voice);
   const date = view.composerDate || todayIso();
@@ -5355,7 +5399,7 @@ document.addEventListener('click', (event) => {
   if (action === 'split-pick' && view.splitAsk) return pickSplit(target.dataset.name);
   if (action === 'slash-admin') {
     const box = document.getElementById('draft');
-    view.draft = '/admin ';
+    view.draft = `${target.dataset.cmd || '/admin'} `;
     if (box) {
       box.value = view.draft;
       fitDraft(box);
@@ -5386,6 +5430,9 @@ document.addEventListener('click', (event) => {
     view.leftItem = null;
     view.draft = '';
     view.focusDraft = true;
+    // The box opens with "Replying to …" in it, so it's clear what the words go with.
+    view.composer = true;
+    view.sheetH = SHEET_SMALL;
     if (location.hash !== '#/admin') location.hash = '#/admin';
     view.route = 'admin';
     render();
@@ -5646,6 +5693,7 @@ document.addEventListener('click', (event) => {
   else if (action === 'outlier-yes') answerOutliers(true);
   else if (action === 'outlier-no') answerOutliers(false);
   else if (action === 'import-no') answerImport(false);
+  else if (action === 'clear-reply') view.replyTo = null;
   else if (action === 'unfile') view.files = (view.files || []).filter((file, index) => index !== Number(target.dataset.index));
   else if (action === 'retry-said') {
     const entry = state.log?.[Number(target.dataset.index)];

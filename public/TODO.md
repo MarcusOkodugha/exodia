@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Every year in the calendar = the original 12-month strip (month row, year at January, no sticky year, no fitted mini grid); its line: "61 sessions · +11% stronger than 2024" = average change of the heaviest set per lift done in both years (new lifts don't count). Red pill items: Yes / No / Add context; Add context opens the box with "Replying to …" (× to drop). /feedback for anyone turns red and sends the rest as feedback; /admin stays Marcus-only. Friends see "Handled by Exodia 3.5 Flash-Lite" (Marcus sees "Gemini 3.5 Flash-Lite") (v296)
+
 - Thinking: one look from the start (hand + clay line with "Reading the file…" while there's progress), every new message opens on an Exodia line held 3.2 s before the first quote; 7 quotes from the Resurrection 3 program added ("What we do in life echoes in eternity" credited to Maximus, Gladiator, where it's from) (v295)
 
 - Import check: a set more than 20% and 10 kg above both your heaviest logged set of that lift and the file's next heaviest is held back; one question "… looks far heavier … Add it anyway?" with Leave out / Add it (adds it next to that day's sets); the rest of the file goes in as usual (v294)
