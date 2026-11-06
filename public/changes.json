@@ -420,5 +420,10 @@
   "329": [
     "Typing / lists every command",
     "The box now and then types /help or /feedback in orange, also once you know it well"
+  ],
+  "330": [
+    "Abs and calves get a strength level too, from sit-ups, crunches and calf raises",
+    "Typing help or feedback offers the command, Tab or a tap takes it",
+    "Better examples in the box of what to type"
   ]
 }

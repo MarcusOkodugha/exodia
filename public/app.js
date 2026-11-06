@@ -1495,7 +1495,9 @@ const MUSCLE_LIFTS = {
   glutes: { squat: 0.5, deadlift: 0.5 },
   hamstrings: { deadlift: 0.7, squat: 0.3 },
   forearms: { deadlift: 0.5, 'bent-over-row': 0.3, 'pull-ups': 0.2 },
-  adductors: { squat: 0.6, deadlift: 0.4 }
+  adductors: { squat: 0.6, deadlift: 0.4 },
+  calves: { 'machine-calf-raise': 1 },
+  abs: { 'sit-ups': 1 }
 };
 // The same five colours as --tierBeg … in styles.css (SVG gradients need the values).
 const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#A9C4A6', tierInt: '#A88FB5', tierAdv: '#C96442', tierElite: '#7CA3DD' };
@@ -1514,7 +1516,7 @@ const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tie
 const muscleLevels = () => {
   const body = state.body;
   if (!body?.kg || !body?.sex) return null;
-  const scores = Object.fromEntries(WEB_LIFTS.map((lift) => {
+  const scores = Object.fromEntries([...WEB_LIFTS, ...MUSCLE_ONLY_LIFTS()].map((lift) => {
     const result = liftStrength(lift, body);
     return [lift.key, result.everScore || 0];
   }));
@@ -1526,14 +1528,14 @@ const muscleLevels = () => {
 };
 const tierOf = (level) => STRENGTH_TIERS.find(([from]) => level >= from) || null;
 // The head turns into Exodia's hand once the whole body is there: orange when every muscle with a level is at least
-// Advanced, Exodia blue when every one is at least Elite; until then a normal head. Abs and calves have no standard
-// lift, so they don't count. Front shows the hand with its eye, the back the hand alone. Drawn as a colour through
+// Advanced, Exodia blue when every one is at least Elite; until then a normal head. Abs and calves (sit-ups, calf raises) are
+// rarely logged, so they don't count. Front shows the hand with its eye, the back the hand alone. Drawn as a colour through
 // a mask of the logo, so its lines stay lighter like the real one.
 const headTier = () => {
   const levels = muscleLevels();
   if (!levels) return null;
   // Every muscle a standard lift trains counts; one not trained at all keeps the head normal.
-  const lowest = Math.min(...Object.keys(MUSCLE_LIFTS).map((key) => levels[key] || 0));
+  const lowest = Math.min(...Object.keys(MUSCLE_LIFTS).filter((key) => key !== 'abs' && key !== 'calves').map((key) => levels[key] || 0));
   return lowest >= 5 ? 'tierElite' : lowest >= 4 ? 'tierAdv' : null;
 };
 const headLogo = (side, points, tier) => {
@@ -2418,9 +2420,18 @@ const STANDARDS = {
   'paused-bench-press': { male: [[60, 47, 62, 79, 99, 120], [80, 69, 87, 108, 131, 155], [90, 79, 98, 120, 145, 170], [100, 89, 109, 132, 158, 184], [110, 99, 120, 144, 170, 198], [120, 108, 129, 155, 182, 210], [140, 124, 148, 175, 204, 234]], female: [[50, 22, 32, 46, 62, 79], [60, 28, 40, 54, 71, 90], [70, 33, 46, 62, 80, 100], [80, 38, 52, 69, 88, 109], [90, 43, 58, 76, 96, 117], [100, 48, 63, 82, 103, 124], [120, 57, 73, 93, 115, 138]] },
   'face-pull': { male: [[60, 10, 21, 37, 57, 80], [80, 15, 29, 47, 69, 95], [90, 18, 32, 51, 75, 101], [100, 21, 35, 55, 80, 107], [110, 23, 39, 59, 84, 112], [120, 25, 42, 63, 89, 117], [140, 30, 47, 70, 97, 127]], female: [[50, 9, 17, 28, 43, 60], [60, 10, 19, 32, 47, 65], [70, 12, 22, 35, 51, 69], [80, 14, 24, 38, 54, 73], [90, 15, 26, 40, 57, 77], [100, 17, 28, 43, 60, 80], [120, 20, 31, 47, 65, 86]] },
   'cable-fly': { male: [[60, 4, 12, 26, 46, 69], [80, 8, 19, 36, 58, 84], [90, 10, 23, 41, 64, 91], [100, 13, 26, 45, 69, 98], [110, 15, 29, 49, 74, 104], [120, 17, 32, 53, 79, 109], [140, 21, 38, 60, 88, 119]], female: [[50, 2, 7, 15, 26, 39], [60, 3, 9, 18, 29, 43], [70, 4, 10, 19, 31, 46], [80, 5, 12, 21, 34, 48], [90, 6, 13, 23, 36, 51], [100, 7, 14, 24, 38, 53], [120, 8, 16, 27, 41, 57]] },
+  // Abs: sit-ups in one set (reps, Strength Level's Sit Ups table, bodyweight converted from lb), or with weight on
+  // (crunch machine, cable crunch, weighted sit-up) against Strength Level's Cable Crunch one-rep max table.
+  'sit-ups': { male: [[60, 6, 29, 63, 104, 150], [80, 5, 24, 52, 84, 121], [90, 4, 22, 47, 77, 110], [100, 4, 20, 44, 71, 102], [110, 3, 19, 41, 66, 95], [120, 2, 17, 37, 61, 87], [140, 0.5, 14, 32, 53, 76]], female: [[50, 0.5, 17, 49, 88, 133], [60, 0.5, 16, 44, 79, 118], [70, 0.5, 14, 40, 71, 106], [80, 0.5, 12, 35, 63, 94], [90, 0.5, 11, 32, 57, 85], [100, 0.5, 10, 29, 52, 79], [120, 0.5, 8, 24, 45, 68]] },
+  'cable-crunch': { male: [[60, 19, 34, 56, 83, 113], [80, 26, 44, 68, 97, 130], [90, 29, 48, 73, 103, 136], [100, 32, 51, 77, 108, 143], [110, 34, 55, 82, 113, 149], [120, 37, 58, 86, 118, 154], [140, 42, 64, 93, 127, 164]], female: [[50, 13, 25, 43, 64, 89], [60, 15, 29, 47, 70, 95], [70, 17, 31, 50, 74, 101], [80, 19, 34, 54, 78, 105], [90, 21, 36, 57, 81, 109], [100, 23, 39, 59, 85, 113], [120, 26, 42, 64, 90, 120]] },
   'dumbbell-tricep-extension': { male: [[60, 3, 8, 16, 26, 38], [80, 6, 12, 22, 33, 47], [90, 7, 14, 24, 37, 51], [100, 9, 16, 27, 40, 54], [110, 10, 18, 29, 43, 58], [120, 12, 20, 32, 45, 61], [140, 14, 24, 36, 51, 67]], female: [[50, 3, 6, 10, 16, 22], [60, 3, 7, 11, 17, 24], [70, 4, 7, 12, 18, 25], [80, 4, 8, 13, 20, 27], [90, 5, 9, 14, 21, 28], [100, 5, 10, 15, 22, 29], [120, 6, 11, 16, 23, 31]] }
 };
 // Exercise names (lower case) for those, from the library (Split Squat also matches its old name).
+// Only for the anatomy's Strength view: abs and calves have no web lift, so they take these.
+const MUSCLE_ONLY_LIFTS = () => [
+  { label: 'Calf raise', key: 'machine-calf-raise', names: ['calf raise', 'calf raises', 'calves', 'machine calf raise', 'standing calf raise', 'seated calf raise'] },
+  { label: 'Sit-up', key: 'sit-ups', addedKey: 'cable-crunch', reps: true, names: ['sit-up', 'sit-ups', 'sit up', 'sit ups', 'situp', 'situps', 'weighted sit-up', 'decline sit-up', 'crunch', 'crunches', 'cable crunch', 'machine crunch', 'ab crunch', 'ab crunch machine', 'crunch machine', 'ab machine'] },
+];
 const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
   .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || []), ...Object.keys(RENAMED).filter((old) => RENAMED[old] === label).map((old) => old.toLowerCase())] }));
 const standardAt = (rows, bodyweight) => {
@@ -2505,7 +2516,7 @@ const liftStrength = (lift, body) => {
     const [ever, now] = [best?.value || 0, recent?.value || 0];
     return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) }, recent };
   }
-  const addedMarks = standardAt(STANDARDS['pull-ups-added']?.[body.sex], body.kg);
+  const addedMarks = standardAt(STANDARDS[lift.addedKey || 'pull-ups-added']?.[body.sex], body.kg);
   const pick = (byReps, byAdded) => {
     const repsScore = byReps ? levelScore(byReps.value, marks) : 0;
     const addedScore = byAdded && addedMarks ? levelScore(byAdded.value, addedMarks) : 0;
@@ -3021,7 +3032,7 @@ const renderPicks = () => {
   const cardio = !query || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Cardio</span><span class="pickLast">Cardio or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : '';
   const split = picks.filter((name) => BIG_THREE.includes(name)).length;
   return `${picks.slice(0, split).map((name) => pickButton(name, date)).join('')}${cardio}${picks.slice(split).map((name) => pickButton(name, date)).join('')}
-    ${query && !query.startsWith("/") && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
+    ${query && !query.startsWith("/") && !slashOffer().length && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
 // Below the main picks: a clear line, then every other lift, quieter, so nobody lands there by accident.
 const quickExtras = () => {
@@ -3168,7 +3179,13 @@ const showSheet = () => view.composer && view.route !== 'admin' && view.route !=
 const SLASHES = [['/admin', 'Send this to Exodia', true], ['/feedback', 'Send this as feedback', false], ['/help', 'How Exodia works', false]];
 const slashCommand = () => SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && new RegExp(`^\\${cmd}(\\s|$)`, 'i').test(view.draft))?.[0] || '';
 const slashOn = () => Boolean(slashCommand());
-const slashOffer = () => (/^\/[a-z]*$/i.test(view.draft) ? SLASHES.filter(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin') && cmd.startsWith(view.draft.toLowerCase())) : []);
+// "/" lists every command; "/h" narrows it; the bare word ("help", "feedback") offers its command too, Tab takes it.
+const slashOffer = () => {
+  const typed = view.draft.trim().toLowerCase();
+  const allowed = SLASHES.filter(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin'));
+  if (/^\/[a-z]*$/.test(view.draft.toLowerCase())) return allowed.filter(([cmd]) => cmd.startsWith(view.draft.toLowerCase()));
+  return /^[a-z]{4,}$/.test(typed) ? allowed.filter(([cmd]) => cmd.slice(1).startsWith(typed)) : [];
+};
 const slashSuggest = () => slashOffer().length > 0;
 const slashListHtml = () => slashOffer().map(([cmd, what]) => `<button class="slashSuggest" data-action="slash-admin" data-cmd="${cmd}"><b>${cmd}</b> ${what}</button>`).join('');
 const slashHtml = () => {
@@ -3258,12 +3275,12 @@ const syncDock = () => {
 };
 
 // About one in four is a command, its /word typed in clay like a command you type yourself; never the first.
-const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old ones', 'Squat 140 for 5, 5 and 5, felt easy', '/help for tips', 'Walked 40 min', 'Hack squat 200 for 8 last Friday', 'Bench 100 for 5 at RPE 8, then dips 3x10', '/feedback add a rest timer', 'Move today’s workout to Monday', 'Curls 20 for 12, 10, 8', 'Type / to see commands'];
+const EXAMPLES = ['Bench 100 kg 3x5, then rows 60 kg 3x10', 'Squat 140 for 5, 5 and 5 at RPE 8', '/help for tips and exports', 'Deadlift 200 x 3 yesterday', 'Paste notes from any app, even years of them', 'Pull-ups 3x8, dips 3x12', 'Walked 40 min', '/feedback what should Exodia add?', 'Incline dumbbell 32 kg 3x10 last Friday', 'Type / to see every command'];
 // The hint is a span over the box, so the /word in it can take the same clay look as .slashCmd.
 const hintHtml = (text) => esc(text).replace(/(^|\s)(\/[a-z]*)/i, '$1<span class="slashCmd">$2</span>');
 // After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
 const QUIET_HINT = 'Log training, paste notes or give feedback';
-const KNOWN_EXAMPLES = [QUIET_HINT, '/help for tips and exports', QUIET_HINT, 'Type / to see every command', QUIET_HINT, '/feedback what should Exodia add?'];
+const KNOWN_EXAMPLES = [QUIET_HINT, 'Bench 100 kg 3x5, then rows 60 kg 3x10', '/help for tips and exports', QUIET_HINT, 'Squat 140 for 5, 5 and 5 at RPE 8', 'Type / to see every command', QUIET_HINT, 'Deadlift 200 x 3 yesterday', '/feedback what should Exodia add?'];
 const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
 const typewriter = { text: '', index: 0, length: 0, fading: false };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -5420,7 +5437,7 @@ const send = async () => {
     return;
   }
   // /help from any box opens Help.
-  if (/^\/help(\s|$)/i.test(text)) {
+  if (/^\/help(\s|$)/i.test(text) || /^help\??$/i.test(text)) {
     view.draft = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
     closeTray();
@@ -6415,6 +6432,11 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     clearTimeout(searchTimer);
     runAiSearch();
+    return;
+  }
+  if (event.target.id === 'draft' && event.key === 'Tab' && slashOffer().length) {
+    event.preventDefault();
+    document.querySelector('.slashList .slashSuggest')?.click();
     return;
   }
   if (event.target.id === 'draft' && event.key === 'Enter' && !event.shiftKey) {
