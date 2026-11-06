@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Box panel: opens at 360 px (was 286) with the latest messages above a small grey "↑ Your log · scroll up for more" line and Quick add's first rows below; the whole log (last 60) scrolls in the same panel (the old 76 px strip showed the oldest 6 and couldn't scroll), tap a message to fix it (v299)
+
 - Admin: "Exodia is on it" shows the whole request with an orange /admin (long ones scroll inside); your /admin requests sit on the right in the Every command chat the moment you send them, with Building… / Live in vN / Watch Exodia (the separate list at the top is gone); on the computer Admin and its menu item appear straight away (they waited for the focused box to blur) (v298)
 
 - What's new pill: taps were lost because a near miss dismissed it and redraws replaced it mid-tap; now a tap within 16 px opens it, the same element is kept across redraws, a tap elsewhere doesn't dismiss it while closed (it goes after 2 min), and once open a tap outside closes it for good (v297)

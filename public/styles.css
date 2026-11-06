@@ -1233,11 +1233,6 @@ main.page { overflow-x: clip; }
 @keyframes exoBreathe { 50% { transform: scale(1.1); filter: drop-shadow(0 0 4px rgb(var(--clayRgb) / 0.55)); } }
 .bubbleOut .ghostHead { vertical-align: middle; }
 @media (prefers-reduced-motion: reduce) { .exoSpin svg, .exoSnake, .exoSpin img { animation: none; } .exoSnake { stroke-dasharray: 30 70; } }
-/* Quick add with the latest messages in a short strip above it: column-reverse keeps the newest in view, scroll the
-   strip for older ones; a soft fade at its top says there is more. Quick add stays in full view below. */
-.sheet.quickMode .recentChat { display: flex; flex-direction: column-reverse; max-height: 76px; overflow-y: auto; overscroll-behavior: contain; margin: 4px 0 6px; padding-bottom: 8px; border-bottom: 1px solid var(--sep); -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22px); mask-image: linear-gradient(180deg, transparent 0, #000 22px); }
-.sheet.quickMode .recentChat .chat { flex: none; margin-top: 0; gap: 10px; padding: 12px 0 0; }
-.sheet.quickMode .recentChat { flex: none; scroll-snap-align: start; }
 
 .featItem + .featItem { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sep); }
 /* Anatomy: the key (Strength) and the note (Recovery) sit in the same fixed-height line, so switching never resizes. */
@@ -1314,3 +1309,9 @@ main.page { overflow-x: clip; }
 .dangerBtn { color: #B4412B; }
 /* "Exodia is on it": the whole request; a long one scrolls inside the banner instead of being cut off. */
 .buildBanner .toastText.buildSaid { display: block; -webkit-line-clamp: unset; overflow-y: auto; max-height: 32vh; white-space: pre-wrap; overscroll-behavior: contain; }
+/* Quick add with the whole log above it in one scroll (no strip of its own): the latest messages sit just above
+   Quick add, older ones scroll up, and a small grey line with an arrow says the log is up there. */
+.sheet.quickMode .sheetBody { scroll-snap-type: none; }
+.sheet.quickMode .quickLog { flex: none; margin-top: auto; gap: 12px; padding: 14px 0 6px; }
+.logHint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 6px; padding-bottom: 8px; border-bottom: 1px solid var(--sep); font-size: 12px; line-height: 16px; color: var(--text2); }
+.logHint svg { width: 12px; height: 12px; }

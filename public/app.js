@@ -2904,14 +2904,16 @@ const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedba
   : nameQuery()
   ? `<div class="picks">${renderPicks()}</div>`
   : quickShown()
-  ? `${(state.log || []).length || view.pending.length ? `<div class="recentChat"><div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(-6).reverse(), true)}${pendingChat()}</div></div>` : ''}${quickAdd()}`
+  // Your log runs above Quick add in the same scroll: the panel opens on Quick add with the latest messages just above
+  // it, and you scroll up for older ones (tap one to fix it). A small line says the log is up there.
+  ? `${(state.log || []).length || view.pending.length ? `<div class="chat quickLog">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(0, 60).reverse(), true)}${pendingChat()}</div><p class="logHint">${ICONS.up}Your log · scroll up for more</p>` : ''}${quickAdd()}`
   : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`);
 
 // The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".
 // Drag the bar: let go anywhere and it stays that tall; a quick flick up snaps to the usual size, a flick down closes.
 const SHEET_PEEK = 30;
-// Tapping the box opens the panel this tall: Quick add's first rows (Import, Bench, Squat, Deadlift) and a peek of more.
-const SHEET_SMALL = 286;
+// Tapping the box opens the panel this tall: the latest messages, then Quick add's first rows.
+const SHEET_SMALL = 360;
 const sheetSmall = () => typeof view.sheetH === 'number' && view.sheetH > SHEET_PEEK + 4 && view.sheetH <= SHEET_SMALL + 4;
 const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:var(--sheet-room, none)"` : '');
 const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
@@ -2953,9 +2955,16 @@ const showChat = () => {
 };
 // The chat sits at the bottom of the panel (newest last). With Quick add, the latest messages sit in a short strip
 // above it (newest showing, scroll it for older) and Quick add stays in full view under it.
+// Where the panel rests when it opens: the chat at its newest message; with Quick add, the "Your log" line just under
+// the middle, so the latest messages show above it and Quick add's first rows below.
+const restingScroll = (body) => {
+  const hint = body.querySelector('.logHint');
+  if (!hint) return body.scrollHeight;
+  return Math.max(0, hint.offsetTop - body.offsetTop - Math.round(body.clientHeight * 0.48));
+};
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
-  if (body) body.scrollTop = body.dataset.mode === 'quick' ? 0 : body.scrollHeight;
+  if (body) body.scrollTop = restingScroll(body);
 };
 
 const animateChat = (opening) => {
@@ -3832,7 +3841,7 @@ const render = () => {
   tuckCards();
   fitNames();
   const body = document.querySelector('.sheetBody');
-  if (body) body.scrollTop = chatScroll ?? body.scrollHeight;
+  if (body) body.scrollTop = chatScroll ?? restingScroll(body);
   if (view.trayEnter) animateChat(true);
   view.trayEnter = false;
   document.querySelectorAll('.moveDays').forEach((row) => { row.scrollLeft = row.scrollWidth; });
@@ -5877,7 +5886,9 @@ document.addEventListener('click', (event) => {
     const body = document.querySelector('.sheetBody');
     if (body) {
       body.innerHTML = sheetBody();
-      if (!view.quickAll) body.scrollTop = 0;
+      // Showing every lift brings Quick add's top into view; showing fewer goes back to the bottom.
+      const quick = body.querySelector('.quickAdd');
+      body.scrollTop = view.quickAll && quick ? quick.offsetTop - body.offsetTop - 8 : restingScroll(body);
     } else render();
     return;
   } else if (action === 'hide-quick') {
@@ -5894,8 +5905,7 @@ document.addEventListener('click', (event) => {
     if (!desktopQuery.matches) document.activeElement?.blur();
     render();
     const body = document.querySelector('.sheetBody');
-    const list = document.querySelector('.sheet .quickAdd');
-    if (body) body.scrollTop = 0;
+    if (body) body.scrollTop = restingScroll(body);
     return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
