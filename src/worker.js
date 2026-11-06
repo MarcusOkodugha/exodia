@@ -896,7 +896,8 @@ const builderSecrets = (env, slot) => {
 const builders = (env) => BUILDER_SLOTS.map((slot) => builderSecrets(env, slot)).filter((builder) => builder.url || builder.token);
 const pickedBuilder = async (env) => {
   const row = await env.DB.prepare("SELECT said FROM commands WHERE name = 'Builder' ORDER BY at DESC LIMIT 1").first().catch(() => null);
-  return Number(row?.said) || 1;
+  // Account 2 by default: Account 1's builds start but have not landed since 4 Nov 2026. A pick in Admin wins.
+  return Number(row?.said) || 2;
 };
 const startClaudeTask = async (text, env, ctx) => {
   const ask = text.trim().slice(0, 4000);

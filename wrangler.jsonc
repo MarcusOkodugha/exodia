@@ -9,6 +9,10 @@
     "run_worker_first": ["/api/*", "/manifest.webmanifest", "/me/*", "/join", "/join/"]
   },
   "ai": { "binding": "AI" },
+  // Not secret: the address of Account 2's "Exodia change" routine. Its token stays a secret (CLAUDE_TASK_TOKEN_2).
+  "vars": { "CLAUDE_TASK_URL_2": "https://api.anthropic.com/v1/claude_code/routines/trig_01YTmBu1zKvXCvCHAwZvnYxG/fire" },
+  // Keep variables set in the Cloudflare dashboard (CLAUDE_MODEL, GEMINI_MODELS) on every deploy.
+  "keep_vars": true,
   "d1_databases": [
     { "binding": "DB", "database_name": "exodia", "database_id": "28c10402-5308-4cfb-8c4e-ac405919fafb" }
   ],
