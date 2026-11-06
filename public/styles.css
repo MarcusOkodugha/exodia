@@ -1337,3 +1337,8 @@ main.page { overflow-x: clip; }
 /* A day you hit Exodia: the small blue Exodia hand after the date, inside the date's own space so nothing moves. */
 .dayHand { width: 16px; height: 16px; margin: 0 -21px 0 5px; vertical-align: -2px; object-fit: contain; }
 .homePage .session .dayDate { min-width: 120px; }
+/* Edit is a quiet pencil; while editing, the day row stays pinned under the top bar so Done (clay) is always in reach. */
+.editBtn { display: flex; align-items: center; justify-content: center; min-width: 32px; color: var(--text2); }
+.editBtn.done { margin-left: 8px; padding: 0 2px; color: var(--clayText); font-weight: 600; }
+.session.editing .headRow { position: sticky; z-index: 3; top: calc(var(--top) + 52px); background: var(--bg); box-shadow: 0 1px 0 var(--sep); }
+.desk .session.editing .headRow { top: 0; }

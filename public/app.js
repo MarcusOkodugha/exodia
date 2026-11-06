@@ -52,6 +52,7 @@ const PIECES = [
 ];
 
 const ICONS = {
+  pencil: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>',
   menu: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>',
   trends: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18l5-6 4 3 7-8"/></svg>',
   home: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11L12 4.5 20 11v8a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg>',
@@ -963,7 +964,7 @@ const renderSession = (session) => {
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
-  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
+  return `<section class="card session${open ? ' open' : ''}${editing ? ' editing' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
     <div class="headRow">
       ${editing ? `<div class="head">
         <span class="headName dayDate">${dayLabel(session.date)}${exodiaDaySet().has(session.date) ? '<img class="dayHand" src="/logo-blue.png" alt="Exodia hit" title="You hit Exodia this day" draggable="false">' : ''}</span>
@@ -974,13 +975,12 @@ const renderSession = (session) => {
         <span class="dayKind">${esc(dayKind(session))}</span>
         <span class="meta num">${!sessionSets(session) && session.cardio ? `${session.cardio} min` : open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
       </button>`}
-      ${open ? `<button class="editBtn" data-action="edit-day" data-date="${session.date}">${editing ? 'Done' : 'Edit'}</button>` : ''}
+      ${open ? `<button class="editBtn${editing ? ' done' : ''}" data-action="edit-day" data-date="${session.date}"${editing ? '' : ` aria-label="Edit ${dayLabel(session.date)}" title="Edit"`}>${editing ? 'Done' : ICONS.pencil}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
     ${open && editing && view.menuEnter ? '<span class="editHint" aria-hidden="true"></span>' : ''}${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
       <p class="dayMenuLabel">Move to</p>
       <div class="days scroll moveDays">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), index - 20)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}<label class="chip pickDate"><span class="chipFace">${ICONS.calendar || ''}Pick a date</span><input type="date" max="${todayIso()}" value="${session.date}" data-move-from="${session.date}" aria-label="Move ${dayLabel(session.date)} to a date"></label></div>
-      <button class="textBtn danger" data-action="delete-day" data-date="${session.date}">Delete day</button>
     </div>` : ''}
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
@@ -5860,6 +5860,7 @@ document.addEventListener('click', (event) => {
   } else if (action === 'clear-day') {
     view.composerDate = todayIso();
   } else if (action === 'clear-edit') {
+    if (view.editContext && view.editContext.date === view.editDay) view.editDay = null;
     view.editContext = null;
     view.fixing = null;
     view.replacing = null;
@@ -6454,15 +6455,15 @@ let hold = null;
 let held = false;
 document.addEventListener('pointerdown', (event) => {
   held = false;
-  const section = event.target.closest('.homePage .session:not(.open)');
-  if (!section || event.target.closest('.dayLift')) return;
+  const section = event.target.closest('.homePage .session:not(.editing)');
+  if (!section || event.target.closest('.dayLift, input, .dayActions, .swipeDel')) return;
   const date = section.id.replace('session-', '');
   hold = { ...uiPoint(event), timer: setTimeout(() => {
     hold = null;
     const session = sessionFor(date);
     if (!session) return;
+    if (!view.open.has(date)) view.opening = date;
     view.open.add(date);
-    view.opening = date;
     view.editDay = date;
     view.menuEnter = true;
     view.fixing = null;
