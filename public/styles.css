@@ -792,7 +792,14 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 @keyframes buildPulse { 50% { opacity: 0.35; transform: scale(0.8); } }
 .toast { z-index: 20; }
 @media (min-width: 1024px) {
-  .toast, .buildBanner { left: calc(272px + 16px); right: calc(380px + 16px); top: 16px; }
+  .buildBanner .toastWords { flex: 1; min-width: 0; }
+.bannerClose { flex: none; align-self: flex-start; width: 32px; height: 32px; margin: -4px -8px 0 0; border-radius: 50%; color: var(--text2); font-size: 20px; line-height: 32px; }
+.bannerClose:hover { background: var(--sep); }
+.saidGhost { display: inline-grid; gap: 7px; width: 180px; max-width: 100%; vertical-align: middle; padding: 4px 0; }
+.saidGhost i { display: block; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--sep) 0%, rgb(var(--clayRgb) / 0.22) 45%, var(--sep) 90%); background-size: 220% 100%; animation: ghostSweep 1.6s ease-in-out infinite; }
+.saidGhost i + i { width: 62%; }
+@media (prefers-reduced-motion: reduce) { .saidGhost i { animation: none; } }
+.toast, .buildBanner { left: calc(272px + 16px); right: calc(380px + 16px); top: 16px; }
   .updatePill { left: calc(272px + (100% - 652px) / 2); }
 }
 @media (prefers-reduced-motion: reduce) { .buildDot { animation: none; } }

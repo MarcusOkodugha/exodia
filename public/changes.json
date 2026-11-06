@@ -394,5 +394,9 @@
   ],
   "322": [
     "Sending with the mic on can no longer get stuck; you always see what happened"
+  ],
+  "323": [
+    "One message box at the top while Exodia builds, with an x to hide it",
+    "A soft placeholder while your voice note turns into words"
   ]
 }

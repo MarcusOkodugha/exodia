@@ -1685,7 +1685,7 @@ const chatEntry = ({ stamp, who, said, heard, voice, did, raw, by, fixIndex: ind
   const off = lines.some((line) => OFF_LINE.test(line));
   // A voice note says so on top, with what was heard under it, so a failed one still shows the words.
   const spoken = voice || (heard && heard === said) || (voiceId && said !== 'Voice note');
-  const youSaid = `${spoken ? '<span class="bubbleKind">Voice note</span>' : ''}${esc(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}${off && fixIndex !== undefined ? `<span class="bubbleHint">${failed ? 'Didn’t go through' : 'Partly logged'} · tap to edit</span>` : ''}`;
+  const youSaid = `${spoken ? '<span class="bubbleKind">Voice note</span>' : ''}${saidHtml(said)}${heard && heard !== said ? `<span class="bubbleHeard">Heard: ${esc(heard)}</span>` : ''}${off && fixIndex !== undefined ? `<span class="bubbleHint">${failed ? 'Didn’t go through' : 'Partly logged'} · tap to edit</span>` : ''}`;
   // In Admin, other people's messages sit on the left under their own name, so they never look like Marcus's.
   return `<div class="chatItem${off ? ' off' : ''}${theirs ? ' theirs' : ''}${fresh ? ' fresh' : ''}">
   ${theirs ? `${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<p class="chatWho">${esc(who || 'Someone')}</p>` : stamp || who ? `<p class="chatTime">${[stamp, who && esc(who)].filter(Boolean).join(' · ')}</p>` : ''}
@@ -1792,17 +1792,20 @@ const builtNote = async (run) => {
 };
 const BUILD_MAX = 8 * 60000;
 const buildingNow = () => (state.claudeRuns || []).find((run) => run.from && !run.status && Date.now() - run.at < BUILD_MAX);
+// Words that are still being heard show as a soft writing line instead of "Voice note…".
+const VOICE_WAIT = 'Voice note…';
+const saidHtml = (said) => (said === VOICE_WAIT ? '<span class="saidGhost" aria-label="Listening to your voice note"><i></i><i></i></span>' : esc(said));
 let bannerTimer = 0;
 let bannerSeen = 0;
 const buildBanner = () => {
   const run = buildingNow();
   clearTimeout(bannerTimer);
-  if (!run) return '';
+  if (!run || view.bannerHidden === run.at) return '';
   bannerTimer = setTimeout(render, run.at + BUILD_MAX - Date.now() + 500);
   const seen = bannerSeen === run.at;
   bannerSeen = run.at;
   // The whole request, as you sent it, with its orange /admin; a long one scrolls inside the banner.
-  return `<div class="buildBanner${seen ? ' still' : ''}" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText buildSaid"><span class="slashCmd">/admin</span> ${esc(run.said)}</p><p class="bannerThink"><span class="ghostText thinkLine">${thinkText()}</span></p></div></div>`;
+  return `<div class="buildBanner${seen ? ' still' : ''}" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText buildSaid"><span class="slashCmd">/admin</span> ${saidHtml(run.said)}</p><p class="bannerThink"><span class="ghostText thinkLine">${thinkText()}</span></p></div><button class="bannerClose" data-action="hide-banner" data-at="${run.at}" aria-label="Hide. Admin keeps showing how it goes">×</button></div>`;
 };
 let buildWatch = 0;
 const watchBuilds = () => {
@@ -1958,9 +1961,6 @@ const askClaude = async (text, run = null) => {
   render();
   if (run.status === 'failed') throw new Error(run.error);
   watchBuilds();
-  view.toast = { kind: 'rep', title: 'Exodia is on it', text: text.slice(0, 80) };
-  clearTimeout(view.toastTimer);
-  view.toastTimer = setTimeout(clearToast, 5000);
   return run;
 };
 
@@ -1968,7 +1968,7 @@ const askClaude = async (text, run = null) => {
 const sendToClaude = async (text, voice) => {
   view.draft = '';
   // The request is on screen before anything is sent or awaited; a voice note shows as "Voice note" until its words are in.
-  const run = { at: Date.now(), said: text || 'Voice note…', status: 'sending' };
+  const run = { at: Date.now(), said: text || VOICE_WAIT, status: 'sending' };
   state.claudeRuns = [run, ...(state.claudeRuns || [])].slice(0, 20);
   let ask = text;
   try {
@@ -1984,7 +1984,7 @@ const sendToClaude = async (text, voice) => {
       const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.text) throw new Error(body.error || 'Could not hear that. Try again.');
-      ask = [text, body.text].filter(Boolean).join(' ');
+      ask = [text, body.text.replace(/^\s*(slash|\/)\s*(admin|feedback)\b[\s,.:]*/i, '')].filter(Boolean).join(' ');
       run.said = ask;
       const entry = (state.log || []).find((item) => item.merge === `claude-${run.at}`);
       if (entry) entry.said = ask;
@@ -2055,7 +2055,7 @@ const adminChat = () => {
   return items.map((item, index) => {
     const stamp = chatStamp(item.at, items[index - 1]?.at);
     if (item.row) return chatEntry({ ...item.row, stamp, theirs: !item.row.mine });
-    return `<div class="chatItem">${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<div class="bubbleIn"><span class="slashCmd">/admin</span> ${esc(item.run.said)}</div><div class="bubbleOut"><p>${runStatus(item.run)}${item.run.url ? ` · <a href="${esc(item.run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div></div>`;
+    return `<div class="chatItem">${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<div class="bubbleIn"><span class="slashCmd">/admin</span> ${saidHtml(item.run.said)}</div><div class="bubbleOut"><p>${runStatus(item.run)}${item.run.url ? ` · <a href="${esc(item.run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div></div>`;
   }).join('');
 };
 const renderAdmin = () => {
@@ -6088,6 +6088,10 @@ document.addEventListener('click', (event) => {
       render();
     });
   } else if (action === 'send') return send();
+  else if (action === 'hide-banner') {
+    view.bannerHidden = Number(target.dataset.at);
+    return render();
+  }
   else if (action === 'copy-invite') {
     navigator.clipboard.writeText(inviteLink(view.isAdmin ? view.shareName || '' : '')).then(() => {
       view.copiedInvite = true;
