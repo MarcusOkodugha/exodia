@@ -29,6 +29,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Every session: PRs Exodia blue again, Exodia hit days outlined in blue (white inner line on a PR day), year above the months (sticks to the left edge while scrolling), "Show every year" stacks one fitted block per year back to the first logged day with its session count (v291)
+- Strength web corners show the set each level comes from ("300 × 1 · 13 Apr 2024"), tap opens that day; most impressive lift always shows the best other lift under the Big 3 one; "Bulgarian Split Squat" renamed "Split Squat" (barbell table, old logs renamed through a normal save so every device gets it); level numbers centred in their squares (v291)
+
 - Most impressive lift: "1 in 268,000 men on Earth" full size (no small "1 in"), one plain sentence ("15,459 men in the world have deadlifted 300 kg or more in a raw meet. Among people who train it: past Elite, stronger than 95% (Strength Level)."); "who train it" only in that sentence; other lifts get a world number by matching their level to the same-level deadlift at your bodyweight (v290)
 - Every session calendar: Exodia hit days in Exodia blue, PRs as a small dark dot on the day; key shows Lighter…Heavier, PR, Exodia. On the computer it sits in the middle of Trends under the anatomy (v290)
 

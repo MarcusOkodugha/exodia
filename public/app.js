@@ -24,7 +24,7 @@ const LIBRARY = [
   { name: 'Front Squat', piece: 'legs', heavy: true, aliases: ['front squat'] },
   { name: 'Romanian Deadlift', piece: 'legs', heavy: false, aliases: ['rdl', 'romanian deadlift'] },
   { name: 'Stiff-Legged Deadlift', piece: 'legs', heavy: false, aliases: ['stiff leg', 'stiff-legged deadlift', 'sldl'] },
-  { name: 'Bulgarian Split Squat', piece: 'legs', heavy: false, aliases: ['bulgarian', 'bulgarian split squat', 'split squat'] },
+  { name: 'Split Squat', piece: 'legs', heavy: false, aliases: ['bulgarian', 'bulgarian split squat', 'split squat', 'barbell split squat', 'barbell bulgarian split squat', 'bss'] },
   { name: 'Hip Thrust', piece: 'legs', heavy: false, aliases: ['hip thrust', 'hip thrusts'] },
   { name: 'Hip Abduction Machine', piece: 'legs', heavy: false, aliases: ['hip abduction', 'abduction'] },
   { name: 'Reverse Hyperextension', piece: 'legs', heavy: false, aliases: ['reverse hyper', 'reverse hyperextension'] },
@@ -183,6 +183,19 @@ const recordStep = (before, now) => {
   } else undoSteps = [...undoSteps, { at: now, title: '', before }].slice(-30);
   redoSteps = [];
 };
+// Exercises renamed in the library, old name → new. Bulgarian split squat is logged with a barbell, so "Split Squat".
+const RENAMED = { 'Bulgarian Split Squat': 'Split Squat' };
+const renameOld = () => {
+  if (view.sandbox) return false;
+  let renamed = false;
+  for (const session of state.sessions) for (const exercise of session.exercises || []) {
+    if (RENAMED[exercise.name]) {
+      exercise.name = RENAMED[exercise.name];
+      renamed = true;
+    }
+  }
+  return renamed;
+};
 const save = () => {
   const now = Date.now();
   const current = localJson();
@@ -277,6 +290,13 @@ const syncNow = () => {
       for (const change of changes) syncState.synced[change.date] = fingerprint(current[change.date]);
       if (meta) syncState.metaSynced = sentMeta;
       const changed = applyIncoming(result);
+      // Old exercise names the library has since renamed: saved like an edit by hand, so every device gets them.
+      if (renameOld()) {
+        replaying = true;
+        save();
+        replaying = false;
+        renderSoon();
+      }
       syncState.cursor = result.cursor;
       writeLocal();
       view.syncedAt = Date.now();
@@ -2082,43 +2102,70 @@ const calendarDays = () => remember('calendar', () => {
   const cut = (share) => volumes[Math.floor((volumes.length - 1) * share)] || 0;
   return { days, steps: [cut(0.25), cut(0.5), cut(0.75)] };
 });
+// Every session, GitHub style: the last 12 months, or (Show every year) one row per year back to your first session.
+// Clay by the day's tonnage, a PR day in Exodia blue, a day you hit Exodia outlined in blue.
+const CAL_MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const renderCalendar = () => {
   if (!state.sessions.length) return '';
   const { days, steps } = calendarDays();
   const today = todayIso();
   const monday = (iso) => addDays(iso, -((parseIso(iso).getDay() + 6) % 7));
   const first = [...days.keys()].sort()[0];
-  const start = monday([first, addDays(today, -364)].sort()[0]);
-  const weeks = [];
-  for (let week = start; week <= today; week = addDays(week, 7)) weeks.push(week);
+  const exodiaDays = new Set(exodiaHistory().days || []);
+  const cell = (date, from = '', to = today) => {
+    if (date > to || date < from) return '<i class="calDay future"></i>';
+    const day = days.get(date);
+    if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
+    const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
+    const hit = exodiaDays.has(date);
+    const text = `${dayLabel(date)} · ${tonnes(day.volume)}${day.pr ? ' · PR' : ''}${hit ? ' · Exodia' : ''}`;
+    return `<button class="calDay shade${shade}${day.pr ? ' pr' : ''}${hit ? ' exodia' : ''}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
+  };
+  const key = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay shade2 exodia calKeyPr"></i><span>Exodia</span></p>';
+  const all = Boolean(view.calAll);
   const since = addDays(today, -364);
   const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
-  // Exodia days are Exodia blue; a PR is a small dot on the day, so the two never fight over one colour.
-  const exodiaDays = new Set(exodiaHistory().days || []);
-  const cells = weeks.map((week, index) => {
-    const month = parseIso(week).getMonth();
-    const newMonth = index === 0 || parseIso(weeks[index - 1]).getMonth() !== month;
-    const label = newMonth ? (month === 0 ? week.slice(0, 4) : 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')[month]) : '';
-    const daysOfWeek = [0, 1, 2, 3, 4, 5, 6].map((offset) => {
-      const date = addDays(week, offset);
-      if (date > today) return '<i class="calDay future"></i>';
-      const day = days.get(date);
-      if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
-      const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
-      const hit = exodiaDays.has(date);
-      const text = `${dayLabel(date)} · ${tonnes(day.volume)}${hit ? ' · Exodia' : ''}${day.pr ? ' · PR' : ''}`;
-      return `<button class="calDay ${hit ? 'exodia' : `shade${shade}`}${day.pr ? ' pr' : ''}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
+  const ever = [...days.keys()].filter((date) => date <= today).length;
+  const count = all ? `${ever} since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}` : `${lastYear} in the last 12 months`;
+  let body;
+  if (!all) {
+    // A year row (where a year starts, and at the left edge), a month row, then the days; scrolls back from today.
+    const weeks = [];
+    for (let week = monday(since); week <= today; week = addDays(week, 7)) weeks.push(week);
+    const columns = weeks.map((week, index) => {
+      const date = parseIso(week);
+      const before = index ? parseIso(weeks[index - 1]) : null;
+      const year = !before || before.getFullYear() !== date.getFullYear() ? week.slice(0, 4) : '';
+      const month = !before || before.getMonth() !== date.getMonth() ? CAL_MONTHS[date.getMonth()] : '';
+      return `${year ? `<span class="calYear">${year}</span>` : '<span></span>'}<span class="calMonth">${month}</span>${[0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset))).join('')}`;
     }).join('');
-    return `<span class="calMonth">${label}</span>${daysOfWeek}`;
-  }).join('');
-  return `<p class="section calHead">Every session <span class="calCount num">${lastYear} in the last 12 months</span></p>
+    body = `<div class="calWrap">
+        <div class="calWeekdays" aria-hidden="true"><span></span><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
+        <div class="calScroll"><div class="calGrid" role="group" aria-label="Training days, newest on the right">${columns}</div></div>
+      </div>`;
+  } else {
+    // One block per year, newest first, each fitted to the width: 53 week columns, Monday at the top.
+    const years = [];
+    for (let year = Number(today.slice(0, 4)); year >= Number(first.slice(0, 4)); year -= 1) years.push(year);
+    body = `<div class="calYears${view.calEnter ? ' enter' : ''}">${years.map((year) => {
+      const [from, to] = [`${year}-01-01`, `${year}-12-31` < today ? `${year}-12-31` : today];
+      const weeks = [];
+      for (let week = monday(from); week <= `${year}-12-31`; week = addDays(week, 7)) weeks.push(week);
+      const sessions = [...days.keys()].filter((date) => date >= from && date <= to).length;
+      const months = CAL_MONTHS.map((name, month) => {
+        const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        return `<span class="calYearMonth" style="grid-column:${Math.floor((Number(parseIso(firstDay)) - Number(parseIso(monday(from)))) / 6048e5) + 1}">${name}</span>`;
+      }).join('');
+      const cells = weeks.map((week, column) => [0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to).replace(/^<(i|button) class="/, `<$1 style="grid-column:${column + 1};grid-row:${offset + 2}" class="`)).join('')).join('');
+      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'}</span></p><div class="calYearGrid" style="grid-template-columns:repeat(${weeks.length}, minmax(0, 1fr))">${months}${cells}</div></div>`;
+    }).join('')}</div>`;
+  }
+  return `<p class="section calHead">Every session <span class="calCount num">${count}</span></p>
     <section class="card calCard">
-      <div class="calWrap">
-        <div class="calWeekdays" aria-hidden="true"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
-        <div class="calScroll"><div class="calGrid" role="group" aria-label="Training days, newest on the right">${cells}</div></div>
-      </div>
-      <p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay shade2 pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>
-    </section>`;
+      ${body}
+      ${key}
+    </section>
+    ${first < since || all ? `<button class="liftExpand calMore" data-action="cal-all" aria-expanded="${all}">${all ? 'Show the last 12 months' : 'Show every year'}${ICONS.chev}</button>` : ''}`;
 };
 
 const renderVolume = () => {
@@ -2210,9 +2257,9 @@ const STANDARDS = {
   'cable-fly': { male: [[60, 4, 12, 26, 46, 69], [80, 8, 19, 36, 58, 84], [90, 10, 23, 41, 64, 91], [100, 13, 26, 45, 69, 98], [110, 15, 29, 49, 74, 104], [120, 17, 32, 53, 79, 109], [140, 21, 38, 60, 88, 119]], female: [[50, 2, 7, 15, 26, 39], [60, 3, 9, 18, 29, 43], [70, 4, 10, 19, 31, 46], [80, 5, 12, 21, 34, 48], [90, 6, 13, 23, 36, 51], [100, 7, 14, 24, 38, 53], [120, 8, 16, 27, 41, 57]] },
   'dumbbell-tricep-extension': { male: [[60, 3, 8, 16, 26, 38], [80, 6, 12, 22, 33, 47], [90, 7, 14, 24, 37, 51], [100, 9, 16, 27, 40, 54], [110, 10, 18, 29, 43, 58], [120, 12, 20, 32, 45, 61], [140, 14, 24, 36, 51, 67]], female: [[50, 3, 6, 10, 16, 22], [60, 3, 7, 11, 17, 24], [70, 4, 7, 12, 18, 25], [80, 4, 8, 13, 20, 27], [90, 5, 9, 14, 21, 28], [100, 5, 10, 15, 22, 29], [120, 6, 11, 16, 23, 31]] }
 };
-// Exercise names (lower case) for those, from the library.
-const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Bulgarian Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
-  .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || [])] }));
+// Exercise names (lower case) for those, from the library (Split Squat also matches its old name).
+const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
+  .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || []), ...Object.keys(RENAMED).filter((old) => RENAMED[old] === label).map((old) => old.toLowerCase())] }));
 const standardAt = (rows, bodyweight) => {
   if (!rows?.length) return null;
   if (bodyweight <= rows[0][0]) return rows[0].slice(1);
@@ -2262,6 +2309,7 @@ const liftStrength = (lift, body) => {
   const since = addDays(todayIso(), -STRENGTH_NOW_DAYS);
   let now = 0;
   let best = null;
+  let recent = null;
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
     for (const exercise of session.exercises) {
       if (!lift.names.includes(exercise.name.toLowerCase())) continue;
@@ -2271,12 +2319,13 @@ const liftStrength = (lift, body) => {
         if (!(value > 0)) continue;
         if (session.date >= since && value > now) now = value;
         if (!best || value > best.value || (value === best.value && reps > best.tie)) best = { value, tie: reps, set, date: session.date, name: exercise.name };
+        if (session.date >= since && (!recent || value > recent.value || (value === recent.value && reps > recent.tie))) recent = { value, tie: reps, set, date: session.date };
       }
     }
   }
   const ever = best?.value || 0;
   const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
-  return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) } };
+  return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) }, recent };
 };
 // Bodyweight and sex, asked where they're needed (Strength level, and the anatomy's Strength view). Both forms can be
 // on screen at once (computer), so each reads its own field.
@@ -2326,14 +2375,21 @@ const renderStrength = () => {
   // The picture is as wide as its words: long level names on a side corner widen it instead of being cut off.
   let [left, right] = [-6, size + 6];
   const labels = lifts.map((lift, index) => {
-    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 28), middle + Math.sin(angle(index)) * (radius + 28)];
+    // A corner at the top moves up a line, so its set line never touches the outer ring.
+    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 28), middle + Math.sin(angle(index)) * (radius + 28) - (Math.sin(angle(index)) < -0.5 ? 17 : 0)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
-    const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelWord(shownScore(lift))} 0.0`, '500 15px'));
+    // The set the level comes from, under it; tapping the corner opens that day.
+    const source = known && shown(lift) ? (recent ? lift.recent : lift.best) : null;
+    const setLine = source ? (lift.reps ? `${source.set.reps} reps${Number(source.set.kg) > 0 ? ` +${Number(source.set.kg)} kg` : ''}` : `${Number(source.set.kg)} × ${source.set.reps}`) : '';
+    const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelWord(shownScore(lift))} 0.0`, '500 15px'), textWidth(`${setLine} · 00 Mmm 0000`, '400 13px'));
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
     const swatch = shown(lift) ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
     const level = !known ? '<tspan class="webNone">–</tspan>' : shown(lift) ? `${swatch}${levelWord(shownScore(lift))} <tspan class="webNum">${levelNumber(shownScore(lift))}</tspan>` : `<tspan class="webNone">${lift.ever ? 'Not lately' : 'Not logged'}</tspan>`;
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
+    const corner = `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
+    if (!source) return corner;
+    const when = parseIso(source.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `<g class="webCorner" data-action="jump-session" data-date="${source.date}" role="button" aria-label="${esc(lift.label)}: ${setLine}, ${when}, open the day">${corner}<text x="${x.toFixed(1)}" y="${(y + 37).toFixed(1)}" text-anchor="${anchor}" class="webSet">${setLine} · ${when}</text></g>`;
   }).join('');
   // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
   const half = Math.max(middle - left, right - middle) + 4;
@@ -2355,7 +2411,7 @@ const renderStrength = () => {
     <section class="card webCard${known ? '' : ' empty'}">
       ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
       ${!known ? '' : `<div class="webTop"><p class="webIntro">The heaviest you've lifted in each, against Strength Level's standards for your bodyweight</p><p class="webLegend">${[[false, 'All time', 'solid'], [true, 'Last 3 months', 'dotted']].map(([value, label, look]) => `<button class="webPick" data-action="web-now" data-now="${value ? 1 : 0}" aria-pressed="${recent === value}"><i class="${look}"></i>${label}</button>`).join('')}</p></div>`}
-      <svg class="web" viewBox="${(middle - half).toFixed(0)} -12 ${(half * 2).toFixed(0)} 362" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
+      <svg class="web" viewBox="${(middle - half).toFixed(0)} -30 ${(half * 2).toFixed(0)} 384" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
         ${known ? `<path d="${outline(corners)}" class="webShape"/>
@@ -2498,7 +2554,7 @@ const meetShare = (key, sex, bodyweight, kg) => {
 const shareText = (share) => `${Number((share * 100).toPrecision(share < 0.01 ? 1 : 2))}%`;
 // Your most impressive lift: the heaviest set you actually did, its level and how rare that weight is. Lifts are
 // compared by level (actual kg against Strength Level for your bodyweight). Your best squat, bench or deadlift always
-// shows; any other lift (overhead press, hip abduction…) shows under it when its level is higher.
+// shows, and under it your best other lift (overhead press, split squat…).
 const BIG_KEYS = ['squat', 'bench-press', 'deadlift'];
 // Everyone on Earth of your sex (UN World Population Prospects 2024, 2025): men and women.
 const ON_EARTH = { male: 4.14e9, female: 4.09e9 };
@@ -2545,7 +2601,7 @@ const impressiveLifts = () => {
   const ranked = [...WEB_LIFTS, ...OTHER_LIFTS].map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks && lift.best?.score > 0).sort((first, second) => second.best.score - first.best.score);
   const big = ranked.find((lift) => BIG_KEYS.includes(lift.key));
   const other = ranked.find((lift) => !BIG_KEYS.includes(lift.key));
-  const shown = big ? [big, ...(other && other.best.score > big.best.score ? [other] : [])] : other ? [other] : [];
+  const shown = [big, other].filter(Boolean);
   return shown.map((lift) => ({ lift, ...rarityOf(lift, body) }));
 };
 const renderImpressive = () => {
@@ -2559,7 +2615,7 @@ const renderImpressive = () => {
   return `<p class="section">Your most impressive lift</p>
     <div class="feat">
       ${found.map(({ lift, tiles, rare, sentence }) => `<div class="featItem">
-        <p class="featTop"><span class="featLift">${esc(lift.best.name)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${levelNumber(lift.best.score)}</span></span></p>
+        <p class="featTop"><span class="featLift">${esc(BIG_KEYS.includes(lift.key) ? lift.best.name : lift.label)} <span class="featKg num">${setText(lift)}</span></span><span class="featLevel"><i class="muscleSwatch ${tierOf(lift.best.score)?.[2] || 'tierBeg'}"></i>${levelWord(lift.best.score)} <span class="num">${levelNumber(lift.best.score)}</span></span></p>
         <p class="featRare num">${rare}</p>
         <p class="featFact">${sentence}</p>
         ${tiles.length ? `<div class="tiles featTiles">${tiles.map((tile) => `<div class="tile"><p class="tileValue num">${tile.value}</p><p class="tileLabel">${tile.label}</p><p class="tileSub">${tile.sub}</p></div>`).join('')}</div>` : ''}
@@ -3667,6 +3723,7 @@ const render = () => {
   view.menuEnter = false;
   view.rulesEnter = false;
   view.levelInfoEnter = false;
+  view.calEnter = false;
   view.reveal = false;
   tuckCards();
   fitNames();
@@ -5579,6 +5636,10 @@ document.addEventListener('click', (event) => {
     view.trendScroll = target.dataset.name;
     view.trendScrollChart = true;
   } else if (action === 'trend-more') view.trendMore = !view.trendMore;
+  else if (action === 'cal-all') {
+    view.calAll = !view.calAll;
+    view.calEnter = view.calAll;
+  }
   else if (action === 'range') view.range = Number(target.dataset.days);
   else if (action === 'accessories' && session) {
     session.accessories = accessoriesOf(session) === Number(target.dataset.minutes) ? 0 : Number(target.dataset.minutes);

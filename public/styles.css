@@ -1280,17 +1280,34 @@ main.page { overflow-x: clip; }
 .dayActions .chipFace::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: 4px; height: 2px; border-radius: 1px; background: var(--clay); transform: scaleX(0); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .dayActions .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 @media (prefers-reduced-motion: reduce) { .dayActions .chipFace::after { transition: none; } }
-/* Every session: Exodia days in Exodia blue; a PR is a small dark dot on its day (on top of the day's own colour). */
-.calDay.shade1, .calDay.shade1.pr { background: rgb(var(--clayRgb) / 0.28); }
-.calDay.shade2, .calDay.shade2.pr { background: rgb(var(--clayRgb) / 0.5); }
-.calDay.shade3, .calDay.shade3.pr { background: rgb(var(--clayRgb) / 0.75); }
-.calDay.shade4, .calDay.shade4.pr { background: var(--clay); }
-.calDay.exodia, .calDay.exodia.pr { background: var(--exodiaBlue); }
-.calDay.pr { position: relative; }
-.calDay.pr::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgb(20 20 19 / 0.72); }
-.calKey .calDay.pr::after { width: 3.5px; height: 3.5px; margin: -1.75px 0 0 -1.75px; }
+/* Every session: clay by tonnage, a PR day filled Exodia blue, a day you hit Exodia outlined in Exodia blue (with a
+   white line inside it on a PR day, so the outline still shows). A year row sits above the months. */
+.calDay.pr { background: var(--exodiaBlue); }
+.calDay.exodia { box-shadow: inset 0 0 0 2px var(--exodiaBlue); }
+.calDay.exodia.pr { box-shadow: inset 0 0 0 1.5px var(--exodiaBlue), inset 0 0 0 3px #FFFFFF; }
+.calGrid, .calWeekdays { grid-template-rows: 12px 14px repeat(7, 12px); }
+.calYear { font-size: 10px; line-height: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: visible; }
+/* Every year: one block per year, fitted to the width, newest first. */
+.calYears.enter { animation: levelInfoIn 0.25s ease-out; }
+.calYearBlock + .calYearBlock { margin-top: 14px; }
+.calYearHead { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 4px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text); }
+.calYearHead .calCount { font-weight: 400; color: var(--text2); }
+.calYearGrid { display: grid; grid-template-rows: 13px repeat(7, auto); gap: 1.5px; }
+.calYearGrid .calDay { width: auto; height: auto; aspect-ratio: 1; border-radius: 1.5px; }
+.calYearGrid .calDay.exodia { box-shadow: inset 0 0 0 1.2px var(--exodiaBlue); }
+.calYearGrid .calDay.exodia.pr { box-shadow: inset 0 0 0 1px var(--exodiaBlue), inset 0 0 0 2px #FFFFFF; }
+.calYearMonth { grid-row: 1; font-size: 9px; line-height: 12px; color: var(--text2); white-space: nowrap; overflow: visible; }
+.calMore { margin-top: 2px; border-top: 0; }
 /* Most impressive lift: the world number in plain full-size type, one sentence that says it in words, then tiles. */
 .featRare { font-family: inherit; font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.01em; }
 .featFact { margin-top: 4px !important; font-size: 14px; line-height: 20px; color: var(--text2); }
 .featTiles { padding: 12px 0 0; }
 .right .featRare { font-size: 21px; line-height: 27px; }
+/* The year stays in view: each year's label sticks to the left edge until the next year's label slides over it. */
+.calYear { position: sticky; left: 0; z-index: 1; justify-self: start; width: max-content; padding-right: 6px; background: var(--bg); }
+/* Level numbers sit in the optical middle of their squares (a 16px line made them sit low). */
+.levelKey b, .levelRow b { line-height: 1; padding-top: 0.5px; box-sizing: border-box; }
+/* Strength web corners: the set each level comes from, tap to open that day. */
+.webSet { font-size: 13px; fill: var(--text2); }
+.webCorner { cursor: pointer; }
+.webCorner:active .webLift { opacity: 0.6; }
