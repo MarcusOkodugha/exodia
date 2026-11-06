@@ -43,7 +43,7 @@ const cooling = (model) => COOLING.get(model) > Date.now();
 const THINK_LOW = true;
 const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.7-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
 
-const PROMPT = `You turn a lifter's spoken or typed workout note into JSON.
+const PROMPT = `You turn a lifter's spoken or typed workout note into JSON. The app is in English: the note may be in Swedish or any language, but write every exercise name, cardioName and label in short English ("knäböj" is "Squat", "marklyft" is "Deadlift", "bänkpress" is "Bench Press", "fotboll" is "Football", "benpass" is "Leg day"), and write unclear in the language the user used.
 Feedback only when the user literally says the word "feedback" or "feature" (for example "feedback: the mic is slow"): then put that part in feedback in their own words and log nothing for it. Without one of those words, everything is training, never feedback.
 Weights are kilograms. Return only sets that were actually done.
 "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps.
@@ -137,7 +137,7 @@ const askClaude = async (env, context, words) => {
   return JSON.parse(text);
 };
 
-const IMPORT_PROMPT = `You turn a lifter's training history into JSON days. The text can be anything: notes, an app export, messages to themselves, a spoken ramble, in any order, with unrelated talk mixed in. Ignore everything that is not training.
+const IMPORT_PROMPT = `You turn a lifter's training history into JSON days. The app is in English: the note may be in Swedish or any language, but write every exercise name, cardioName and label in short English ("knäböj" is "Squat", "marklyft" is "Deadlift", "bänkpress" is "Bench Press", "fotboll" is "Football", "benpass" is "Leg day"), and write unclear in the language the user used. The text can be anything: notes, an app export, messages to themselves, a spoken ramble, in any order, with unrelated talk mixed in. Ignore everything that is not training.
 Each day gets its date as YYYY-MM-DD. Use the calendar below for relative dates like "yesterday" or "last Friday". If a date has no year, use the most recent past date with that day and month. Training with no date at all goes on today's date only if the text says it was today; otherwise put it in unclear in the user's words.
 Training programs and plans often have no real dates, only days and weeks (Day 7, Week 2 Day 3, W3D2, "Day A", a sheet called "Day 6-10"). Never invent dates for them. Give each such day programDay: its number counted from the program's first training day across the whole file, using sheet names, sheet order ("Sheet 3 of 7") and day labels to know where you are (a sheet "Day 6-10" holds days 6 to 10; "Week 2 Day 3" with 5 days a week is day 8). Set date to "" for those days. Set programStart (YYYY-MM-DD) if the user's note or the text says when the program started, and daysPerWeek if it says or shows how many training days a week. Every day in the text is a separate day: never merge two days into one.
 Get as much in as you can. A missing value never drops an exercise: "4x5" or "4 sets of 5" is four sets of 5 reps; reps without a weight get weight 0; a weight without reps gets reps 0; a percentage of a max becomes kg from the known best in the note (best × percentage, rounded to 2.5), otherwise weight 0. Ranges like "8-10" take the low end.

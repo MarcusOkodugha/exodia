@@ -593,7 +593,10 @@ const parseChunk = (chunk) => {
     // Distance is not time: the AI works that out. Hours become minutes.
     if (/^(km|k|mi|miles?|m|meters?)$/.test(unit)) return null;
     const minutes = /^(h|hours?|hrs?|timmar?|tim)$/.test(unit) ? Math.round(amount * 60) : Math.round(amount);
-    return minutes > 0 && minutes <= 600 ? { cardio: minutes } : null;
+    // Named in English whatever language it was typed in, so a Swedish note reads the same as an English one.
+    const word = cardio[1].toLowerCase();
+    const name = /^(run|ran|running|löpning)$/.test(word) ? 'Running' : /^(bike|biked|cycling|cykel)$/.test(word) ? 'Cycling' : /^(walk|walked|walking|promenad)$/.test(word) ? 'Walk' : /^(hike|hiked|hiking|vandring)$/.test(word) ? 'Hiking' : /^(swim|swam)$/.test(word) ? 'Swimming' : /^rowing$/.test(word) ? 'Rowing' : '';
+    return minutes > 0 && minutes <= 600 ? { cardio: minutes, ...(name ? { cardioName: name } : {}) } : null;
   }
   const match = text.match(/^([\p{L}][\p{L}\s-]*?)\s+(\d.*)$/u);
   if (!match) return null;
@@ -628,7 +631,10 @@ const parseLocally = (text) => {
     const parsed = parseChunk(chunk);
     if (!parsed) return null;
     if (parsed.empty) continue;
-    if (parsed.cardio) result.cardioMinutes += parsed.cardio;
+    if (parsed.cardio) {
+      result.cardioMinutes += parsed.cardio;
+      if (parsed.cardioName) result.cardioName = parsed.cardioName;
+    }
     else result.exercises.push(parsed);
   }
   return result.exercises.length > 0 || result.cardioMinutes > 0 ? result : null;
@@ -4113,7 +4119,7 @@ const showResult = (did, touched, before = null) => {
   const named = touched.filter((item) => item.name);
   const edit = named.length ? { date: named[0].date, names: [...new Set(named.filter((item) => item.date === named[0].date).map((item) => item.name))] } : null;
   if (view.toast?.name && ['max', 'rep'].includes(view.toast.kind)) Object.assign(view.toast, { detail, edit });
-  else view.toast = { kind: 'result', title: did[0], text: did.length > 1 ? `and ${did.length - 1} more` : 'Synced to all your devices', detail, edit, undo: before, open: false };
+  else view.toast = { kind: 'result', title: did[0], text: did.length > 1 ? `and ${did.length - 1} more` : navigator.onLine === false ? 'Saved on this phone · syncs when you’re online' : 'Synced to all your devices', detail, edit, undo: before, open: false };
   if (before && view.toast) view.toast.undo = before;
   clearTimeout(view.toastTimer);
   view.toastTimer = setTimeout(clearToast, 12000);
