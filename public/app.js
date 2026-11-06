@@ -6375,6 +6375,8 @@ if (new URLSearchParams(location.search).has('demo')) {
       if (!data.sessions?.length) throw new Error('no demo');
       Object.assign(state, { sessions: data.sessions, ...(data.body ? { body: data.body } : {}) });
       view.realDemo = true;
+      // Opens on the deadlift chart: the lift that shows the most (the latest squat can be a light 20 × 10).
+      if (!view.trendOpen) view.trendOpen = 'Deadlift';
     })
     .catch(() => Object.assign(state, { sessions: demoSessions(52), body: { kg: 85, sex: 'male' } }))
     .finally(() => {
