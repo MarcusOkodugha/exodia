@@ -1380,3 +1380,5 @@ main.page { overflow-x: clip; }
 .dashPerson .dashRow { padding: 0; }
 .dashRow > span:last-child { flex: none; font-size: 13px; }
 .dashSub { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--text2); }
+.dashFilter { grid-template-columns: repeat(3, 1fr); }
+.dashFilter .segmentOption[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); }

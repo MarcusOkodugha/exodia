@@ -387,7 +387,7 @@ const columns = async (request, env) => {
   if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
   if (env.PARSE_LIMITER) {
     const { success } = await env.PARSE_LIMITER.limit({ key: `columns:${key}` });
-    if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+    if (!success) return limited(env, request, 'columns', 'Slow down a little. Try again in a minute.');
   }
   const body = await request.json().catch(() => null);
   const rows = Array.isArray(body?.rows) ? body.rows.slice(0, 15).map((row, index) => `row ${index}: ${(Array.isArray(row) ? row : []).slice(0, 40).map((cell, column) => `[${column}] ${String(cell ?? '').slice(0, 60)}`).join(' | ')}`) : [];
@@ -404,7 +404,7 @@ const speechToText = async (request, env) => {
   if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
   if (env.PARSE_LIMITER) {
     const { success } = await env.PARSE_LIMITER.limit({ key: `speech:${key}` });
-    if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+    if (!success) return limited(env, request, 'speech', 'Slow down a little. Try again in a minute.');
   }
   const body = await request.json().catch(() => null);
   const audio = typeof body?.audio === 'string' && /^[A-Za-z0-9+/=]+$/.test(body.audio) && body.audio.length <= MAX_AUDIO ? body.audio : '';
@@ -418,7 +418,7 @@ const add = async (request, env, ctx) => {
   if (!PROFILE_KEY.test(key)) return json({ error: 'Send your Exodia key in the x-exodia-key header.' }, 400);
   if (env.PARSE_LIMITER) {
     const { success } = await env.PARSE_LIMITER.limit({ key: `add:${key}` });
-    if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+    if (!success) return limited(env, request, 'add', 'Slow down a little. Try again in a minute.');
   }
   const body = await request.json().catch(() => null);
   const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 48000) : '';
@@ -447,6 +447,12 @@ const add = async (request, env, ctx) => {
 };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+// Our own per-person limit (10 a minute) was hit: kept as an error event so the admin dashboard shows it.
+const limited = async (env, request, what, message) => {
+  const key = request.headers.get('x-exodia-key') || '';
+  await env.DB.prepare('INSERT INTO events (at, profile, kind, detail) VALUES (?, ?, ?, ?)').bind(Date.now(), PROFILE_KEY.test(key) ? key : 'anonymous', 'error', `Too many requests (${what})`).run().catch(() => {});
+  return json({ error: message }, 429);
+};
 
 const cleanSet = (set) => ({ kg: Math.min(1000, Math.max(0, Number(set?.kg) || 0)), reps: Math.min(100, Math.max(0, Math.round(Number(set?.reps) || 0))), ...(Number(set?.rpe) >= 1 && Number(set?.rpe) <= 10 ? { rpe: Number(set.rpe) } : {}), ...(set?.warmup === true ? { warmup: true } : {}) });
 
@@ -549,7 +555,7 @@ const search = async (request, env) => {
   if (!query || !index) return json({ results: [] });
   if (env.PARSE_LIMITER) {
     const { success } = await env.PARSE_LIMITER.limit({ key: `search:${request.headers.get('x-exodia-key') || request.headers.get('cf-connecting-ip') || 'local'}` });
-    if (!success) return json({ error: 'Slow down a little.' }, 429);
+    if (!success) return limited(env, request, 'search', 'Slow down a little.');
   }
   // Search is easy: Lite models first, so the full Flash models' small free daily quota stays for notes.
   const all = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean).reverse();
@@ -602,7 +608,7 @@ const parse = async (request, env, ctx) => {
   for (const key of [`device:${deviceId}`, `ip:${ip}`]) {
     if (env.PARSE_LIMITER) {
       const { success } = await env.PARSE_LIMITER.limit({ key });
-      if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+      if (!success) return limited(env, request, 'parse', 'Slow down a little. Try again in a minute.');
     }
   }
   const today = typeof body?.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : null;
@@ -778,7 +784,7 @@ const sync = async (request, env) => {
   if (!PROFILE_KEY.test(key)) return json({ error: 'Bad key' }, 400);
   if (env.SYNC_LIMITER) {
     const { success } = await env.SYNC_LIMITER.limit({ key });
-    if (!success) return json({ error: 'Slow down a little.' }, 429);
+    if (!success) return limited(env, request, 'sync', 'Slow down a little.');
   }
   const body = await request.json().catch(() => null);
   // Someone opened a private /me/ link: only say whose it is and whether it has a log, so the app can ask before opening it.
@@ -946,14 +952,16 @@ const DAY = 86400000;
 const stats = async (env) => {
   const now = Date.now();
   const week = now - 7 * DAY;
-  const [profiles, days, opens, taps, views, stuck, said] = await env.DB.batch([
+  const [profiles, days, opens, taps, views, stuck, said, limits, failures] = await env.DB.batch([
     env.DB.prepare('SELECT id, meta, created FROM profiles'),
     env.DB.prepare("SELECT profile, COUNT(*) AS days, MIN(date) AS first, MAX(date) AS last, SUM(date >= ?) AS changed FROM sessions WHERE data IS NOT NULL AND data NOT LIKE '%\"exercises\":[]%' GROUP BY profile").bind(new Date(week).toISOString().slice(0, 10)),
     env.DB.prepare("SELECT profile, COUNT(*) AS opens, SUM(at > ?) AS week, MAX(at) AS last FROM events WHERE kind = 'open' GROUP BY profile").bind(week),
     env.DB.prepare("SELECT detail, COUNT(*) AS n, COUNT(DISTINCT profile) AS people FROM events WHERE kind = 'tap' AND at > ? AND profile IS NOT ? GROUP BY detail ORDER BY n DESC LIMIT 15").bind(now - 30 * DAY, env.ADMIN_PROFILE),
     env.DB.prepare("SELECT detail, COUNT(*) AS n, COUNT(DISTINCT profile) AS people FROM events WHERE kind = 'view' AND at > ? AND profile IS NOT ? GROUP BY detail ORDER BY n DESC LIMIT 10").bind(now - 30 * DAY, env.ADMIN_PROFILE),
     env.DB.prepare("SELECT at, profile, detail FROM events WHERE kind = 'stuck' AND profile IS NOT ? ORDER BY at DESC LIMIT 20").bind(env.ADMIN_PROFILE),
-    env.DB.prepare("SELECT profile, COUNT(*) AS sent, SUM(result LIKE '%\"unclear\"%' OR result LIKE '%\"error\"%') AS missed, MAX(at) AS last FROM commands WHERE name IS NOT 'Builder' AND name IS NOT 'Change request' GROUP BY profile")
+    env.DB.prepare("SELECT profile, COUNT(*) AS sent, SUM(result LIKE '%\"unclear\"%' OR result LIKE '%\"error\"%') AS missed, MAX(at) AS last FROM commands WHERE name IS NOT 'Builder' AND name IS NOT 'Change request' GROUP BY profile"),
+    env.DB.prepare("SELECT detail, COUNT(*) AS n, COUNT(DISTINCT profile) AS people, MAX(at) AS last FROM events WHERE kind = 'error' AND at > ? GROUP BY detail").bind(now - 30 * DAY),
+    env.DB.prepare("SELECT 'AI: ' || substr(json_extract(result, '$.error'), 1, 50) AS detail, COUNT(*) AS n, COUNT(DISTINCT profile) AS people, MAX(at) AS last FROM commands WHERE result LIKE '%\"error\"%' AND at > ? GROUP BY detail").bind(now - 30 * DAY)
   ]);
   const by = (rows) => new Map(rows.results.map((row) => [row.profile, row]));
   const [dayMap, openMap, saidMap] = [by(days), by(opens), by(said)];
@@ -974,6 +982,7 @@ const stats = async (env) => {
   return {
     people,
     taps: taps.results, views: views.results,
+    errors: [...limits.results, ...failures.results].sort((first, second) => second.last - first.last),
     stuck: stuck.results.map((row) => ({ at: row.at, who: names.get(row.profile.slice(0, 6)) || row.profile.slice(0, 6), detail: row.detail }))
   };
 };
@@ -1013,7 +1022,7 @@ const feedback = async (request, env, ctx) => {
   if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
   if (env.PARSE_LIMITER) {
     const { success } = await env.PARSE_LIMITER.limit({ key: `feedback:${key}` });
-    if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+    if (!success) return limited(env, request, 'feedback', 'Slow down a little. Try again in a minute.');
   }
   const body = await request.json().catch(() => null);
   const audio = typeof body?.audio === 'string' && /^[A-Za-z0-9+/=]+$/.test(body.audio) && body.audio.length <= MAX_AUDIO ? body.audio : '';

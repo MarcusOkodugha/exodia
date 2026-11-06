@@ -2137,6 +2137,17 @@ const ago = (at) => {
   const days = Math.floor((Date.now() - at) / 86400000);
   return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? `${days} days ago` : shortDay(at);
 };
+// "Today 14:32", "Yesterday 09:10", "3 Nov 18:20": when someone last used Exodia, to the minute.
+const stamp = (at) => {
+  if (!at) return 'never';
+  const when = new Date(at);
+  const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const days = Math.round((new Date(todayIso()) - new Date(when.toISOString().slice(0, 10))) / 86400000);
+  return `${days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : shortDay(at)} ${time}`;
+};
+// Real people: not you, and they did something (have a name, logged a day, or came back after the first open).
+const DASH_FILTERS = [['real', 'Real people'], ['all', 'Everyone'], ['me', 'You']];
+const isReal = (person) => !person.mine && Boolean(person.name || person.days > 0 || person.opens > 1 || person.sent > 0);
 const ACTION_NAMES = { 'open-composer': 'Open the box', 'send': 'Send', 'mic': 'Mic', 'pick-trend': 'Pick a lift in Trends', 'range': 'Chart range', 'toggle-day': 'Open a day', 'edit-day': 'Edit a day', 'menu': 'Menu', 'slash-admin': 'Pick a / command', 'jump-session': 'Jump to a day' };
 const actionName = (action) => ACTION_NAMES[action] || String(action || '').replace(/-/g, ' ').replace(/^./, (first) => first.toUpperCase());
 const renderAdminStats = () => {
@@ -2144,7 +2155,7 @@ const renderAdminStats = () => {
   if (!data) return view.adminLoading ? '<p class="empty">Loading the overview…</p>' : '';
   if (data.error) return `<p class="feedbackMeta"><span class="runFailed">Overview could not load: ${esc(data.error)}</span></p>`;
   const week = Date.now() - 7 * 86400000;
-  const people = data.people.filter((person) => !person.mine);
+  const people = data.people.filter(isReal);
   const lastSeen = (person) => Math.max(person.lastOpen, person.lastSent, person.last ? new Date(`${person.last}T12:00`).getTime() : 0, person.joined);
   const active = people.filter((person) => person.lastOpen > week || person.lastSent > week || person.changedWeek > 0);
   const logging = people.filter((person) => person.days > 0);
@@ -2152,7 +2163,7 @@ const renderAdminStats = () => {
   const [sent, missed] = [sum('sent'), sum('missed')];
   const tile = (value, label, sub) => `<div class="tile"><p class="tileValue num">${value}</p><p class="tileLabel">${label}</p><p class="tileSub">${sub}</p></div>`;
   const overview = `<div class="tiles adminTiles">
-      ${tile(people.length, 'People', `${people.filter((person) => person.name).length} with a name`)}
+      ${tile(people.length, 'Real people', `${data.people.filter((person) => !person.mine).length - people.length} empty, never used`)}
       ${tile(active.length, 'Active', 'Last 7 days')}
       ${tile(logging.length, 'Logging', `${people.length - logging.length} never logged`)}
       ${tile(sum('opensWeek'), 'Opens', 'Last 7 days')}
@@ -2160,21 +2171,28 @@ const renderAdminStats = () => {
       ${tile(sent ? `${Math.round(((sent - missed) / sent) * 100)}%` : '–', 'AI understood', `${missed} of ${sent} missed`)}
     </div>`;
   if (!view.adminDashOpen) return `${overview}<button class="liftExpand" data-action="admin-dash" aria-expanded="false">Show dashboard${ICONS.chev}</button>`;
-  const sorted = [...people].sort((first, second) => lastSeen(second) - lastSeen(first));
+  const filter = view.dashFilter || 'real';
+  const shown = data.people.filter((person) => (filter === 'me' ? person.mine : filter === 'real' ? isReal(person) : true));
+  const sorted = [...shown].sort((first, second) => lastSeen(second) - lastSeen(first));
+  const you = data.people.find((person) => person.mine);
   const list = (rows, label) => rows.length ? rows.map((row) => `<p class="dashRow"><span>${esc(label(row))}</span><span class="muted num">${row.n} · ${row.people} ${row.people === 1 ? 'person' : 'people'}</span></p>`).join('') : '<p class="empty">Nothing yet.</p>';
   return `${overview}<button class="liftExpand" data-action="admin-dash" aria-expanded="true">Hide dashboard${ICONS.chev}</button>
-    <p class="section">Everyone · last seen first</p>
+    <p class="section">People · last used first</p>
+    <div class="segment full dashFilter" role="group" aria-label="Show">${DASH_FILTERS.map(([value, label]) => `<button class="segmentOption" data-action="dash-filter" data-filter="${value}" aria-pressed="${filter === value}">${label}</button>`).join('')}</div>
+    ${you ? `<p class="note">You last used it ${stamp(lastSeen(you))}. Your row says You; it never counts in the numbers above.</p>` : ''}
     <div class="card dashCard">${sorted.map((person) => `<div class="dashPerson">
-      <p class="dashRow"><b>${esc(person.name || `No name · ${person.id}`)}</b><span class="muted">${ago(lastSeen(person))}</span></p>
+      <p class="dashRow"><b>${person.mine ? 'You' : esc(person.name || `No name · ${person.id}`)}</b><span class="muted num">${stamp(lastSeen(person))}</span></p>
       <p class="dashSub num">${person.days ? `${person.days} days logged${person.last ? `, last ${shortDay(new Date(`${person.last}T12:00`).getTime())}` : ''}` : 'Never logged'} · opened ${person.opensWeek} this week, ${person.opens} in all${person.sent ? ` · ${person.sent} ${person.sent === 1 ? 'note' : 'notes'}${person.missed ? `, ${person.missed} not understood` : ''}` : ''}${person.joined ? ` · joined ${shortDay(person.joined)}` : ''}</p>
     </div>`).join('')}</div>
+    <p class="section">Errors · 30 days</p>
+    <div class="card dashCard">${(data.errors || []).length ? data.errors.map((row) => `<p class="dashRow"><span>${esc(row.detail)}</span><span class="muted num">${row.n}× · ${row.people} ${row.people === 1 ? 'person' : 'people'} · ${stamp(row.last)}</span></p>`).join('') : '<p class="empty">No errors.</p>'}</div>
     <p class="section">Most tapped · 30 days</p>
     <div class="card dashCard">${list(data.taps, (row) => actionName(row.detail))}</div>
     <p class="section">Pages · 30 days</p>
     <div class="card dashCard">${list(data.views, (row) => (row.detail || 'home').replace(/^./, (first) => first.toUpperCase()))}</div>
     <p class="section">Where people got stuck</p>
     <div class="card dashCard">${data.stuck.length ? data.stuck.map((row) => `<p class="dashRow"><span>${esc(row.detail)}</span><span class="muted">${esc(row.who)} · ${ago(row.at)}</span></p>`).join('') : '<p class="empty">Nothing yet. Notes the AI didn\'t understand are also in Every command below.</p>'}</div>
-    <p class="note">Opens, taps and pages are counted from 6 November 2026. Your own use is left out.</p>`;
+    <p class="note">Opens, taps, pages and too-many-requests errors are counted from 6 November 2026. Real people leaves out you and links that were opened once and never used.</p>`;
 };
 const renderAdmin = () => {
   // Your change requests show straight away; only the server lists below wait for loading.
@@ -5727,6 +5745,11 @@ document.addEventListener('click', (event) => {
   if (!target) return;
   const action = target.dataset.action;
   noteUse('tap', action);
+  if (action === 'dash-filter') {
+    view.dashFilter = target.dataset.filter;
+    render();
+    return;
+  }
   if (action === 'admin-dash') {
     view.adminDashOpen = !view.adminDashOpen;
     render();
