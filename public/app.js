@@ -303,7 +303,9 @@ const syncNow = () => {
       if (Boolean(result.admin) !== Boolean(view.isAdmin)) {
         view.isAdmin = Boolean(result.admin);
         loadLeft();
-        renderSoon();
+        // Right away, even with the box focused (the computer focuses it on open): the redraw keeps your words and
+        // caret, and waiting for a blur left Admin hidden until you clicked somewhere.
+        render();
       }
       view.syncFailed = false;
       if (view.isAdmin) loadLeft();
@@ -1741,7 +1743,8 @@ const buildBanner = () => {
   bannerTimer = setTimeout(render, run.at + BUILD_MAX - Date.now() + 500);
   const seen = bannerSeen === run.at;
   bannerSeen = run.at;
-  return `<div class="buildBanner${seen ? ' still' : ''}" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText">${esc(run.said.slice(0, 80))}</p></div></div>`;
+  // The whole request, as you sent it, with its orange /admin; a long one scrolls inside the banner.
+  return `<div class="buildBanner${seen ? ' still' : ''}" role="status"><span class="buildDot"></span><div class="toastWords"><p class="toastTitle">Exodia is on it</p><p class="toastText buildSaid"><span class="slashCmd">/admin</span> ${esc(run.said)}</p></div></div>`;
 };
 let buildWatch = 0;
 const watchBuilds = () => {
@@ -1979,6 +1982,19 @@ const shareCard = () => {
   <p class="note">${named ? 'Opens Exodia with their name already in.' : 'Anyone who opens it gets their own empty Exodia.'}</p>`;
 };
 
+// Every command, oldest at the top: what people sent (theirs on the left under their name), and your own change
+// requests on the right with their orange /admin, the moment you send them, with how each is going.
+const adminChat = () => {
+  const runs = (state.claudeRuns || []).map((run) => ({ at: run.at, run }));
+  const rows = (view.adminRows || []).map((row) => ({ at: row.at, row }));
+  const items = [...rows, ...runs].sort((first, second) => first.at - second.at);
+  if (!items.length) return view.adminRows ? '<p class="empty">No commands yet.</p>' : '<p class="empty">Loading every command…</p>';
+  return items.map((item, index) => {
+    const stamp = chatStamp(item.at, items[index - 1]?.at);
+    if (item.row) return chatEntry({ ...item.row, stamp, theirs: !item.row.mine });
+    return `<div class="chatItem">${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<div class="bubbleIn"><span class="slashCmd">/admin</span> ${esc(item.run.said)}</div><div class="bubbleOut"><p>${runStatus(item.run)}${item.run.url ? ` · <a href="${esc(item.run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div></div>`;
+  }).join('');
+};
 const renderAdmin = () => {
   // Your change requests show straight away; only the server lists below wait for loading.
   if (!view.adminRows && !view.adminLoading) {
@@ -1991,10 +2007,9 @@ const renderAdmin = () => {
     <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
     <p class="section">Change the app</p>
-    <p class="feedbackLead">Say or type a change in the box below. It shows here at once, with how it's going.</p>
+    <p class="feedbackLead">Say or type a change in the box below. It shows in the chat at the bottom at once, with how it's going.</p>
     ${(view.adminBuilders || []).length > 1 ? `<div class="builderRow"><span class="builderLabel">Built with</span><div class="segment full builderSwitch" role="group" aria-label="Claude account that builds">${view.adminBuilders.map((builder) => `<button class="segmentOption" data-action="pick-builder" data-slot="${builder.slot}" aria-pressed="${view.adminBuilder === builder.slot}"${builder.ready ? '' : ' disabled'}>Account ${builder.slot}${builder.ready ? '' : ' · not set up'}</button>`).join('')}</div></div><p class="feedbackMeta">If that account can't start, the other one is tried.</p>` : ''}
     ${view.adminError ? `<p class="feedbackMeta"><span class="runFailed">${esc(view.adminError)}</span> <button class="textBtn" data-action="admin-reload">Try again</button></p>` : ''}
-    ${(state.claudeRuns || []).slice(0, 20).map((run) => `<div class="feedbackRow"><p class="feedbackDetails">${esc(run.said)}</p><p class="feedbackMeta">${runStatus(run)} · ${new Date(run.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${run.url ? ` · <a href="${esc(run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div>`).join('')}
     <p class="section">Invite someone</p>
     ${shareCard()}
     <p class="section">Feedback</p>
@@ -2005,7 +2020,7 @@ const renderAdmin = () => {
       <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}<button class="chip" data-action="feedback-claude" data-id="${item.id}"><span class="chipFace">Build it</span></button></div>
     </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
     <p class="section">Every command</p>
-    <div class="chat">${!view.adminRows ? '<p class="empty">Loading every command…</p>' : view.adminRows.slice().reverse().map((row, index, rows) => chatEntry({ ...row, stamp: chatStamp(row.at, rows[index - 1]?.at), theirs: !row.mine })).join('') || '<p class="empty">No commands yet.</p>'}</div>
+    <div class="chat">${adminChat()}</div>
   </main>`;
 };
 

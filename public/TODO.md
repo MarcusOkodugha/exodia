@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Admin: "Exodia is on it" shows the whole request with an orange /admin (long ones scroll inside); your /admin requests sit on the right in the Every command chat the moment you send them, with Building… / Live in vN / Watch Exodia (the separate list at the top is gone); on the computer Admin and its menu item appear straight away (they waited for the focused box to blur) (v298)
+
 - What's new pill: taps were lost because a near miss dismissed it and redraws replaced it mid-tap; now a tap within 16 px opens it, the same element is kept across redraws, a tap elsewhere doesn't dismiss it while closed (it goes after 2 min), and once open a tap outside closes it for good (v297)
 
 - Every year in the calendar = the original 12-month strip (month row, year at January, no sticky year, no fitted mini grid); its line: "61 sessions · +11% stronger than 2024" = average change of the heaviest set per lift done in both years (new lifts don't count). Red pill items: Yes / No / Add context; Add context opens the box with "Replying to …" (× to drop). /feedback for anyone turns red and sends the rest as feedback; /admin stays Marcus-only. Friends see "Handled by Exodia 3.5 Flash-Lite" (Marcus sees "Gemini 3.5 Flash-Lite") (v296)

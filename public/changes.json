@@ -1,4 +1,7 @@
 {
+  "298": [
+    "Fixes and polish"
+  ],
   "297": [
     "What's new: a tap on it, or right next to it, always opens it; a tap elsewhere leaves it be, and it goes by itself after 2 minutes",
     "What's new: once open, a tap anywhere else closes it for good"

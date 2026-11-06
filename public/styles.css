@@ -1312,3 +1312,5 @@ main.page { overflow-x: clip; }
 .homeMore .muted { font-weight: 400; }
 /* Settings: Danger zone. */
 .dangerBtn { color: #B4412B; }
+/* "Exodia is on it": the whole request; a long one scrolls inside the banner instead of being cut off. */
+.buildBanner .toastText.buildSaid { display: block; -webkit-line-clamp: unset; overflow-y: auto; max-height: 32vh; white-space: pre-wrap; overscroll-behavior: contain; }
