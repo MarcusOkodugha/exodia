@@ -398,5 +398,8 @@
   "323": [
     "One message box at the top while Exodia builds, with an x to hide it",
     "A soft placeholder while your voice note turns into words"
+  ],
+  "324": [
+    "The x on the build message sits in its top-right corner"
   ]
 }
