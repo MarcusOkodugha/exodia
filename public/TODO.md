@@ -24,6 +24,9 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Admin overview + dashboard: people, opens, taps, pages, where they got stuck (v331; opens/taps counted from 6 Nov 2026)
+- ✓ Abs and calves strength levels from sit-ups/crunches/calf raises; typing help/feedback offers the command; box examples; more tips and quotes; text stays on cursor; cream not black on open (v330–v332)
+- ✓ Form bar = last 4 weeks vs best; session counts in lift list; tapped chart day under the dates; / lists every command (v327–v329)
 
 - Audit fixes: kg→reps keeps focus (no redraw while moving between set boxes); "N sets" parsed as N sets; unclear notes show the AI's question instead of "sent as feedback"; only 429/503/offline wait for later, a 502 is "Not logged" + Try again; Quick add with no log opens at the top; new set focuses kg; set numbers for screen readers, hidden swipe Delete out of Tab order, 44 px hit areas; >10-rep sets never set the all-time estimate; At your best = real kg, now vs all-time over the chart's range (v321)
 
