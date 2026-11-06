@@ -416,5 +416,9 @@
   ],
   "328": [
     "The day you tap on a chart now shows under the dates, so the dates read as the chart's start and end"
+  ],
+  "329": [
+    "Typing / lists every command",
+    "The box now and then types /help or /feedback in orange, also once you know it well"
   ]
 }

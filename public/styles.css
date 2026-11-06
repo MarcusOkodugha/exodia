@@ -822,7 +822,9 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .prompt.slashOn .promptInput { color: transparent; caret-color: var(--text); }
 .slashCmd { color: var(--clayText, var(--clay)); font-weight: 600; }
 .slashSuggest { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text2); font: inherit; font-size: 14px; }
-.slashSuggest[hidden] { display: none; }
+.slashList { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
+.slashList[hidden] { display: none; }
+.slashList .slashSuggest { margin: 0; width: 100%; text-align: left; }
 .slashSuggest b { color: var(--clayText, var(--clay)); font-weight: 600; }
 /* Now vs best: one line and a thin clay bar under a lift's numbers. */
 .nowBest { margin: 2px 0 14px; }

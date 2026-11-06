@@ -3021,7 +3021,7 @@ const renderPicks = () => {
   const cardio = !query || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Cardio</span><span class="pickLast">Cardio or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : '';
   const split = picks.filter((name) => BIG_THREE.includes(name)).length;
   return `${picks.slice(0, split).map((name) => pickButton(name, date)).join('')}${cardio}${picks.slice(split).map((name) => pickButton(name, date)).join('')}
-    ${query && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
+    ${query && !query.startsWith("/") && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
 // Below the main picks: a clear line, then every other lift, quieter, so nobody lands there by accident.
 const quickExtras = () => {
@@ -3168,8 +3168,9 @@ const showSheet = () => view.composer && view.route !== 'admin' && view.route !=
 const SLASHES = [['/admin', 'Send this to Exodia', true], ['/feedback', 'Send this as feedback', false], ['/help', 'How Exodia works', false]];
 const slashCommand = () => SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && new RegExp(`^\\${cmd}(\\s|$)`, 'i').test(view.draft))?.[0] || '';
 const slashOn = () => Boolean(slashCommand());
-const slashOffer = () => (/^\/[a-z]*$/i.test(view.draft) ? SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin') && cmd.startsWith(view.draft.toLowerCase())) || null : null);
-const slashSuggest = () => Boolean(slashOffer());
+const slashOffer = () => (/^\/[a-z]*$/i.test(view.draft) ? SLASHES.filter(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin') && cmd.startsWith(view.draft.toLowerCase())) : []);
+const slashSuggest = () => slashOffer().length > 0;
+const slashListHtml = () => slashOffer().map(([cmd, what]) => `<button class="slashSuggest" data-action="slash-admin" data-cmd="${cmd}"><b>${cmd}</b> ${what}</button>`).join('');
 const slashHtml = () => {
   const cmd = slashCommand();
   return cmd ? `<span class="slashCmd">${esc(view.draft.slice(0, cmd.length))}</span>${esc(view.draft.slice(cmd.length))}\u200b` : '';
@@ -3180,14 +3181,11 @@ const paintSlash = () => {
   prompt.classList.toggle('slashOn', slashOn());
   const mirror = prompt.querySelector('.promptMirror');
   if (mirror) mirror.innerHTML = slashHtml();
-  const hint = document.querySelector('.slashSuggest');
-  if (hint) {
-    const offer = slashOffer();
-    hint.hidden = !offer;
-    if (offer) {
-      hint.dataset.cmd = offer[0];
-      hint.innerHTML = `<b>${offer[0]}</b> ${offer[1]}`;
-    }
+  const list = document.querySelector('.slashList');
+  if (list) {
+    const html = slashListHtml();
+    if (list.innerHTML !== html) list.innerHTML = html;
+    list.hidden = !html;
   }
 };
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
@@ -3196,7 +3194,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
-  <button class="slashSuggest" data-action="slash-admin" data-cmd="${slashOffer()?.[0] || '/admin'}"${slashSuggest() ? '' : ' hidden'}><b>${slashOffer()?.[0] || '/admin'}</b> ${slashOffer()?.[1] || ''}</button>
+  <div class="slashList"${slashSuggest() ? '' : ' hidden'}>${slashListHtml()}</div>
   <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
@@ -3265,24 +3263,15 @@ const EXAMPLES = ['120 for 3 bench press', 'Paste any workout notes, even old on
 const hintHtml = (text) => esc(text).replace(/(^|\s)(\/[a-z]*)/i, '$1<span class="slashCmd">$2</span>');
 // After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
 const QUIET_HINT = 'Log training, paste notes or give feedback';
+const KNOWN_EXAMPLES = [QUIET_HINT, '/help for tips and exports', QUIET_HINT, 'Type / to see every command', QUIET_HINT, '/feedback what should Exodia add?'];
 const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
 const typewriter = { text: '', index: 0, length: 0, fading: false };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 (window.requestIdleCallback || setTimeout)(preloadHands);
 
 const tickTypewriter = () => {
-  const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : view.route === 'admin' ? CLAUDE_EXAMPLES : EXAMPLES;
-  if (examples === EXAMPLES && knowsTheBox()) {
-    typewriter.text = QUIET_HINT;
-    typewriter.fading = false;
-    const quiet = document.querySelector('.dock:not(.onboardDock) .prompt .hint:not(.live)');
-    if (quiet && quiet.textContent !== QUIET_HINT) {
-      quiet.classList.remove('fading');
-      quiet.textContent = QUIET_HINT;
-    }
-    setTimeout(tickTypewriter, 1500);
-    return;
-  }
+  // People who know the box get the quiet line, held still, with a command typed out in orange between.
+  const examples = view.route === 'feedback' ? FEEDBACK_EXAMPLES : view.route === 'admin' ? CLAUDE_EXAMPLES : knowsTheBox() ? KNOWN_EXAMPLES : EXAMPLES;
   typewriter.index %= examples.length;
   let delay = 70 + Math.random() * 60;
   if (reducedMotion.matches) {
@@ -3294,6 +3283,9 @@ const tickTypewriter = () => {
     typewriter.length = 0;
     typewriter.index = (typewriter.index + 1) % examples.length;
     delay = 600;
+  } else if (examples[typewriter.index] === QUIET_HINT && typewriter.length < QUIET_HINT.length) {
+    typewriter.length = QUIET_HINT.length;
+    delay = 9000;
   } else if (typewriter.length < examples[typewriter.index].length) {
     typewriter.length += 1;
     if (typewriter.length === examples[typewriter.index].length) delay = 3400;
