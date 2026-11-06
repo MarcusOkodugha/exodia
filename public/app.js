@@ -2950,6 +2950,7 @@ const paintSlash = () => {
 };
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
+  ${view.outlierAsk?.length && !view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Check a set"><p>${esc(outlierText())}</p><div class="confirmRow"><button class="textBtn" data-action="outlier-no">Leave out</button><button class="confirmYes" data-action="outlier-yes">Add it</button></div></div>` : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? '<span class="ghostText">Sending to Exodia builder…</span>' : 'Exodia builds whatever you write or say here'}</p>` : ''}
@@ -4603,7 +4604,41 @@ const sameImportSets = (first, second) => first.length === second.length && firs
 // Adding a file again never doubles a day: a lift that is already on that day with the same sets is left alone,
 // with other sets the file's version replaces it (the newest file wins). Within one file, sets of the same lift on
 // the same day are kept together. Lifts on that day that the file doesn't mention stay as they are.
+// A set far heavier than anything else of that lift (your log and the rest of the file) is most likely a typo in
+// the file, like a bench 190 × 1 among 110s and 122s when your heaviest is 145. Such a set is held back and Exodia
+// asks once: more than 20% and 10 kg above both your heaviest logged set and the file's next heaviest set.
+const OUTLIER_SHARE = 1.2;
+const holdOutliers = (days) => {
+  const byLift = new Map();
+  for (const day of days) for (const exercise of day.exercises) for (const set of exercise.sets) {
+    const name = exercise.name.toLowerCase();
+    if (!byLift.has(name)) byLift.set(name, []);
+    byLift.get(name).push(Number(set.kg) || 0);
+  }
+  const limit = new Map();
+  for (const [name, kgs] of byLift) {
+    const logged = Math.max(0, ...state.sessions.flatMap((session) => session.exercises.filter((exercise) => exercise.name.toLowerCase() === name).flatMap((exercise) => exercise.sets.map((set) => Number(set.kg) || 0))));
+    const sorted = [...kgs].sort((first, second) => second - first);
+    const base = Math.max(logged, sorted[1] || 0);
+    if (base > 0) limit.set(name, Math.max(base * OUTLIER_SHARE, base + 10));
+  }
+  const held = [];
+  const kept = days.map((day) => ({ ...day, exercises: day.exercises.map((exercise) => {
+    const cap = limit.get(exercise.name.toLowerCase());
+    if (!cap) return exercise;
+    const sets = exercise.sets.filter((set) => {
+      if ((Number(set.kg) || 0) <= cap) return true;
+      held.push({ date: day.date, name: exercise.name, set, best: Math.round(cap / OUTLIER_SHARE) });
+      return false;
+    });
+    return { ...exercise, sets };
+  }).filter((exercise) => exercise.sets.length) }));
+  return { kept, held };
+};
 const mergeImported = (days) => {
+  const { kept, held } = holdOutliers(days);
+  days = kept;
+  if (held.length) view.outlierAsk = [...(view.outlierAsk || []), ...held];
   const touched = [];
   let sets = 0;
   const fromThisFile = new Set();
@@ -4915,6 +4950,33 @@ const answerImport = (yes) => {
   else did.push('Not added: you cancelled it');
   addLog(ask.said, did);
   closeTray();
+};
+const outlierText = () => {
+  const held = view.outlierAsk;
+  const one = held[0];
+  const line = `${one.name} ${Number(one.set.kg)} × ${one.set.reps} on ${dayLabel(one.date)}`;
+  return held.length === 1 ? `${line} looks far heavier than your other ${one.name} sets (around ${one.best} kg), so it was left out. Add it anyway?` : `${held.length} sets look far heavier than the rest, like ${line}, so they were left out. Add them anyway?`;
+};
+const answerOutliers = (yes) => {
+  const held = view.outlierAsk || [];
+  view.outlierAsk = null;
+  if (!held.length) return;
+  if (yes) {
+    // Put back next to the rest of that day's sets (a merge would treat it as a new version of the file).
+    for (const item of held) {
+      let session = sessionFor(item.date);
+      if (!session) {
+        session = { date: item.date, exercises: [], cardio: 0 };
+        state.sessions.push(session);
+      }
+      const exercise = session.exercises.find((other) => other.name.toLowerCase() === item.name.toLowerCase());
+      if (exercise) exercise.sets.push({ ...item.set, imported: true });
+      else session.exercises.push({ name: item.name, sets: [{ ...item.set, imported: true }] });
+    }
+    save();
+    syncNow();
+  }
+  addLog(yes ? 'Add it anyway' : 'Leave it out', [yes ? `Added ${held.length === 1 ? 'the set' : `${held.length} sets`}: ${held.map((item) => `${item.name} ${Number(item.set.kg)} × ${item.set.reps}`).join(', ')}` : `Left out ${held.length === 1 ? 'the set' : `${held.length} sets`}: ${held.map((item) => `${item.name} ${Number(item.set.kg)} × ${item.set.reps}`).join(', ')}`], { manual: true });
 };
 const importConfirmText = () => {
   const ask = view.importConfirm;
@@ -5556,6 +5618,8 @@ document.addEventListener('click', (event) => {
   }
   else if (action === 'confirm-yes') answerConfirm(true);
   else if (action === 'import-yes') answerImport(true);
+  else if (action === 'outlier-yes') answerOutliers(true);
+  else if (action === 'outlier-no') answerOutliers(false);
   else if (action === 'import-no') answerImport(false);
   else if (action === 'unfile') view.files = (view.files || []).filter((file, index) => index !== Number(target.dataset.index));
   else if (action === 'retry-said') {

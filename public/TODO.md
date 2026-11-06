@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Import check: a set more than 20% and 10 kg above both your heaviest logged set of that lift and the file's next heaviest is held back; one question "… looks far heavier … Add it anyway?" with Leave out / Add it (adds it next to that day's sets); the rest of the file goes in as usual (v294)
+
 - 7-week program Excel is in (Marcus confirmed); its one bad row, bench 190 × 1 on "Day 14", 25 Mar 2024, was removed
 
 - Data fix (Marcus asked): removed the imported Bench Press 190 × 1 on 25 Mar 2024 (after 122 × 2, an import mistake); heaviest bench in his log is now 145 kg. Done through a normal sync on top of the server's version, so his devices pick it up (Nov 6)
