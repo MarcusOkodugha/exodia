@@ -154,6 +154,8 @@ const loadSync = () => {
 };
 
 let syncState = loadSync();
+// Remembered from the last sync, so Admin and /admin work from the first moment, not only after the server answers.
+view.isAdmin = Boolean(syncState?.admin);
 const localJson = () => Object.fromEntries(state.sessions.map((session) => [session.date, JSON.stringify(session)]));
 const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}) });
 let lastSaved = localJson();
@@ -299,6 +301,7 @@ const syncNow = () => {
         renderSoon();
       }
       syncState.cursor = result.cursor;
+      syncState.admin = Boolean(result.admin);
       writeLocal();
       view.syncedAt = Date.now();
       if (Boolean(result.admin) !== Boolean(view.isAdmin)) {
@@ -677,8 +680,20 @@ const laterJobs = () => (state.later || []);
 // keeps both, so "yesterday" and "make the last set 105" still land where they were meant to.
 const noteContext = () => ({ today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '' });
 // No connection at all is a "try again later", same as a busy AI.
-const fetchOrLater = (url, options) => fetch(url, options).catch(() => {
-  throw Object.assign(new Error('No connection right now.'), { later: true, busy: true });
+// Every request a person waits on gives up after a while with a reason, so "writing…" never hangs forever on bad wifi.
+const timedFetch = (url, options = {}, ms = 45000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal })
+    .catch((error) => {
+      throw controller.signal.aborted ? Object.assign(new Error(`No answer in ${Math.round(ms / 1000)} seconds. Try again.`), { timedOut: true }) : error;
+    })
+    .finally(() => clearTimeout(timer));
+};
+// A parse that timed out is safe to try again by itself; an import (/api/add, which can save) is not.
+const fetchOrLater = (url, options, ms = 45000) => timedFetch(url, options, ms).catch((error) => {
+  if (error.timedOut && url !== '/api/parse') throw error;
+  throw Object.assign(new Error(error.timedOut ? error.message : 'No connection right now.'), { later: true, busy: true });
 });
 const parseWithAi = async (text, audio, hint = '', saved = null) => {
   const response = await fetchOrLater('/api/parse', {
@@ -1828,8 +1843,8 @@ const sendFeedback = async (text, voice) => {
   closeTray();
   try {
     const audio = voice ? await wavBase64(voice) : undefined;
-    const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, audio, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
-    const body = await response.json();
+    const response = await timedFetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, audio, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
+    const body = await response.json().catch(() => ({ error: `The server answered ${response.status}. Try again.` }));
     if (!response.ok) throw new Error(body.error || 'Could not send that. Try again.');
     state.feedback = [...(state.feedback || []), { at: Date.now(), said: body.said, kind: body.kind, title: body.title }].slice(-50);
     addLog(body.said, [`Sent feedback to Marcus: ${body.title}`], { manual: true });
@@ -1837,7 +1852,7 @@ const sendFeedback = async (text, voice) => {
     clearTimeout(view.toastTimer);
     view.toastTimer = setTimeout(clearToast, 5000);
   } catch (error) {
-    view.draft = text;
+    if (!view.draft.trim()) view.draft = text;
     view.status = error.message;
   } finally {
     view.pending = view.pending.filter((item) => item !== pending);
@@ -2052,7 +2067,7 @@ const sendToClaude = async (text, voice) => {
     voice = recorded?.size > 4000 ? recorded : null;
     if (!text && !voice) throw new Error(recorded ? `no sound recorded (${Math.round(recorded.size / 1024)} KB)` : 'nothing to send');
     if (voice) {
-      const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
+      const response = await timedFetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.text) throw new Error(body.error || 'Could not hear that. Try again.');
       ask = [text, body.text.replace(/^\s*(slash|\/)\s*(admin|feedback)\b[\s,.:]*/i, '')].filter(Boolean).join(' ');
@@ -2087,7 +2102,7 @@ const routeFeedback = async (text, said) => {
     await askClaude(text);
     return;
   }
-  const response = await fetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
+  const response = await timedFetch('/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, name: state.name || '', ...(view.sandbox ? { dry: true } : {}) }) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'Could not send that feedback. Try again.');
   state.feedback = [...(state.feedback || []), { at: Date.now(), said: body.said || text, kind: body.kind, title: body.title }].slice(-50);
@@ -3286,7 +3301,7 @@ const otherChip = () => {
 };
 
 // Admin and Feedback show everything on the page itself, so the box never opens a panel over them.
-const showSheet = () => view.composer && view.route !== 'admin' && view.route !== 'feedback';
+const showSheet = () => view.composer && ((view.route !== 'admin' && view.route !== 'feedback') || Boolean(view.showQuick));
 
 // /admin typed in any box turns clay (the box can't colour part of its own text, so a copy sits behind it) and is suggested while you type "/".
 // Slash commands in the box turn red: /admin (Marcus only) sends the rest to Claude to build; /feedback (anyone)
@@ -3323,12 +3338,20 @@ const paintSlash = () => {
     list.hidden = !html;
   }
 };
+// Over the Admin box: how your latest request is going (sending, failed with Try again, building, live) for 10
+// minutes, so a request never seems to vanish; otherwise what the box does.
+const adminDockLine = () => {
+  const run = (state.claudeRuns || [])[0];
+  if (run?.status === 'sending') return writingLine('Sending to Exodia builder');
+  if (run && Date.now() - (run.doneAt || run.at) < 10 * 60000) return runStatus(run);
+  return 'Exodia builds whatever you write or say here';
+};
 const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.outlierAsk?.length && !view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Check a set"><p>${esc(outlierText())}</p><div class="confirmRow"><button class="textBtn" data-action="outlier-no">Leave out</button><button class="confirmYes" data-action="outlier-yes">Add it</button></div></div>` : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${(state.claudeRuns || []).some((run) => run.status === 'sending') ? writingLine('Sending to Exodia builder') : 'Exodia builds whatever you write or say here'}</p>` : ''}
+  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${adminDockLine()}</p>` : ''}
   <div class="slashList"${slashSuggest() ? '' : ' hidden'}>${slashListHtml()}</div>
   <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
     ${contextChip()}
@@ -4015,7 +4038,7 @@ const stopOnboardMic = () => {
     render();
     try {
       const audio = await wavBase64(new Blob(chunks, { type: recorder.mimeType }));
-      const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio }) });
+      const response = await timedFetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Could not hear that. Try again.');
       view.onboard.data = [view.onboard.data.trim(), body.text].filter(Boolean).join('\n');
@@ -4445,6 +4468,7 @@ const showResult = (did, touched, before = null) => {
 
 const note = (title, text) => {
   view.toast = { kind: 'rep', title, text };
+  requestAnimationFrame(render);
   setTimeout(() => {
     clearToast();
   }, 3500);
@@ -5107,7 +5131,7 @@ const importPause = async (attempt, progress, index, total) => {
   progress(index, total, total > 1 ? `Reading part ${index + 1} of ${total}…` : 'Reading the file…');
 };
 const sendImportPart = async (text, extra = {}) => {
-  const response = await fetchOrLater('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) });
+  const response = await fetchOrLater('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) }, 150000);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(body.error || 'Could not read that. Try again.'), { busy: response.status === 429 || response.status >= 500 });
   return body;
@@ -5528,6 +5552,8 @@ const send = async () => {
   const text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
   // A file waiting in the box goes with whatever you typed or said: a voice note becomes the file's note.
   if (view.files?.length) {
+    // Files import into your log, so they go from Home, where the result shows (Admin and Feedback have no chat).
+    if (view.route === 'admin' || view.route === 'feedback') location.hash = '#/';
     const files = view.files;
     view.files = [];
     view.draft = '';
@@ -5537,7 +5563,7 @@ const send = async () => {
       view.status = 'Listening to your note…';
       render();
       try {
-        const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
+        const response = await timedFetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio: await wavBase64(voice) }) });
         const body = await response.json().catch(() => ({}));
         if (response.ok && body.text) note = [text, body.text].filter(Boolean).join(' ');
       } catch {
@@ -6091,6 +6117,11 @@ document.addEventListener('click', (event) => {
   else if (action === 'retry-said') {
     const entry = state.log?.[Number(target.dataset.index)];
     if (!entry) return;
+    if (view.draft.trim() && view.draft !== entry.said) {
+      view.status = 'Send or clear what you are typing first.';
+      render();
+      return;
+    }
     view.replacing = entry.at;
     view.draft = entry.said;
     return send();
@@ -6195,6 +6226,11 @@ document.addEventListener('click', (event) => {
       return;
     }
   } else if (action === 'prefill') {
+    if (view.draft.trim() && view.draft !== target.dataset.text) {
+      view.status = 'Send or clear what you are typing first.';
+      render();
+      return;
+    }
     view.composer = true;
     view.composerDate = todayIso();
     view.draft = target.dataset.text;
@@ -6277,6 +6313,7 @@ document.addEventListener('click', (event) => {
   } else if (action === 'stop-mic') {
     return stopRecording().then((blob) => {
       view.voiceBlob = blob?.size > 4000 ? blob : null;
+      if (!view.voiceBlob) view.status = 'Didn’t catch anything. Hold the mic a little longer and try again.';
       view.live = '';
       view.focusDraft = desktopQuery.matches;
       render();
