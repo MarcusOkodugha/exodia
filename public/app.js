@@ -2305,7 +2305,13 @@ const STANDARDS = {
   },
   'pull-ups': {
     male: [[60, 0.5, 7, 14, 23, 33], [80, 1, 7, 13, 21, 29], [90, 1, 7, 12, 19, 27], [100, 0.5, 6, 11, 18, 25], [110, 0.5, 6, 10, 17, 23], [120, 0.5, 5, 10, 16, 22], [140, 0.5, 4, 9, 13, 19]],
-    female: [[60, 0.5, 1, 6, 12, 19]]
+    female: [[50, 0.5, 0.5, 6, 13, 22], [60, 0.5, 0.5, 6, 12, 20], [70, 0.5, 0.5, 5, 11, 18], [80, 0.5, 0.5, 5, 10, 16], [90, 0.5, 0.5, 4, 9, 14], [100, 0.5, 0.5, 3, 8, 13], [120, 0.5, 0.5, 1, 6, 10]]
+  },
+  // Weighted pull-ups: the weight added on top of your bodyweight (minus = assisted), Strength Level's "1RM Weight"
+  // table on the pull-ups page (read 6 November 2026). A pull-up's level is the better of its reps and its added weight.
+  'pull-ups-added': {
+    male: [[60, -4, 11, 27, 45, 64], [80, -2, 14, 33, 54, 75], [90, -2, 15, 35, 57, 79], [100, -3, 15, 36, 59, 82], [110, -4, 15, 37, 60, 84], [120, -6, 14, 36, 61, 85], [140, -10, 11, 35, 60, 86]],
+    female: [[50, -14, -4, 8, 21, 35], [60, -16, -4, 9, 23, 38], [70, -18, -5, 9, 24, 40], [80, -20, -7, 8, 24, 41], [90, -23, -9, 7, 24, 41], [100, -26, -12, 5, 22, 40], [120, -34, -18, -1, 18, 37]]
   },
   // Other lifts, only to rank "your most impressive lift" (not on the web): the same Strength Level tables, read from
   // strengthlevel.com/strength-standards/<key>/kg on 5 November 2026. Dumbbell lifts are per dumbbell.
@@ -2387,25 +2393,50 @@ const STRENGTH_NOW_DAYS = 90;
 // time you did it). Pull-ups count your most reps in one set against Strength Level's reps table.
 const liftStrength = (lift, body) => {
   const since = addDays(todayIso(), -STRENGTH_NOW_DAYS);
-  let now = 0;
-  let best = null;
-  let recent = null;
+  // Pull-ups have two ways to count: most reps in one set, and the most weight added for a set (kg on the belt).
+  // Each is kept apart and scored on its own Strength Level table; the better level wins.
+  const top = { reps: null, added: null, recentReps: null, recentAdded: null };
+  const better = (current, value, tie, set, date, name) => (!current || value > current.value || (value === current.value && tie > current.tie) ? { value, tie, set, date, name } : current);
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
     for (const exercise of session.exercises) {
       if (!lift.names.includes(exercise.name.toLowerCase())) continue;
       for (const set of validSets(exercise)) {
         if (set.warmup) continue;
-        const [value, reps] = lift.reps ? [Number(set.reps), Number(set.kg) || 0] : [Number(set.kg), Number(set.reps)];
-        if (!(value > 0)) continue;
-        if (session.date >= since && value > now) now = value;
-        if (!best || value > best.value || (value === best.value && reps > best.tie)) best = { value, tie: reps, set, date: session.date, name: exercise.name };
-        if (session.date >= since && (!recent || value > recent.value || (value === recent.value && reps > recent.tie))) recent = { value, tie: reps, set, date: session.date };
+        const [kg, reps] = [Number(set.kg) || 0, Number(set.reps)];
+        const recent = session.date >= since;
+        if (lift.reps) {
+          if (reps > 0) {
+            top.reps = better(top.reps, reps, kg, set, session.date, exercise.name);
+            if (recent) top.recentReps = better(top.recentReps, reps, kg, set, session.date, exercise.name);
+          }
+          if (kg > 0) {
+            top.added = better(top.added, kg, reps, set, session.date, exercise.name);
+            if (recent) top.recentAdded = better(top.recentAdded, kg, reps, set, session.date, exercise.name);
+          }
+        } else if (kg > 0) {
+          top.added = better(top.added, kg, reps, set, session.date, exercise.name);
+          if (recent) top.recentAdded = better(top.recentAdded, kg, reps, set, session.date, exercise.name);
+        }
       }
     }
   }
-  const ever = best?.value || 0;
   const marks = standardAt(STANDARDS[lift.key]?.[body.sex], body.kg);
-  return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) }, recent };
+  if (!lift.reps) {
+    const best = top.added;
+    const recent = top.recentAdded;
+    const [ever, now] = [best?.value || 0, recent?.value || 0];
+    return { ...lift, value: now, ever, marks, score: levelScore(now, marks), everScore: levelScore(ever, marks), best: best && { ...best, score: levelScore(best.value, marks) }, recent };
+  }
+  const addedMarks = standardAt(STANDARDS['pull-ups-added']?.[body.sex], body.kg);
+  const pick = (byReps, byAdded) => {
+    const repsScore = byReps ? levelScore(byReps.value, marks) : 0;
+    const addedScore = byAdded && addedMarks ? levelScore(byAdded.value, addedMarks) : 0;
+    return addedScore > repsScore ? { ...byAdded, score: addedScore, weighted: true } : byReps ? { ...byReps, score: repsScore, weighted: false } : null;
+  };
+  const best = pick(top.reps, top.added);
+  const recent = pick(top.recentReps, top.recentAdded);
+  // Shown in added kg when the weighted sets are what counts, so the next level reads "+59 kg", not reps.
+  return { ...lift, weighted: Boolean(best?.weighted), reps: !best?.weighted, value: recent ? 1 : 0, ever: best ? 1 : 0, marks: best?.weighted ? addedMarks : marks, score: recent?.score || 0, everScore: best?.score || 0, best, recent };
 };
 // Bodyweight and sex, asked where they're needed (Strength level, and the anatomy's Strength view). Both forms can be
 // on screen at once (computer), so each reads its own field.
@@ -2460,7 +2491,7 @@ const renderStrength = () => {
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
     // The set the level comes from, under it; tapping the corner opens that day.
     const source = known && shown(lift) ? (recent ? lift.recent : lift.best) : null;
-    const setLine = source ? (lift.reps ? `${source.set.reps} reps${Number(source.set.kg) > 0 ? ` +${Number(source.set.kg)} kg` : ''}` : `${Number(source.set.kg)} × ${source.set.reps}`) : '';
+    const setLine = source ? (lift.key === 'pull-ups' ? (Number(source.set.kg) > 0 ? `+${Number(source.set.kg)} kg × ${source.set.reps}` : `${source.set.reps} reps`) : `${Number(source.set.kg)} × ${source.set.reps}`) : '';
     const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelWord(shownScore(lift))} 0.0`, '500 15px'), textWidth(`${setLine} · 00 Mmm 0000`, '400 13px'));
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
@@ -2666,8 +2697,9 @@ const rarityOf = (lift, body) => {
     const inClass = meetShare(lift.key, body.sex, body.kg, value);
     if (inClass) tiles.push({ label: 'Your weight class', value: `Top ${shareText(inClass.share)}`, sub: inClass.limit === 999 ? `over ${IPF_CLASSES[body.sex].at(-1)} kg, raw` : `up to ${inClass.limit} kg, raw` });
   }
-  if (level < 5) tiles.push({ label: 'Next level', value: lift.reps ? `${Math.ceil(lift.marks[level])} reps` : `${Math.round(lift.marks[level])} kg`, sub: LEVELS[level] });
-  else if (!big) tiles.push({ label: 'Over Elite', value: `+${Math.round((value / lift.marks[4] - 1) * 100)}%`, sub: `Elite is ${lift.reps ? `${Math.ceil(lift.marks[4])} reps` : `${Math.round(lift.marks[4])} kg`}` });
+  const unit = (mark) => (lift.reps ? `${Math.ceil(mark)} reps` : lift.weighted ? `+${Math.round(mark)} kg` : `${Math.round(mark)} kg`);
+  if (level < 5) tiles.push({ label: 'Next level', value: unit(lift.marks[level]), sub: LEVELS[level] });
+  else if (!big) tiles.push({ label: 'Over Elite', value: `+${Math.round((value / lift.marks[4] - 1) * 100)}%`, sub: `Elite is ${unit(lift.marks[4])}` });
   if (count === 0) return { meet: true, tiles, rare: `No ${body.sex === 'male' ? 'man' : 'woman'} has lifted more`, sentence: `Heavier than every raw meet result on record (OpenPowerlifting). ${trained}` };
   if (count) {
     const sentence = big ? `${count.toLocaleString('en-GB')} ${people} in the world have ${LIFT_VERB[lift.key]} ${value} kg or more in a raw meet. ${trained}` : `Matched by level: as rare as a ${matched} kg deadlift at your bodyweight, which ${count.toLocaleString('en-GB')} ${people} in the world have done in a raw meet. ${trained}`;
@@ -2690,7 +2722,7 @@ const renderImpressive = () => {
   const setText = (lift) => {
     const { set } = lift.best;
     const kg = Number(set.kg);
-    return lift.reps ? (kg > 0 ? `+${kg} kg × ${set.reps}` : `${set.reps} reps`) : `${kg} kg × ${set.reps}`;
+    return lift.key === 'pull-ups' ? (kg > 0 ? `+${kg} kg × ${set.reps}` : `${set.reps} reps`) : `${kg} kg × ${set.reps}`;
   };
   return `<p class="section">Your most impressive lift</p>
     <div class="feat">
