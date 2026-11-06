@@ -337,5 +337,8 @@
   ],
   "302": [
     "Small fixes"
+  ],
+  "306": [
+    "Days you hit Exodia have a blue outline on Home, the same blue as in the calendar"
   ]
 }

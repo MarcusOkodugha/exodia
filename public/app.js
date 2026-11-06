@@ -945,12 +945,19 @@ const daySummary = (session) => {
   return `${row(first)}${second ? row(second) : ''}${others.length ? `<span class="dayOthers">+ ${esc(others.join(', '))}</span>` : ''}`;
 };
 
+// Days you hit Exodia get the same blue outline on Home as in the Trends calendar, so a tap there lands on a match.
+let exodiaDayCache = { from: null, set: new Set() };
+const exodiaDaySet = () => {
+  const history = exodiaHistory();
+  if (exodiaDayCache.from !== history) exodiaDayCache = { from: history, set: new Set(history.days || []) };
+  return exodiaDayCache.set;
+};
 const renderSession = (session) => {
   const pendings = inFlight().filter((pending) => pending.date === session.date);
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
-  return `<section class="card session${open ? ' open' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
+  return `<section class="card session${open ? ' open' : ''}${exodiaDaySet().has(session.date) ? ' exodiaDay' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
     <div class="headRow">
       ${editing ? `<div class="head">
         <span class="headName dayDate">${dayLabel(session.date)}</span>
