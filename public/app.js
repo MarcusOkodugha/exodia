@@ -431,7 +431,7 @@ const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map((set
 // Harder variants count for their main lift (a 140 kg paused bench means you bench at least 140), never the other way.
 const HARDER_VARIANTS = {
   'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press', 'Paused Bench Press', 'Spoto Press', 'Larsen Press', 'Pin Press'],
-  Squat: ['Pause Squat', 'Paused Squat', 'Pin Squat', 'Tempo Squat'],
+  Squat: ['Pause Squat', 'Paused Squat', 'Pin Squat', 'Tempo Squat', 'High Bar Squat', 'High-Bar Squat'],
   Deadlift: ['Deficit Deadlift', 'Pause Deadlift', 'Paused Deadlift'],
 };
 const MAIN_LIFT = Object.fromEntries(Object.entries(HARDER_VARIANTS).flatMap(([main, variants]) => variants.map((variant) => [variant.toLowerCase(), main.toLowerCase()])));
