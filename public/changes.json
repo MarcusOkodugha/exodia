@@ -367,5 +367,8 @@
     "Edit a day with the small pencil; Done stays at the top while you scroll",
     "Hold any day to edit it, open or closed",
     "The × on \"Editing …\" in the box ends editing, one Delete day button"
+  ],
+  "315": [
+    "The demo link opens straight on Trends without the Exodia animation"
   ]
 }

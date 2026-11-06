@@ -6380,6 +6380,8 @@ if (new URLSearchParams(location.search).has('demo')) {
     .finally(() => {
       lastSaved = localJson();
       lastMeta = metaJson();
+      // The log arriving isn't a new Exodia hit: no celebration over the demo.
+      view.wasHit = undefined;
       render();
     });
   Object.assign(view, { onboard: null, linkOffer: null, open: new Set() });
