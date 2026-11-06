@@ -8,11 +8,10 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 - [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
   1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
-- [ ] **Admin builds on your second Claude account.** Lets Admin's "Change the app" run on this account too (switch: "Built with Account 1 / Account 2"). Blocked until GitHub is connected here.
-  1. On this Claude account open [claude.ai/connect-github](https://claude.ai/connect-github) and connect the GitHub account that owns MarcusOkodugha/exodia
-  2. Tell Claude "GitHub connected": it creates the "Exodia change" task on this account
-  3. Open it at [claude.ai/code/routines](https://claude.ai/code/routines), turn on **API trigger**, copy the URL and the token
-  4. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2` (paste the URL), then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2` (paste the token)
+- [ ] **Admin builds on your second Claude account.** The "Exodia change" task now exists on it; 3 taps and 2 commands connect it to Admin's "Change the app".
+  1. Open [the Exodia change task](https://claude.ai/code/routines/trig_01YTmBu1zKvXCvCHAwZvnYxG), turn on **API trigger**, copy the URL and the token
+  2. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2` (paste the URL), then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2` (paste the token)
+  3. In Exodia → Admin, pick "Built with Account 2" and send a small change to test it
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
 ## To do (Claude)
 
