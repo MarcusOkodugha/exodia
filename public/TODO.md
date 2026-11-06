@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Thinking: one look from the start (hand + clay line with "Reading the file…" while there's progress), every new message opens on an Exodia line held 3.2 s before the first quote; 7 quotes from the Resurrection 3 program added ("What we do in life echoes in eternity" credited to Maximus, Gladiator, where it's from) (v295)
+
 - Import check: a set more than 20% and 10 kg above both your heaviest logged set of that lift and the file's next heaviest is held back; one question "… looks far heavier … Add it anyway?" with Leave out / Add it (adds it next to that day's sets); the rest of the file goes in as usual (v294)
 
 - 7-week program Excel is in (Marcus confirmed); its one bad row, bench 190 × 1 on "Day 14", 25 Mar 2024, was removed

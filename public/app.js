@@ -823,7 +823,15 @@ const WISDOM = [
   ['The soul becomes dyed with the colour of its thoughts.', 'Marcus Aurelius'],
   ['Confine thyself to the present.', 'Marcus Aurelius'],
   ['No great thing is created suddenly.', 'Epictetus'],
-  ['Difficulties strengthen the mind, as labour does the body.', 'Seneca']
+  ['Difficulties strengthen the mind, as labour does the body.', 'Seneca'],
+  // From Marcus's own training program (Resurrection 3), the lines he put above his weeks.
+  ['We choose to go to the Moon… not because they are easy, but because they are hard.', 'John F. Kennedy'],
+  ['With the courage to begin and the discipline to endure, victory becomes a matter of time.', ''],
+  ['It is not death that a man should fear, but he should fear never beginning to live.', 'Marcus Aurelius'],
+  ['They didn’t believe in us. God did.', 'DJ Khaled'],
+  ['Forget the RPE. Stare into your soul and find out who you really are.', ''],
+  ['What we do in life echoes in eternity.', 'Maximus, Gladiator'],
+  ['How big would you dream if you knew you couldn’t fail?', '']
 ];
 const shuffled = (list) => list.map((item) => [Math.random(), item]).sort((first, second) => first[0] - second[0]).map(([, item]) => item);
 const THINK_ORDER = (() => {
@@ -831,16 +839,33 @@ const THINK_ORDER = (() => {
   const quotes = shuffled(WISDOM);
   return lines.flatMap((line, index) => [line, quotes[index % quotes.length]]);
 })();
+// Every time Exodia starts thinking it opens on one of its own lines ("Pondering…") and holds it a full beat before
+// the first quote, instead of picking up wherever the last message left off.
 let thinkStep = 0;
+let thinkIdle = true;
+let thinkSince = 0;
+const THINK_BEAT = 3200;
 const thinkText = () => {
+  if (thinkIdle) {
+    thinkIdle = false;
+    thinkStep = Math.ceil(thinkStep / 2) * 2;
+    thinkSince = Date.now();
+  }
   const line = THINK_ORDER[thinkStep % THINK_ORDER.length];
-  return typeof line === 'string' ? esc(line) : `“${esc(line[0])}” <span class="thinkWho">${esc(line[1])}</span>`;
+  return typeof line === 'string' ? esc(line) : `“${esc(line[0])}”${line[1] ? ` <span class="thinkWho">${esc(line[1])}</span>` : ''}`;
 };
-const writingLine = () => `<span class="ghostHead">${exoSpin}<span class="ghostText thinkLine">${thinkText()}</span></span>`;
+// One look from the first moment: the hand and its clay line, with what's happening ("Reading the file…") while there
+// is something to say, then the thinking lines, in the same place, so nothing swaps style halfway.
+const writingLine = (progress = '') => `<span class="ghostHead">${exoSpin}<span class="ghostText thinkLine"${progress ? ' data-hold="1"' : ''}>${progress ? esc(progress) : thinkText()}</span></span>`;
 // While anything is being written, move every thinking line on together, with a soft fade between.
 setInterval(() => {
-  const shown = document.querySelectorAll('.thinkLine');
-  if (!shown.length) return;
+  const shown = [...document.querySelectorAll('.thinkLine')].filter((line) => !line.dataset.hold);
+  if (!document.querySelector('.thinkLine')) {
+    thinkIdle = true;
+    return;
+  }
+  if (!shown.length || Date.now() - thinkSince < THINK_BEAT) return;
+  thinkSince = Date.now();
   thinkStep += 1;
   shown.forEach((line) => {
     line.classList.add('swap');
@@ -849,8 +874,8 @@ setInterval(() => {
       line.classList.remove('swap');
     }, 220);
   });
-}, 3200);
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine()}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
+}, 250);
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
 
@@ -2831,7 +2856,7 @@ const nameQuery = () => {
   return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
 };
 
-const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${pending.progress ? `<div class="bubbleOut" role="status"><p><span class="ghostText">${esc(pending.progress)}</span></p></div>` : `<div class="bubbleOut" role="status"><p>${writingLine()}</p></div>`}</div>`).join('');
+const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p></div></div>`).join('');
 
 const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 
