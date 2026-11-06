@@ -25,6 +25,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Home edit: a quiet pencil instead of the word Edit; while editing, the day row stays pinned under the top bar with Done in clay; one Delete day (the top one is gone); the × on "Editing …" in the box ends editing; holding an open day also starts Edit (v314)
+
 - Box on the phone: opens with the latest messages above and Quick add's heading + first rows below, and settles again when the iPhone keyboard shrinks it (the keyboard used to cut Quick add off). Harder variants count for the main lift in charts, bests, PRs, strength web and anatomy: Pause/Close-Grip/Spoto/Larsen/Pin bench → Bench, Pause/Pin/Tempo squat → Squat, Deficit/Pause deadlift → Deadlift; never the other way (v312)
 
 - Portfolio: Exodia is the first project on marcusokodugha.com, live in a MacBook or a silver iPhone 18 Pro Max (toggle on the card, tap around inside), with Visit / Get your own Exodia / GitHub and the self-improving agent story. `/?demo` opens Trends with a year of example data in memory only (never saves over a real log, never syncs), "Example data · Get your own" in the date line (v309–v311)
