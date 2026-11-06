@@ -19,6 +19,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Write the note "started 7 March 2024" and tap **↑**
 ## To do (Claude)
 
+- [ ] Remove the 190 kg bench set from March 2024 in Marcus's log (his heaviest is 145). Reading his log from a session was blocked; he can tap the Bench corner on the strength web (it opens that day) and delete it, or allow a session to fix it.
 - [ ] Voice: show the words while it's still working.
 - [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
 - [ ] Smoothness pass: find everything that jumps instead of animating.
@@ -28,6 +29,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+
+- Calendar / strength-corner taps open that exact day (Home draws down to it) and centre it; Home "Show older sessions" (+60 at a time, back to the first day); one rule keeps the tapped thing under the finger (lift list, chart range/lines, Strength/Recovery, web All time/Last 3 months, level key, Show all lifts, Show every year, opening/closing a day, accessories); picking a lift no longer jumps to the chart; each calendar year: "152 sessions · +38% vs 2025 so far"; Start fresh moved from the menu to Settings → Danger zone (it only starts an empty log on this device, nothing deleted) (v293)
 
 - Calendar Exodia days: grey middle, blue outline only; impressive-lift tiles caption first ("Next level" / 170 kg / Elite); What's new pill opens even when the finger moves up to 14 px (was 6) (v292)
 

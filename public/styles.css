@@ -1316,3 +1316,11 @@ main.page { overflow-x: clip; }
 .calYearGrid .calDay.exodia { box-shadow: inset 0 0 0 1.2px var(--exodiaBlue); }
 /* Impressive-lift tiles read top-down: what it is ("Next level"), the number, then what the number is. */
 .featTiles .featCaption { margin: 0 0 2px; color: var(--text2); font-weight: 500; }
+/* Every year: sessions against the year before, clay when it went up. */
+.calChange { color: var(--text2); }
+.calChange.up { color: var(--clayText); font-weight: 600; }
+/* Home: older sessions on request. */
+.homeMore { margin-top: 8px; border-top: 0; }
+.homeMore .muted { font-weight: 400; }
+/* Settings: Danger zone. */
+.dangerBtn { color: #B4412B; }

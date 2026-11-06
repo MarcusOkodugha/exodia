@@ -1182,6 +1182,8 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
 
+// Home draws the newest 30 days (fast to open); "Show older sessions" adds 60 at a time, back to the first.
+const HOME_PAGE = 30;
 const renderHome = () => {
   const pieces = pieceProgress(todayIso());
   const complete = pieces.filter((piece) => piece.complete).length;
@@ -1204,7 +1206,8 @@ const renderHome = () => {
       ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p></div>` : ''}
     </section>
     <p class="section sessionsHead">Sessions${sessions[0] && !view.open.has(sessions[0].date) ? COLUMN_HEAD : ''}</p>
-    <div class="list">${sessions.length || inFlight().length ? listWithGhosts(sessions.slice(0, 30)) : quickStart()}</div>
+    <div class="list">${sessions.length || inFlight().length ? listWithGhosts(sessions.slice(0, view.homeCount || HOME_PAGE)) : quickStart()}</div>
+    ${sessions.length > (view.homeCount || HOME_PAGE) ? `<button class="liftExpand homeMore" data-action="home-more">Show older sessions <span class="muted num">${sessions.length - (view.homeCount || HOME_PAGE)} more</span>${ICONS.chev}</button>` : ''}
   </main>`;
 };
 
@@ -2035,6 +2038,11 @@ const renderYou = () => {
       <div class="row"><button class="textBtn" data-action="export">Download a backup</button></div>
       <div class="row"><label class="textBtn" style="display:flex;align-items:center;cursor:pointer">Restore a backup<input type="file" accept="application/json" class="sr" data-action="import"></label></div>
     </section>
+    <p class="section">Danger zone</p>
+    <section class="card">
+      <div class="row"><button class="textBtn dangerBtn" data-action="start-fresh">Start fresh on this device</button></div>
+    </section>
+    <p class="note">Nothing is deleted: your log stays saved online. This device just starts an empty Exodia; open your own link again to get your log back.</p>
   </main>`;
 };
 
@@ -2152,12 +2160,16 @@ const renderCalendar = () => {
       const weeks = [];
       for (let week = monday(from); week <= `${year}-12-31`; week = addDays(week, 7)) weeks.push(week);
       const sessions = [...days.keys()].filter((date) => date >= from && date <= to).length;
+      // Against the year before over the same dates (this year: 1 January to today, so it's a fair race).
+      const before = [...days.keys()].filter((date) => date >= `${year - 1}-01-01` && date <= `${year - 1}${to.slice(4)}`).length;
+      const change = before ? Math.round((sessions / before - 1) * 100) : null;
+      const versus = change === null ? '' : `<span class="calChange${change > 0 ? ' up' : ''}">${change > 0 ? '+' : change < 0 ? '−' : '±'}${Math.abs(change)}% vs ${year - 1}${to < `${year}-12-31` ? ' so far' : ''}</span>`;
       const months = CAL_MONTHS.map((name, month) => {
         const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
         return `<span class="calYearMonth" style="grid-column:${Math.floor((Number(parseIso(firstDay)) - Number(parseIso(monday(from)))) / 6048e5) + 1}">${name}</span>`;
       }).join('');
       const cells = weeks.map((week, column) => [0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to).replace(/^<(i|button) class="/, `<$1 style="grid-column:${column + 1};grid-row:${offset + 2}" class="`)).join('')).join('');
-      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'}</span></p><div class="calYearGrid" style="grid-template-columns:repeat(${weeks.length}, minmax(0, 1fr))">${months}${cells}</div></div>`;
+      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'}${versus ? ` · ${versus}` : ''}</span></p><div class="calYearGrid" style="grid-template-columns:repeat(${weeks.length}, minmax(0, 1fr))">${months}${cells}</div></div>`;
     }).join('')}</div>`;
   }
   return `<p class="section calHead">Every session <span class="calCount num">${count}</span></p>
@@ -2762,7 +2774,7 @@ const drawerContent = () => {
   return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>
-      <div class="drawerTools"><button class="drawerTool" data-action="undo-change" ${undoSteps.length ? '' : 'disabled'}>Undo</button><button class="drawerTool" data-action="redo-change" ${redoSteps.length ? '' : 'disabled'}>Redo</button><button class="drawerTool fresh" data-action="start-fresh">Start fresh</button></div>`;
+      <div class="drawerTools"><button class="drawerTool" data-action="undo-change" ${undoSteps.length ? '' : 'disabled'}>Undo</button><button class="drawerTool" data-action="redo-change" ${redoSteps.length ? '' : 'disabled'}>Redo</button></div>`;
 };
 
 // How to get data out of other apps; used on onboarding and on the "Add your data" page.
@@ -3741,9 +3753,9 @@ const render = () => {
     if (card) requestAnimationFrame(() => (chart || card).scrollIntoView({ block: 'start' }));
   }
   if (view.scrollTarget) {
-    const card = document.getElementById(`session-${view.scrollTarget}`);
+    const date = view.scrollTarget;
     view.scrollTarget = null;
-    if (card) requestAnimationFrame(() => card.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    requestAnimationFrame(() => centreDay(date));
   }
 };
 
@@ -5158,6 +5170,43 @@ const send = async () => {
   }
 };
 
+// Taps that change what's shown keep the thing you tapped under your finger: its place on screen is noted before the
+// redraw and the page (or the panel it sits in) is shifted back by however much it moved.
+const KEEP_STILL = new Set(['pick-trend', 'trend-more', 'cal-all', 'range', 'toggle-line', 'muscle-mode', 'web-now', 'level-info', 'pick-week', 'focus-lift', 'toggle-exodia', 'accessories', 'toggle-info', 'pick-point', 'toggle-session', 'home-more']);
+const scrollerOf = (element) => {
+  for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+  }
+  return null;
+};
+const anchorOf = (target) => {
+  const keys = ['action', 'name', 'date', 'index', 'mode', 'days', 'now', 'level', 'where', 'line'];
+  const selector = keys.filter((key) => target.dataset[key] !== undefined).map((key) => `[data-${key}="${CSS.escape(target.dataset[key])}"]`).join('');
+  return { selector, right: Boolean(target.closest('.right')), top: target.getBoundingClientRect().top };
+};
+const keepAnchor = (anchor) => {
+  const found = [...document.querySelectorAll(anchor.selector)].find((element) => Boolean(element.closest('.right')) === anchor.right);
+  if (!found) return;
+  const moved = found.getBoundingClientRect().top - anchor.top;
+  if (Math.abs(moved) < 1) return;
+  const scroller = scrollerOf(found);
+  if (scroller) scroller.scrollTop += moved;
+  else window.scrollBy(0, moved);
+};
+// An opened day glides to the middle of the screen (or, if it's taller than the screen, its top just under the bar).
+const centreDay = (date) => {
+  const card = document.getElementById(`session-${date}`);
+  if (!card) return;
+  const box = card.getBoundingClientRect();
+  const top = desktopQuery.matches ? 24 : 72;
+  const room = window.innerHeight - top - 120;
+  const shift = box.height < room ? box.top + box.height / 2 - (top + room / 2) : box.top - top;
+  const scroller = scrollerOf(card);
+  if (scroller) scroller.scrollBy({ top: shift, behavior: 'smooth' });
+  else window.scrollBy({ top: shift, behavior: 'smooth' });
+};
+
 document.addEventListener('click', (event) => {
   // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
   if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
@@ -5188,6 +5237,7 @@ document.addEventListener('click', (event) => {
   const action = target.dataset.action;
   const date = target.dataset.date;
   const session = date ? sessionFor(date) : null;
+  const anchor = KEEP_STILL.has(action) ? anchorOf(target) : null;
   if (action === 'import') return;
   if (action === 'pick-file') {
     filePicker.click();
@@ -5626,17 +5676,17 @@ document.addEventListener('click', (event) => {
     view.open.add(date);
     view.menu = false;
     view.scrollTarget = date;
+    // Home draws the newest days first; an older day asks it to draw down to that day.
+    const index = sortedSessions().filter((item) => item.exercises.length > 0 || item.cardio > 0).findIndex((item) => item.date === date);
+    if (index >= 0) view.homeCount = Math.max(view.homeCount || HOME_PAGE, index + 5);
     if (view.route !== 'home') {
       location.hash = '#/';
       return;
     }
   } else if (action === 'toggle-trend') view.trendOpen = view.trendOpen === target.dataset.name ? '' : target.dataset.name;
-  else if (action === 'pick-trend') {
-    view.trendOpen = target.dataset.name;
-    // Picked from the list further down: bring the chart into view so you see it switch.
-    view.trendScroll = target.dataset.name;
-    view.trendScrollChart = true;
-  } else if (action === 'trend-more') view.trendMore = !view.trendMore;
+  else if (action === 'pick-trend') view.trendOpen = target.dataset.name;
+  else if (action === 'trend-more') view.trendMore = !view.trendMore;
+  else if (action === 'home-more') view.homeCount = (view.homeCount || HOME_PAGE) + 60;
   else if (action === 'cal-all') {
     view.calAll = !view.calAll;
     view.calEnter = view.calAll;
@@ -5759,6 +5809,8 @@ document.addEventListener('click', (event) => {
     return;
   }
   render();
+  if (anchor) keepAnchor(anchor);
+  if (action === 'toggle-session' && view.open.has(date)) requestAnimationFrame(() => centreDay(date));
 });
 
 document.addEventListener('input', (event) => {
