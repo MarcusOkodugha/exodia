@@ -14,9 +14,6 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   3. It makes the task; in [claude.ai/code/scheduled](https://claude.ai/code/scheduled) open it, turn on **API trigger**, copy the URL and token
   4. Terminal on your Mac: `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_URL_2` (URL), then `cd ~/code/exodia && npx wrangler secret put CLAUDE_TASK_TOKEN_2` (token)
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
-- [ ] **Add your 7-week program Excel again.** The first try only kept 8 days; those were removed, and the import now reads every sheet.
-  1. In Exodia tap **+**, then **Import from a file**, and pick the Excel
-  2. Write the note "started 7 March 2024" and tap **↑**
 ## To do (Claude)
 
 - [ ] Voice: show the words while it's still working.
@@ -28,6 +25,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+
+- 7-week program Excel is in (Marcus confirmed); its one bad row, bench 190 × 1 on "Day 14", 25 Mar 2024, was removed
 
 - Data fix (Marcus asked): removed the imported Bench Press 190 × 1 on 25 Mar 2024 (after 122 × 2, an import mistake); heaviest bench in his log is now 145 kg. Done through a normal sync on top of the server's version, so his devices pick it up (Nov 6)
 
