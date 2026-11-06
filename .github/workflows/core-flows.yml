@@ -1,0 +1,122 @@
+# After every push to main (which Cloudflare deploys by itself), check the core flows with tools/core-flows.cjs.
+# If one broke: revert that commit (the revert deploys the previous version) and open an issue with the output.
+name: Core flows
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: core-flows
+  cancel-in-progress: false
+
+env:
+  PLAYWRIGHT_VERSION: 1.65.0
+
+jobs:
+  core-flows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Never check (or revert) the bot's own commits.
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[core-flows]')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache npm and Playwright browsers
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+          key: core-flows-${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Install Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm i --prefix "$RUNNER_TEMP/pw" --no-save --no-audit --no-fund playwright@$PLAYWRIGHT_VERSION
+          if [ "${{ steps.cache.outputs.cache-hit }}" = "true" ]; then
+            "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install-deps chromium webkit
+          else
+            "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium webkit
+          fi
+
+      - name: Check core flows
+        id: check
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: |
+          set -o pipefail
+          if node tools/core-flows.cjs 2>&1 | tee "$RUNNER_TEMP/core-flows.log"; then
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            first=$(grep -m1 '^First failure: ' "$RUNNER_TEMP/core-flows.log" | sed 's/^First failure: //; s/ \[.*\]$//')
+            echo "check=${first:-unknown check}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Revert the commit
+        id: revert
+        if: steps.check.outputs.failed == 'true'
+        env:
+          SHA: ${{ github.sha }}
+          CHECK: ${{ steps.check.outputs.check }}
+        run: |
+          subject=$(git log -1 --format=%s "$SHA")
+          author=$(git log -1 --format=%an "$SHA")
+          # Never revert a revert or the bot's own commit: only report it.
+          if [[ "$subject" == Revert* ]] || [[ "$author" == "github-actions[bot]" ]] || git log -1 --format=%B "$SHA" | grep -q '\[core-flows\]'; then
+            echo "result=not reverted (it is a revert or a bot commit)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --depth=2 origin main
+          git checkout -B main origin/main
+          if git revert --no-edit --no-commit "$SHA"; then
+            git commit -m "Revert \"$subject\" [core-flows]" -m "Core flow broke: $CHECK. This reverts commit $SHA."
+            if git push origin main; then
+              echo "result=reverted, the previous version is deploying" >> "$GITHUB_OUTPUT"
+            else
+              echo "result=not reverted (push to main failed)" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            git revert --abort || true
+            echo "result=not reverted (main changed since and the revert conflicts)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open an issue
+        if: steps.check.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          CHECK: ${{ steps.check.outputs.check }}
+          RESULT: ${{ steps.revert.outputs.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          short=${SHA::7}
+          {
+            echo "Commit: $SHA"
+            echo "Result: ${RESULT:-not reverted}"
+            echo "Run: $RUN_URL"
+            echo
+            echo '```'
+            tail -c 60000 "$RUNNER_TEMP/core-flows.log"
+            echo '```'
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Core flow broke: $CHECK in $short" --body-file "$RUNNER_TEMP/issue.md"
+          exit 1
