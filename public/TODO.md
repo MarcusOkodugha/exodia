@@ -26,6 +26,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 ## Done (recent)
 
+- Calendar 12-month view scrolls back to the first day again (v290 had limited it to 12 months, wrongly), one empty column between years; Show every year stays. Computer right panel keeps its scroll on every redraw (it jumped to the top on Strength/Recovery and syncs). Opening: index.html shows the hand breathing (pure CSS, fades in after 0.2 s, replaced by the first draw) (v305)
+
 - Failed messages show "Tried by Gemini 3.5 Flash · needs a stronger model" (friends: "Tried by Exodia 3.5 Flash · needs a stronger Exodia, Marcus can turn one on"); the model now travels with a "didn't understand" error into the log; reply buttons wrap flush left (v304)
 
 - Pull-ups (and chin-ups): level = the better of most reps in one set (Strength Level reps table) and most weight added (Strength Level 1RM-weight table, by bodyweight); +50 kg × 2 at 100 kg was "Beginner 1.2" because v285 counted only reps, now Intermediate 3.6 on the actual +50; corner and tiles read "+50 kg × 2", next level "+59 kg"; women's pull-up reps table filled in. Dips aren't scored anywhere (v303)

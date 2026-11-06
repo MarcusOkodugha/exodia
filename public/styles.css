@@ -1323,3 +1323,13 @@ main.page { overflow-x: clip; }
    that wraps to a new line starts flush left, on the same edge as the first. */
 .bubbleOut .textBtn + .textBtn { margin-left: 0; }
 .bubbleOut .textBtn { margin-right: 16px; }
+/* A small gap between years in the scrolling calendar: one empty column spanning the month row and all seven days. */
+.calYearGap { grid-row: 1 / -1; }
+/* While Exodia opens: the hand, breathing softly in the middle, drawn by the page itself before any script runs (the
+   app's first draw replaces it). Pure CSS on opacity and transform, so it costs the opening nothing; it fades in only
+   after a fifth of a second, so a quick open never flashes it. */
+.boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); animation: bootIn 0.3s ease 0.2s both; }
+.boot img { width: 56px; height: 56px; object-fit: contain; animation: bootBreathe 1.8s ease-in-out infinite; }
+@keyframes bootIn { from { opacity: 0; } }
+@keyframes bootBreathe { 50% { transform: scale(1.07); filter: drop-shadow(0 0 10px rgb(var(--clayRgb) / 0.35)); } }
+@media (prefers-reduced-motion: reduce) { .boot img { animation: none; } }

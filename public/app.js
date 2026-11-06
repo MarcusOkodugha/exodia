@@ -2220,7 +2220,9 @@ const renderCalendar = () => {
       const date = parseIso(week);
       const newMonth = index === 0 || parseIso(weeks[index - 1]).getMonth() !== date.getMonth();
       const month = newMonth ? (date.getMonth() === 0 ? week.slice(0, 4) : CAL_MONTHS[date.getMonth()]) : '';
-      return `<span class="calMonth">${month}</span>${[0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to < today ? to : today)).join('')}`;
+      // A narrow empty column where a new year starts, so you feel the year turn as you scroll back.
+      const newYear = index > 0 && parseIso(weeks[index - 1]).getFullYear() !== date.getFullYear();
+      return `${newYear ? '<span class="calYearGap" aria-hidden="true"></span>' : ''}<span class="calMonth">${month}</span>${[0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to < today ? to : today)).join('')}`;
     }).join('');
     return `<div class="calWrap">
         <div class="calWeekdays" aria-hidden="true"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span></span></div>
@@ -2228,7 +2230,8 @@ const renderCalendar = () => {
       </div>`;
   };
   let body;
-  if (!all) body = strip(since, today, 'Training days, newest on the right');
+  // The 12-month view still scrolls back to your first session; "Show every year" lays the years out one under another.
+  if (!all) body = strip(first < since ? first : since, today, 'Training days, newest on the right; scroll back for earlier years');
   else {
     const years = [];
     for (let year = Number(today.slice(0, 4)); year >= Number(first.slice(0, 4)); year -= 1) years.push(year);
@@ -3848,12 +3851,17 @@ const render = () => {
   // The update pill keeps its own element across redraws (sync and checks redraw often), so a tap that is under way
   // on it is never lost to a fresh copy.
   const keptPill = document.querySelector('.updatedPill');
+  // The computer's right panel scrolls on its own; a redraw builds it new, so its place is carried over (it used to
+  // jump to the top whenever anything redrew, like Strength / Recovery or a sync).
+  const rightTop = document.querySelector('.right')?.scrollTop || 0;
   app.innerHTML = `
     ${layout}
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
+  const freshRight = document.querySelector('.right');
+  if (freshRight && rightTop) freshRight.scrollTop = rightTop;
   const freshPill = document.querySelector('.updatedPill');
   if (keptPill && freshPill && keptPill !== freshPill && keptPill.dataset.sig === freshPill.dataset.sig && !keptPill.classList.contains('gone')) freshPill.replaceWith(keptPill);
   if (view.toast) view.toast.shown = true;
@@ -5631,7 +5639,11 @@ document.addEventListener('click', (event) => {
     } catch {
       // not remembered: fine
     }
-    return setTimeout(render, 230);
+    const anchor = anchorOf(target);
+    return setTimeout(() => {
+      render();
+      keepAnchor(anchor);
+    }, 230);
   }
   if (action === 'body-sex') {
     view.bodySex = target.dataset.sex;
