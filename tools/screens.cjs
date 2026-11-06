@@ -89,6 +89,14 @@ const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['
       await page.close();
     }
   }
+  // One contact sheet per screen size: a cheap look at every page at once, so only the pages that look off need opening.
+  const sheetPage = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  for (const kind of [...new Set(fs.readdirSync(out).filter((f) => f.endsWith('.png') && !f.startsWith('sheet-')).map((f) => f.split('-')[0]))]) {
+    const files = fs.readdirSync(out).filter((f) => f.startsWith(`${kind}-`) && f.endsWith('.png')).sort();
+    const tiles = files.map((f) => `<figure><img src="data:image/png;base64,${fs.readFileSync(path.join(out, f)).toString('base64')}"><figcaption>${f.replace(/\.png$/, '')}</figcaption></figure>`).join('');
+    await sheetPage.setContent(`<style>body{margin:0;display:grid;grid-template-columns:repeat(8,1fr);gap:6px;padding:6px;font:11px sans-serif;background:#ddd}figure{margin:0}img{width:100%;height:340px;object-fit:cover;object-position:top;background:#fff}</style>${tiles}`);
+    await sheetPage.screenshot({ path: path.join(out, `sheet-${kind}.png`), fullPage: true });
+  }
   await browser.close();
   console.log(`Wrote ${fs.readdirSync(out).length} screenshots to ${out}`);
   console.log(problems.length ? `Problems:\n${problems.join('\n')}` : 'No page errors, nothing wider than the screen.');
