@@ -1367,3 +1367,13 @@ main.page { overflow-x: clip; }
 .helpList .row { display: block; padding: 10px 0; }
 .helpSaid { display: block; font-weight: 500; }
 .helpList .muted { display: block; margin-top: 2px; font-size: 14px; }
+
+/* Admin overview and dashboard */
+.adminTiles { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
+.dashCard { padding: 4px 16px; }
+.dashPerson { padding: 10px 0; }
+.dashPerson + .dashPerson { border-top: 1px solid var(--sep); }
+.dashRow { display: flex; justify-content: space-between; gap: 12px; margin: 0; padding: 6px 0; font-size: 15px; line-height: 20px; }
+.dashPerson .dashRow { padding: 0; }
+.dashRow > span:last-child { flex: none; font-size: 13px; }
+.dashSub { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--text2); }

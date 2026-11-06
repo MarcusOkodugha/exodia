@@ -1742,11 +1742,32 @@ const renderLog = () => `<main class="page">
   ${view.logDate ? renderDayNow(view.logDate) : ''}
   </main>`;
 
+// Usage for Marcus's admin dashboard: when the app opens, which page, which button (its action name) and what
+// didn't go through. Sent in small batches; never training data or anything typed. Not in the demo or sandbox.
+const usage = { queue: [], hiddenAt: 0 };
+const sendUse = () => {
+  if (!usage.queue.length || !syncState?.profile) return;
+  const events = usage.queue.splice(0, 60);
+  fetch('/api/event', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ events }) }).catch(() => {});
+};
+const noteUse = (kind, detail = '') => {
+  if (view.preview || view.sandbox) return;
+  usage.queue.push({ kind, detail: String(detail).slice(0, 60), at: Date.now() });
+  if (usage.queue.length >= 40) sendUse();
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    usage.hiddenAt = Date.now();
+    sendUse();
+  } else if (usage.hiddenAt && Date.now() - usage.hiddenAt > 30 * 60000) noteUse('open', 'back');
+});
+setInterval(sendUse, 60000);
 const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
   .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Not allowed'))))
   .then((data) => {
     view.adminRows = Array.isArray(data?.commands) ? data.commands : [];
     view.adminFeedback = data?.feedback || [];
+    view.adminStats = data?.dashboard || null;
     view.adminBuilders = data?.builders || [];
     view.adminBuilder = data?.builder || 1;
     view.adminError = '';
@@ -1756,10 +1777,8 @@ const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncSta
     view.adminError = navigator.onLine === false ? 'No internet, so the list could not load.' : `The list could not load (${error.message}).`;
   })
   .finally(() => {
-    if (view.route === 'admin') {
-      render();
-      scrollPage(scroller().scrollHeight);
-    }
+    // Opens at the top, on the overview.
+    if (view.route === 'admin') render();
   });
 
 const FEEDBACK_EXAMPLES = ['The mic stopped after a minute', 'Add a rest timer between sets', 'Let me log my body weight', 'Trends should show my squat first', 'The app froze when I pasted my notes'];
@@ -2062,10 +2081,10 @@ const shareCard = () => {
   const link = inviteLink(view.isAdmin ? view.shareName || '' : '');
   const named = view.isAdmin && Boolean((view.shareName || '').trim());
   return `<section class="card">
-    ${view.isAdmin ? `<div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name (optional)" value="${esc(view.shareName || '')}" data-share-name></div>` : ''}
+    ${view.isAdmin ? `<div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name" value="${esc(view.shareName || '')}" data-share-name></div>` : ''}
     <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(link)}</span><button class="textBtn" data-action="copy-invite">${view.copiedInvite ? 'Copied' : 'Copy'}</button><button class="textBtn shareBtn" data-action="share-invite" aria-label="Share">${SHARE_ICON}Share</button></div>
   </section>
-  <p class="note">${named ? 'Opens Exodia with their name already in.' : 'Anyone who opens it gets their own empty Exodia.'}</p>`;
+  <p class="note">${named ? 'Opens Exodia with their name already in, so you know who it is in the dashboard.' : 'Add their name so the link opens with it and you know who it is. Without it, anyone who opens it gets an empty Exodia with no name.'}</p>`;
 };
 
 // Every command, oldest at the top: what people sent (theirs on the left under their name), and your own change
@@ -2081,6 +2100,53 @@ const adminChat = () => {
     return `<div class="chatItem">${stamp ? `<p class="chatTime">${stamp}</p>` : ''}<div class="bubbleIn"><span class="slashCmd">/admin</span> ${saidHtml(item.run.said)}</div><div class="bubbleOut"><p>${runStatus(item.run)}${item.run.url ? ` · <a href="${esc(item.run.url)}" target="_blank" rel="noopener">Watch Exodia</a>` : ''}</p></div></div>`;
   }).join('');
 };
+// Admin overview (always open) and the dashboard behind "Show dashboard": who uses Exodia, how much, what they tap
+// and where it goes wrong. Your own profile is left out of the numbers.
+const shortDay = (at) => (at ? new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '');
+const ago = (at) => {
+  if (!at) return 'never';
+  const days = Math.floor((Date.now() - at) / 86400000);
+  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 30 ? `${days} days ago` : shortDay(at);
+};
+const ACTION_NAMES = { 'open-composer': 'Open the box', 'send': 'Send', 'mic': 'Mic', 'pick-trend': 'Pick a lift in Trends', 'range': 'Chart range', 'toggle-day': 'Open a day', 'edit-day': 'Edit a day', 'menu': 'Menu', 'slash-admin': 'Pick a / command', 'jump-session': 'Jump to a day' };
+const actionName = (action) => ACTION_NAMES[action] || String(action || '').replace(/-/g, ' ').replace(/^./, (first) => first.toUpperCase());
+const renderAdminStats = () => {
+  const data = view.adminStats;
+  if (!data) return view.adminLoading ? '<p class="empty">Loading the overview…</p>' : '';
+  if (data.error) return `<p class="feedbackMeta"><span class="runFailed">Overview could not load: ${esc(data.error)}</span></p>`;
+  const week = Date.now() - 7 * 86400000;
+  const people = data.people.filter((person) => !person.mine);
+  const lastSeen = (person) => Math.max(person.lastOpen, person.lastSent, person.last ? new Date(`${person.last}T12:00`).getTime() : 0, person.joined);
+  const active = people.filter((person) => person.lastOpen > week || person.lastSent > week || person.changedWeek > 0);
+  const logging = people.filter((person) => person.days > 0);
+  const sum = (key) => people.reduce((total, person) => total + (person[key] || 0), 0);
+  const [sent, missed] = [sum('sent'), sum('missed')];
+  const tile = (value, label, sub) => `<div class="tile"><p class="tileValue num">${value}</p><p class="tileLabel">${label}</p><p class="tileSub">${sub}</p></div>`;
+  const overview = `<div class="tiles adminTiles">
+      ${tile(people.length, 'People', `${people.filter((person) => person.name).length} with a name`)}
+      ${tile(active.length, 'Active', 'Last 7 days')}
+      ${tile(logging.length, 'Logging', `${people.length - logging.length} never logged`)}
+      ${tile(sum('opensWeek'), 'Opens', 'Last 7 days')}
+      ${tile(sum('changedWeek'), 'Days logged', 'Last 7 days')}
+      ${tile(sent ? `${Math.round(((sent - missed) / sent) * 100)}%` : '–', 'AI understood', `${missed} of ${sent} missed`)}
+    </div>`;
+  if (!view.adminDashOpen) return `${overview}<button class="liftExpand" data-action="admin-dash" aria-expanded="false">Show dashboard${ICONS.chev}</button>`;
+  const sorted = [...people].sort((first, second) => lastSeen(second) - lastSeen(first));
+  const list = (rows, label) => rows.length ? rows.map((row) => `<p class="dashRow"><span>${esc(label(row))}</span><span class="muted num">${row.n} · ${row.people} ${row.people === 1 ? 'person' : 'people'}</span></p>`).join('') : '<p class="empty">Nothing yet.</p>';
+  return `${overview}<button class="liftExpand" data-action="admin-dash" aria-expanded="true">Hide dashboard${ICONS.chev}</button>
+    <p class="section">Everyone · last seen first</p>
+    <div class="card dashCard">${sorted.map((person) => `<div class="dashPerson">
+      <p class="dashRow"><b>${esc(person.name || `No name · ${person.id}`)}</b><span class="muted">${ago(lastSeen(person))}</span></p>
+      <p class="dashSub num">${person.days ? `${person.days} days logged${person.last ? `, last ${shortDay(new Date(`${person.last}T12:00`).getTime())}` : ''}` : 'Never logged'} · opened ${person.opensWeek} this week, ${person.opens} in all${person.sent ? ` · ${person.sent} ${person.sent === 1 ? 'note' : 'notes'}${person.missed ? `, ${person.missed} not understood` : ''}` : ''}${person.joined ? ` · joined ${shortDay(person.joined)}` : ''}</p>
+    </div>`).join('')}</div>
+    <p class="section">Most tapped · 30 days</p>
+    <div class="card dashCard">${list(data.taps, (row) => actionName(row.detail))}</div>
+    <p class="section">Pages · 30 days</p>
+    <div class="card dashCard">${list(data.views, (row) => (row.detail || 'home').replace(/^./, (first) => first.toUpperCase()))}</div>
+    <p class="section">Where people got stuck</p>
+    <div class="card dashCard">${data.stuck.length ? data.stuck.map((row) => `<p class="dashRow"><span>${esc(row.detail)}</span><span class="muted">${esc(row.who)} · ${ago(row.at)}</span></p>`).join('') : '<p class="empty">Nothing yet. Notes the AI didn\'t understand are also in Every command below.</p>'}</div>
+    <p class="note">Opens, taps and pages are counted from 6 November 2026. Your own use is left out.</p>`;
+};
 const renderAdmin = () => {
   // Your change requests show straight away; only the server lists below wait for loading.
   if (!view.adminRows && !view.adminLoading) {
@@ -2092,6 +2158,8 @@ const renderAdmin = () => {
   return `<main class="page">
     <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
+    <p class="section">Overview</p>
+    ${renderAdminStats()}
     <p class="section">Change the app</p>
     <p class="feedbackLead">Say or type a change in the box below. It shows in the chat at the bottom at once, with how it's going.</p>
     ${(view.adminBuilders || []).length > 1 ? `<div class="builderRow"><span class="builderLabel">Built with</span><div class="segment full builderSwitch" role="group" aria-label="Claude account that builds">${view.adminBuilders.map((builder) => `<button class="segmentOption" data-action="pick-builder" data-slot="${builder.slot}" aria-pressed="${view.adminBuilder === builder.slot}"${builder.ready ? '' : ' disabled'}>Account ${builder.slot}${builder.ready ? '' : ' · not set up'}</button>`).join('')}</div></div><p class="feedbackMeta">If that account can't start, the other one is tried.</p>` : ''}
@@ -4417,6 +4485,7 @@ const addLog = (said, did, extra = {}) => {
   const words = String(said || '').slice(0, 2000);
   // Something didn't go through: open the panel on the chat (not Quick add) so the reason is right there.
   if (OFF_LINE.test(did?.[0] || '')) {
+    noteUse('stuck', did[0]);
     view.quickHidden = true;
     view.showQuick = false;
     if (typeof view.sheetH === 'number' && view.sheetH <= SHEET_SMALL + 4) view.sheetH = null;
@@ -5625,6 +5694,12 @@ document.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
   if (!target) return;
   const action = target.dataset.action;
+  noteUse('tap', action);
+  if (action === 'admin-dash') {
+    view.adminDashOpen = !view.adminDashOpen;
+    render();
+    return;
+  }
   const date = target.dataset.date;
   const session = date ? sessionFor(date) : null;
   const anchor = KEEP_STILL.has(action) ? anchorOf(target) : null;
@@ -6475,6 +6550,7 @@ const route = () => {
   // Leaving Home remembers how far down you were; coming back puts you there again, not at the top.
   if (view.route === 'home') view.homeScroll = scroller().scrollTop;
   view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help'].includes(name) ? name : 'home';
+  noteUse('view', view.route);
   if (view.route !== 'log') {
     view.logDate = null;
     view.logLift = null;
@@ -6870,3 +6946,5 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
   }
 }, true);
+noteUse('open', window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'app' : 'browser');
+setTimeout(sendUse, 4000);

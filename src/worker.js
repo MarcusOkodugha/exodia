@@ -925,6 +925,59 @@ const startClaudeTaskNow = async (text, env) => {
   return json({ error: `Exodia did not start (${errors.join('; ')})` }, 502);
 };
 
+// What people do in the app (opens, pages, taps, things that went wrong), sent in small batches, for the admin
+// dashboard. Only the kind and a short name of what was tapped; never training data or what was typed.
+const EVENT_KINDS = ['open', 'view', 'tap', 'stuck'];
+const events = async (request, env) => {
+  if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+  const key = request.headers.get('x-exodia-key') ?? '';
+  if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
+  const body = await request.json().catch(() => null);
+  const now = Date.now();
+  const list = (Array.isArray(body?.events) ? body.events : []).slice(0, 60)
+    .filter((event) => EVENT_KINDS.includes(event?.kind))
+    .map((event) => ({ kind: event.kind, detail: String(event.detail ?? '').slice(0, 60), at: Number.isFinite(event.at) && event.at <= now && event.at > now - 7 * 86400000 ? event.at : now }));
+  if (list.length) await env.DB.batch(list.map((event) => env.DB.prepare('INSERT INTO events (at, profile, kind, detail) VALUES (?, ?, ?, ?)').bind(event.at, key, event.kind, event.detail))).catch(() => {});
+  return json({ ok: true });
+};
+
+// The admin dashboard: everyone who has an Exodia, how much they use it, what they tap and where they get stuck.
+const DAY = 86400000;
+const stats = async (env) => {
+  const now = Date.now();
+  const week = now - 7 * DAY;
+  const [profiles, days, opens, taps, views, stuck, said] = await env.DB.batch([
+    env.DB.prepare('SELECT id, meta, created FROM profiles'),
+    env.DB.prepare("SELECT profile, COUNT(*) AS days, MIN(date) AS first, MAX(date) AS last, SUM(date >= ?) AS changed FROM sessions WHERE data IS NOT NULL AND data NOT LIKE '%\"exercises\":[]%' GROUP BY profile").bind(new Date(week).toISOString().slice(0, 10)),
+    env.DB.prepare("SELECT profile, COUNT(*) AS opens, SUM(at > ?) AS week, MAX(at) AS last FROM events WHERE kind = 'open' GROUP BY profile").bind(week),
+    env.DB.prepare("SELECT detail, COUNT(*) AS n, COUNT(DISTINCT profile) AS people FROM events WHERE kind = 'tap' AND at > ? AND profile IS NOT ? GROUP BY detail ORDER BY n DESC LIMIT 15").bind(now - 30 * DAY, env.ADMIN_PROFILE),
+    env.DB.prepare("SELECT detail, COUNT(*) AS n, COUNT(DISTINCT profile) AS people FROM events WHERE kind = 'view' AND at > ? AND profile IS NOT ? GROUP BY detail ORDER BY n DESC LIMIT 10").bind(now - 30 * DAY, env.ADMIN_PROFILE),
+    env.DB.prepare("SELECT at, profile, detail FROM events WHERE kind = 'stuck' AND profile IS NOT ? ORDER BY at DESC LIMIT 20").bind(env.ADMIN_PROFILE),
+    env.DB.prepare("SELECT profile, COUNT(*) AS sent, SUM(result LIKE '%\"unclear\"%' OR result LIKE '%\"error\"%') AS missed, MAX(at) AS last FROM commands WHERE name IS NOT 'Builder' AND name IS NOT 'Change request' GROUP BY profile")
+  ]);
+  const by = (rows) => new Map(rows.results.map((row) => [row.profile, row]));
+  const [dayMap, openMap, saidMap] = [by(days), by(opens), by(said)];
+  const people = profiles.results.map((row) => {
+    let meta = {};
+    try { meta = JSON.parse(row.meta || '{}'); } catch { /* keep empty */ }
+    const day = dayMap.get(row.id) || {};
+    const open = openMap.get(row.id) || {};
+    const sent = saidMap.get(row.id) || {};
+    return {
+      id: row.id.slice(0, 6), mine: row.id === env.ADMIN_PROFILE, name: String(meta.name || '').slice(0, 40), joined: row.created > 1000 ? row.created : 0,
+      days: day.days || 0, first: day.first || '', last: day.last || '', changedWeek: day.changed || 0,
+      opens: open.opens || 0, opensWeek: open.week || 0, lastOpen: open.last || 0,
+      sent: sent.sent || 0, missed: sent.missed || 0, lastSent: sent.last || 0
+    };
+  });
+  const names = new Map(people.map((person) => [person.id, person.name]));
+  return {
+    people,
+    taps: taps.results, views: views.results,
+    stuck: stuck.results.map((row) => ({ at: row.at, who: names.get(row.profile.slice(0, 6)) || row.profile.slice(0, 6), detail: row.detail }))
+  };
+};
+
 const admin = async (request, env, ctx) => {
   if (!env.ADMIN_PROFILE || request.headers.get('x-exodia-key') !== env.ADMIN_PROFILE) return json({ error: 'Not found' }, 404);
   if (request.method === 'POST') {
@@ -938,6 +991,7 @@ const admin = async (request, env, ctx) => {
     await env.DB.prepare('UPDATE feedback SET status = ? WHERE id = ?').bind(body.status, body.id).run();
     return json({ ok: true });
   }
+  const dashboard = await stats(env).catch((error) => ({ error: String(error.message || error).slice(0, 120) }));
   const [commands, feedback] = await env.DB.batch([
     env.DB.prepare("SELECT at, profile, name, said, result FROM commands WHERE name IS NOT 'Builder' ORDER BY at DESC LIMIT 300"),
     env.DB.prepare('SELECT id, at, profile, name, kind, title, details, said, status FROM feedback ORDER BY at DESC LIMIT 200')
@@ -945,6 +999,7 @@ const admin = async (request, env, ctx) => {
   return json({
     builders: builders(env).map(({ slot, ready }) => ({ slot, ready })),
     builder: await pickedBuilder(env),
+    dashboard,
     commands: commands.results.map((row) => ({ at: row.at, who: row.name || row.profile, mine: row.profile === env.ADMIN_PROFILE, said: row.said, did: describe(row.result), raw: row.result })),
     feedback: feedback.results.map(({ profile, ...row }) => ({ ...row, who: row.name || profile.slice(0, 6) }))
   });
@@ -1030,6 +1085,7 @@ export default {
     }
     if (url.pathname === '/manifest.webmanifest') return manifest(request, env, url);
     if (url.pathname === '/api/admin') return admin(request, env, ctx);
+    if (url.pathname === '/api/event') return events(request, env);
     if (url.pathname === '/api/models') {
       if (!env.ADMIN_PROFILE || request.headers.get('x-exodia-key') !== env.ADMIN_PROFILE) return json({ error: 'Not found' }, 404);
       const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': env.GEMINI_API_KEY } });
