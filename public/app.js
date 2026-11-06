@@ -2444,9 +2444,10 @@ const renderCalendar = () => {
     body = `<div class="calYears${view.calEnter ? ' enter' : ''}">${years.map((year) => {
       const [from, to] = [`${year}-01-01`, `${year}-12-31` < today ? `${year}-12-31` : today];
       const sessions = [...days.keys()].filter((date) => date >= from && date <= to).length;
+      const lifted = state.sessions.filter((session) => session.date >= from && session.date <= to).reduce((sum, session) => sum + session.exercises.reduce((total, exercise) => total + validSets(exercise).filter((set) => !set.warmup).reduce((inner, set) => inner + Number(set.kg) * Number(set.reps), 0), 0), 0);
       const stronger = yearStrength(year, to);
       const versus = stronger ? ` · <span class="calChange${stronger.change > 0 ? ' up' : ''}">${stronger.change > 0 ? '+' : stronger.change < 0 ? '−' : '±'}${Math.abs(stronger.change)}% stronger</span> than ${year - 1}` : '';
-      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'}${versus}</span></p>${strip(from, `${year}-12-31`, `Training days in ${year}`)}</div>`;
+      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${strip(from, `${year}-12-31`, `Training days in ${year}`)}</div>`;
     }).join('')}</div>`;
   }
   return `<p class="section calHead">Every session <span class="calCount num">${count}</span></p>
