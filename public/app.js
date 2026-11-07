@@ -2225,6 +2225,7 @@ const renderAdmin = () => {
     <p class="section">Overview</p>
     ${renderAdminStats()}
     <p class="section">Change the app</p>
+    ${buildingNow() || (state.claudeRuns || [])[0]?.status === 'sending' ? `<p class="adminWorking" role="status">${exoSpin}<span class="ghostText thinkLine">Exodia is on it…</span></p>` : ''}
     <p class="feedbackLead">Say or type a change in the box below. It shows in the chat at the bottom at once, with how it's going.</p>
     ${(view.adminBuilders || []).length > 1 ? `<div class="builderRow"><span class="builderLabel">Built with</span><div class="segment full builderSwitch" role="group" aria-label="Claude account that builds">${view.adminBuilders.map((builder) => `<button class="segmentOption" data-action="pick-builder" data-slot="${builder.slot}" aria-pressed="${view.adminBuilder === builder.slot}"${builder.ready ? '' : ' disabled'}>Account ${builder.slot}${builder.ready ? '' : ' · not set up'}</button>`).join('')}</div></div><p class="feedbackMeta">If that account can't start, the other one is tried.</p>` : ''}
     ${view.adminError ? `<p class="feedbackMeta"><span class="runFailed">${esc(view.adminError)}</span> <button class="textBtn" data-action="admin-reload">Try again</button></p>` : ''}
@@ -3199,7 +3200,7 @@ const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedba
   : quickShown()
   // Your log runs above Quick add in the same scroll: the panel opens on Quick add with the latest messages just above
   // it, and you scroll up for older ones (tap one to fix it). A small line says the log is up there.
-  ? `${(state.log || []).length || view.pending.length ? `<div class="chat quickLog">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(0, 60).reverse(), true)}${pendingChat()}</div><p class="logHint">${ICONS.up}Your log · scroll up for more</p>` : ''}${quickAdd()}`
+  ? `${(view.route !== 'admin' && ((state.log || []).length || view.pending.length)) ? `<div class="chat quickLog">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(0, 60).reverse(), true)}${pendingChat()}</div><p class="logHint">${ICONS.up}Your log · scroll up for more</p>` : ''}${quickAdd()}`
   : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`);
 
 // The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".
@@ -3208,7 +3209,7 @@ const SHEET_PEEK = 30;
 // Tapping the box opens the panel this tall: the latest messages, then Quick add's first rows.
 const SHEET_SMALL = 360;
 const sheetSmall = () => typeof view.sheetH === 'number' && view.sheetH > SHEET_PEEK + 4 && view.sheetH <= SHEET_SMALL + 4;
-const sheetStyle = () => (typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:var(--sheet-room, none)"` : '');
+const sheetStyle = () => (view.route === 'admin' && quickShown() ? ` style="height:auto;max-height:min(${SHEET_SMALL}px,var(--sheet-room, 100vh))"` : typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:var(--sheet-room, none)"` : '');
 const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
 const preferredSheet = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-h')) || window.innerHeight * 0.6;
 const setSheet = (height, animate = false) => {
@@ -3346,6 +3347,7 @@ const paintSlash = () => {
 const adminDockLine = () => {
   const run = (state.claudeRuns || [])[0];
   if (run?.status === 'sending') return writingLine('Sending to Exodia builder');
+  if (buildingNow()) return writingLine('Exodia is building');
   if (run && Date.now() - (run.doneAt || run.at) < 10 * 60000) return runStatus(run);
   return 'Exodia builds whatever you write or say here';
 };

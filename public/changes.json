@@ -454,5 +454,8 @@
   "338": [
     "/admin now shows in the / list on the Admin page too",
     "Invite box: one line under the name field, not two"
+  ],
+  "339": [
+    "Admin: the box opens compact, and the Exodia logo spins while a change is being built"
   ]
 }

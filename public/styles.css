@@ -1383,3 +1383,4 @@ main.page { overflow-x: clip; }
 .dashFilter { grid-template-columns: repeat(3, 1fr); }
 .dashFilter .segmentOption[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); }
 .pill.noLine { box-shadow: none; }
+.adminWorking { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 14px; color: var(--clayText); }
