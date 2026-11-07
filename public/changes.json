@@ -477,5 +477,9 @@
   ],
   "345": [
     "A day's buttons never squeeze together; add a note with the pencil or /note"
+  ],
+  "346": [
+    "While editing a day, saying a set adds it instead of changing another one",
+    "Changing one set's weight no longer changes the set you just added"
   ]
 }

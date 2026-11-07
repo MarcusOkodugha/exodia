@@ -4622,6 +4622,13 @@ const addLog = (said, did, extra = {}) => {
 const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${result.cardioMinutes} min on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 const applyResult = (result, date, said, heard = '') => {
+  // Safety net while editing a day: sets said plainly ("75 kg T-bar 10 reps") are new sets. If the AI wants to
+  // replace sets but nothing asked for a change, add them instead, so earlier sets are never overwritten.
+  if (view.editContext && result.replace?.length && !EDIT_WORDS.test(`${said} ${heard}`) && !/\b(should be|make it|was|not|actually|set \d|ska vara|var|inte|egentligen)\b/i.test(`${said} ${heard}`)) {
+    result.exercises = [...(result.exercises || []), ...result.replace.filter((item) => item.sets?.length).map((item) => ({ name: item.exercise, sets: item.sets }))];
+    if (!result.date) result.date = result.replace[0].date;
+    result.replace = [];
+  }
   const before = JSON.stringify(state.sessions);
   const did = applyEdits(result);
   if (result.label) {
@@ -6350,7 +6357,7 @@ document.addEventListener('click', (event) => {
   } else if (action === 'add-set' && session) {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
-    changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: false }), 'Add set');
+    changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: true }), 'Add set');
     if (last.kg === '') view.focusSet = { date, name: exercise.name };
   } else if (action === 'remove-cardio' && session) {
     changeWithUndo(`Removed cardio on ${dayLabel(date)}`, () => {
@@ -6532,6 +6539,12 @@ document.addEventListener('input', (event) => {
     }
     const previous = exercise.sets[index][field];
     for (const set of group) set[field] = target.value.replace(',', '.');
+    // Later sets that still have the old weight follow a new one (filling in sets copied from last time), but never
+    // while the box is empty mid-typing, and never sets you added or typed yourself.
+    if (field === 'kg' && target.value.trim() === '') {
+      save();
+      return;
+    }
     if (field === 'kg') {
       for (const set of group) set.edited = true;
       for (let next = index + group.length; next < exercise.sets.length; next += 1) {
