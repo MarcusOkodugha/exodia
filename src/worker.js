@@ -991,6 +991,13 @@ const stats = async (env) => {
   };
 };
 
+let statsCache = { at: 0, value: null };
+const cachedStats = async (env) => {
+  if (statsCache.value && Date.now() - statsCache.at < 60000) return statsCache.value;
+  const value = await stats(env).catch((error) => ({ error: String(error.message || error).slice(0, 120) }));
+  if (!value.error) statsCache = { at: Date.now(), value };
+  return value;
+};
 const admin = async (request, env, ctx) => {
   if (!env.ADMIN_PROFILE || request.headers.get('x-exodia-key') !== env.ADMIN_PROFILE) return json({ error: 'Not found' }, 404);
   if (request.method === 'POST') {
@@ -1004,7 +1011,10 @@ const admin = async (request, env, ctx) => {
     await env.DB.prepare('UPDATE feedback SET status = ? WHERE id = ?').bind(body.status, body.id).run();
     return json({ ok: true });
   }
-  const dashboard = await stats(env).catch((error) => ({ error: String(error.message || error).slice(0, 120) }));
+  // The dashboard reads every profile and event (about 4,000 rows), so only the Admin page asks for it (?dashboard=1),
+  // never the red pill's refresh every 30 seconds; the same isolate reuses it for a minute.
+  const wantsDashboard = new URL(request.url).searchParams.get('dashboard') === '1';
+  const dashboard = wantsDashboard ? await cachedStats(env) : undefined;
   const [commands, feedback] = await env.DB.batch([
     env.DB.prepare("SELECT at, profile, name, said, result FROM commands WHERE name IS NOT 'Builder' ORDER BY at DESC LIMIT 300"),
     env.DB.prepare('SELECT id, at, profile, name, kind, title, details, said, status FROM feedback ORDER BY at DESC LIMIT 200')
@@ -1065,8 +1075,11 @@ const manifest = async (request, env, url) => {
 
 // The portfolio's demo link (?demo) shows Marcus's real training: dates, lifts, kg and reps only, never a name,
 // key, note or log. Cached an hour so visitors don't read the database each time.
+let demoCache = { at: 0, body: null };
 const demo = async (env) => {
   if (!env.ADMIN_PROFILE) return json({ sessions: [] });
+  // Every portfolio visit opens two copies (computer and phone): one read per isolate every 10 minutes is plenty.
+  if (demoCache.body && Date.now() - demoCache.at < 600000) return new Response(demoCache.body, { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' } });
   const [rows, profile] = await Promise.all([
     env.DB.prepare('SELECT data FROM sessions WHERE profile = ? AND data IS NOT NULL ORDER BY date').bind(env.ADMIN_PROFILE).all(),
     env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(env.ADMIN_PROFILE).first(),
@@ -1086,7 +1099,8 @@ const demo = async (env) => {
     };
   }).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day.date) && day.exercises.length);
   const body = JSON.parse(profile?.meta || '{}').body;
-  return new Response(JSON.stringify({ sessions, ...(body ? { body } : {}) }), { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' } });
+  demoCache = { at: Date.now(), body: JSON.stringify({ sessions, ...(body ? { body } : {}) }) };
+  return new Response(demoCache.body, { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' } });
 };
 
 export default {

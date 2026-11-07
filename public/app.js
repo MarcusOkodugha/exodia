@@ -1837,12 +1837,12 @@ document.addEventListener('visibilitychange', () => {
   } else if (usage.hiddenAt && Date.now() - usage.hiddenAt > 30 * 60000) noteUse('open', 'back');
 });
 setInterval(sendUse, 60000);
-const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })
+const loadAdmin = () => fetch('/api/admin?dashboard=1', { headers: { 'x-exodia-key': syncState.profile } })
   .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Not allowed'))))
   .then((data) => {
     view.adminRows = Array.isArray(data?.commands) ? data.commands : [];
     view.adminFeedback = data?.feedback || [];
-    view.adminStats = data?.dashboard || null;
+    if (data?.dashboard) view.adminStats = data.dashboard;
     view.adminBuilders = data?.builders || [];
     view.adminBuilder = data?.builder || 1;
     view.adminError = '';
@@ -1998,11 +1998,13 @@ const refreshLeftPill = () => {
 // Back on the window (computer) or the app (phone): check the list straight away.
 for (const type of ['focus', 'visibilitychange']) window.addEventListener(type, () => {
   if (document.hidden) return;
-  leftLoaded = 0;
+  // Coming back after a minute away checks at once; otherwise the list refreshes every 5 minutes (each check reads
+  // the database, which has a free daily limit).
+  if (Date.now() - leftLoaded > 60000) leftLoaded = 0;
   loadLeft();
 });
 const loadLeft = () => {
-  if (!view.isAdmin || Date.now() - leftLoaded < 30000) return;
+  if (!view.isAdmin || document.hidden || Date.now() - leftLoaded < 300000) return;
   leftLoaded = Date.now();
   // Friends' feedback that's still new sits in the same list, with Build it / Not now.
   fetch('/api/admin', { headers: { 'x-exodia-key': syncState.profile } })

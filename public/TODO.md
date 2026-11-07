@@ -23,6 +23,10 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Three big epics (Marcus, 7 Nov 2026: execute perfectly when the time comes; keep through every session switch):**
+  1. **Friends:** see a friend's Exodia from yours without it getting in the way. Tap to see their info (recovery, training, levels) and get back to yourself in one tap, so you can plan sessions together.
+  2. **Training programs** in Exodia.
+  3. **Health connection:** see the Health + brain item below.
 - [ ] **Health + brain (Marcus's idea, 7 Nov 2026, keep until done).** Behind an **Experimental** switch in Settings, Marcus only at first, nothing loads for others:
   - Apple Health → Exodia: web apps can't read HealthKit, so an iPhone Shortcut sends steps, cardio/workouts and sleep each night to a new `/api/health` (per day, on the profile). Give Marcus tap-by-tap Shortcut steps.
   - Show: movement/cardio volume per week, sleep last nights, sleep before PR days vs other days (correlation).
@@ -38,6 +42,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ D1 reads cut: dashboard stats only when Admin opens (cached 1 min), red pill refresh every 5 min, demo cached 10 min (7 Nov, after Cloudflare's 76% warning)
 - ✓ Questions show above the box and answers fill the ? sets; Lat Pullover never Lat Pulldown; swipe deletes a whole grouped row; counting numbers while reading (v347)
 - ✓ Admin overview + dashboard: people, opens, taps, pages, where they got stuck (v331; opens/taps counted from 6 Nov 2026)
 - ✓ Abs and calves strength levels from sit-ups/crunches/calf raises; typing help/feedback offers the command; box examples; more tips and quotes; text stays on cursor; cream not black on open (v330–v332)
