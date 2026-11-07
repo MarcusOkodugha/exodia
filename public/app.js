@@ -158,6 +158,7 @@ const loadSync = () => {
 let syncState = loadSync();
 // Remembered from the last sync, so Admin and /admin work from the first moment, not only after the server answers.
 view.isAdmin = Boolean(syncState?.admin);
+try { view.adminTab = localStorage.getItem('exodia.adminTab') || 'chat'; } catch { view.adminTab = 'chat'; }
 const localJson = () => Object.fromEntries(state.sessions.map((session) => [session.date, JSON.stringify(session)]));
 const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}) });
 let lastSaved = localJson();
@@ -1823,8 +1824,11 @@ const loadAdmin = () => fetch('/api/admin', { headers: { 'x-exodia-key': syncSta
     view.adminError = navigator.onLine === false ? 'No internet, so the list could not load.' : `The list could not load (${error.message}).`;
   })
   .finally(() => {
-    // Opens at the top, on the overview.
-    if (view.route === 'admin') render();
+    // Chat opens at the latest, just above the box; Dashboard at the top.
+    if (view.route === 'admin') {
+      render();
+      if (view.adminTab === 'chat') scrollPage(scroller().scrollHeight);
+    }
   });
 
 const FEEDBACK_EXAMPLES = ['The mic stopped after a minute', 'Add a rest timer between sets', 'Let me log my body weight', 'Trends should show my squat first', 'The app froze when I pasted my notes'];
@@ -2055,6 +2059,8 @@ const askClaude = async (text, run = null) => {
 // voice is the recording, or the promise of it while the mic is still finishing.
 const sendToClaude = async (text, voice) => {
   view.draft = '';
+  // What you send shows in Chat, so the Admin page switches there.
+  if (view.route === 'admin' && view.adminTab !== 'chat') view.adminTab = 'chat';
   // The request is on screen before anything is sent or awaited; a voice note shows as "Voice note" until its words are in.
   const run = { at: Date.now(), said: text || VOICE_WAIT, status: 'sending' };
   state.claudeRuns = [run, ...(state.claudeRuns || [])].slice(0, 20);
@@ -2065,6 +2071,7 @@ const sendToClaude = async (text, voice) => {
     addLog(run.said, ['Sending to Exodia builder…'], { manual: true, merge: `claude-${run.at}` });
     save();
     render();
+    if (view.route === 'admin') scrollPage(scroller().scrollHeight);
     const recorded = await voice;
     voice = recorded?.size > 4000 ? recorded : null;
     if (!text && !voice) throw new Error(recorded ? `no sound recorded (${Math.round(recorded.size / 1024)} KB)` : 'nothing to send');
@@ -2219,16 +2226,22 @@ const renderAdmin = () => {
       view.adminLoading = false;
     });
   }
-  return `<main class="page">
+  // Two tabs so nothing needs a long scroll: Chat (your requests and how each build goes, newest just above the box)
+  // and Dashboard (who uses Exodia, invites, feedback). The box below always builds; sending switches to Chat.
+  const tab = view.adminTab || 'chat';
+  const tabs = `<div class="segment full adminTabs" role="tablist" aria-label="Admin">${[['chat', 'Chat'], ['dash', 'Dashboard']].map(([value, label]) => `<button class="segmentOption" role="tab" data-action="admin-tab" data-tab="${value}" aria-selected="${tab === value}" aria-pressed="${tab === value}">${label}</button>`).join('')}</div>`;
+  return `<main class="page adminPage">
     <p class="eyebrow">Only visible to you</p>
     <h1 class="title">Admin</h1>
-    <p class="section">Overview</p>
-    ${renderAdminStats()}
-    <p class="section">Change the app</p>
+    ${tabs}
+    ${tab === 'chat' ? `
     ${buildingNow() || (state.claudeRuns || [])[0]?.status === 'sending' ? `<p class="adminWorking" role="status">${exoSpin}<span class="ghostText thinkLine">Exodia is on it…</span></p>` : ''}
-    <p class="feedbackLead">Say or type a change in the box below. It shows in the chat at the bottom at once, with how it's going.</p>
+    ${(state.claudeRuns || []).length || (view.adminRows || []).length ? '' : `<p class="feedbackLead">Say or type a change in the box below. It shows here at once, with how it's going.</p>`}
     ${(view.adminBuilders || []).length > 1 ? `<div class="builderRow"><span class="builderLabel">Built with</span><div class="segment full builderSwitch" role="group" aria-label="Claude account that builds">${view.adminBuilders.map((builder) => `<button class="segmentOption" data-action="pick-builder" data-slot="${builder.slot}" aria-pressed="${view.adminBuilder === builder.slot}"${builder.ready ? '' : ' disabled'}>Account ${builder.slot}${builder.ready ? '' : ' · not set up'}</button>`).join('')}</div></div><p class="feedbackMeta">If that account can't start, the other one is tried.</p>` : ''}
     ${view.adminError ? `<p class="feedbackMeta"><span class="runFailed">${esc(view.adminError)}</span> <button class="textBtn" data-action="admin-reload">Try again</button></p>` : ''}
+    <div class="chat">${adminChat()}</div>` : `
+    <p class="section">Overview</p>
+    ${renderAdminStats()}
     <p class="section">Invite someone</p>
     ${shareCard()}
     <p class="section">Feedback</p>
@@ -2238,10 +2251,8 @@ const renderAdmin = () => {
       <p class="feedbackMeta">${esc(item.who)} · ${new Date(item.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
       <div class="feedbackStatus">${FEEDBACK_STATUS.map(([value, label]) => `<button class="chip" data-action="feedback-status" data-id="${item.id}" data-status="${value}" aria-pressed="${item.status === value}"><span class="chipFace">${label}</span></button>`).join('')}<button class="chip" data-action="feedback-claude" data-id="${item.id}"><span class="chipFace">Build it</span></button></div>
     </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
-    <p class="section">Every command</p>
-    <div class="chat">${adminChat()}</div>
-  </main>
-  <div class="jumpPair"><button class="jumpBtn" data-action="admin-jump" data-to="top" aria-label="Jump to the top">${ICONS.up}</button><button class="jumpBtn down" data-action="admin-jump" data-to="bottom" aria-label="Jump to the latest, at the bottom">${ICONS.up}</button></div>`;
+    `}
+  </main>`;
 };
 
 const aiInstructions = () => `You are helping me log my gym training in my Exodia app.
@@ -5782,9 +5793,11 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
-  if (action === 'admin-jump') {
-    const box = scroller();
-    box.scrollTo({ top: target.dataset.to === 'top' ? 0 : box.scrollHeight, behavior: 'smooth' });
+  if (action === 'admin-tab') {
+    view.adminTab = target.dataset.tab;
+    try { localStorage.setItem('exodia.adminTab', view.adminTab); } catch { /* private mode */ }
+    render();
+    scrollPage(view.adminTab === 'chat' ? scroller().scrollHeight : 0);
     return;
   }
   if (action === 'admin-dash') {
@@ -6674,7 +6687,7 @@ const route = () => {
     view.pageEnter = null;
   }
   if (view.route === 'home' && view.homeScroll && !view.trendScroll) scrollPage(view.homeScroll);
-  if (view.route === 'log') scrollPage(scroller().scrollHeight);
+  if (view.route === 'log' || (view.route === 'admin' && view.adminTab === 'chat')) scrollPage(scroller().scrollHeight);
 };
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);

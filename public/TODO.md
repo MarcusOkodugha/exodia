@@ -15,6 +15,12 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
 ## To do (Claude)
 
+- [ ] **Health + brain (Marcus's idea, 7 Nov 2026, keep until done).** Behind an **Experimental** switch in Settings, Marcus only at first, nothing loads for others:
+  - Apple Health → Exodia: web apps can't read HealthKit, so an iPhone Shortcut sends steps, cardio/workouts and sleep each night to a new `/api/health` (per day, on the profile). Give Marcus tap-by-tap Shortcut steps.
+  - Show: movement/cardio volume per week, sleep last nights, sleep before PR days vs other days (correlation).
+  - A brain like the anatomy, regions coloured by sleep, energy and training load; later "train the brain".
+  - Android (Samsung Health / Health Connect) and full iOS HealthKit need a native app: look at wrapping Exodia (Capacitor or similar) for iOS + Android so Health connects directly.
+  - Waiting on Marcus's go-ahead to start (asked 7 Nov).
 - [ ] Voice: show the words while it's still working.
 - [ ] Share to Exodia: Android share sheet, and the clearest way on iPhone.
 - [ ] Smoothness pass: find everything that jumps instead of animating.

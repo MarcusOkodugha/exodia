@@ -460,5 +460,8 @@
   ],
   "340": [
     "Admin: two round buttons jump to the top or to the latest at the bottom"
+  ],
+  "341": [
+    "Admin has two tabs, Chat and Dashboard, so nothing needs a long scroll"
   ]
 }
