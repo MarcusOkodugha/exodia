@@ -924,7 +924,7 @@ const TIPS = [
   'Paste a whole week of notes at once. Each day lands on its own date.',
   'Mark warm-ups and they stay out of your bests.',
   'Typing help, feedback or / shows the commands.',
-  'Type /note and a few words to add a note to a session.',
+  'Type /note and a few words, or tap the pencil on a day, to add a note.',
   'Est. 1RM uses Brzycki up to 10 reps, Epley above.',
   'The bar under a lift compares your last 10 weeks with your best.',
   'Add your bodyweight in Trends to see your strength level.',
@@ -1053,7 +1053,7 @@ const exodiaDaySet = () => {
   if (exodiaDayCache.from !== history) exodiaDayCache = { from: history, set: new Set(history.days || []) };
   return exodiaDayCache.set;
 };
-// A session's note: one quiet line that opens to the whole note when tapped. Editing the day (or + Note) makes it a
+// A session's note: one quiet line that opens to the whole note when tapped. Editing the day (the pencil) makes it a
 // text box; leaving it empty removes the note.
 const dayNote = (session, editing) => {
   if (editing || view.noteEdit === session.date) return `<label class="dayNoteEdit"><span class="dayNoteLabel">Note</span><textarea class="dayNoteInput" rows="2" data-day-note="${session.date}" placeholder="How it felt, the gym, what to try next time">${esc(session.note || '')}</textarea></label>`;
@@ -1090,7 +1090,7 @@ const renderSession = (session) => {
       ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
       ${dayNote(session, editing)}
       <div class="dayActions">
-        <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${session.note || view.noteEdit === session.date ? '' : `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>`}</span>
+        <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
         <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
       </div>
       ${editing ? `<button class="textBtn logDay" data-action="log-day" data-date="${session.date}">Open in Log</button>` : ''}
