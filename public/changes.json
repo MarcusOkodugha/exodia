@@ -450,5 +450,9 @@
   ],
   "337": [
     "Small fixes"
+  ],
+  "338": [
+    "/admin now shows in the / list on the Admin page too",
+    "Invite box: one line under the name field, not two"
   ]
 }

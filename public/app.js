@@ -2127,7 +2127,7 @@ const shareCard = () => {
   const link = inviteLink(view.isAdmin ? view.shareName || '' : '');
   const named = view.isAdmin && Boolean((view.shareName || '').trim());
   return `<section class="card">
-    ${view.isAdmin ? `<div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name" value="${esc(view.shareName || '')}" data-share-name></div>` : ''}
+    ${view.isAdmin ? `<div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill noLine" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name" value="${esc(view.shareName || '')}" data-share-name></div>` : ''}
     <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(link)}</span><button class="textBtn" data-action="copy-invite">${view.copiedInvite ? 'Copied' : 'Copy'}</button><button class="textBtn shareBtn" data-action="share-invite" aria-label="Share">${SHARE_ICON}Share</button></div>
   </section>
   <p class="note">${named ? 'Opens Exodia with their name already in, so you know who it is in the dashboard.' : 'Add their name so the link opens with it and you know who it is. Without it, anyone who opens it gets an empty Exodia with no name.'}</p>`;
@@ -2286,7 +2286,7 @@ const renderYou = () => {
     <p class="section">${view.isAdmin ? 'Your private link' : 'Sync'}</p>
     <section class="card">
       ${view.isAdmin ? `<div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(profileLink())}</span><button class="textBtn" data-action="copy-link">${view.copied ? 'Copied' : 'Copy'}</button></div>
-      <div class="row"><label class="sr" for="join-link">Link from another device</label><input id="join-link" class="pill" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" placeholder="Paste a link from another device"><button class="textBtn" data-action="join-link">Use</button></div>` : ''}
+      <div class="row"><label class="sr" for="join-link">Link from another device</label><input id="join-link" class="pill noLine" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" placeholder="Paste a link from another device"><button class="textBtn" data-action="join-link">Use</button></div>` : ''}
       ${view.linkNote ? `<div class="row"><span class="muted" role="status" style="font-size:15px">${esc(view.linkNote)}</span></div>` : ''}
       <div class="row"><span style="flex:1">Synced</span><span class="muted">${view.syncFailed ? 'Offline, will retry' : view.syncedAt ? 'Up to date' : 'Connecting…'}</span></div>
     </section>
@@ -3315,7 +3315,7 @@ const slashOn = () => Boolean(slashCommand());
 // "/" lists every command; "/h" narrows it; the bare word ("help", "feedback") offers its command too, Tab takes it.
 const slashOffer = () => {
   const typed = view.draft.trim().toLowerCase();
-  const allowed = SLASHES.filter(([cmd, , admin]) => (!admin || view.isAdmin) && !(admin && view.route === 'admin'));
+  const allowed = SLASHES.filter(([cmd, , admin]) => !admin || view.isAdmin);
   if (/^\/[a-z]*$/.test(view.draft.toLowerCase())) return allowed.filter(([cmd]) => cmd.startsWith(view.draft.toLowerCase()));
   return /^[a-z]{4,}$/.test(typed) ? allowed.filter(([cmd]) => cmd.slice(1).startsWith(typed)) : [];
 };
