@@ -475,12 +475,13 @@ const bestBeforeFresh = (name, date, logged = false) => {
   return best;
 };
 const bestOverall = (name) => bestBefore(name, '9999-12-31');
-// Form vs best: your best estimated one-rep max from the last 4 weeks against your best ever (the Est. 1RM tile),
-// both from sets of 1–10 reps. The best ever includes these 4 weeks, so it tops out at 100%: "At your best".
+// Form vs best: your best estimated one-rep max from the last 10 weeks against your best ever (the Est. 1RM tile),
+// both from sets of 1–10 reps. The best ever includes these 10 weeks, so it tops out at 100%: "At your best".
+const FORM_DAYS = 70;
 const nowVsBest = (name) => {
   const best = bestOverall(name);
   if (!best) return null;
-  const since = addDays(todayIso(), -28);
+  const since = addDays(todayIso(), -FORM_DAYS);
   let now = 0;
   for (const session of state.sessions) {
     if (session.date < since) continue;
@@ -492,9 +493,9 @@ const nowVsBest = (name) => {
 const nowLine = (name) => {
   const form = nowVsBest(name);
   if (!form) return '';
-  const head = !form.now ? 'Not lifted in 4 weeks' : form.pct >= 100 ? 'At your best' : `${form.pct}% of your best`;
+  const head = !form.now ? 'Not lifted in 10 weeks' : form.pct >= 100 ? 'At your best' : `${form.pct}% of your best`;
   const numbers = !form.now ? `best ${form.best} kg` : form.pct >= 100 ? `${form.best} kg est.` : `${form.now} vs ${form.best} kg`;
-  return `<div class="nowBest"><p><b>${head}</b><span class="muted num"> · <span class="nw">${numbers}</span></span>${form.now ? '<span class="muted"> · <span class="nw">last 4 weeks</span></span>' : ''}</p><div class="nowBar" aria-hidden="true"><i style="width:${form.pct}%"></i></div></div>`;
+  return `<div class="nowBest"><p><b>${head}</b><span class="muted num"> · <span class="nw">${numbers}</span></span>${form.now ? '<span class="muted"> · <span class="nw">last 10 weeks</span></span>' : ''}</p><div class="nowBar" aria-hidden="true"><i style="width:${form.pct}%"></i></div></div>`;
 };
 // How many days a lift (with its harder variants) was logged, shown under its name in the lift list.
 const liftDays = (name) => remember(`days|${name}`, () => state.sessions.filter((session) => session.exercises.some((exercise) => countsFor(name).includes(exercise.name) && validSets(exercise).length > 0)).length);
@@ -924,7 +925,7 @@ const TIPS = [
   'Mark warm-ups and they stay out of your bests.',
   'Typing help, feedback or / shows the commands.',
   'Est. 1RM uses Brzycki up to 10 reps, Epley above.',
-  'The bar under a lift compares your last 4 weeks with your best.',
+  'The bar under a lift compares your last 10 weeks with your best.',
   'Add your bodyweight in Trends to see your strength level.',
   'Tap a point on a chart to see that day’s top set.',
   'Your log syncs to every device on your link.',
@@ -1377,7 +1378,9 @@ const monthlyBest = (points) => {
   const usable = points
     .map((point) => ({ ...point, sets: point.sets.filter((set) => Number(set.reps) <= 20) }))
     .filter((point) => point.sets.length);
-  if (usable.length < 2 || parseIso(usable.at(-1).date) - parseIso(usable[0].date) < 183 * 86400000) return usable;
+  // Every session gets its own dot (the count in the lift list matches what you see); only a long history, too many
+  // dots to tap, keeps the best of each month.
+  if (usable.length <= 36) return usable;
   const months = new Map();
   for (const point of usable) {
     const key = point.date.slice(0, 7);
@@ -1419,6 +1422,7 @@ const emptyChart = (name, all) => {
 };
 const chartFor = (allPoints) => {
   const points = monthlyBest(allPoints);
+  const merged = points.length < allPoints.length && allPoints.length > 36;
   if (points.length === 0) return '';
   const lines = { lift: view.lines?.lift !== false, est: view.lines?.est !== false };
   let bestSingle = 0;
@@ -1456,7 +1460,7 @@ const chartFor = (allPoints) => {
       ${lines.lift ? rows.map((row) => `<button class="dot${row.isPr ? ' pr' : ''}${row === picked ? ' on' : ''}" data-action="pick-point" data-date="${row.date}" style="left:${x(row.date) / 10}%;top:${y(row.lifted) / 10}%" aria-label="${dayLabel(row.date)}, ${row.top.kg} × ${row.top.reps}"></button>`).join('') : ''}
     </div>
   </div>
-  <div class="axis num"><span>${dayLabel(rows[0].date)}</span><span>${dayLabel(rows.at(-1).date)}</span></div>
+  <div class="axis num"><span>${dayLabel(rows[0].date)}</span>${merged ? `<span class="axisNote">monthly best of ${allPoints.length}</span>` : ''}<span>${dayLabel(rows.at(-1).date)}</span></div>
   ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg${picked.from && (picked.from.kg !== picked.top.kg || picked.from.reps !== picked.top.reps) ? ` from ${picked.from.kg} × ${picked.from.reps}` : ''}</span>${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}`;
 };
 

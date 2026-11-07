@@ -463,5 +463,9 @@
   ],
   "341": [
     "Admin has two tabs, Chat and Dashboard, so nothing needs a long scroll"
+  ],
+  "342": [
+    "Every session gets its own dot on a lift's chart; long histories say when they show the best of each month",
+    "The bar under a lift compares your last 10 weeks with your best"
   ]
 }

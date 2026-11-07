@@ -1390,3 +1390,4 @@ main.page { overflow-x: clip; }
 .adminTabs { grid-template-columns: 1fr 1fr; position: sticky; top: calc(var(--top) + 56px); z-index: 3; box-shadow: 0 -16px 0 6px var(--bg), 0 0 0 6px var(--bg); }
 .desk .adminTabs { top: 12px; }
 .adminTabs .segmentOption[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); }
+.axisNote { color: var(--text3, var(--text2)); opacity: 0.8; }
