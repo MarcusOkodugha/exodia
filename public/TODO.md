@@ -13,6 +13,14 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Open [Cloudflare → exodia → Settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/exodia/production/settings) → **Variables and Secrets** → **+ Add** → Type **Secret**, name `CLAUDE_TASK_TOKEN_2`, paste → **Deploy**
   3. Send a small change from /admin to test it
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
+## Epics (later, plan before building)
+
+Three big pieces Marcus wants done properly when the time comes. Don't start one without planning it with him first.
+
+- [ ] **Friends.** See a friend from the top of Home without it getting in the way: tap to open their Exodia (recovery, strength, recent days), one tap back to yours. For planning sessions together.
+- [ ] **Training program.** Programs inside Exodia (plan days and weeks, follow along, log against them).
+- [ ] **Apple Health.** Connect to the Health app (workouts, steps, bodyweight in; training out).
+
 ## To do (Claude)
 
 - [ ] **Health + brain (Marcus's idea, 7 Nov 2026, keep until done).** Behind an **Experimental** switch in Settings, Marcus only at first, nothing loads for others:
