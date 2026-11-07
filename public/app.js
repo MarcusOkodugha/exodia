@@ -2240,7 +2240,8 @@ const renderAdmin = () => {
     </div>`).join('') || '<p class="empty">No feedback yet.</p>'}
     <p class="section">Every command</p>
     <div class="chat">${adminChat()}</div>
-  </main>`;
+  </main>
+  <div class="jumpPair"><button class="jumpBtn" data-action="admin-jump" data-to="top" aria-label="Jump to the top">${ICONS.up}</button><button class="jumpBtn down" data-action="admin-jump" data-to="bottom" aria-label="Jump to the latest, at the bottom">${ICONS.up}</button></div>`;
 };
 
 const aiInstructions = () => `You are helping me log my gym training in my Exodia app.
@@ -5779,6 +5780,11 @@ document.addEventListener('click', (event) => {
   if (action === 'dash-filter') {
     view.dashFilter = target.dataset.filter;
     render();
+    return;
+  }
+  if (action === 'admin-jump') {
+    const box = scroller();
+    box.scrollTo({ top: target.dataset.to === 'top' ? 0 : box.scrollHeight, behavior: 'smooth' });
     return;
   }
   if (action === 'admin-dash') {
