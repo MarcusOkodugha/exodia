@@ -2369,6 +2369,28 @@ document.addEventListener('pointermove', (event) => {
   });
 }, { passive: true });
 document.addEventListener('pointerleave', () => document.documentElement.style.setProperty('--glowNear', '0'));
+// On a phone the same warm glow answers your finger: it lights up from where you touched the box, then settles to a
+// calm glow while you type, and fades when you leave the box.
+let touchGlowTimer = 0;
+const setTouchGlow = (value) => document.documentElement.style.setProperty('--touchGlow', value);
+document.addEventListener('pointerdown', (event) => {
+  if (finePointer.matches && desktopQuery.matches) return;
+  const prompt = event.target.closest?.('.dock .prompt');
+  if (!prompt) return;
+  const box = prompt.getBoundingClientRect();
+  const clamp = (value) => Math.max(-1, Math.min(1, value));
+  const root = document.documentElement.style;
+  root.setProperty('--glowX', clamp((event.clientX - (box.left + box.width / 2)) / box.width).toFixed(3));
+  root.setProperty('--glowY', clamp((event.clientY - (box.top + box.height / 2)) / box.height).toFixed(3));
+  setTouchGlow('1');
+  clearTimeout(touchGlowTimer);
+  touchGlowTimer = setTimeout(() => setTouchGlow(document.activeElement?.id === 'draft' ? '0.55' : '0'), 900);
+}, { passive: true });
+document.addEventListener('focusout', (event) => {
+  if (event.target.id !== 'draft') return;
+  clearTimeout(touchGlowTimer);
+  setTouchGlow('0');
+});
 
 // ISO week number (weeks start on Monday), shown under the weekly volume bars.
 const isoWeek = (iso) => {
