@@ -19,6 +19,8 @@ const LIBRARY = [
   { name: 'Barbell Row', piece: 'pull', heavy: false, aliases: ['row', 'rows', 'barbell row'] },
   { name: 'Pull-up', piece: 'pull', heavy: false, aliases: ['pullup', 'pullups', 'pull-up', 'pull-ups', 'chins', 'chin-ups'] },
   { name: 'Lat Pulldown', piece: 'pull', heavy: false, aliases: ['pulldown', 'lat pulldown', 'lat pull'] },
+  { name: 'Lat Pullover', piece: 'pull', heavy: false, aliases: ['lat pullover', 'lat pull-over', 'pullover', 'pull-over', 'cable pullover', 'machine pullover'] },
+  { name: 'Dumbbell Pullover', piece: 'pull', heavy: false, aliases: ['dumbbell pullover', 'db pullover'] },
   { name: 'Squat', piece: 'legs', heavy: true, aliases: ['squat', 'squats', 'sq', 'knäböj', 'barbell squat', 'back squat', 'barbell back squat'] },
   { name: 'Hack Squat', piece: 'legs', heavy: true, aliases: ['hack', 'hack squat'] },
   { name: 'Front Squat', piece: 'legs', heavy: true, aliases: ['front squat'] },
@@ -682,7 +684,7 @@ const recentLog = () => sortedSessions()
 const laterJobs = () => (state.later || []);
 // What a note means depends on when it was written and which day was being edited: a note that waits for the AI
 // keeps both, so "yesterday" and "make the last set 105" still land where they were meant to.
-const noteContext = () => ({ today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '' });
+const noteContext = () => ({ ...(view.asked && Date.now() - view.asked.at < 60 * 60000 ? { asked: view.asked.question } : {}), today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '' });
 // No connection at all is a "try again later", same as a busy AI.
 // Every request a person waits on gives up after a while with a reason, so "writing…" never hangs forever on bad wifi.
 const timedFetch = (url, options = {}, ms = 45000) => {
@@ -844,7 +846,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
       ${editing ? `<button class="minus" data-action="delete-set" ${where} aria-label="Delete ${label}"></button>` : `<span class="setNo num">${numbers}</span>`}
       <input class="pill num" inputmode="decimal" aria-label="${label}, kilograms" value="${esc(set.kg)}" placeholder="kg" ${where} data-field="kg">
       <span class="unit">${isBodyweightLift(exercise.name) ? '+kg' : 'kg'}</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
-      <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${esc(set.reps)}" placeholder="reps" ${where} data-field="reps">
+      <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${!Number(set.reps) ? '' : esc(set.reps)}" placeholder="${!Number(set.reps) && set.kg !== '' ? '?' : 'reps'}" ${where} data-field="reps">
       ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num"><span class="rpeText">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>${lastRow ? `<button class="rowPlus" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Add a ${esc(exercise.name)} set">${ICONS.plusThin}</button>` : ''}</span>`}
       <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${best && value ? `${Math.round((value / best) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
       <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
@@ -988,8 +990,20 @@ setInterval(() => {
     }, 220);
   });
 }, 250);
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><i class="kg"></i><i class="reps"></i><i class="e1"></i></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><b class="roll tickKg num" data-max="${row === 1 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row === 1 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row === 1 ? 180 : 130}">0</b></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
+// While a note is read, the waiting rows' kg, reps and e1RM count up fast and accelerating, over and over, in the
+// real columns; the real row replaces them the moment the answer lands.
+setInterval(() => {
+  if (reducedMotion.matches) return;
+  for (const tick of document.querySelectorAll('.ghostRow .roll')) {
+    const max = Number(tick.dataset.max) || 100;
+    let value = tick.dataset.v === undefined ? Math.random() * max * 0.6 : Number(tick.dataset.v);
+    value = value >= max ? 0 : Math.min(max, value + Math.max(1, value * 0.16));
+    tick.dataset.v = value;
+    tick.textContent = Math.round(value);
+  }
+}, 55);
 const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
 
 const accessoriesOf = (session) => session.accessories ?? (session.exercises.length ? 30 : 0);
@@ -4630,6 +4644,12 @@ const applyResult = (result, date, said, heard = '') => {
     result.replace = [];
   }
   const before = JSON.stringify(state.sessions);
+  // Sets logged with unknown reps (the "?" sets) are completed by the answer, not kept beside it.
+  for (const exercise of result.exercises || []) {
+    const session = sessionFor(result.date || date);
+    const waiting = session?.exercises.find((item) => item.name === (findExerciseName(exercise.name) || exercise.name) && item.sets.length && item.sets.every((set) => !Number(set.reps)));
+    if (waiting && exercise.sets.every((set) => Number(set.reps) > 0)) session.exercises = session.exercises.filter((item) => item !== waiting);
+  }
   const did = applyEdits(result);
   if (result.label) {
     const day = sessionFor(result.date || date) || result.exercises?.length ? result.date || date : loggedDay(result.date || date, null);
@@ -5741,6 +5761,12 @@ const send = async () => {
       view.confirm = { result, date, said, heard, text: describeRemoval(result) };
       view.scrollTarget = null;
     } else applyResult(result, date, said, voice ? heard : '');
+    // A question about part of the note (missing reps): above the box where it's seen, and sent with the next note so
+    // the answer completes it.
+    if (result.unclear && logsSomething) {
+      view.asked = { question: result.unclear, at: Date.now() };
+      view.status = result.unclear;
+    } else if (logsSomething) view.asked = null;
     if (result.feedback && logsSomething) routeFeedback(result.feedback, said).catch((error) => addLog(said, [`Feedback not sent: ${error.message}`]));
     if (view.editDay !== view.editContext?.date) view.editContext = null;
     view.fixing = null;
@@ -6118,8 +6144,10 @@ document.addEventListener('click', (event) => {
   } else if (action === 'delete-set' && session) {
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const set = exercise.sets[Number(target.dataset.set)];
-    changeWithUndo(`Deleted ${exercise.name} ${set.kg} × ${set.reps} on ${dayLabel(date)}`, () => {
-      exercise.sets.splice(Number(target.dataset.set), 1);
+    // A row can stand for several identical sets ("3× 30 × 10"); deleting the row deletes all of them.
+    const count = Number(target.dataset.count) || 1;
+    changeWithUndo(`Deleted ${exercise.name} ${count > 1 ? `${count}× ` : ''}${set.kg} × ${set.reps} on ${dayLabel(date)}`, () => {
+      exercise.sets.splice(Number(target.dataset.set), count);
       if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
     }, 'Delete set');
   } else if (action === 'delete-exercise' && session) {

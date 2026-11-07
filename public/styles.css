@@ -1146,7 +1146,7 @@ main.page { overflow-x: clip; }
 .ghostRows { display: grid; gap: 0; padding: 2px 0; }
 .ghostName, .ghostRow { opacity: 0; animation: ghostRowIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) var(--at) forwards; }
 .ghostName { display: block; padding: 6px 0 4px; }
-.ghostName i { display: block; width: 46%; height: 13px; }
+.ghostName i { display: block; width: 46%; height: 16px; border-radius: 8px; }
 .ghostRow.setRow { min-height: 32px; }
 .ghostRow i:first-child { grid-column: 1; width: 18px; height: 10px; }
 .ghostRow i.kg { grid-column: 2; }
@@ -1413,3 +1413,11 @@ main.page { overflow-x: clip; }
 /* The day's action row never lets "+ Exercise" touch "Accessories"; on narrow phones the label goes. */
 .dayActions { gap: 14px; }
 @media (max-width: 480px) { .dayAccLabel { display: none; } }
+
+/* Waiting rows: numbers counting up in the real kg, reps and e1RM columns; skeleton bars a little thicker. */
+.ghostRow i:first-child { height: 13px; border-radius: 7px; }
+.ghostRow .roll { font-weight: 500; font-size: 17px; color: var(--text3, var(--text2)); opacity: 0.55; text-align: right; font-variant-numeric: tabular-nums; }
+.ghostRow .tickKg { grid-column: 2; }
+.ghostRow .tickReps { grid-column: 5; text-align: center; }
+.ghostRow .tickX { grid-column: 4; color: var(--text2); opacity: 0.4; font-size: 14px; }
+.ghostRow .tickE1 { grid-column: 7; justify-self: end; color: var(--clayText, var(--clay)); }

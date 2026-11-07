@@ -481,5 +481,12 @@
   "346": [
     "While editing a day, saying a set adds it instead of changing another one",
     "Changing one set's weight no longer changes the set you just added"
+  ],
+  "347": [
+    "When Exodia asks something (like how many reps), the question shows above the box and your answer fills it in",
+    "Missing reps show as ?",
+    "Lat Pullover is its own exercise, never Lat Pulldown",
+    "Swiping a row of identical sets deletes the whole row",
+    "While Exodia reads a note, the numbers count up in the row"
   ]
 }
