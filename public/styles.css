@@ -1391,3 +1391,13 @@ main.page { overflow-x: clip; }
 .desk .adminTabs { top: 12px; }
 .adminTabs .segmentOption[aria-pressed="true"] { background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); }
 .axisNote { color: var(--text3, var(--text2)); opacity: 0.8; }
+
+/* A session's note: one quiet line in small letters, the whole note when tapped. */
+.dayNote { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 8px 0 6px; text-align: left; font: inherit; color: var(--text2); }
+.dayNoteLabel { flex: none; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--clayText, var(--clay)); }
+.dayNoteText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; }
+.dayNote.open .dayNoteText { white-space: pre-wrap; overflow: visible; }
+.dayNoteEdit { display: flex; align-items: baseline; gap: 8px; padding: 8px 0 6px; }
+.dayNoteInput { flex: 1; min-width: 0; resize: none; border: 0; border-bottom: 1px solid var(--sep); background: transparent; font: inherit; font-size: 14px; line-height: 19px; color: var(--text); padding: 2px 0 4px; }
+.dayNoteInput:focus { outline: none; border-bottom-color: var(--clay); }
+.dayNoteMark { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--clayText, var(--clay)); }

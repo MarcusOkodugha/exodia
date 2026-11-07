@@ -924,6 +924,7 @@ const TIPS = [
   'Paste a whole week of notes at once. Each day lands on its own date.',
   'Mark warm-ups and they stay out of your bests.',
   'Typing help, feedback or / shows the commands.',
+  'Type /note and a few words to add a note to a session.',
   'Est. 1RM uses Brzycki up to 10 reps, Epley above.',
   'The bar under a lift compares your last 10 weeks with your best.',
   'Add your bodyweight in Trends to see your strength level.',
@@ -1052,6 +1053,14 @@ const exodiaDaySet = () => {
   if (exodiaDayCache.from !== history) exodiaDayCache = { from: history, set: new Set(history.days || []) };
   return exodiaDayCache.set;
 };
+// A session's note: one quiet line that opens to the whole note when tapped. Editing the day (or + Note) makes it a
+// text box; leaving it empty removes the note.
+const dayNote = (session, editing) => {
+  if (editing || view.noteEdit === session.date) return `<label class="dayNoteEdit"><span class="dayNoteLabel">Note</span><textarea class="dayNoteInput" rows="2" data-day-note="${session.date}" placeholder="How it felt, the gym, what to try next time">${esc(session.note || '')}</textarea></label>`;
+  if (!session.note) return '';
+  const open = view.noteOpen === session.date;
+  return `<button class="dayNote${open ? ' open' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
+};
 const renderSession = (session) => {
   const pendings = inFlight().filter((pending) => pending.date === session.date);
   const open = view.open.has(session.date) || pendings.length > 0;
@@ -1079,12 +1088,13 @@ const renderSession = (session) => {
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
       ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
+      ${dayNote(session, editing)}
       <div class="dayActions">
-        <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
+        <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${session.note || view.noteEdit === session.date ? '' : `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>`}</span>
         <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
       </div>
       ${editing ? `<button class="textBtn logDay" data-action="log-day" data-date="${session.date}">Open in Log</button>` : ''}
-      ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<div class="daySummary num" data-action="toggle-session" data-date="${session.date}">${daySummary(session)}</div>`}
+      ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<div class="daySummary num" data-action="toggle-session" data-date="${session.date}">${daySummary(session)}${session.note ? '<span class="dayNoteMark">Note</span>' : ''}</div>`}
   </section>`;
 };
 
@@ -3133,6 +3143,7 @@ const HELP_EXAMPLES = [
   ['bench 100 for 5, 3 sets', 'three sets of 5 at 100 kg, today'],
   ['squat 140x5x3 yesterday', 'sets × reps, on another day'],
   ['ran 30 min', 'cardio counts for Move'],
+  ['/note felt heavy, their benches are worse', 'a note on your latest session, tap it to read'],
   ['bench was 105, not 100', 'fixes the last set'],
   ['last friday deadlift 200 for 2', 'any day, any language'],
 ];
@@ -3326,7 +3337,7 @@ const showSheet = () => view.composer && ((view.route !== 'admin' && view.route 
 // /admin typed in any box turns clay (the box can't colour part of its own text, so a copy sits behind it) and is suggested while you type "/".
 // Slash commands in the box turn red: /admin (Marcus only) sends the rest to Claude to build; /feedback (anyone)
 // sends the rest as feedback to Marcus. Typing "/" or the start of one offers it.
-const SLASHES = [['/admin', 'Send this to Exodia', true], ['/feedback', 'Send this as feedback', false], ['/help', 'How Exodia works', false]];
+const SLASHES = [['/admin', 'Send this to Exodia', true], ['/note', 'Add a note to a session', false], ['/feedback', 'Send this as feedback', false], ['/help', 'How Exodia works', false]];
 const slashCommand = () => SLASHES.find(([cmd, , admin]) => (!admin || view.isAdmin) && new RegExp(`^\\${cmd}(\\s|$)`, 'i').test(view.draft))?.[0] || '';
 const slashOn = () => Boolean(slashCommand());
 // "/" lists every command; "/h" narrows it; the bare word ("help", "feedback") offers its command too, Tab takes it.
@@ -3437,12 +3448,12 @@ const syncDock = () => {
 };
 
 // About one in four is a command, its /word typed in clay like a command you type yourself; never the first.
-const EXAMPLES = ['Bench 100 kg 3x5, then rows 60 kg 3x10', 'Squat 140 for 5, 5 and 5 at RPE 8', '/help for tips and exports', 'Deadlift 200 x 3 yesterday', 'Paste notes from any app, even years of them', 'Pull-ups 3x8, dips 3x12', 'Walked 40 min', '/feedback what should Exodia add?', 'Incline dumbbell 32 kg 3x10 last Friday', 'Type / to see every command'];
+const EXAMPLES = ['Bench 100 kg 3x5, then rows 60 kg 3x10', 'Squat 140 for 5, 5 and 5 at RPE 8', 'Deadlift 200 x 3 yesterday', '/note felt heavy today, try a wider grip next time', 'Pull-ups 3x8, dips 3x12', 'Paste notes from any app, even years of them', 'Incline dumbbell 32 kg 3x10 last Friday', 'Walked 40 min', '/help for tips and exports', 'Type / to see every command'];
 // The hint is a span over the box, so the /word in it can take the same clay look as .slashCmd.
 const hintHtml = (text) => esc(text).replace(/(^|\s)(\/[a-z]*)/i, '$1<span class="slashCmd">$2</span>');
 // After a few logged days people know what the box does, so the typing examples step aside for one quiet line.
 const QUIET_HINT = 'Log training, paste notes or give feedback';
-const KNOWN_EXAMPLES = [QUIET_HINT, 'Bench 100 kg 3x5, then rows 60 kg 3x10', '/help for tips and exports', QUIET_HINT, 'Squat 140 for 5, 5 and 5 at RPE 8', 'Type / to see every command', QUIET_HINT, 'Deadlift 200 x 3 yesterday', '/feedback what should Exodia add?'];
+const KNOWN_EXAMPLES = [QUIET_HINT, 'Bench 100 kg 3x5, then rows 60 kg 3x10', '/note their benches felt worse than Eleiko', QUIET_HINT, 'Squat 140 for 5, 5 and 5 at RPE 8', '/help for tips and exports', QUIET_HINT, 'Deadlift 200 x 3 yesterday', 'Type / to see every command'];
 const knowsTheBox = () => state.sessions.filter((session) => session.exercises?.length).length >= 5;
 const typewriter = { text: '', index: 0, length: 0, fading: false };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -4616,6 +4627,18 @@ const applyResult = (result, date, said, heard = '') => {
     land(result, day);
     did.push(describeAdd(result, day));
   } else view.scrollTarget = null;
+  // A note goes on the day it's about; with no training that day, on the latest day logged before it.
+  if (result.note?.trim()) {
+    const day = result.date || date;
+    const target = sessionFor(day) || sortedSessions().find((session) => session.date <= day && session.exercises.length) || null;
+    if (target) {
+      const note = result.note.trim().slice(0, 600);
+      target.note = target.note ? `${target.note}\n${note}` : note;
+      view.open.add(target.date);
+      save();
+      did.push(`Note on ${dayLabel(target.date)}: ${note.length > 60 ? `${note.slice(0, 60)}…` : note}`);
+    } else did.push('Not logged: no session to put the note on yet. Log the training first, then add the note.');
+  }
   if (result.accessoriesMinutes) {
     const day = result.date || date;
     const session = sessionFor(day) || ensureSession(day);
@@ -5503,7 +5526,7 @@ const runLater = async (force = false) => {
         state.log = (state.log || []).filter((entry) => entry.laterId !== job.id);
         const said = result.transcript || job.said;
         if (result.feedback && !/\b(feedback|feature)\b/i.test(`${job.prompt} ${result.transcript || ''}`)) delete result.feedback;
-        const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
+        const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label || result.note);
         try {
           if (result.feedback && !logsSomething) await routeFeedback(result.feedback, said);
           else if (result.remove?.length && job.voice) view.confirm = { result, date: job.date, said, heard: result.transcript || '', text: describeRemoval(result) };
@@ -5550,7 +5573,7 @@ const send = async () => {
   // request is on screen at once, and a recording that is still finishing goes along as a promise.
   const typed = view.draft.trim();
   const toAdmin = view.isAdmin && !view.files?.length && view.route !== 'admin' && /^\/admin(\s|$)/i.test(typed);
-  if (toAdmin || (view.isAdmin && !view.files?.length && view.route === 'admin' && !/^\/feedback(\s|$)/i.test(typed))) {
+  if (toAdmin || (view.isAdmin && !view.files?.length && view.route === 'admin' && !/^\/(feedback|note)(\s|$)/i.test(typed))) {
     const rest = typed.replace(/^\/admin\s*/i, '');
     const voice = recording ? stopRecording() : view.voiceBlob;
     view.voiceBlob = null;
@@ -5570,7 +5593,7 @@ const send = async () => {
   const live = (view.live || '').trim();
   view.live = '';
   const voice = recorded?.size > 4000 ? recorded : null;
-  const text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
+  let text = [view.draft.trim(), voice ? '' : live].filter(Boolean).join(' ');
   // A file waiting in the box goes with whatever you typed or said: a voice note becomes the file's note.
   if (view.files?.length) {
     // Files import into your log, so they go from Home, where the result shows (Admin and Feedback have no chat).
@@ -5621,6 +5644,17 @@ const send = async () => {
     return sendFeedback(rest, voice);
   }
   if (view.route === 'feedback') return sendFeedback(text, voice);
+  // /note: the rest is a note for a session (the AI finds which), never sets.
+  if (/^\/note(\s|$)/i.test(text)) {
+    const rest = text.replace(/^\/note\s*/i, '');
+    if (!rest && !voice) {
+      view.draft = '';
+      render();
+      return;
+    }
+    text = `Note: ${rest}`;
+    if (view.route === 'admin') location.hash = '#/';
+  }
   const date = view.composerDate || todayIso();
   // Long text, or rows pasted from a spreadsheet (they come with tabs), is a history to import.
   if (!voice && (text.length > 600 || (/\t/.test(view.draft) && view.draft.trim().includes('\n'))) && !view.fixing && !view.editContext) {
@@ -5682,7 +5716,7 @@ const send = async () => {
     const said = fixing ? `Fix: ${text}` : heard || text;
     // Feedback only when they say "feedback" or "feature"; everything else in this box is training.
     if (result.feedback && !/\b(feedback|feature)\b/i.test(`${text} ${result.transcript || ''}`)) delete result.feedback;
-    const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label);
+    const logsSomething = Boolean(result.exercises?.length || result.cardioMinutes || result.remove?.length || result.replace?.length || result.move?.length || result.accessoriesMinutes || result.label || result.note);
     if (result.feedback && !logsSomething) await routeFeedback(result.feedback, said);
     else if (view.confirm && (YES.test(said) || NO.test(said))) answerConfirm(YES.test(said));
     else if (result.remove?.length && voice) {
@@ -5792,6 +5826,18 @@ document.addEventListener('click', (event) => {
   if (!target) return;
   const action = target.dataset.action;
   noteUse('tap', action);
+  if (action === 'toggle-note') {
+    view.noteOpen = view.noteOpen === target.dataset.date ? null : target.dataset.date;
+    render();
+    return;
+  }
+  if (action === 'add-note') {
+    view.noteEdit = target.dataset.date;
+    view.open.add(target.dataset.date);
+    render();
+    document.querySelector(`[data-day-note="${target.dataset.date}"]`)?.focus();
+    return;
+  }
   if (action === 'dash-filter') {
     view.dashFilter = target.dataset.filter;
     render();
@@ -6490,6 +6536,20 @@ document.addEventListener('input', (event) => {
 
 document.addEventListener('change', (event) => {
   const target = event.target;
+  if (target.dataset.dayNote) {
+    const session = sessionFor(target.dataset.dayNote);
+    if (session) {
+      const note = target.value.trim().slice(0, 600);
+      if (note === (session.note || '')) return;
+      if (note) session.note = note;
+      else delete session.note;
+      view.noteEdit = null;
+      addLog('Note', [note ? `Note on ${dayLabel(session.date)}` : `Removed the note on ${dayLabel(session.date)}`], { manual: true });
+      save();
+      render();
+    }
+    return;
+  }
   if (target.dataset.dayLabel) {
     const session = sessionFor(target.dataset.dayLabel);
     if (session) {

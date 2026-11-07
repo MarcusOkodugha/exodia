@@ -44,6 +44,7 @@ const THINK_LOW = true;
 const DEFAULT_MODELS = 'gemini-3.8-flash,gemini-3.5-flash,gemini-3.7-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite';
 
 const PROMPT = `You turn a lifter's spoken or typed workout note into JSON. The app is in English: the note may be in Swedish or any language, but write every exercise name, cardioName and label in short English ("knäböj" is "Squat", "marklyft" is "Deadlift", "bänkpress" is "Bench Press", "fotboll" is "Football", "benpass" is "Leg day"), and write unclear in the language the user used.
+A note is a remark about a session that is not sets or minutes: how it felt, the equipment or gym, a cue, a plan to try next time ("felt heavy, their benches are worse than an Eleiko bench"). Put it in note: short, cleaned up, in the user's own language and words, never invented. A message that starts with "Note:" is only a note: log no sets from it, even if it has numbers. A note can also come with sets in the same message: log the sets and put the remark in note. Numbers that describe a plan, a feeling or a comparison are not sets. If the note is about another session ("my latest bench session", "yesterday's squats"), set date to that day from the recent log.
 Feedback only when the user literally says the word "feedback" or "feature" (for example "feedback: the mic is slow"): then put that part in feedback in their own words and log nothing for it. Without one of those words, everything is training, never feedback.
 Weights are kilograms. Return only sets that were actually done.
 "120 for 4, 4 and 7" means three sets of 120 kg: 4, 4 and 7 reps.
@@ -86,6 +87,7 @@ const SCHEMA = {
     date: { type: 'STRING' },
     transcript: { type: 'STRING' },
     label: { type: 'STRING' },
+    note: { type: 'STRING' },
     move: { type: 'ARRAY', items: { type: 'OBJECT', properties: { from: { type: 'STRING' }, to: { type: 'STRING' }, exercise: { type: 'STRING' } }, required: ['from', 'to'] } },
     remove: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, exercise: { type: 'STRING' } }, required: ['date'] } },
     replace: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, exercise: { type: 'STRING' }, sets: { type: 'ARRAY', items: { type: 'OBJECT', properties: { kg: { type: 'NUMBER' }, reps: { type: 'INTEGER' }, rpe: { type: 'NUMBER' }, warmup: { type: 'BOOLEAN' } }, required: ['kg', 'reps'] } } }, required: ['date', 'exercise', 'sets'] } }

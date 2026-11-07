@@ -467,5 +467,9 @@
   "342": [
     "Every session gets its own dot on a lift's chart; long histories say when they show the best of each month",
     "The bar under a lift compares your last 10 weeks with your best"
+  ],
+  "343": [
+    "Notes on a session: type /note and a few words, or tap + Note on a day. Tap NOTE to read it",
+    "The box shows examples of what to type"
   ]
 }
