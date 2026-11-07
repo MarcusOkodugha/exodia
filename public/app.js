@@ -3212,6 +3212,17 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p><p class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</p></div></div>`).join('');
 
+// + says "here": Quick add lights up softly and Import from a file glows twice in clay, then both settle.
+const calloutQuick = () => requestAnimationFrame(() => {
+  if (reducedMotion.matches) return;
+  for (const element of [document.querySelector('.sheet .quickAdd'), document.querySelector('.sheet .quickAdd [data-action="pick-file"]')]) {
+    if (!element) continue;
+    element.classList.remove('callout');
+    void element.offsetWidth;
+    element.classList.add('callout');
+    element.addEventListener('animationend', () => element.classList.remove('callout'), { once: true });
+  }
+});
 const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
@@ -6370,6 +6381,7 @@ document.addEventListener('click', (event) => {
     if (!desktopQuery.matches) document.activeElement?.blur();
     render();
     scrollChat();
+    calloutQuick();
     return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;

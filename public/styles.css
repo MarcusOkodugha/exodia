@@ -1401,3 +1401,12 @@ main.page { overflow-x: clip; }
 .dayNoteInput { flex: 1; min-width: 0; resize: none; border: 0; border-bottom: 1px solid var(--sep); background: transparent; font: inherit; font-size: 14px; line-height: 19px; color: var(--text); padding: 2px 0 4px; }
 .dayNoteInput:focus { outline: none; border-bottom-color: var(--clay); }
 .dayNoteMark { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--clayText, var(--clay)); }
+
+/* + : Quick add lights up softly and Import from a file glows twice in clay, then both settle. */
+.quickAdd.callout { animation: quickLift 2.4s ease-out; border-radius: 16px; }
+@keyframes quickLift { 0% { background: rgba(201, 100, 66, 0.07); } 100% { background: transparent; } }
+.quickAdd [data-action="pick-file"].callout { animation: importGlow 1.3s ease-in-out 2; border-radius: 12px; }
+@keyframes importGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 100, 66, 0); background: transparent; }
+  45% { box-shadow: 0 0 0 4px rgba(201, 100, 66, 0.16), 0 0 18px rgba(201, 100, 66, 0.22); background: rgba(201, 100, 66, 0.06); }
+}
