@@ -2069,11 +2069,13 @@ const leftItems = () => {
   return (view.left || []).filter((item) => !answered[item.title]);
 };
 const newFeedback = () => (view.adminFeedback || []).filter((item) => item.status === 'new');
+// Marcus only: a red dot (grey when nothing waits). It opens what's waiting on him, and the developer tools below it.
 const renderLeft = () => {
-  const items = view.isAdmin ? leftItems() : [];
-  const feedback = view.isAdmin ? newFeedback() : [];
-  if (!items.length && !feedback.length) return '';
-  return `<button class="leftPill" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot" aria-hidden="true"></span>${items.length + feedback.length}<span class="leftWord"> left</span></button>
+  if (!view.isAdmin) return '';
+  const items = leftItems();
+  const feedback = newFeedback();
+  const waiting = items.length + feedback.length;
+  return `<button class="leftPill${waiting ? '' : ' calm'}" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}" aria-label="${waiting ? `${waiting} waiting on you` : 'Developer'}"><span class="leftDot" aria-hidden="true"></span></button>
     ${view.leftOpen ? `<button class="leftScrim" data-action="toggle-left" aria-label="Close"></button><section class="leftPanel" aria-label="Waiting on you">
       <p class="leftHead">Waiting on you</p>
       ${feedback.map((item) => `<div class="leftItem${view.leftItem === `f${item.id}` ? ' open' : ''}">
@@ -2084,6 +2086,14 @@ const renderLeft = () => {
         <button class="leftTitle" data-action="left-item" data-index="${index}" aria-expanded="${view.leftItem === index}">${inlineMd(item.title.replace(/^Decide:\s*/i, '').replace(/^\p{Ll}/u, (letter) => letter.toUpperCase()))}${item.decide ? '<span class="leftTag">Decide</span>' : ''}</button>
         ${view.leftItem === index ? `<div class="leftBody">${item.why ? `<p>${inlineMd(item.why)}</p>` : ''}${item.steps.length ? `<ol>${item.steps.map((step) => `<li>${inlineMd(step)}</li>`).join('')}</ol>` : ''}<div class="leftAnswer">${item.decide ? `<button class="chip" data-action="left-answer" data-index="${index}" data-answer="yes"><span class="chipFace">Yes</span></button><button class="chip" data-action="left-answer" data-index="${index}" data-answer="no"><span class="chipFace">No</span></button>` : ''}<button class="chip" data-action="left-reply" data-index="${index}"><span class="chipFace">Add context</span></button></div></div>` : ''}
       </div>`).join('')}
+      ${waiting ? '' : '<p class="leftEmpty">Nothing waiting on you.</p>'}
+      <p class="leftHead">Developer</p>
+      <div class="leftDev">
+        <button data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
+        <button data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
+        ${view.devHit ? '<button data-action="dev-normal">Back to normal colors</button>' : ''}
+        ${view.sandbox ? '<button data-action="dev-exit">Leave test mode</button>' : '<button data-action="dev-newuser">Simulate new user</button>'}
+      </div>
     </section>` : ''}`;
 };
 
@@ -3685,8 +3695,10 @@ const placeTopRight = () => {
   const pill = document.querySelector('.leftPill');
   const devs = [...document.querySelectorAll('.devBtn')].filter((button) => !button.closest('.side'));
   let edge;
+  // Computer: the dot sits in the sidebar beside the name (styles.css), nothing to line up.
   if (desktopQuery.matches) {
-    edge = window.innerWidth - 14;
+    if (pill) pill.style.right = '';
+    return;
   } else {
     const icon = document.querySelector('.topbarInner > .iconBtn:last-child');
     if (!icon) return;
@@ -4275,15 +4287,13 @@ const render = () => {
   const dock = `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
-        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
+        <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
         <aside class="right" aria-label="Progress">${rightTotal()}${renderProgress()}</aside>
-        ${view.isAdmin ? '<button class="devBtn deskDev" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
       </div>`
     : `<header class="topbar"><div class="topbarInner">
         <button class="iconBtn" data-action="open-menu" aria-label="Open menu">${ICONS.menu}</button>
         <a class="brand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>
-        ${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
         ${view.route === 'home' ? `<a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>` : `<a class="iconBtn" href="#/" aria-label="Home">${ICONS.home}</a>`}
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
@@ -4599,7 +4609,7 @@ const applySetEdit = (edit, said) => {
   const was = `${set.kg} × ${set.reps || '?'}`;
   const kg = edit.kg ?? set.kg;
   const reps = edit.reps ?? set.reps;
-  changeWithUndo(`${edit.exercise.name} set ${edit.index + 1}: ${was} → ${kg} × ${reps || '?'}`, () => {
+  changeWithUndo(`${edit.exercise.name} set ${edit.index + 1}: ${was.replace(' × ', '\u00a0×\u00a0')}\u00a0→ ${kg}\u00a0×\u00a0${reps || '?'}`, () => {
     set.kg = String(kg);
     set.reps = String(reps ?? '');
     set.edited = true;
@@ -6434,6 +6444,7 @@ document.addEventListener('click', (event) => {
   if (action === 'dev-menu') view.devMenu = !view.devMenu;
   else if (action === 'close-dev') view.devMenu = false;
   else if (action === 'dev-exodia') {
+    view.leftOpen = false;
     view.exodiaStyle = target.dataset.style;
     view.devMenu = false;
     view.devHit = true;
@@ -6441,6 +6452,7 @@ document.addEventListener('click', (event) => {
     if (view.route !== 'home') location.hash = '#/';
     scrollPage(0);
   } else if (action === 'dev-normal') {
+    view.leftOpen = false;
     view.devMenu = false;
     view.devHit = false;
     view.celebrating = false;

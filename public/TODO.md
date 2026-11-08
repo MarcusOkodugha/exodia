@@ -23,6 +23,9 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Experiment: pill choice on the first screen (Marcus to judge, 8 Nov):** two open hands, blue pill = start fresh, red pill = bring your history. Mockup sent; only goes in if it really nails it.
+- [ ] **Vibe-coded audit (8 Nov), still open:** fewer eyebrow labels (#2), first screen shows the product with a specific headline (#6/#9), contrast of small grey text (#15), e1RM column lines (#17).
+
 - [ ] **Computer right panel (Marcus to pick, 8 Nov):** Home = the phone Trends page, narrow, scrolls; Trends = something else (5 options sent in chat).
 
 - [ ] **Three big epics (Marcus, 7 Nov 2026: execute perfectly when the time comes; keep through every session switch):**
@@ -45,6 +48,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Clay underline for every picked option (chips + switches); toast numbers kept together; inner pills in the box 10px corners (#14 try); red pill is a red dot with the developer menu inside; SBD top right on the computer, est. under (v365)
 - ✓ Computer: SBD total at the top of the right panel, scrolls with it, not pinned (v364)
 - ✓ Computer: SBD total fixed top right on every page; SBD label small again (v362)
 - ✓ Cursor no longer drifts onto letters after /admin, /note (v361)
