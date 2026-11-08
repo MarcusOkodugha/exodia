@@ -1081,28 +1081,50 @@ const readVisits = async (request, env, ctx) => {
   if (!images.length) return json({ error: 'No pictures came through. Try again.' }, 400);
   const today = typeof body?.today === 'string' ? body.today.slice(0, 10) : '';
   const schema = { type: 'OBJECT', properties: { visits: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, place: { type: 'STRING' }, time: { type: 'STRING' }, minutes: { type: 'INTEGER' } }, required: ['date', 'place'] } } }, required: ['visits'] };
+  // The same guard as reading notes (it works every day): low thinking answers in seconds, a model that hangs is
+  // dropped after 20 s and the next one asked, and a busy model sits out a minute. Without it a call hung for minutes.
   let busy = false;
-  for (const model of (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((name) => name.trim()).filter(Boolean)) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: `${VISITS_PROMPT}\nToday is ${today || 'unknown'}.` }] }, contents: [{ role: 'user', parts: [...images.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } })), { text: 'List the gym visits in these pictures.' }] }], generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: schema } }),
-    });
+  let lastError = '';
+  const all = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((name) => name.trim()).filter(Boolean);
+  const fresh = all.filter((model) => !cooling(model));
+  for (const model of fresh.length ? fresh : all) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    let response;
+    try {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: `${VISITS_PROMPT}\nToday is ${today || 'unknown'}.` }] }, contents: [{ role: 'user', parts: [...images.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } })), { text: 'List the gym visits in these pictures.' }] }], generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: schema, ...(THINK_LOW ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } }),
+        signal: controller.signal,
+      });
+    } catch {
+      clearTimeout(timer);
+      COOLING.set(model, Math.max(COOLING.get(model) || 0, Date.now() + 60000));
+      lastError = `${model}: no answer in 20 s`;
+      busy = true;
+      continue;
+    }
     if (!response.ok) {
+      clearTimeout(timer);
+      const reason = await response.text().catch(() => '');
+      lastError = `${model}: ${response.status} ${coolDown(model, response.status, reason) || reason.replace(/\s+/g, ' ').slice(0, 120)}`;
       busy = busy || response.status === 429 || response.status >= 500;
       continue;
     }
     const data = await response.json().catch(() => null);
+    clearTimeout(timer);
     try {
       const parsed = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
       const visits = (Array.isArray(parsed?.visits) ? parsed.visits : []).filter((visit) => /^\d{4}-\d{2}-\d{2}$/.test(visit?.date) && (!today || visit.date <= today)).map((visit) => ({ date: visit.date, place: String(visit.place || '').slice(0, 60), ...(visit.time ? { time: String(visit.time).slice(0, 5) } : {}), ...(Number(visit.minutes) > 0 ? { minutes: Math.round(Number(visit.minutes)) } : {}) }));
       logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { visits: visits.length, first: visits.map((visit) => visit.date).sort()[0] || '', engine: model });
       return json({ visits, model });
     } catch {
+      lastError = `${model}: answer could not be read`;
       continue;
     }
   }
-  logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { error: busy ? 'busy' : 'unreadable' });
+  logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { error: lastError || (busy ? 'busy' : 'unreadable') });
   return json({ error: busy ? 'The AI was busy. Try again in a minute.' : 'Could not read the visits in that.' }, 503);
 };
 

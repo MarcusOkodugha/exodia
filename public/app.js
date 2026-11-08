@@ -5799,10 +5799,10 @@ const readVisits = async (files) => {
     view.status = `Reading your gym visits from ${frames.length} pictures…`;
     render();
     const found = {};
-    // The pictures go in parts of 12, three parts at a time; the line counts parts as they come back, and a part that
+    // The pictures go in parts of 6, three parts at a time; the line counts parts as they come back, and a part that
     // fails is tried once more and then skipped, so one busy moment never stops the rest.
     const parts = [];
-    for (let start = 0; start < frames.length; start += 12) parts.push(frames.slice(start, start + 12));
+    for (let start = 0; start < frames.length; start += 6) parts.push(frames.slice(start, start + 6));
     let doneParts = 0;
     let failed = 0;
     let lastError = '';
@@ -5812,7 +5812,7 @@ const readVisits = async (files) => {
     };
     show();
     const readPart = async (images) => {
-      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images, today: todayIso(), name: state.name || '' }) }, 90000);
+      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images, today: todayIso(), name: state.name || '' }) }, 130000);
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           const response = await send();
