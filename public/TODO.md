@@ -23,6 +23,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Computer right panel (Marcus to pick, 8 Nov):** Home = the phone Trends page, narrow, scrolls; Trends = something else (5 options sent in chat).
+
 - [ ] **Three big epics (Marcus, 7 Nov 2026: execute perfectly when the time comes; keep through every session switch):**
   1. **Friends:** see a friend's Exodia from yours without it getting in the way. Tap to see their info (recovery, training, levels) and get back to yourself in one tap, so you can plan sessions together.
   2. **Training programs** in Exodia.
@@ -43,6 +45,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Computer: SBD total fixed top right on every page; SBD label small again (v362)
 - ✓ Cursor no longer drifts onto letters after /admin, /note (v361)
 - ✓ SBD total + estimated total top right on Trends (v359); 4 other placements offered, Marcus to pick
 - ✓ Editing a day: notes load and land on that day; one-set changes in plain words handled on the phone (also rescues a voice note the AI missed); failed note back in a lit box; loading rows one soft bar each (v358)
