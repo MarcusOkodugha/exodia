@@ -1542,3 +1542,12 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .qrEyeRing { fill: none; stroke: var(--clay); stroke-width: 1; }
 .qrEye { fill: var(--clay); }
 .qrNote { margin: 0; color: var(--text2); font-size: 13px; text-align: center; }
+
+/* Share Exodia: the QR code last in the share section, small, one colour straight on the page (no white tile, no
+   orange corners), the hint beside it. */
+.shareNote { margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--sep); font-size: 13px; line-height: 18px; color: var(--text2); }
+.qrRow { flex-direction: row; align-items: center; gap: 16px; padding: 14px 0 16px; }
+.qrCode { width: 104px; height: 104px; flex: none; background: none; border-radius: 0; }
+.qrDots, .qrEye { fill: var(--text); }
+.qrEyeRing { stroke: var(--text); }
+.qrNote { text-align: left; font-size: 14px; line-height: 19px; }

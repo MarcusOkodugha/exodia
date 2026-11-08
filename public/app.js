@@ -2432,9 +2432,9 @@ const shareCard = () => {
   return `<section class="card">
     ${view.isAdmin ? `<div class="row"><label class="sr" for="shareName">Their name</label><input id="shareName" class="pill noLine" style="flex:1;width:auto;text-align:left;font-weight:400;font-size:15px" autocomplete="off" placeholder="Their name" value="${esc(view.shareName || '')}" data-share-name></div>` : ''}
     <div class="row"><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px">${esc(link)}</span><button class="textBtn" data-action="copy-invite">${view.copiedInvite ? 'Copied' : 'Copy'}</button><button class="textBtn shareBtn" data-action="share-invite" aria-label="Share">${SHARE_ICON}Share</button></div>
-    <div class="qrRow">${qrSvg(link)}<p class="qrNote">Point a phone camera here to open Exodia</p></div>
-  </section>
-  <p class="note">${named ? 'Opens Exodia with their name already in, so you know who it is in the dashboard.' : 'Add their name so the link opens with it and you know who it is. Without it, anyone who opens it gets an empty Exodia with no name.'}</p>`;
+    ${view.isAdmin ? `<p class="shareNote">${named ? 'Opens Exodia with their name already in, so you know who it is in the dashboard.' : 'Add their name so the link opens with it and you know who it is. Without it, anyone who opens it gets an empty Exodia with no name.'}</p>` : ''}
+    <div class="qrRow">${qrSvg(link)}<p class="qrNote">Or let them point their phone camera here</p></div>
+  </section>`;
 };
 
 // Every command, oldest at the top: what people sent (theirs on the left under their name), and your own change

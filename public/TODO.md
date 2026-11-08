@@ -23,6 +23,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Import reads screen recordings + screenshots; gym-visit days (8 Nov):** for Nordic Wellness / Nordic Performance Center visit lists (one screen recording, scrolled once). Visits land as "Gym visit · club" in a soft unknown-weight shade, logged days win.
+
 - [ ] **Show when Exodia runs out (8 Nov, Marcus to pick A–D):** A days left in the top line, B thin draining line, C bars drain together, D only when opened (date + bar + what to do). Mockups sent.
 
 - [ ] **Gym visits (8 Nov):** fill the calendar with every day Marcus was at the gym: Nordic Wellness first (app → Statistik → Senaste aktiviteter: date + gym per visit, monthly counts 2025/2026), then Nordic Performance Center, later Gymet. Plan: screenshots of the full list → read the dates → visit days on the calendar in a soft unknown-weight shade (no PRs), tap says "Gym visit · Nordic Wellness Liljeholmen · nothing logged" with + Add what you did. Waiting on the scrolled list screenshots. Never log in with Marcus's password.
@@ -53,6 +55,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ QR code: two colours (dark on beige, no white tile, no orange), 104px, last in Share Exodia with the hint beside it; "add their name" note only for Marcus (v374)
 - ✓ Settings → Share Exodia: QR code (clay eyes, rounded dots) for the invite link, scan with a phone camera; follows the name Marcus types (v373)
 - ✓ PRs real lifts only: heavier single, or more kg than ever for that many reps or more; never from RPE/estimates (140×1@8 with a 145 single is not a PR) (v372)
 - ✓ Exodia card went invisible: small cards under the box get hidden, and a bad measurement (keyboard, turn) hid the Exodia card; it's never hidden now (v371)
