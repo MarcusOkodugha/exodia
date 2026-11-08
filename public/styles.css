@@ -1444,3 +1444,7 @@ main.page { overflow-x: clip; }
 .session.editing .exercise > .textBtn[data-action="add-set"] { min-height: 32px; display: block; }
 /* A note on its way whose day isn't known yet: at the top, under no day. */
 .session.incoming { padding-top: 6px; }
+/* Loading bars as tall as what they stand in for: the name bar like a lift name, the row dot like a set number.
+   Last in the file on purpose: an earlier shared rule sets every bar to 10px. */
+.ghostName i { height: 18px; border-radius: 9px; }
+.ghostRow i:first-child { height: 16px; border-radius: 8px; }

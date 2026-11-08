@@ -684,7 +684,18 @@ const recentLog = () => sortedSessions()
 const laterJobs = () => (state.later || []);
 // What a note means depends on when it was written and which day was being edited: a note that waits for the AI
 // keeps both, so "yesterday" and "make the last set 105" still land where they were meant to.
-const noteContext = () => ({ ...(view.asked && Date.now() - view.asked.at < 60 * 60000 ? { asked: view.asked.question } : {}), today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '' });
+// While Exodia waits for an answer, the empty box shows what an answer looks like ("it was 10 reps").
+const askedOpen = () => Boolean(view.asked && Date.now() - view.asked.at < 60 * 60000);
+const exampleAnswer = (question) => {
+  const words = String(question || '');
+  if (/which (exercise|lift)|what (exercise|lift)/i.test(words)) return 'Answer, like: Hammer Curl';
+  if (/which day|what day|when\b|date/i.test(words)) return 'Answer, like: yesterday';
+  if (/rep/i.test(words)) return 'Answer, like: it was 10 reps';
+  if (/kg|kilo|weight|heavy/i.test(words)) return 'Answer, like: it was 15 kg';
+  if (/sets?\b/i.test(words)) return 'Answer, like: 3 sets';
+  return 'Type your answer';
+};
+const noteContext = () => ({ ...(view.asked && Date.now() - view.asked.at < 60 * 60000 ? { asked: `${view.asked.question}${view.asked.said ? ` (about their note: "${view.asked.said.slice(0, 300)}")` : ''}` } : {}), today: todayIso(), viewing: view.editContext?.date || view.composerDate || todayIso(), focus: view.editContext ? `${view.editContext.names.join(', ') || 'the workout'} on ${view.editContext.date}` : '' });
 // No connection at all is a "try again later", same as a busy AI.
 // Every request a person waits on gives up after a while with a reason, so "writing…" never hangs forever on bad wifi.
 const timedFetch = (url, options = {}, ms = 45000) => {
@@ -3496,6 +3507,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
       ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(liveLine())}</span></span>`
       : view.voiceBlob && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Voice note ready · tap ↑ to log it</span></span>'
       : view.files?.length && !view.draft.trim() ? '<span class="hint live" aria-hidden="true"><span class="liveText">Add a note (like when it started) or tap ↑</span></span>'
+      : askedOpen() && !view.draft.trim() ? `<span class="hint live" aria-hidden="true"><span class="liveText">${esc(exampleAnswer(view.asked.question))}</span></span>`
       : `<span class="hint${typewriter.fading ? ' fading' : ''}" aria-hidden="true">${hintHtml(typewriter.text)}</span>`}
     <div class="promptBar">${view.listening ? `<button class="roundBtn soft" data-action="cancel-mic" aria-label="Discard what you said">${ICONS.close}</button><span class="wave${view.speaking ? ' speaking' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>` : `${state.sessions.length ? '<button class="roundBtn soft plusBtn" data-action="open-quick" aria-label="Quick add">' + ICONS.plus + '</button>' : `<button class="roundBtn soft plusBtn" data-action="pick-file" aria-label="Add a file with your training">${ICONS.clip}</button>`}<span class="modelTag">Exodia <span class="modelVersion">1.0</span></span>`}${promptButtons()}</div>
   </div>
@@ -5872,7 +5884,7 @@ const send = async () => {
     // A question about part of the note (missing reps): above the box where it's seen, and sent with the next note so
     // the answer completes it.
     if (result.unclear && logsSomething) {
-      view.asked = { question: result.unclear, at: Date.now() };
+      view.asked = { question: result.unclear, said, at: Date.now() };
       view.status = result.unclear;
     } else if (logsSomething) view.asked = null;
     if (result.feedback && logsSomething) routeFeedback(result.feedback, said).catch((error) => addLog(said, [`Feedback not sent: ${error.message}`]));
@@ -5882,13 +5894,15 @@ const send = async () => {
     view.retryVoice = null;
     done = !view.confirm && !result.unclear && !view.draft.trim() && !view.listening && view.pending.length === 1;
   } catch (error) {
-    // A friend's note the AI has a question about: the question shows above the box, their words stay in it to fix and
-    // send again, and nothing is logged.
+    // A friend's note the AI has a question about: the question shows above the box with an example answer in it, nothing
+    // is logged, and the note goes along with their answer.
     if (error.question && (text || heard) && !view.isAdmin && !view.sandbox && !view.fixing) {
-      view.draft = text || heard;
+      view.asked = { question: error.question, said: text || heard, at: Date.now() };
+      view.draft = '';
       view.status = error.question;
       view.focusDraft = desktopQuery.matches;
       openChat();
+      view.sheetH = SHEET_PEEK;
       return;
     }
     // Busy or offline: it waits and tries again by itself; nothing for the person to do.
@@ -5901,6 +5915,12 @@ const send = async () => {
     const voiceId = voice ? `voice-${Date.now()}` : null;
     if (voiceId) keepVoice(voiceId, voice);
     const words = text || heard || error.heard || live || 'Voice note';
+    // A question back (nothing could be logged without it): above the box, with an example answer in the box, and the
+    // note goes along with the answer so "10" is enough.
+    if (error.question) {
+      view.asked = { question: error.question, said: words, at: Date.now() };
+      view.status = error.question;
+    }
     const kept = voice && !error.unclear ? (words !== 'Voice note' ? ' Your words are saved, tap Try again.' : ' Your recording is saved, tap Try again.') : '';
     addLog(words, [`Not logged: ${error.message}${kept}`], { ...(voiceId ? { voiceId } : {}), ...(voice && !text && words !== 'Voice note' ? { heard: words } : {}), ...(error.engine ? { by: error.engine, raw: error.raw } : {}) });
   } finally {
