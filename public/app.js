@@ -2069,13 +2069,15 @@ const leftItems = () => {
   return (view.left || []).filter((item) => !answered[item.title]);
 };
 const newFeedback = () => (view.adminFeedback || []).filter((item) => item.status === 'new');
-// Marcus only: a red dot (grey when nothing waits). It opens what's waiting on him, and the developer tools below it.
+// Marcus only: what's waiting on him, and the developer tools below it.
 const renderLeft = () => {
   if (!view.isAdmin) return '';
   const items = leftItems();
   const feedback = newFeedback();
   const waiting = items.length + feedback.length;
-  return `<button class="leftPill${waiting ? '' : ' calm'}" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}" aria-label="${waiting ? `${waiting} waiting on you` : 'Developer'}"><span class="leftDot" aria-hidden="true"></span></button>
+  // Hidden everywhere: an invisible 44px spot, always in the same place (phone: just left of the Trends/Home icon, top
+  // right; computer: right of the name in the sidebar). On Admin it's a visible button under the title instead.
+  return `${view.route === 'admin' ? '' : `<button class="leftPill${waiting ? '' : ' calm'}" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}" aria-label="${waiting ? `${waiting} waiting on you` : 'Developer'}"><span class="leftDot" aria-hidden="true"></span></button>`}
     ${view.leftOpen ? `<button class="leftScrim" data-action="toggle-left" aria-label="Close"></button><section class="leftPanel" aria-label="Waiting on you">
       <p class="leftHead">Waiting on you</p>
       ${feedback.map((item) => `<div class="leftItem${view.leftItem === `f${item.id}` ? ' open' : ''}">
@@ -2312,7 +2314,7 @@ const renderAdmin = () => {
   const tabs = `<div class="segment full adminTabs" role="tablist" aria-label="Admin">${[['chat', 'Chat'], ['dash', 'Dashboard']].map(([value, label]) => `<button class="segmentOption" role="tab" data-action="admin-tab" data-tab="${value}" aria-selected="${tab === value}" aria-pressed="${tab === value}">${label}</button>`).join('')}</div>`;
   return `<main class="page adminPage">
     <p class="eyebrow">Only visible to you</p>
-    <h1 class="title">Admin</h1>
+    <div class="titleRow"><h1 class="title">Admin</h1>${(() => { const waiting = leftItems().length + newFeedback().length; return `<button class="adminLeftBtn" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot${waiting ? '' : ' calm'}" aria-hidden="true"></span>${waiting ? `${waiting} waiting` : 'Nothing waiting'} · Developer</button>`; })()}</div>
     ${tabs}
     ${tab === 'chat' ? `
     ${buildingNow() || (state.claudeRuns || [])[0]?.status === 'sending' ? `<p class="adminWorking" role="status">${exoSpin}<span class="ghostText thinkLine">Exodia is on it…</span></p>` : ''}

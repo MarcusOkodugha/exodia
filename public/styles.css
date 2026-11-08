@@ -1526,3 +1526,11 @@ html body .adminTabs { box-shadow: 0 1px 0 var(--sep), 0 -16px 0 6px var(--bg), 
 .rightTotal .sbdTotal { display: grid; gap: 0; justify-items: end; }
 .rightTotal .sbdTotal b { font-size: 15px; line-height: 19px; }
 .rightTotal .sbdEst { order: 0; font-size: 11px; line-height: 14px; }
+
+/* The hidden button: invisible, 44px, always in the same spot, Marcus only. Visible on Admin as .adminLeftBtn. */
+.leftPill { width: 44px; height: 44px; opacity: 0; }
+@media (min-width: 1024px) { .leftPill { top: 12px; left: 214px; } }
+.adminLeftBtn { display: inline-flex; align-items: center; gap: 7px; height: 32px; margin-bottom: 4px; padding: 0 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.adminLeftBtn .leftDot { width: 8px; height: 8px; border-radius: 50%; background: #D94A2B; }
+.adminLeftBtn .leftDot.calm { background: var(--sep); }
+@media (max-width: 1023px) { .leftPill { top: calc(var(--top) + 4px); } }

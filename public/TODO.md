@@ -48,6 +48,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Red pill hidden: invisible 44px spot left of the top-right icon (phone) / right of the name in the sidebar (computer); visible button on Admin (v366)
 - ✓ Clay underline for every picked option (chips + switches); toast numbers kept together; inner pills in the box 10px corners (#14 try); red pill is a red dot with the developer menu inside; SBD top right on the computer, est. under (v365)
 - ✓ Computer: SBD total at the top of the right panel, scrolls with it, not pinned (v364)
 - ✓ Computer: SBD total fixed top right on every page; SBD label small again (v362)
