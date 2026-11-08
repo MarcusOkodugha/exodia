@@ -6,12 +6,12 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Cloud setup on this Claude account (one time).** Phone sessions on this account can't reach Cloudflare yet, so they can't read the database or confirm a deploy is live. Once done, every new session has it, Mac on or off.
+- [ ] **One Exodia cloud environment (one time, then never again).** Sessions run on Anthropic's servers and work with the Mac asleep; the keys live on the environment, so every new session has them.
   1. Open [Cloudflare → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → **Create Token** → **Edit Cloudflare Workers** → **Use template** → **+ Add more** → Account · **D1** · **Edit** → **Continue to summary** → **Create Token** → copy it
   2. Open [Cloudflare dashboard](https://dash.cloudflare.com) → **Workers & Pages** → copy **Account ID** (right side)
-  3. Open [claude.ai/code](https://claude.ai/code) on this account → tap the environment name under the message box → its settings (gear) → **Network access**: **Full**
+  3. Open [claude.ai/code](https://claude.ai/code) on this account → tap the environment name under the message box → **Add environment** (or edit the existing one) → name it **Exodia** → **Network access**: **Full**
   4. Same screen → **Environment variables** → add `CLOUDFLARE_API_TOKEN=` + token and `CLOUDFLARE_ACCOUNT_ID=` + ID, one per line → **Save**
-  5. Start a new session: "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
+  5. From the Claude app on your phone → **Code** → repo exodia, environment **Exodia** → "Read CLAUDE.md and public/TODO.md, check git log origin/main, and continue."
 - [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
   1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
 - [ ] **Admin builds on your second Claude account.** Builder 1's builds haven't landed since 4 Nov; Builder 2 works and is already the default. It only needs its token, all from the phone.
