@@ -1091,7 +1091,7 @@ const dayNote = (session, editing) => {
   return `<button class="dayNote${open ? ' open' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
 };
 const renderSession = (session) => {
-  const pendings = inFlight().filter((pending) => pending.date === session.date);
+  const pendings = inFlight().filter((pending) => pending.date === session.date && pending.known !== false);
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
@@ -1128,9 +1128,11 @@ const renderSession = (session) => {
 };
 
 const listWithGhosts = (sessions) => {
-  const ghostDates = [...new Set(inFlight().map((pending) => pending.date))].filter((date) => !sessions.some((session) => session.date === date));
-  const ghosts = ghostDates.map((date) => ({ date, html: `<section class="card session open landing" id="session-${date}"><div class="head"><span class="headName">${dayLabel(date)}</span></div>${inFlight().filter((pending) => pending.date === date).map(renderPending).join('')}</section>` }));
-  return [...sessions.map((session) => ({ date: session.date, html: renderSession(session) })), ...ghosts]
+  const known = inFlight().filter((pending) => pending.known !== false);
+  const ghostDates = [...new Set(known.map((pending) => pending.date))].filter((date) => !sessions.some((session) => session.date === date));
+  const ghosts = ghostDates.map((date) => ({ date, html: `<section class="card session open landing" id="session-${date}"><div class="head"><span class="headName">${dayLabel(date)}</span></div>${known.filter((pending) => pending.date === date).map(renderPending).join('')}</section>` }));
+  const unsure = inFlight().filter((pending) => pending.known === false);
+  return (unsure.length ? `<section class="card session open landing incoming" id="session-incoming">${unsure.map(renderPending).join('')}</section>` : '') + [...sessions.map((session) => ({ date: session.date, html: renderSession(session) })), ...ghosts]
     .sort((first, second) => second.date.localeCompare(first.date))
     .map((item) => item.html)
     .join('');
@@ -3381,12 +3383,17 @@ const fitQuick = (body) => {
   view.sheetH = height;
   sheet.style.height = `${height}px`;
 };
-const scrollChat = () => {
+const scrollChat = (again = true) => {
   const body = document.querySelector('.sheetBody');
   if (!body) return;
   fitQuick(body);
   body.scrollTop = restingScroll(body);
   body.dataset.rest = String(body.scrollTop);
+  // The panel's content settles a moment after it opens (fonts, wrapping): settle again then, unless you've scrolled it.
+  if (again) for (const wait of [350, 900]) setTimeout(() => {
+    const now = document.querySelector('.dock .sheetBody');
+    if (now && view.composer && now.dataset.rest && Math.abs(now.scrollTop - Number(now.dataset.rest)) < 4) scrollChat(false);
+  }, wait);
 };
 // The iPhone keyboard shrinks the panel after it opened; settle it again unless you've scrolled it yourself.
 const resettle = () => {
@@ -4334,6 +4341,7 @@ const render = () => {
 const closeComposer = () => {
   view.composer = false;
   view.composerDate = null;
+  view.dayPicked = false;
   view.draft = '';
   view.voiceBlob = null;
   view.status = '';
@@ -5809,12 +5817,16 @@ const send = async () => {
     closeTray();
     return;
   }
-  const pending = { date: guessDate(text, date), label: text || 'your voice note', text: text || live || 'Voice note' };
+  // The day is only certain when you picked it (a day's + Exercise, the day chips, editing a day) or named it ("yesterday");
+  // otherwise what's on its way waits at the top, under no day, until the answer says where it goes.
+  const named = guessDate(text, null);
+  const known = Boolean(view.dayPicked || view.editContext || view.editDay || named);
+  const pending = { date: named || date, known, label: text || 'your voice note', text: text || live || 'Voice note' };
   view.pending.push(pending);
   view.sentAt = Date.now();
   view.draft = '';
   view.status = '';
-  view.scrollTarget = pending.date;
+  view.scrollTarget = known ? pending.date : 'incoming';
   view.focusLanded = '.ghost';
   if (!desktopQuery.matches) document.activeElement?.blur();
   showChat();
@@ -6317,9 +6329,11 @@ document.addEventListener('click', (event) => {
     view.trayEnter = !view.composer;
     view.composer = true;
     view.composerDate = target.dataset.date || todayIso();
+    view.dayPicked = Boolean(target.dataset.date);
     view.focusDraft = true;
   } else if (action === 'composer-day') {
     view.composerDate = date;
+    view.dayPicked = true;
     view.focusDraft = true;
   }
   else if (action === 'toggle-exodia') {

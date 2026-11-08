@@ -721,7 +721,10 @@ body:has(.sheet.peek) .chatScrim { opacity: 0 !important; pointer-events: none; 
 .homePage .session input { -webkit-user-select: text; user-select: text; }
 /* Entering Edit: everything you can change glows softly twice, then settles. */
 .editHint { display: none; }
-.session:has(.editHint) .pill, .session:has(.editHint) .minus { animation: editGlow 1.3s ease-in-out 2; }
+.session:has(.editHint) .pill { animation: editGlow 1.3s ease-in-out 2; }
+/* The minus buttons pop in quickly, solid clay from the first frame. */
+.session:has(.editHint) .minus { animation: minusIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes minusIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
 @keyframes editGlow { 0%, 100% { box-shadow: inset 0 -1px 0 #D6D3C8; background-color: transparent; } 50% { box-shadow: inset 0 -2px 0 var(--clay); background-color: rgb(var(--clayRgb) / 0.07); } }
 .session:has(.editHint) .minus { box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .session:has(.editHint) .pill, .session:has(.editHint) .minus { animation: none; } }
@@ -1398,8 +1401,8 @@ main.page { overflow-x: clip; }
 .dayNoteText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; }
 .dayNote.open .dayNoteText { white-space: pre-wrap; overflow: visible; }
 .dayNoteEdit { display: flex; align-items: baseline; gap: 8px; padding: 8px 0 6px; }
-.dayNoteInput { flex: 1; min-width: 0; resize: none; border: 0; border-bottom: 1px solid var(--sep); background: transparent; font: inherit; font-size: 14px; line-height: 19px; color: var(--text); padding: 2px 0 4px; }
-.dayNoteInput:focus { outline: none; border-bottom-color: var(--clay); }
+.dayNoteInput { flex: 1; min-width: 0; resize: none; border: 0; border-radius: 8px; background: rgb(var(--clayRgb) / 0.05); font: inherit; font-size: 14px; line-height: 19px; color: var(--text); padding: 6px 8px; }
+.dayNoteInput:focus { outline: none; background: rgb(var(--clayRgb) / 0.09); }
 .dayNoteMark { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--clayText, var(--clay)); }
 
 /* + : Quick add lights up softly and Import from a file glows twice in clay, then both settle. */
@@ -1417,7 +1420,7 @@ main.page { overflow-x: clip; }
 
 /* Waiting rows: numbers counting up in the real kg, reps and e1RM columns; skeleton bars a little thicker. */
 .ghostRow i:first-child { height: 13px; border-radius: 7px; }
-.ghostRow .roll { font-weight: 500; font-size: 17px; color: var(--clayText, var(--clay)); opacity: 0.5; filter: blur(1.6px); text-shadow: 0 0 8px rgb(var(--clayRgb) / 0.45); text-align: right; font-variant-numeric: tabular-nums; }
+.ghostRow .roll { font-weight: 500; font-size: 17px; color: var(--clayText, var(--clay)); opacity: 0.65; filter: blur(1.6px); text-shadow: 0 0 8px rgb(var(--clayRgb) / 0.45); text-align: right; font-variant-numeric: tabular-nums; }
 .ghostRow .tickKg { grid-column: 2; }
 .ghostRow .tickReps { grid-column: 5; text-align: center; }
 .ghostRow .tickX { grid-column: 4; color: var(--text2); opacity: 0.4; font-size: 14px; }
@@ -1436,3 +1439,8 @@ main.page { overflow-x: clip; }
 .session.glow::after { inset: -1px; border-radius: 16px; }
 @keyframes landFlash { 0% { opacity: 0; } 12%, 45% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .exercise.glow::after, .session.glow::after { animation: none; opacity: 0; } .ghostRow .roll { filter: none; } }
+
+/* Editing: "Add set" sits close to its lift, so the next lift follows without a gap. */
+.session.editing .exercise > .textBtn[data-action="add-set"] { min-height: 32px; display: block; }
+/* A note on its way whose day isn't known yet: at the top, under no day. */
+.session.incoming { padding-top: 6px; }

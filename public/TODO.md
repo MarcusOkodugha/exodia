@@ -43,6 +43,9 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Note on its way waits at the top under no day unless the day was picked or said; Edit: minus pops in fast and solid, Add set closer, no line under the note (v353)
+- ✓ + always shows a bit of chat, Import a file and the top two lifts on every screen; Import marked in clay; blurred clay counting rows, one per set written; what lands flashes clay and scrolls into full view, panel folds so nothing covers it (v352)
+- ✓ Set % is of your heaviest real single, RPE left out (v351)
 - ✓ D1 reads cut: dashboard stats only when Admin opens (cached 1 min), red pill refresh every 5 min, demo cached 10 min (7 Nov, after Cloudflare's 76% warning)
 - ✓ Questions show above the box and answers fill the ? sets; Lat Pullover never Lat Pulldown; swipe deletes a whole grouped row; counting numbers while reading (v347)
 - ✓ Admin overview + dashboard: people, opens, taps, pages, where they got stuck (v331; opens/taps counted from 6 Nov 2026)
