@@ -26,7 +26,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] **Gym visits (8 Nov):** fill the calendar with days Marcus was at the gym, from Nordic Wellness, then Nordic Performance Center (later Gymet). Start with export or screenshots; waiting on one screenshot of the visit history.
 - [ ] **Calendar "Show every year" (8 Nov):** each year looks whole but scrolls sideways. Options sent; recommended half-year rows on phone, whole year in one row on the computer.
 
-- [ ] **Experiment: pill choice on the first screen (Marcus to judge, 8 Nov):** blue pill = start fresh, red pill = bring your history. The hands are the other person's, standing opposite you and holding them out (like Morpheus offering the pills), never your own hands, and no copy of the character himself. Mockup v3 sent; only goes in if it really nails it (likely needs a proper illustration in the hamsa style).
+- [ ] **Experiment: pill choice on the first screen (Marcus to judge, 8 Nov):** red pill = start fresh, blue pill = bring your history (Marcus, 8 Nov). The hands are the other person's, standing opposite you and holding them out (like Morpheus offering the pills), never your own hands, and no copy of the character himself. Mockup v4 (first open-palm hands turned upside down, held out toward you) sent; only goes in if it really nails it (likely needs a proper illustration in the hamsa style).
 - [ ] **Vibe-coded audit (8 Nov), still open:** fewer eyebrow labels (#2), first screen shows the product with a specific headline (#6/#9), contrast of small grey text (#15), e1RM column lines (#17).
 
 - [ ] **Computer right panel (Marcus to pick, 8 Nov):** Home = the phone Trends page, narrow, scrolls; Trends = something else (5 options sent in chat).
@@ -51,6 +51,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Switches (Strength / Recovery, Admin tabs) back to the knob; chips keep the underline; switch options B–D sent (v367)
 - ✓ Red pill hidden: invisible 44px spot left of the top-right icon (phone) / right of the name in the sidebar (computer); visible button on Admin (v366)
 - ✓ Clay underline for every picked option (chips + switches); toast numbers kept together; inner pills in the box 10px corners (#14 try); red pill is a red dot with the developer menu inside; SBD top right on the computer, est. under (v365)
 - ✓ Computer: SBD total at the top of the right panel, scrolls with it, not pinned (v364)

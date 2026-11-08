@@ -1490,20 +1490,12 @@ main.page { overflow-x: clip; }
 }
 
 
-/* Picked = a clay underline, everywhere: chips that are choices (aria-pressed) and the two-way switches. Buttons that
-   do something (Save, Yes/No, Build it) keep their own look. */
+/* Picked = a clay underline on chips that are choices (aria-pressed). Buttons that do something (Save, Yes/No, Build it)
+   keep their own look, and the two-way switches keep their sliding knob (it reads as something to tap). */
 html body .chip[aria-pressed] .chipFace { position: relative; height: 32px; padding: 0 8px; border-radius: 0; border: 0; background: none; color: var(--text2); }
 html body .chip[aria-pressed="true"] .chipFace { background: none; color: var(--text); }
 html body .chip[aria-pressed] .chipFace::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: 3px; height: 2px; border-radius: 1px; background: var(--clay); transform: scaleX(0); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
-html body .segment, html body .segment.full { padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: none !important; box-shadow: 0 1px 0 var(--sep) !important; }
-html body .segment .segmentOption, html body .segment.full .segmentOption { position: relative; border-radius: 0 !important; background: none !important; box-shadow: none !important; color: var(--text2); }
-html body .segment .segmentOption[aria-pressed="true"] { color: var(--text); }
-html body .segment:not(:has(.segmentKnob)) .segmentOption::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 1px; background: var(--clay); transform: scaleX(0); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
-html body .segment:not(:has(.segmentKnob)) .segmentOption[aria-pressed="true"]::after { transform: none; }
-html body .segment .segmentKnob, html body .segment.full .segmentKnob { top: auto !important; bottom: -1px !important; left: 0 !important; width: 50% !important; height: 2px !important; border-radius: 1px !important; background: var(--clay) !important; box-shadow: none !important; }
-html body .adminTabs { box-shadow: 0 1px 0 var(--sep), 0 -16px 0 6px var(--bg), 0 0 0 6px var(--bg) !important; }
-
 /* Toasts break between words, never inside "15 × 10", and balance their lines. */
 .toastTitle { text-wrap: balance; }
 
