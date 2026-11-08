@@ -1406,9 +1406,10 @@ main.page { overflow-x: clip; }
 .quickAdd.callout { animation: quickLift 2.4s ease-out; border-radius: 16px; }
 @keyframes quickLift { 0% { background: rgba(201, 100, 66, 0.07); } 100% { background: transparent; } }
 .quickAdd [data-action="pick-file"] { position: relative; }
-/* A soft clay light that fades out before its edges, so the scrolling edge never cuts it. */
-.quickAdd [data-action="pick-file"].callout::before { content: ""; position: absolute; inset: -4px -6px; pointer-events: none; background: radial-gradient(ellipse 72% 80% at 48% 50%, rgba(201, 100, 66, 0.2), rgba(201, 100, 66, 0) 72%); opacity: 0; animation: importGlow 1.4s cubic-bezier(0.37, 0, 0.63, 1) 2; }
-@keyframes importGlow { 0%, 100% { opacity: 0; } 45% { opacity: 1; } }
+/* Import from a file is always marked: a soft clay tile you see without looking for it. */
+.quickAdd .importPick { border-top: 0; min-height: 48px; margin: 4px 0; padding: 0 4px 0 12px; border-radius: 12px; background: rgb(var(--clayRgb) / 0.09); box-shadow: inset 0 0 0 1px rgb(var(--clayRgb) / 0.18); }
+.quickAdd .importPick .pickName { color: var(--clayText, var(--clay)); font-weight: 500; }
+.quickAdd .importPick + .pick { border-top: 0; }
 
 /* The day's action row never lets "+ Exercise" touch "Accessories"; on narrow phones the label goes. */
 .dayActions { gap: 14px; }
@@ -1416,7 +1417,7 @@ main.page { overflow-x: clip; }
 
 /* Waiting rows: numbers counting up in the real kg, reps and e1RM columns; skeleton bars a little thicker. */
 .ghostRow i:first-child { height: 13px; border-radius: 7px; }
-.ghostRow .roll { font-weight: 500; font-size: 17px; color: var(--text3, var(--text2)); opacity: 0.55; text-align: right; font-variant-numeric: tabular-nums; }
+.ghostRow .roll { font-weight: 500; font-size: 17px; color: var(--clayText, var(--clay)); opacity: 0.5; filter: blur(1.6px); text-shadow: 0 0 8px rgb(var(--clayRgb) / 0.45); text-align: right; font-variant-numeric: tabular-nums; }
 .ghostRow .tickKg { grid-column: 2; }
 .ghostRow .tickReps { grid-column: 5; text-align: center; }
 .ghostRow .tickX { grid-column: 4; color: var(--text2); opacity: 0.4; font-size: 14px; }
@@ -1428,3 +1429,10 @@ main.page { overflow-x: clip; }
   .prompt::after { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: calc(var(--glowX, 0) * 16px) calc(var(--glowY, -0.3) * 10px) 26px rgb(var(--clayRgb) / 0.34), calc(var(--glowX, 0) * 6px) calc(var(--glowY, -0.3) * 4px) 10px rgb(var(--clayRgb) / 0.14); opacity: var(--touchGlow, 0); transition: opacity 0.6s ease, box-shadow 0.3s ease-out; }
 }
 @media (prefers-reduced-motion: reduce) { .prompt::after { transition: none; } }
+
+/* What a note just added: a clay flash on those lifts (or the day) that holds a moment, then fades. */
+.exercise.glow, .session.glow { position: relative; }
+.exercise.glow::after, .session.glow::after { content: ""; position: absolute; inset: 0 -10px; border-radius: 12px; pointer-events: none; background: rgb(var(--clayRgb) / 0.1); box-shadow: 0 0 0 1px rgb(var(--clayRgb) / 0.22), 0 0 22px rgb(var(--clayRgb) / 0.28); opacity: 0; animation: landFlash 2.6s cubic-bezier(0.37, 0, 0.63, 1) both; }
+.session.glow::after { inset: -1px; border-radius: 16px; }
+@keyframes landFlash { 0% { opacity: 0; } 12%, 45% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .exercise.glow::after, .session.glow::after { animation: none; opacity: 0; } .ghostRow .roll { filter: none; } }

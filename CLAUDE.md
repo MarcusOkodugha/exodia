@@ -25,11 +25,9 @@ This repo is **public**. Never commit keys, tokens, profile keys, personal `/me/
   - `CLAUDE_MODEL`, `GEMINI_MODELS`: optional.
   - `SPLIT_PROFILES`: optional JSON `{ "<profile key>": ["Owner name", "Other name"] }` for a log two people ended up sharing. Each phone on it is asked once who uses it; the first name keeps the log, the others get their own. Delete the secret once they've answered.
 
-## Where sessions run (the one way)
+## Where sessions run
 
-Exodia work runs in cloud sessions on Anthropic's servers, started from the Claude app on the phone (Code tab) or claude.ai/code, on the cloud environment named **Exodia**. That environment holds `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and Full network access, so every new session has them. Sessions started on the Mac stop when it sleeps; don't use them for Exodia.
-
-At the start of every session, check `env | grep -c ^CLOUDFLARE_` (expect 2) and that `npx wrangler d1 execute exodia --remote --command "SELECT 1"` works. If not, the session was started on the wrong environment: tell Marcus in one line to start the next one on **Exodia**, and keep working (pushes still deploy).
+Exodia work runs in cloud sessions on Anthropic's servers, started from the Claude app (Code tab) or Exodia's Admin "Change the app". If a session has no Cloudflare access, keep working (pushes deploy by themselves) and say "pushed, not checked live"; don't ask Marcus to set Cloudflare up again.
 
 ## Continuing from another Claude account
 

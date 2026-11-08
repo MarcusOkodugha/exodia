@@ -996,7 +996,16 @@ setInterval(() => {
     }, 220);
   });
 }, 250);
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${[1, 2].map((row) => `<span class="ghostRow setRow" style="--at:${row * 260}ms"><i></i><b class="roll tickKg num" data-max="${row === 1 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row === 1 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row === 1 ? 180 : 130}">0</b></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
+// How many rows to show while a note is read: "3x5" or "3 sets" is 3, "100x5" one set each, a line per set otherwise.
+const guessSets = (text) => {
+  const words = String(text || '');
+  let count = 0;
+  for (const match of words.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:x|×|by)\s*(\d+)/gi)) count += Number(match[1]) <= 10 && !/[.,]/.test(match[1]) ? Number(match[1]) : 1;
+  for (const match of words.matchAll(/(\d+)\s*(?:sets?|set of|rounds?)\b/gi)) count += Number(match[1]);
+  if (!count) count = words.split(/\n|,|;|\bthen\b/i).filter((part) => /\d/.test(part)).length;
+  return Math.max(1, Math.min(6, count || 2));
+};
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 // While a note is read, the waiting rows' kg, reps and e1RM count up fast and accelerating, over and over, in the
 // real columns; the real row replaces them the moment the answer lands.
@@ -1877,6 +1886,7 @@ const renderFeedback = () => `<main class="page">
 const sendFeedback = async (text, voice) => {
   const pending = { feedback: true, date: todayIso(), text: text || 'Voice note' };
   view.pending.push(pending);
+  view.sentAt = Date.now();
   view.draft = '';
   if (!desktopQuery.matches) document.activeElement?.blur();
   render();
@@ -3256,10 +3266,10 @@ const nameQuery = () => {
 
 const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p><p class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</p></div></div>`).join('');
 
-// + says "here": Quick add lights up softly and Import from a file glows twice in clay, then both settle.
+// + says "here": Quick add lights up softly, then settles. Import from a file is always marked in clay (styles.css).
 const calloutQuick = () => requestAnimationFrame(() => {
   if (reducedMotion.matches) return;
-  for (const element of [document.querySelector('.sheet .quickAdd'), document.querySelector('.sheet .quickAdd [data-action="pick-file"]')]) {
+  for (const element of [document.querySelector('.sheet .quickAdd')]) {
     if (!element) continue;
     element.classList.remove('callout');
     void element.offsetWidth;
@@ -3267,7 +3277,7 @@ const calloutQuick = () => requestAnimationFrame(() => {
     element.addEventListener('animationend', () => element.classList.remove('callout'), { once: true });
   }
 });
-const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import from a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
+const quickAdd = () => `<div class="quickAdd"><p class="section quickHead">Quick add${view.composer ? sizeButton() : ''}</p><div class="picks"><button class="pick importPick" data-action="pick-file"><span style="flex:1"><span class="pickName">Import a file</span><span class="pickLast">A StrengthLog or Strong export, notes, Excel or CSV</span></span><span class="plusDot" aria-hidden="true">${ICONS.clip}</span></button>${renderPicks()}</div>${quickExtras()}</div>`;
 
 // On Admin and Feedback the panel above the box shows that page's own conversation, never training or exercises.
 const typingBubble = () => `<div class="bubbleOut" role="status"><p>${writingLine()}</p></div>`;
@@ -3289,7 +3299,7 @@ const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedba
 // Drag the bar: let go anywhere and it stays that tall; a quick flick up snaps to the usual size, a flick down closes.
 const SHEET_PEEK = 30;
 // Tapping the box opens the panel this tall: the latest messages, then Quick add's first rows.
-const SHEET_SMALL = 360;
+let SHEET_SMALL = 360;
 const sheetSmall = () => typeof view.sheetH === 'number' && view.sheetH > SHEET_PEEK + 4 && view.sheetH <= SHEET_SMALL + 4;
 const sheetStyle = () => (view.route === 'admin' && quickShown() ? ` style="height:auto;max-height:min(${SHEET_SMALL}px,var(--sheet-room, 100vh))"` : typeof view.sheetH === 'number' ? ` style="height:${view.sheetH}px;max-height:var(--sheet-room, none)"` : '');
 const sheetPeek = () => typeof view.sheetH === 'number' && view.sheetH <= SHEET_PEEK + 4;
@@ -3317,6 +3327,7 @@ const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}$
 
 const openChat = () => {
   if (!view.composer) view.trayEnter = true;
+  if (!view.composer) SHEET_SMALL = 360;
   view.composer = true;
   if (!view.composerDate) view.composerDate = todayIso();
 };
@@ -3334,16 +3345,46 @@ const showChat = () => {
 // Where the panel rests when it opens: the chat at its newest message; with Quick add, the "Your log" line just under
 // the middle, so the latest messages show above it and Quick add's first rows below.
 // Quick add always keeps its heading and about two rows in view (150 px), however short the panel is; the log gets the rest.
+// With Quick add: the first three picks (Import and your top two lifts) sit fully in view at the bottom, and the
+// chat gets what's above them, never less than CHAT_PEEK; a panel too short for both grows (up to the room there is).
+const CHAT_PEEK = 64;
+// Layout positions (offsets), so it also holds when the phone is turned and the app is drawn rotated.
+const offsetY = (element) => {
+  let y = 0;
+  for (let node = element; node; node = node.offsetParent) y += node.offsetTop;
+  return y;
+};
+const inBody = (body, element, edge) => offsetY(element) - offsetY(body) + (edge === 'bottom' ? element.offsetHeight : 0);
+const quickEnd = (body) => {
+  const picks = body.querySelectorAll('.quickAdd .picks .pick');
+  return picks.length ? inBody(body, picks[Math.min(2, picks.length - 1)], 'bottom') + 10 : 0;
+};
 const restingScroll = (body) => {
   const hint = body.querySelector('.logHint');
   // Quick add with no log yet opens at its top, so Import and the first lifts show.
   if (!hint) return body.querySelector('.quickAdd') ? 0 : body.scrollHeight;
-  const logRoom = Math.max(body.clientHeight * 0.35, body.clientHeight - 150);
-  return Math.max(0, hint.offsetTop - body.offsetTop - Math.round(logRoom));
+  const end = quickEnd(body);
+  if (!end) return Math.max(0, hint.offsetTop - body.offsetTop - Math.round(Math.max(body.clientHeight * 0.35, body.clientHeight - 150)));
+  return Math.max(0, Math.min(Math.round(end - body.clientHeight), Math.round(inBody(body, hint, 'top') - CHAT_PEEK)));
+};
+const fitQuick = (body) => {
+  const hint = body.querySelector('.logHint');
+  const sheet = body.closest('.sheet');
+  const end = quickEnd(body);
+  if (!hint || !sheet || !end || !sheetSmall()) return;
+  const short = end - (inBody(body, hint, 'top') - CHAT_PEEK) - body.clientHeight;
+  if (short <= 2) return;
+  const room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-room')) || window.innerHeight;
+  const height = Math.round(Math.min(room, sheet.offsetHeight + short));
+  if (height <= sheet.offsetHeight + 2) return;
+  SHEET_SMALL = height;
+  view.sheetH = height;
+  sheet.style.height = `${height}px`;
 };
 const scrollChat = () => {
   const body = document.querySelector('.sheetBody');
   if (!body) return;
+  fitQuick(body);
   body.scrollTop = restingScroll(body);
   body.dataset.rest = String(body.scrollTop);
 };
@@ -4284,7 +4325,9 @@ const render = () => {
   if (view.scrollTarget) {
     const date = view.scrollTarget;
     view.scrollTarget = null;
-    requestAnimationFrame(() => centreDay(date));
+    const landed = view.focusLanded;
+    view.focusLanded = false;
+    requestAnimationFrame(() => (landed ? focusLanded(date, landed) : centreDay(date)));
   }
 };
 
@@ -4755,6 +4798,7 @@ const land = (result, date) => {
   const names = addEntries(result, date);
   view.fresh = { date, isNew, names };
   view.scrollTarget = date;
+  view.focusLanded = '.exercise.glow';
   setTimeout(() => {
     if (view.fresh && view.fresh.names === names) view.fresh = null;
   }, 1800);
@@ -5746,10 +5790,12 @@ const send = async () => {
     view.draft = '';
     view.status = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
+    view.sentAt = Date.now();
     land(local, date);
     showResult([describeAdd(local, date)], local.exercises.map(({ name }) => ({ date, name })), before);
     addLog(text, [describeAdd(local, date)], { raw: JSON.stringify(local).slice(0, 1500), by: 'phone' });
     showChat();
+    if (view.route === 'home') view.sheetH = SHEET_PEEK;
     render();
     scrollChat();
     return;
@@ -5765,11 +5811,14 @@ const send = async () => {
   }
   const pending = { date: guessDate(text, date), label: text || 'your voice note', text: text || live || 'Voice note' };
   view.pending.push(pending);
+  view.sentAt = Date.now();
   view.draft = '';
   view.status = '';
   view.scrollTarget = pending.date;
+  view.focusLanded = '.ghost';
   if (!desktopQuery.matches) document.activeElement?.blur();
   showChat();
+  if (view.route === 'home') view.sheetH = SHEET_PEEK;
   render();
   scrollChat();
   let heard = '';
@@ -5859,6 +5908,35 @@ const keepAnchor = (anchor) => {
   else window.scrollBy(0, moved);
 };
 // An opened day glides to the middle of the screen (or, if it's taller than the screen, its top just under the bar).
+// Your last own touch, scroll or key: a result that lands while you're doing something else never moves the page.
+let lastUserAt = 0;
+for (const type of ['pointerdown', 'wheel', 'touchmove', 'keydown']) document.addEventListener(type, () => { lastUserAt = Date.now(); }, { capture: true, passive: true });
+const userBusy = () => Date.now() - lastUserAt < 1500 && lastUserAt > (view.sentAt || 0) + 400;
+// What's on its way (the counting rows) and then what landed (the glowing lifts, or the day) is brought fully into
+// view between the top bar or toast and the box. The open panel (and its dimming) folds to its peek first,
+// unless you're typing in it. Anything taller than the room shows from its top.
+const focusLanded = (date, selector = '.exercise.glow', again = true) => {
+  const card = document.getElementById(`session-${date}`);
+  if (!card || userBusy() || view.route !== 'home') return;
+  if (again && view.composer && !sheetPeek() && !view.draft.trim()) {
+    setSheet(SHEET_PEEK, true);
+    setTimeout(() => focusLanded(date, selector, false), 320);
+    return;
+  }
+  const parts = [...card.querySelectorAll(selector)];
+  const boxes = (parts.length ? parts : [card]).map((element) => element.getBoundingClientRect());
+  const target = { top: Math.min(...boxes.map((box) => box.top)), bottom: Math.max(...boxes.map((box) => box.bottom)) };
+  const topBar = document.querySelector('.topbar')?.getBoundingClientRect().bottom || 0;
+  const toast = document.querySelector('.toast')?.getBoundingClientRect().bottom || 0;
+  const top = Math.max(topBar, toast, desktopQuery.matches ? 12 : 0) + 12;
+  const dock = document.querySelector('.dock');
+  const bottom = (dock ? dock.getBoundingClientRect().top : window.innerHeight) - 16;
+  const need = target.bottom - target.top;
+  const shift = need > bottom - top || target.top < top ? target.top - top : target.bottom > bottom ? target.bottom - bottom : 0;
+  if (Math.abs(shift) < 4) return;
+  const scroller = scrollerOf(card);
+  (scroller || window).scrollBy({ top: shift, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+};
 const centreDay = (date) => {
   const card = document.getElementById(`session-${date}`);
   if (!card) return;
