@@ -1,4 +1,10 @@
 {
+  "370": [
+    "Typing a lift shows every match on top: tap the name to write it in the box and keep going, or + to add it at once",
+    "\"incline db\" and similar short names find the right lift",
+    "When your note names a specific lift (incline dumbbell press), it's logged as that, not a close one",
+    "Adding a lift no longer copies old sets that had no weight"
+  ],
   "369": [
     "Adding Exodia to your iPhone home screen now keeps your log"
   ],

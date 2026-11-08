@@ -1525,3 +1525,12 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .adminLeftBtn .leftDot { width: 8px; height: 8px; border-radius: 50%; background: #D94A2B; }
 .adminLeftBtn .leftDot.calm { background: var(--sep); }
 @media (max-width: 1023px) { .leftPill { top: calc(var(--top) + 4px); } }
+
+/* While typing a name: tap the name to write it in the box, + adds the lift at once. Same look as a pick. */
+.pickFill { padding: 0; }
+.pickMain { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 56px; padding: 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; }
+.quickAdd .pickMain, .sheet .pickMain { min-height: 48px; }
+.pickAdd { width: 44px; height: 44px; border-radius: 22px; margin-right: -7px; }
+/* While typing a name, the panel is only as tall as the lifts that match. */
+.sheet.nameMode { height: auto !important; max-height: min(var(--sheet-room, 60vh), 360px) !important; }
+.sheet.nameMode .sheetBody { padding-top: 4px; }

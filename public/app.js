@@ -527,7 +527,11 @@ const lastSetsFor = (name, skipDate = todayIso()) => {
   for (const session of sortedSessions()) {
     if (session.date === skipDate) continue;
     const exercise = session.exercises.find((item) => item.name === name);
-    if (exercise && validSets(exercise).length > 0) return validSets(exercise);
+    if (exercise && validSets(exercise).length > 0) {
+      // Sets saved without a weight (0 kg on a lift that isn't bodyweight) aren't worth copying: start empty instead.
+      if (!isBodyweightLift(name) && validSets(exercise).every((set) => !(Number(set.kg) > 0))) return null;
+      return validSets(exercise);
+    }
   }
   return null;
 };
@@ -811,7 +815,16 @@ const pickList = () => {
   const library = [...starters, ...LIBRARY.map((entry) => entry.name).filter((name) => !starters.includes(name))];
   const names = [...new Set([...BIG_THREE, ...recent, ...library])];
   // Lifts already logged today stay in the list too, so Bench Press is always one tap away.
-  const matches = names.filter((name) => !query || name.toLowerCase().includes(query));
+  // Typed words match the start of any word in the name or a short name ("incline db" finds Incline Dumbbell Press);
+  // names that start with what you typed come first, then the ones you've logged.
+  const words = query.split(/\s+/).filter(Boolean);
+  const aliasOf = (name) => LIBRARY.find((entry) => entry.name === name)?.aliases || [];
+  const fits = (name) => [name.toLowerCase(), ...aliasOf(name)].some((label) => {
+    const parts = label.split(/[\s-]+/);
+    return words.every((word) => parts.some((part) => part.startsWith(word))) || label.includes(query);
+  });
+  const rank = (name) => (name.toLowerCase().startsWith(query) ? 0 : 1) * 2 + (recent.includes(name) ? 0 : 1);
+  const matches = query ? names.filter(fits).sort((first, second) => rank(first) - rank(second)) : names;
   // Quick add shows the 12 you most likely want; the rest sit below a divider (morePicks).
   return query ? matches : matches.slice(0, 12);
 };
@@ -3296,7 +3309,8 @@ const renderPicks = () => {
   const query = !/\d/.test(view.draft) && view.draft.trim();
   const cardio = !query || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Cardio</span><span class="pickLast">Cardio or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : '';
   const split = picks.filter((name) => BIG_THREE.includes(name)).length;
-  return `${picks.slice(0, split).map((name) => pickButton(name, date)).join('')}${cardio}${picks.slice(split).map((name) => pickButton(name, date)).join('')}
+  const button = nameQuery() ? fillButton : pickButton;
+  return `${picks.slice(0, split).map((name) => button(name, date)).join('')}${cardio}${picks.slice(split).map((name) => button(name, date)).join('')}
     ${query && !query.startsWith("/") && !slashOffer().length && picks.length === 0 ? `<button class="pick" data-action="create" data-name="${esc(query)}"><span style="flex:1"><span class="pickName">Create “${esc(titleCase(query))}”</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : ''}`;
 };
 // Below the main picks: a clear line, then every other lift, quieter, so nobody lands there by accident.
@@ -3304,6 +3318,10 @@ const quickExtras = () => {
   const extras = morePicks();
   const date = view.composerDate || todayIso();
   return extras.length ? `<p class="quickDivider"><span>More exercises · ${extras.length}</span></p><div class="picks quickExtra">${extras.map((name) => pickButton(name, date)).join('')}</div>` : '';
+};
+const fillButton = (name, date) => {
+  const last = lastSetsFor(name, date);
+  return `<div class="pick pickFill"><button class="pickMain" data-action="fill-name" data-name="${esc(name)}" aria-label="Write ${esc(name)} in the box"><span class="pickName">${esc(name)}</span><span class="pickLast num">${last ? `Last ${last[0].kg} × ${last[0].reps} · ${setCount(last.length)}` : 'New'}</span></button><button class="plusDot pickAdd" data-action="pick" data-name="${esc(name)}" aria-label="Add ${esc(name)} to ${dayLabel(date)}">${ICONS.plus}</button></div>`;
 };
 const pickButton = (name, date) => {
   const last = lastSetsFor(name, date);
@@ -3370,7 +3388,7 @@ const setSheet = (height, animate = false) => {
 // Next to "Quick add": an arrow up makes the panel full size, an arrow down takes it back to the small size.
 const sheetFull = () => typeof view.sheetH !== 'number' || view.sheetH > SHEET_SMALL + 4;
 const sizeButton = () => `<button class="sizeBtn${sheetFull() ? ' full' : ''}" data-action="sheet-size" aria-label="${sheetFull() ? 'Make smaller' : 'Show more'}">${ICONS.chev}</button>`;
-const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}${sheetPeek() ? ' peek' : ''}${sheetSmall() ? ' small' : ''}" role="group" aria-label="Chat"${sheetStyle()}>
+const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}${nameQuery() ? ' nameMode' : ''}${sheetPeek() ? ' peek' : ''}${sheetSmall() ? ' small' : ''}" role="group" aria-label="Chat"${sheetStyle()}>
   <button class="grabber" data-action="sheet-toggle" aria-label="${sheetPeek() ? 'Show more' : 'Show less'}"></button>
   <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : quickShown() ? 'quick' : 'chat'}">${sheetBody()}</div>
 </div>`;
@@ -3577,6 +3595,7 @@ const syncDock = () => {
     animateChat(true);
   } else if (showSheet()) {
     sheet.classList.toggle('quickMode', quickShown());
+    sheet.classList.toggle('nameMode', Boolean(nameQuery()));
     const body = sheet.querySelector('.sheetBody');
     const mode = nameQuery() ? `q:${nameQuery()}` : quickShown() ? 'quick' : 'chat';
     if (body.dataset.mode !== mode) {
@@ -4808,7 +4827,26 @@ const addLog = (said, did, extra = {}) => {
 
 const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${result.cardioMinutes} min on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
 
+// Your words win over the AI's guess: when the note spells out a more specific lift ("incline dumbbell press") than the
+// one the AI returned ("Incline Bench Press", whose only word in the note is "incline"), use the one you spelled out.
+// A note that names both ("incline bench 80, incline dumbbell 30") keeps both.
+const sharpenNames = (result, words) => {
+  const said = ` ${String(words || '').toLowerCase().replace(/[^\p{L}\s]/gu, ' ').replace(/\s+/g, ' ')} `;
+  const spelled = LIBRARY.flatMap((entry) => [entry.name.toLowerCase(), ...entry.aliases].filter((alias) => said.includes(` ${alias} `)).map((alias) => ({ entry, alias })));
+  const sharpen = (raw) => {
+    const name = findExerciseName(raw) || raw;
+    const entry = LIBRARY.find((item) => item.name === name);
+    const own = entry ? [entry.name.toLowerCase(), ...entry.aliases] : [name.toLowerCase()];
+    const better = spelled.filter((item) => item.entry.name !== name && own.some((word) => item.alias.includes(word) && item.alias.length > word.length)).sort((first, second) => second.alias.length - first.alias.length)[0];
+    if (!better) return raw;
+    const ownSpelled = spelled.filter((item) => item.entry.name === name).map((item) => item.alias);
+    return ownSpelled.some((alias) => !better.alias.includes(alias)) ? raw : better.entry.name;
+  };
+  for (const exercise of result.exercises || []) exercise.name = sharpen(exercise.name);
+  for (const target of result.replace || []) target.exercise = sharpen(target.exercise);
+};
 const applyResult = (result, date, said, heard = '') => {
+  sharpenNames(result, `${said} ${heard}`);
   // Safety net while editing a day: sets said plainly ("75 kg T-bar 10 reps") are new sets. If the AI wants to
   // replace sets but nothing asked for a change, add them instead, so earlier sets are never overwritten.
   if (view.editContext && result.replace?.length && !EDIT_WORDS.test(`${said} ${heard}`) && !/\b(should be|make it|was|not|actually|set \d|ska vara|var|inte|egentligen)\b/i.test(`${said} ${heard}`)) {
@@ -6098,6 +6136,10 @@ const centreDay = (date) => {
   else window.scrollBy({ top: shift, behavior: 'smooth' });
 };
 
+// Tapping a lift's name while typing keeps the keyboard up (the name goes into the box).
+document.addEventListener('mousedown', (event) => {
+  if (event.target.closest('[data-action="fill-name"]')) event.preventDefault();
+});
 document.addEventListener('click', (event) => {
   // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
   if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
@@ -6686,6 +6728,15 @@ document.addEventListener('click', (event) => {
     render();
     scrollChat();
     calloutQuick();
+    return;
+  } else if (action === 'fill-name') {
+    // The lift's name goes in the box with a space after it, so you just keep writing ("… 30 3x10").
+    view.draft = `${target.dataset.name} `;
+    view.focusDraft = true;
+    render();
+    const draft = document.getElementById('draft');
+    draft?.focus();
+    draft?.setSelectionRange(draft.value.length, draft.value.length);
     return;
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
