@@ -5799,33 +5799,58 @@ const readVisits = async (files) => {
     view.status = `Reading your gym visits from ${frames.length} pictures…`;
     render();
     const found = {};
-    for (let start = 0; start < frames.length; start += 12) {
-      view.status = `Reading your gym visits… ${Math.min(100, Math.round((start / frames.length) * 100))}%`;
+    // The pictures go in parts of 12, three parts at a time; the line counts parts as they come back, and a part that
+    // fails is tried once more and then skipped, so one busy moment never stops the rest.
+    const parts = [];
+    for (let start = 0; start < frames.length; start += 12) parts.push(frames.slice(start, start + 12));
+    let doneParts = 0;
+    let failed = 0;
+    let lastError = '';
+    const show = () => {
+      view.status = `Reading your gym visits… ${doneParts} of ${parts.length} parts`;
       render();
-      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images: frames.slice(start, start + 12), today: todayIso(), name: state.name || '' }) }, 90000);
-      let response = await send();
-      // The free AI can be busy for a moment: wait and try that part once more.
-      if (response.status === 503) {
-        await new Promise((resolve) => setTimeout(resolve, 6000));
-        response = await send();
+    };
+    show();
+    const readPart = async (images) => {
+      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images, today: todayIso(), name: state.name || '' }) }, 90000);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const response = await send();
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || 'Could not read that part.');
+          for (const visit of body.visits || []) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(visit.date) || visit.date > todayIso()) continue;
+            const place = String(visit.place || 'Gym').slice(0, 60);
+            const time = /^\d{1,2}:\d{2}$/.test(visit.time || '') ? visit.time : '';
+            const minutes = Number(visit.minutes) > 0 && Number(visit.minutes) < 600 ? Math.round(Number(visit.minutes)) : 0;
+            found[visit.date] = time || minutes ? { place, ...(time ? { time } : {}), ...(minutes ? { minutes } : {}) } : place;
+          }
+          return;
+        } catch (error) {
+          lastError = error.message;
+          if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
       }
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || 'Could not read that. Try again.');
-      for (const visit of body.visits || []) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(visit.date) || visit.date > todayIso()) continue;
-        const place = String(visit.place || 'Gym').slice(0, 60);
-        const time = /^\d{1,2}:\d{2}$/.test(visit.time || '') ? visit.time : '';
-        const minutes = Number(visit.minutes) > 0 && Number(visit.minutes) < 600 ? Math.round(Number(visit.minutes)) : 0;
-        found[visit.date] = time || minutes ? { place, ...(time ? { time } : {}), ...(minutes ? { minutes } : {}) } : place;
+      failed += 1;
+    };
+    let next = 0;
+    await Promise.all([0, 1, 2].map(async () => {
+      while (next < parts.length) {
+        const images = parts[next];
+        next += 1;
+        await readPart(images);
+        doneParts += 1;
+        show();
       }
-    }
+    }));
+    if (failed === parts.length) throw new Error(lastError || 'The AI couldn’t read the pictures.');
     const dates = Object.keys(found).sort();
     if (!dates.length) throw new Error('No gym visits found in that. Scroll the visit list slowly while recording.');
     const fresh = dates.filter((date) => !state.visits?.[date]);
     state.visits = { ...(state.visits || {}), ...found };
     save();
     view.status = '';
-    addLog(`${files.length === 1 ? files[0].name : `${files.length} files`}`, [`Added ${fresh.length} gym ${fresh.length === 1 ? 'visit' : 'visits'} (${dayLabel(dates[0])} – ${dayLabel(dates.at(-1))}). They show in Every session on Trends.`], { by: 'gym visits' });
+    addLog(`${files.length === 1 ? files[0].name : `${files.length} files`}`, [`Added ${fresh.length} gym ${fresh.length === 1 ? 'visit' : 'visits'} (${dayLabel(dates[0])} – ${dayLabel(dates.at(-1))}). They show in Every session on Trends.${failed ? ` ${failed} of ${parts.length} parts couldn’t be read: import the video again to fill any gaps.` : ''}`], { by: 'gym visits' });
     view.toast = { kind: 'result', title: `Added ${fresh.length} gym ${fresh.length === 1 ? 'visit' : 'visits'}`, text: `${dayLabel(dates[0])} – ${dayLabel(dates.at(-1))} · see Every session on Trends` };
     clearTimeout(view.toastTimer);
     view.toastTimer = setTimeout(clearToast, 8000);
