@@ -23,7 +23,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **Gym visits (8 Nov):** fill the calendar with days Marcus was at the gym, from Nordic Wellness, then Nordic Performance Center (later Gymet). Start with export or screenshots; waiting on one screenshot of the visit history.
+- [ ] **Gym visits (8 Nov):** fill the calendar with every day Marcus was at the gym: Nordic Wellness first (app → Statistik → Senaste aktiviteter: date + gym per visit, monthly counts 2025/2026), then Nordic Performance Center, later Gymet. Plan: screenshots of the full list → read the dates → visit days on the calendar in a soft unknown-weight shade (no PRs), tap says "Gym visit · Nordic Wellness Liljeholmen · nothing logged" with + Add what you did. Waiting on the scrolled list screenshots. Never log in with Marcus's password.
 - [ ] **Calendar "Show every year" (8 Nov):** each year looks whole but scrolls sideways. Options sent; recommended half-year rows on phone, whole year in one row on the computer.
 
 - [ ] **Experiment: pill choice on the first screen (Marcus to judge, 8 Nov):** red pill = start fresh, blue pill = bring your history (Marcus, 8 Nov). The hands are the other person's, standing opposite you and holding them out (like Morpheus offering the pills), never your own hands, and no copy of the character himself. Mockup v4 (first open-palm hands turned upside down, held out toward you) sent; only goes in if it really nails it (likely needs a proper illustration in the hamsa style).
