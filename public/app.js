@@ -3304,7 +3304,7 @@ const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedba
   : quickShown()
   // Your log runs above Quick add in the same scroll: the panel opens on Quick add with the latest messages just above
   // it, and you scroll up for older ones (tap one to fix it). A small line says the log is up there.
-  ? `${(view.route !== 'admin' && ((state.log || []).length || view.pending.length)) ? `<div class="chat quickLog">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(0, 60).reverse(), true)}${pendingChat()}</div><p class="logHint">${ICONS.up}Your log · scroll up for more</p>` : ''}${quickAdd()}`
+  ? `${(view.route !== 'admin' && ((state.log || []).length || view.pending.length)) ? `<div class="chat quickLog">${chatList((state.log || []).map((entry, index) => ({ entry, index })).slice(0, 60).reverse(), true)}${pendingChat()}</div><p class="logHint"><span class="logWords">${ICONS.up}Your log<span aria-hidden="true">·</span>more below<span class="logDown">${ICONS.up}</span></span></p>` : ''}${quickAdd()}`
   : `<div class="chat">${chatList((state.log || []).map((entry, index) => ({ entry, index })).reverse(), true)}${pendingChat()}</div>`);
 
 // The panel above the box opens small (a peek), with a bar that bounces once or twice to say "pull me".

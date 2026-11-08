@@ -43,6 +43,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ "Your log" hint is one thin labeled line, ↑ log above, more below ↓ (v357)
 - ✓ Questions: example answer in the box, the note goes along with the answer; weight-only changes keep reps; missing numbers become ? instead of nothing logged; thicker loading bars (v356)
 - ✓ No flash on a new note; soft-edged light on what was added (v355)
 - ✓ Edit: + Note opens the box with /note on that day (no AI, lands and flashes there); note box inside the day removed (v354)

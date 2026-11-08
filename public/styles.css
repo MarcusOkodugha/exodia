@@ -1448,3 +1448,11 @@ main.page { overflow-x: clip; }
    Last in the file on purpose: an earlier shared rule sets every bar to 10px. */
 .ghostName i { height: 18px; border-radius: 9px; }
 .ghostRow i:first-child { height: 16px; border-radius: 8px; }
+
+/* The line between your log and Quick add carries its own label, small, so it costs one thin row:
+   ↑ your log above, more below ↓. */
+.logHint { gap: 0; margin: 0 0 2px; padding: 0; border-bottom: 0; height: 18px; font-size: 11px; line-height: 14px; }
+.logHint::before, .logHint::after { content: ""; flex: 1; height: 1px; background: var(--sep); }
+.logWords { display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; white-space: nowrap; }
+.logHint svg { width: 10px; height: 10px; }
+.logDown svg { transform: rotate(180deg); }
