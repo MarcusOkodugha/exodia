@@ -23,6 +23,9 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Gym visits (8 Nov):** fill the calendar with days Marcus was at the gym, from Nordic Wellness, then Nordic Performance Center (later Gymet). Start with export or screenshots; waiting on one screenshot of the visit history.
+- [ ] **Calendar "Show every year" (8 Nov):** each year looks whole but scrolls sideways. Options sent; recommended half-year rows on phone, whole year in one row on the computer.
+
 - [ ] **Experiment: pill choice on the first screen (Marcus to judge, 8 Nov):** two open hands, blue pill = start fresh, red pill = bring your history. Mockup sent; only goes in if it really nails it.
 - [ ] **Vibe-coded audit (8 Nov), still open:** fewer eyebrow labels (#2), first screen shows the product with a specific headline (#6/#9), contrast of small grey text (#15), e1RM column lines (#17).
 
