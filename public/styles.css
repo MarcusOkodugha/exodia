@@ -1471,5 +1471,5 @@ main.page { overflow-x: clip; }
 .sbdTotal { margin: 0 0 3px; display: grid; justify-items: end; text-align: right; white-space: nowrap; }
 .sbdTotal b { grid-row: 1; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--text); }
 .sbdLabel { grid-row: 1; display: none; }
-.sbdTotal b::before { content: "SBD "; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--clayText, var(--clay)); }
+.sbdTotal b::before { content: "SBD "; font-size: inherit; font-weight: 600; color: var(--clayText, var(--clay)); }
 .sbdEst { font-size: 12px; line-height: 16px; color: var(--text2); }
