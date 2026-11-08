@@ -827,6 +827,11 @@ const sameSet = (first, second) => first.kg !== '' && first.reps !== '' && ['kg'
 const renderExercise = (session, exercise, exerciseIndex) => {
   const editing = view.editDay === session.date;
   const best = bestBefore(exercise.name, session.date) || bestOverall(exercise.name);
+  // The % is of your heaviest real single (not an estimate, RPE ignored): 290 × 1 against a 300 single is 97%,
+  // 290 × 3 counts as 307 (Brzycki), so 102%. Lifts never done for a single fall back to your best estimate.
+  const single = singleBefore(exercise.name, session.date) || singleBefore(exercise.name, '9999-12-31');
+  const actualMax = single > 0 ? bodyLoad(exercise.name, single) : 0;
+  const ofMax = (set) => (set.kg === '' || !(Number(set.reps) > 0) ? 0 : actualMax ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps)) / actualMax : best ? setValue(exercise.name, set) / best : 0);
   const groups = [];
   exercise.sets.forEach((set, index) => {
     const last = groups.at(-1);
@@ -848,7 +853,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
       <span class="unit">${isBodyweightLift(exercise.name) ? '+kg' : 'kg'}</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
       <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${!Number(set.reps) ? '' : esc(set.reps)}" placeholder="${!Number(set.reps) && set.kg !== '' ? '?' : 'reps'}" ${where} data-field="reps">
       ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num"><span class="rpeText">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>${lastRow ? `<button class="rowPlus" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Add a ${esc(exercise.name)} set">${ICONS.plusThin}</button>` : ''}</span>`}
-      <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${best && value ? `${Math.round((value / best) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
+      <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${ofMax(set) ? `${Math.round(ofMax(set) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
       <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
     </div></div>`;
   }).join('');
