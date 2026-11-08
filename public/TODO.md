@@ -45,6 +45,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Computer: SBD total at the top of the right panel, scrolls with it, not pinned (v364)
 - ✓ Computer: SBD total fixed top right on every page; SBD label small again (v362)
 - ✓ Cursor no longer drifts onto letters after /admin, /note (v361)
 - ✓ SBD total + estimated total top right on Trends (v359); 4 other placements offered, Marcus to pick

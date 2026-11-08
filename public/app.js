@@ -3064,8 +3064,8 @@ const renderImpressive = () => {
 };
 // The computer's right panel. On Trends the middle already has the lift chart, so the panel holds what the phone shows
 // under it instead (strength level, volume, most impressive lift); nothing appears twice.
-// Computer: your SBD total fixed in the window's top right corner on every page, over the right panel's top margin,
-// which fades out what scrolls under it; it takes no room of its own.
+// Computer: your SBD total at the top of the right panel on every page, in its top margin (no room of its own); it
+// scrolls away with the panel.
 const rightTotal = () => {
   const total = sbdTotal();
   return total ? `<div class="rightTotal">${total}</div>` : '';
@@ -4277,7 +4277,7 @@ const render = () => {
     ? `<div class="desk">
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${view.isAdmin ? '<button class="devBtn" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}${drawerContent()}</nav>
         <div class="center">${page}${dock}</div>
-        <aside class="right" aria-label="Progress">${renderProgress()}</aside>${rightTotal()}
+        <aside class="right" aria-label="Progress">${rightTotal()}${renderProgress()}</aside>
         ${view.isAdmin ? '<button class="devBtn deskDev" data-action="dev-menu" aria-label="Developer menu"></button>' : ''}
       </div>`
     : `<header class="topbar"><div class="topbarInner">
