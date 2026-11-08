@@ -43,6 +43,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Cursor no longer drifts onto letters after /admin, /note (v361)
 - ✓ SBD total + estimated total top right on Trends (v359); 4 other placements offered, Marcus to pick
 - ✓ Editing a day: notes load and land on that day; one-set changes in plain words handled on the phone (also rescues a voice note the AI missed); failed note back in a lit box; loading rows one soft bar each (v358)
 - ✓ "Your log" hint is one thin labeled line, ↑ log above, more below ↓ (v357)

@@ -1473,3 +1473,6 @@ main.page { overflow-x: clip; }
 .sbdLabel { grid-row: 1; display: none; }
 .sbdTotal b::before { content: "SBD "; font-size: inherit; font-weight: 600; color: var(--clayText, var(--clay)); }
 .sbdEst { font-size: 12px; line-height: 16px; color: var(--text2); }
+/* The coloured copy behind the box must take exactly the same width as the real text, or the cursor lands on the
+   letters after a /command: same weight, colour only. */
+.promptMirror .slashCmd { font-weight: inherit; }
