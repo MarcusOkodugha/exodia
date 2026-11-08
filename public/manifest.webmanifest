@@ -2,7 +2,6 @@
   "name": "Exodia",
   "short_name": "Exodia",
   "description": "Log your lifts in seconds.",
-  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

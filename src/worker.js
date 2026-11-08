@@ -1069,7 +1069,11 @@ const manifest = async (request, env, url) => {
   const response = await env.ASSETS.fetch(new Request(new URL('/manifest.webmanifest', url), request));
   const data = await response.json();
   const key = url.searchParams.get('k') ?? '';
+  // With a key, the installed app opens on that log. Without one there's no start_url at all, so the phone keeps the
+  // address the page is on when it's added (the app moves it to /me/<key> once there's a log): a home-screen app on
+  // iPhone gets its own empty storage, and opening at / would mean a fresh, empty Exodia.
   if (PROFILE_KEY.test(key)) data.start_url = `/me/${key}`;
+  else delete data.start_url;
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'no-store' } });
 };
 
@@ -1129,7 +1133,7 @@ export default {
     const invited = personalInvite(url.pathname);
     if (personal || invited || /^\/join\/?$/.test(url.pathname)) {
       let html = await (await env.ASSETS.fetch(new Request(new URL('/', url), request))).text();
-      if (personal) html = html.replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?k=${personal[1]}"`);
+      if (personal) html = html.replace('</head>', `<link rel="manifest" href="/manifest.webmanifest?k=${personal[1]}">\n</head>`);
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (url.pathname === '/api/transcribe') {

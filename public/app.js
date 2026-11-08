@@ -357,9 +357,17 @@ const renderSoon = () => {
 };
 
 const profileLink = () => `${location.origin}/me/${syncState.profile}`;
+// The install file is only handed out once it can say whose log this is (start at /me/<key>): a home-screen app on
+// iPhone gets its own empty storage, so one that started at / or /join opened a fresh, empty Exodia.
 const pointManifest = () => {
-  const manifest = document.querySelector('link[rel="manifest"]');
-  if (manifest) manifest.href = `/manifest.webmanifest?k=${syncState.profile}`;
+  if (!syncState.profile) return;
+  let manifest = document.querySelector('link[rel="manifest"]');
+  if (!manifest) {
+    manifest = document.createElement('link');
+    manifest.rel = 'manifest';
+    document.head.append(manifest);
+  }
+  manifest.href = `/manifest.webmanifest?k=${syncState.profile}`;
 };
 // Everyone gets the same orange app; drop the old blue look some browsers remembered.
 const applyFlavor = () => {
