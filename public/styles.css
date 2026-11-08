@@ -1433,12 +1433,12 @@ main.page { overflow-x: clip; }
 }
 @media (prefers-reduced-motion: reduce) { .prompt::after { transition: none; } }
 
-/* What a note just added: a clay flash on those lifts (or the day) that holds a moment, then fades. */
-.exercise.glow, .session.glow, .dayNote.glow { position: relative; }
-.exercise.glow::after, .session.glow::after, .dayNote.glow::after { content: ""; position: absolute; inset: 0 -10px; border-radius: 12px; pointer-events: none; background: rgb(var(--clayRgb) / 0.1); box-shadow: 0 0 0 1px rgb(var(--clayRgb) / 0.22), 0 0 22px rgb(var(--clayRgb) / 0.28); opacity: 0; animation: landFlash 2.6s cubic-bezier(0.37, 0, 0.63, 1) both; }
-.session.glow::after { inset: -1px; border-radius: 16px; }
+/* What a note just added: a soft clay light behind those lifts (or the day), holds a moment, then fades.
+   Blurred, so it has no hard edge anywhere. */
+.exercise.glow, .session.glow { position: relative; }
+.exercise.glow::after, .session.glow::after { content: ""; position: absolute; inset: 2px -2px; z-index: 2; border-radius: 16px; pointer-events: none; background: rgb(var(--clayRgb) / 0.1); filter: blur(10px); opacity: 0; animation: landFlash 2.6s cubic-bezier(0.37, 0, 0.63, 1) both; }
 @keyframes landFlash { 0% { opacity: 0; } 12%, 45% { opacity: 1; } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .exercise.glow::after, .session.glow::after, .dayNote.glow::after { animation: none; opacity: 0; } .ghostRow .roll { filter: none; } }
+@media (prefers-reduced-motion: reduce) { .exercise.glow::after, .session.glow::after { animation: none; opacity: 0; } .ghostRow .roll { filter: none; } }
 
 /* Editing: "Add set" sits close to its lift, so the next lift follows without a gap. */
 .session.editing .exercise > .textBtn[data-action="add-set"] { min-height: 32px; display: block; }

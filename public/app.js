@@ -1087,7 +1087,7 @@ const exodiaDaySet = () => {
 const dayNote = (session, editing) => {
   if (!session.note) return '';
   const open = view.noteOpen === session.date;
-  return `<button class="dayNote${open ? ' open' : ''}${view.noteGlow === session.date ? ' glow' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
+  return `<button class="dayNote${open ? ' open' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
 };
 const renderSession = (session) => {
   const pendings = inFlight().filter((pending) => pending.date === session.date && pending.known !== false);
@@ -5782,10 +5782,6 @@ const send = async () => {
       view.draft = '';
       save();
       const did = [`Note on ${dayLabel(day)}: ${note.length > 60 ? `${note.slice(0, 60)}…` : note}`];
-      view.noteGlow = day;
-      setTimeout(() => {
-        if (view.noteGlow === day) view.noteGlow = null;
-      }, 2800);
       view.scrollTarget = day;
       view.focusLanded = '.dayNote';
       addLog(text, did, { by: 'phone' });

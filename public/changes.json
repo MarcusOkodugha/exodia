@@ -1,4 +1,8 @@
 {
+  "355": [
+    "A new note no longer flashes",
+    "The light on what was just added is softer, with no hard edges"
+  ],
   "354": [
     "Edit a day: + Note opens the box with /note for that day, and the note lands right there",
     "No note box inside the day any more"
