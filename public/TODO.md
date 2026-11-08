@@ -23,6 +23,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Show when Exodia runs out (8 Nov, Marcus to pick A–D):** A days left in the top line, B thin draining line, C bars drain together, D only when opened (date + bar + what to do). Mockups sent.
+
 - [ ] **Gym visits (8 Nov):** fill the calendar with every day Marcus was at the gym: Nordic Wellness first (app → Statistik → Senaste aktiviteter: date + gym per visit, monthly counts 2025/2026), then Nordic Performance Center, later Gymet. Plan: screenshots of the full list → read the dates → visit days on the calendar in a soft unknown-weight shade (no PRs), tap says "Gym visit · Nordic Wellness Liljeholmen · nothing logged" with + Add what you did. Waiting on the scrolled list screenshots. Never log in with Marcus's password.
 - [ ] **Calendar "Show every year" (8 Nov):** each year looks whole but scrolls sideways. Options sent; recommended half-year rows on phone, whole year in one row on the computer.
 
@@ -51,6 +53,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Exodia card went invisible: small cards under the box get hidden, and a bad measurement (keyboard, turn) hid the Exodia card; it's never hidden now (v371)
 - ✓ Type a lift: matches on top, tap name = write it in the box, + = add now; word-start + short-name matching; your spelled-out lift wins over the AI's close guess (Incline Dumbbell vs Incline Bench); no copying weightless old sets (v370)
 - ✓ iPhone Add to Home Screen kept starting at / (fresh, empty storage): the install file is only handed out with the owner's /me/ address now (v369)
 - ✓ Picked lift: clay dot only, the line beside it (added 6 Nov, v305, unasked) removed; rule in CLAUDE.md: no unasked visual changes (v368)

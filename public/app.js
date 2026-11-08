@@ -3813,7 +3813,9 @@ const tuckCards = () => {
   setVar('--sheet-room', `${Math.max(60, Math.round(room))}px`);
   setVar('--sheet-h', `${Math.round(Math.max(Math.min(180, room), Math.min(720, tall - box - (desktopQuery.matches ? 64 : quickShown() ? 80 : Math.max(120, tall * 0.24)))))}px`);
   const line = uiBox(dock).bottom - box;
-  for (const card of document.querySelectorAll('.page .card')) {
+  // The Exodia card is never tucked: measured at a bad moment (keyboard opening, a turn, a redraw mid-scroll) it was
+  // marked as under the box and stayed invisible at the top of Home.
+  for (const card of document.querySelectorAll('.page .card:not(.exodiaCard)')) {
     const box = uiBox(card);
     const shown = line - box.top;
     card.classList.toggle('tucked', box.height <= 140 && shown < box.height);
