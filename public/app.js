@@ -919,6 +919,8 @@ const WISDOM = [
   ['When you arise in the morning, think of what a precious privilege it is to be alive: to breathe, to think, to enjoy, to love.', 'Marcus Aurelius'],
   ['To grow, you must be willing to look foolish and not care what others think.', 'Epictetus'],
   ['Our deepest fear is not that we are inadequate. Our deepest fear is that we are powerful beyond measure.', 'Marianne Williamson'],
+  ['Den mätta dagen, den är aldrig störst. Den bästa dagen är en dag av törst. Nog finns det mål och mening i vår färd, men det är vägen, som är mödan värd.', 'Karin Boye'],
+  ['Den som är väldigt stark måste också vara väldigt snäll.', 'Bamse'],
   ['If it is not right, do not do it; if it is not true, do not say it.', 'Marcus Aurelius'],
   ['Do every act of thy life as if it were the last.', 'Marcus Aurelius'],
   ['Loss is nothing else than change.', 'Marcus Aurelius'],
@@ -5716,13 +5718,13 @@ const frameOf = (source, width, height, top = 0, part = height) => {
 };
 const signature = (canvas) => {
   const tiny = document.createElement('canvas');
-  tiny.width = 12;
-  tiny.height = 24;
+  tiny.width = 36;
+  tiny.height = 72;
   const context = tiny.getContext('2d');
-  context.drawImage(canvas, 0, 0, 12, 24);
-  return [...context.getImageData(0, 0, 12, 24).data].filter((value, index) => index % 4 === 0);
+  context.drawImage(canvas, 0, 0, 36, 72);
+  return [...context.getImageData(0, 0, 36, 72).data].filter((value, index) => index % 4 === 0);
 };
-const sameFrame = (first, second) => first && second && first.reduce((sum, value, index) => sum + Math.abs(value - second[index]), 0) / first.length < 4;
+const sameFrame = (first, second) => first && second && first.reduce((sum, value, index) => sum + Math.abs(value - second[index]), 0) / first.length < 1.2;
 const framesOf = async (file) => {
   const url = URL.createObjectURL(file);
   const frames = [];
@@ -5732,27 +5734,44 @@ const framesOf = async (file) => {
       video.muted = true;
       video.playsInline = true;
       video.preload = 'auto';
+      // On the page (out of sight): some phones only draw a video's pictures when it's part of the page.
+      video.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none';
+      document.body.append(video);
       video.src = url;
       await new Promise((resolve, reject) => {
         video.onloadedmetadata = resolve;
         video.onerror = () => reject(new Error('This phone could not open that video. Try screenshots of the list instead.'));
         setTimeout(() => reject(new Error('The video didn’t open in 15 seconds. Try again, or use screenshots of the list.')), 15000);
       });
-      // iPhone Safari only hands over frames once a video has played: start it and pause it at once.
-      await video.play().catch(() => null);
-      video.pause();
+      // Played, not jumped through: the video plays muted at double speed and a picture is taken every 0.3 s
+      // (0.6 s of video). Jumping to times (seeking) is unreliable on iPhone Safari; playing isn't.
+      video.playbackRate = 2;
       let last = null;
-      for (let at = 0.3; at < video.duration && frames.length < 120; at += 0.9) {
-        video.currentTime = at;
-        // A seek that never reports back (it happens on some phones) moves on after 2 seconds.
-        await new Promise((resolve) => { video.onseeked = resolve; setTimeout(resolve, 2000); });
-        if (!video.videoWidth) continue;
+      const take = () => {
+        if (!video.videoWidth || frames.length >= 120) return;
         const canvas = frameOf(video, video.videoWidth, video.videoHeight);
         const sign = signature(canvas);
-        if (sameFrame(sign, last)) continue;
+        if (sameFrame(sign, last)) return;
         last = sign;
         frames.push(canvas.toDataURL('image/jpeg', 0.72).split(',')[1]);
-      }
+      };
+      await new Promise((resolve, reject) => {
+        const timer = setInterval(take, 300);
+        const done = () => {
+          clearInterval(timer);
+          take();
+          resolve();
+        };
+        video.onended = done;
+        // Never longer than the video takes at double speed, plus a little.
+        setTimeout(done, (video.duration / 2 + 5) * 1000);
+        video.play().catch(() => {
+          clearInterval(timer);
+          reject(new Error('This phone wouldn’t play that video here. Try screenshots of the list instead.'));
+        });
+      });
+      video.pause();
+      video.remove();
     } else {
       const image = new Image();
       image.src = url;
