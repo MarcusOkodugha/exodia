@@ -3498,7 +3498,7 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
   ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${adminDockLine()}</p>` : ''}
   <div class="slashList"${slashSuggest() ? '' : ' hidden'}>${slashListHtml()}</div>
-  <div class="prompt${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}">
+  <div class="prompt${view.promptFlash && Date.now() - view.promptFlash < 2600 ? ' flash' : ''}${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}" style="--flashAt:-${view.promptFlash ? Math.min(2600, Date.now() - view.promptFlash) : 0}ms">
     ${contextChip()}
     <label for="draft" class="sr">Type or say what you did</label>
     <div class="promptMirror" aria-hidden="true">${slashHtml()}</div>
@@ -4549,6 +4549,49 @@ const redoStep = () => {
   stepToast(`Redid${step.title ? `: ${step.title}` : ' the change'}`, redoSteps.length ? 'Redo again for the next one' : 'Back to the latest');
 };
 
+// "change the last set of hammer curls to 15 kg instead of 17.5", "make set 2 of deadlift 100 kg", "the first set of
+// squat was 8 reps": one set of one lift on a known day. Only when the lift, the set and the new number are all plain;
+// anything else goes to the AI.
+const ORDINAL_SET = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8 };
+const localSetEdit = (text, date) => {
+  const session = date && sessionFor(date);
+  const words = ` ${String(text || '').toLowerCase().replace(/[’']s\b/g, '')} `;
+  if (!session || !/\bset\b/.test(words) || !/\b(change|make|should be|was|instead|fix|correct)\b/.test(words)) return null;
+  const named = session.exercises.filter((exercise) => {
+    const name = exercise.name.toLowerCase();
+    return new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}(e?s)?\\b`).test(words);
+  });
+  if (named.length !== 1) return null;
+  const exercise = named[0];
+  const count = exercise.sets.length;
+  const nth = words.match(/\bset (\d+)\b/) || words.match(/\b(\d+)(?:st|nd|rd|th) set\b/);
+  const word = words.match(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth) set\b/);
+  const index = /\blast set\b/.test(words) ? count - 1 : nth ? Number(nth[1]) - 1 : word ? ORDINAL_SET[word[1]] - 1 : -1;
+  if (index < 0 || index >= count) return null;
+  const kgMatch = words.match(/\b(?:to|make it|be|was|is)\s+(\d+(?:[.,]\d+)?)\s*(?:kg|kgs|kilos?)\b/) || words.match(/\b(\d+(?:[.,]\d+)?)\s*(?:kg|kgs|kilos?)\s+instead\b/);
+  const repsMatch = words.match(/\b(?:to|be|was|is|did|for)\s+(\d+)\s*reps?\b/);
+  // A single weight named, not as the old one ("from 17.5", "instead of 17.5"): that's the new weight.
+  const weights = [...words.matchAll(/(\bfrom |\binstead of )?\b(\d+(?:[.,]\d+)?)\s*(?:kg|kgs|kilos?)\b/g)].filter((match) => !match[1]);
+  const kg = kgMatch ? kgMatch[1] : weights.length === 1 ? weights[0][2] : null;
+  if (!kg && !repsMatch) return null;
+  return { date, exercise, index, kg: kg ? kg.replace(',', '.') : null, reps: repsMatch ? repsMatch[1] : null };
+};
+const applySetEdit = (edit, said) => {
+  const set = edit.exercise.sets[edit.index];
+  const was = `${set.kg} × ${set.reps || '?'}`;
+  const kg = edit.kg ?? set.kg;
+  const reps = edit.reps ?? set.reps;
+  changeWithUndo(`${edit.exercise.name} set ${edit.index + 1}: ${was} → ${kg} × ${reps || '?'}`, () => {
+    set.kg = String(kg);
+    set.reps = String(reps ?? '');
+    set.edited = true;
+  }, said);
+  save();
+  view.open.add(edit.date);
+  glowFor([{ date: edit.date, name: edit.exercise.name }]);
+  view.scrollTarget = edit.date;
+  view.focusLanded = '.exercise.glow';
+};
 const changeWithUndo = (title, change, tapped = title) => {
   const before = JSON.stringify(state.sessions);
   change();
@@ -5804,7 +5847,18 @@ const send = async () => {
     text = `Note: ${rest}`;
     if (view.route === 'admin') location.hash = '#/';
   }
-  const date = view.composerDate || todayIso();
+  const date = view.editContext?.date || view.composerDate || todayIso();
+  // One set changed in plain words ("change the last set of hammer curls to 15 kg"): done right here, no AI.
+  const setEdit = !voice && !view.fixing ? localSetEdit(text, view.editContext?.date || guessDate(text, null)) : null;
+  if (setEdit) {
+    view.draft = '';
+    view.status = '';
+    view.sentAt = Date.now();
+    if (!desktopQuery.matches) document.activeElement?.blur();
+    applySetEdit(setEdit, text);
+    render();
+    return;
+  }
   // Long text, or rows pasted from a spreadsheet (they come with tabs), is a history to import.
   if (!voice && (text.length > 600 || (/\t/.test(view.draft) && view.draft.trim().includes('\n'))) && !view.fixing && !view.editContext) {
     const pasted = view.draft;
@@ -5910,6 +5964,12 @@ const send = async () => {
       await queueLater({ prompt: text, said: text || heard || error.heard || live || 'Voice note', date: pending.date, live, voice, heard: heard || error.heard || '', context: sentContext || noteContext() });
       return;
     }
+    const spoken = heard || error.heard || '';
+    const rescue = error.unclear && spoken && !view.fixing ? localSetEdit(spoken, view.editContext?.date || guessDate(spoken, null)) : null;
+    if (rescue) {
+      applySetEdit(rescue, spoken);
+      return;
+    }
     view.composerDate = date === todayIso() ? null : date;
     openChat();
     const voiceId = voice ? `voice-${Date.now()}` : null;
@@ -5920,7 +5980,9 @@ const send = async () => {
     if (error.question) {
       view.asked = { question: error.question, said: words, at: Date.now() };
       view.status = error.question;
-    }
+    } else if (!view.draft.trim() && words !== 'Voice note') view.draft = words;
+    view.promptFlash = Date.now();
+    view.focusDraft = true;
     const kept = voice && !error.unclear ? (words !== 'Voice note' ? ' Your words are saved, tap Try again.' : ' Your recording is saved, tap Try again.') : '';
     addLog(words, [`Not logged: ${error.message}${kept}`], { ...(voiceId ? { voiceId } : {}), ...(voice && !text && words !== 'Voice note' ? { heard: words } : {}), ...(error.engine ? { by: error.engine, raw: error.raw } : {}) });
   } finally {

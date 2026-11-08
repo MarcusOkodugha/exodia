@@ -1456,3 +1456,13 @@ main.page { overflow-x: clip; }
 .logWords { display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; white-space: nowrap; }
 .logHint svg { width: 10px; height: 10px; }
 .logDown svg { transform: rotate(180deg); }
+
+/* Loading rows: one soft bar behind each row's numbers, small corners, no dots; the name bar the same shape. */
+.ghostName i { border-radius: 6px; }
+.ghostRow i:first-child { display: none; }
+.ghostRow.setRow { margin: 3px 0; border-radius: 6px; background: linear-gradient(90deg, var(--sep) 0%, rgb(var(--clayRgb) / 0.16) 45%, var(--sep) 90%); background-size: 220% 100%; animation: ghostRowIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) var(--at) forwards, ghostSweep 1.6s ease-in-out var(--at) infinite; }
+@media (prefers-reduced-motion: reduce) { .ghostRow.setRow { animation: none; opacity: 1; } }
+/* A note that didn't go through: the box lights up softly, its words back in it, so fixing it is one tap away. */
+.prompt.flash { animation: promptFlash 2.6s cubic-bezier(0.37, 0, 0.63, 1) var(--flashAt, 0ms) both; }
+@keyframes promptFlash { 0% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); border-color: #E3E1D7; } 15%, 50% { box-shadow: 0 0 22px 2px rgb(var(--clayRgb) / 0.35); border-color: rgb(var(--clayRgb) / 0.7); } 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); border-color: #E3E1D7; } }
+@media (prefers-reduced-motion: reduce) { .prompt.flash { animation: none; } }
