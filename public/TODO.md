@@ -53,6 +53,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ PRs real lifts only: heavier single, or more kg than ever for that many reps or more; never from RPE/estimates (140×1@8 with a 145 single is not a PR) (v372)
 - ✓ Exodia card went invisible: small cards under the box get hidden, and a bad measurement (keyboard, turn) hid the Exodia card; it's never hidden now (v371)
 - ✓ Type a lift: matches on top, tap name = write it in the box, + = add now; word-start + short-name matching; your spelled-out lift wins over the AI's close guess (Incline Dumbbell vs Incline Bench); no copying weightless old sets (v370)
 - ✓ iPhone Add to Home Screen kept starting at / (fresh, empty storage): the install file is only handed out with the owner's /me/ address now (v369)

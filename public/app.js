@@ -760,8 +760,12 @@ const prKind = (name, date, set) => {
   const today = earlierToday(name, date, set);
   // PRs compare against logged history only; imported all-time bests would hide every climb up to them.
   if (reps === 1 && kg > Math.max(singleBefore(name, date, true), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)))) return 'max';
-  if (!heavySet(set) && liftHasHeavy(name)) return null;
-  return setEstimate(set) > Math.max(bestBefore(name, date, true), ...today.map(setEstimate)) + 0.01 ? 'est' : null;
+  // A rep PR is a real lift too, never an estimate or RPE: more kg than you've ever lifted for this many reps or more
+  // (140 × 2 when your heaviest double was 135). 140 × 1 @8 with a 145 single is not a PR. Light sets of reps you've
+  // never done before don't count (nothing to beat), and sets over 10 reps only count when a lift has none of 1–10.
+  if (reps > 10 && liftHasHeavy(name)) return null;
+  const basis = [...priorSets(name, date), ...today.map((other) => ({ kg: Number(other.kg), reps: Number(other.reps) }))].filter((other) => other.reps >= reps);
+  return basis.length && kg > Math.max(...basis.map((other) => other.kg)) ? 'est' : null;
 };
 
 const checkPr = (name, date = todayIso()) => {
@@ -775,7 +779,7 @@ const checkPr = (name, date = todayIso()) => {
   announced.add(key);
   view.toast = top.kind === 'max'
     ? { kind: 'max', name, title: `New 1RM PR · ${name}`, text: `${top.kg} kg, +${round(top.kg - singleBefore(name, date))} kg on your best single` }
-    : { kind: 'rep', name, title: `New PR · ${name}`, text: `${top.kg} × ${top.reps}, estimated 1RM ${Math.round(top.est)} kg, +${round(top.est - bestBefore(name, date))} kg` };
+    : { kind: 'rep', name, title: `New PR · ${name}`, text: `${top.kg} × ${top.reps}, your heaviest for ${top.reps} reps` };
   const shown = view.toast;
   setTimeout(() => {
     if (view.toast === shown) clearToast();
