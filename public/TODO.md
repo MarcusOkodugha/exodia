@@ -54,6 +54,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Calendar PR days use prKind (it had its own estimate rule); gym visit import shows each step + errors, logs to commands as "Gym visits" (v382)
 - ✓ Gym visits: + → Import a file takes a screen recording or screenshots of a gym app's visit list; frames → /api/visits (Gemini) → visits saved with the profile, outlined squares in Every session, tap = "Gym visit · club · nothing logged" + box on that day (v380). Waiting on Marcus's first real recording.
 - ✓ QR code: two colours (dark on beige, no white tile, no orange), 104px, last in Share Exodia with the hint beside it; "add their name" note only for Marcus (v374)
 - ✓ Settings → Share Exodia: QR code (clay eyes, rounded dots) for the invite link, scan with a phone camera; follows the name Marcus types (v373)

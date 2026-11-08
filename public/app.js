@@ -738,10 +738,10 @@ const parseWithAi = async (text, audio, hint = '', saved = null) => {
 };
 
 const announced = new Set();
-const priorSets = (name, date) => state.sessions
+const priorSets = (name, date) => remember(`prior|${name}|${date}`, () => state.sessions
   .filter((session) => session.date < date)
   .flatMap((session) => session.exercises.filter((exercise) => countsFor(name).includes(exercise.name)).flatMap(validSets))
-  .map((set) => ({ kg: Number(set.kg), reps: Number(set.reps) }));
+  .map((set) => ({ kg: Number(set.kg), reps: Number(set.reps) })));
 const singleBefore = (name, date, logged = false) => remember(`single|${name}|${date}|${logged}`, () => Math.max(logged ? 0 : Number(state.bests?.[name]) || 0, ...priorSets(name, date).filter((set) => set.reps === 1).map((set) => set.kg)));
 
 const earlierToday = (name, date, set) => {
@@ -2677,27 +2677,9 @@ const isoWeek = (iso) => {
 // It scrolls back to your first session; tap a day to open it.
 const calendarDays = () => remember('calendar', () => {
   const days = new Map();
-  const best = new Map();
-  const single = new Map();
-  const seen = new Map();
-  const before = (map, name) => Math.max(0, ...countsFor(name).map((other) => map.get(other) || 0));
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
-    let pr = false;
-    const today = [];
-    for (const exercise of session.exercises) {
-      const sets = validSets(exercise).filter((set) => !set.warmup);
-      if (!sets.length) continue;
-      const topEstimate = Math.max(...sets.map(setEstimate));
-      const topSingle = Math.max(0, ...sets.filter((set) => Number(set.reps) === 1).map((set) => Number(set.kg)));
-      // Same rule as the PR badges: only after three earlier days of the lift, and only against logged sets.
-      if (before(seen, exercise.name) >= 3 && (topSingle > before(single, exercise.name) || topEstimate > before(best, exercise.name) + 0.01)) pr = true;
-      today.push([exercise.name, topEstimate, topSingle]);
-    }
-    for (const [name, topEstimate, topSingle] of today) {
-      best.set(name, Math.max(best.get(name) || 0, topEstimate));
-      single.set(name, Math.max(single.get(name) || 0, topSingle));
-      seen.set(name, (seen.get(name) || 0) + 1);
-    }
+    // The one PR rule (prKind, the same as the badges): real lifts only, never an estimate or RPE.
+    const pr = session.exercises.some((exercise) => validSets(exercise).some((set) => prKind(exercise.name, session.date, set)));
     const known = days.get(session.date);
     days.set(session.date, { volume: (known?.volume || 0) + sessionVolume(session), pr: Boolean(known?.pr || pr) });
   }
@@ -5751,14 +5733,20 @@ const framesOf = async (file) => {
       video.playsInline = true;
       video.preload = 'auto';
       video.src = url;
-      await new Promise((resolve, reject) => { video.onloadedmetadata = resolve; video.onerror = () => reject(new Error('Could not open that video.')); });
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = resolve;
+        video.onerror = () => reject(new Error('This phone could not open that video. Try screenshots of the list instead.'));
+        setTimeout(() => reject(new Error('The video didn’t open in 15 seconds. Try again, or use screenshots of the list.')), 15000);
+      });
       // iPhone Safari only hands over frames once a video has played: start it and pause it at once.
       await video.play().catch(() => null);
       video.pause();
       let last = null;
       for (let at = 0.3; at < video.duration && frames.length < 120; at += 0.9) {
         video.currentTime = at;
-        await new Promise((resolve) => { video.onseeked = resolve; });
+        // A seek that never reports back (it happens on some phones) moves on after 2 seconds.
+        await new Promise((resolve) => { video.onseeked = resolve; setTimeout(resolve, 2000); });
+        if (!video.videoWidth) continue;
         const canvas = frameOf(video, video.videoWidth, video.videoHeight);
         const sign = signature(canvas);
         if (sameFrame(sign, last)) continue;
@@ -5781,17 +5769,21 @@ const framesOf = async (file) => {
   return frames;
 };
 const readVisits = async (files) => {
-  view.status = 'Reading your gym visits…';
+  view.status = 'Opening your video…';
+  if (!view.composer) openChat();
+  view.sheetH = SHEET_PEEK;
   render();
   try {
     const frames = [];
     for (const file of files) frames.push(...await framesOf(file));
-    if (!frames.length) throw new Error('No pictures to read in that.');
+    if (!frames.length) throw new Error('Couldn’t take any pictures out of that video. Try screenshots of the list instead.');
+    view.status = `Reading your gym visits from ${frames.length} pictures…`;
+    render();
     const found = {};
     for (let start = 0; start < frames.length; start += 12) {
       view.status = `Reading your gym visits… ${Math.min(100, Math.round((start / frames.length) * 100))}%`;
       render();
-      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images: frames.slice(start, start + 12), today: todayIso() }) }, 90000);
+      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images: frames.slice(start, start + 12), today: todayIso(), name: state.name || '' }) }, 90000);
       let response = await send();
       // The free AI can be busy for a moment: wait and try that part once more.
       if (response.status === 503) {
@@ -5819,7 +5811,8 @@ const readVisits = async (files) => {
     clearTimeout(view.toastTimer);
     view.toastTimer = setTimeout(clearToast, 8000);
   } catch (error) {
-    view.status = error.message;
+    view.status = `Gym visits not added: ${error.message}`;
+    addLog('Gym visits', [`Not logged: ${error.message}`], { by: 'gym visits' });
   }
   render();
 };

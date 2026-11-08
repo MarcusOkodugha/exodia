@@ -1073,7 +1073,7 @@ const cleanVisits = (visits) => {
   return kept.length ? { visits: Object.fromEntries(kept) } : {};
 };
 const VISITS_PROMPT = `These pictures are frames of a screen recording or screenshots of a gym app's visit history (often Swedish, like "Träning, Stockholm Liljeholmen" with "02 Nov, 2026" under it). The frames overlap, so the same visit appears in several. List every visit once: date as YYYY-MM-DD; time as HH:MM and minutes as how long the visit lasted, only when the picture shows them (check-in and check-out times, or a duration), otherwise leave them out; and place as the club or gym name exactly as written (keep the chain name if shown, like "Nordic Wellness Stockholm Liljeholmen"; otherwise the place, like "Stockholm Liljeholmen"). A date with no year is the most recent past one. Only visits you can read fully; never invent one. If no visit list is shown, return an empty list.`;
-const readVisits = async (request, env) => {
+const readVisits = async (request, env, ctx) => {
   const key = request.headers.get('x-exodia-key') || '';
   if (!PROFILE_KEY.test(key)) return json({ error: 'Not allowed' }, 403);
   const body = await request.json().catch(() => null);
@@ -1096,11 +1096,13 @@ const readVisits = async (request, env) => {
     try {
       const parsed = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
       const visits = (Array.isArray(parsed?.visits) ? parsed.visits : []).filter((visit) => /^\d{4}-\d{2}-\d{2}$/.test(visit?.date) && (!today || visit.date <= today)).map((visit) => ({ date: visit.date, place: String(visit.place || '').slice(0, 60), ...(visit.time ? { time: String(visit.time).slice(0, 5) } : {}), ...(Number(visit.minutes) > 0 ? { minutes: Math.round(Number(visit.minutes)) } : {}) }));
+      logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { visits: visits.length, first: visits.map((visit) => visit.date).sort()[0] || '', engine: model });
       return json({ visits, model });
     } catch {
       continue;
     }
   }
+  logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { error: busy ? 'busy' : 'unreadable' });
   return json({ error: busy ? 'The AI was busy. Try again in a minute.' : 'Could not read the visits in that.' }, 503);
 };
 
@@ -1156,7 +1158,7 @@ export default {
     if (url.pathname === '/manifest.webmanifest') return manifest(request, env, url);
     if (url.pathname === '/api/visits') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
-      return readVisits(request, env);
+      return readVisits(request, env, ctx);
     }
     if (url.pathname === '/api/admin') return admin(request, env, ctx);
     if (url.pathname === '/api/event') return events(request, env);
