@@ -1085,10 +1085,9 @@ const exodiaDaySet = () => {
 // A session's note: one quiet line that opens to the whole note when tapped. Editing the day (the pencil) makes it a
 // text box; leaving it empty removes the note.
 const dayNote = (session, editing) => {
-  if (editing || view.noteEdit === session.date) return `<label class="dayNoteEdit"><span class="dayNoteLabel">Note</span><textarea class="dayNoteInput" rows="2" data-day-note="${session.date}" placeholder="How it felt, the gym, what to try next time">${esc(session.note || '')}</textarea></label>`;
   if (!session.note) return '';
   const open = view.noteOpen === session.date;
-  return `<button class="dayNote${open ? ' open' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
+  return `<button class="dayNote${open ? ' open' : ''}${view.noteGlow === session.date ? ' glow' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
 };
 const renderSession = (session) => {
   const pendings = inFlight().filter((pending) => pending.date === session.date && pending.known !== false);
@@ -1119,7 +1118,7 @@ const renderSession = (session) => {
       ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
       ${dayNote(session, editing)}
       <div class="dayActions">
-        <span class="dayAdd">${session.exercises.length ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button></span>
+        <span class="dayAdd">${session.exercises.length && !editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${editing ? `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>` : ''}</span>
         <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
       </div>
       ${editing ? `<button class="textBtn logDay" data-action="log-day" data-date="${session.date}">Open in Log</button>` : ''}
@@ -5772,6 +5771,28 @@ const send = async () => {
       render();
       return;
     }
+    const day = view.editContext?.date || (view.dayPicked ? view.composerDate : null);
+    const target = day && sessionFor(day);
+    if (target && rest && !voice) {
+      const note = rest.trim().slice(0, 600);
+      view.sentAt = Date.now();
+      target.note = target.note ? `${target.note}\n${note}` : note;
+      view.open.add(day);
+      view.noteOpen = day;
+      view.draft = '';
+      save();
+      const did = [`Note on ${dayLabel(day)}: ${note.length > 60 ? `${note.slice(0, 60)}…` : note}`];
+      view.noteGlow = day;
+      setTimeout(() => {
+        if (view.noteGlow === day) view.noteGlow = null;
+      }, 2800);
+      view.scrollTarget = day;
+      view.focusLanded = '.dayNote';
+      addLog(text, did, { by: 'phone' });
+      if (!desktopQuery.matches) document.activeElement?.blur();
+      render();
+      return;
+    }
     text = `Note: ${rest}`;
     if (view.route === 'admin') location.hash = '#/';
   }
@@ -5995,11 +6016,19 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
+  // + Note: the box opens with /note, on this day ("Editing … · day"), so the note lands right here.
   if (action === 'add-note') {
-    view.noteEdit = target.dataset.date;
-    view.open.add(target.dataset.date);
+    const day = target.dataset.date;
+    const session = sessionFor(day);
+    openChat();
+    view.composerDate = day;
+    view.dayPicked = true;
+    if (session) view.editContext = { date: day, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
+    if (!/^\/note(\s|$)/i.test(view.draft)) view.draft = `/note ${view.draft.trim()}`.trimEnd() + ' ';
+    view.focusDraft = true;
+    view.sheetH = SHEET_PEEK;
+    view.open.add(day);
     render();
-    document.querySelector(`[data-day-note="${target.dataset.date}"]`)?.focus();
     return;
   }
   if (action === 'dash-filter') {

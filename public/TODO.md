@@ -43,6 +43,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Edit: + Note opens the box with /note on that day (no AI, lands and flashes there); note box inside the day removed (v354)
 - ✓ Note on its way waits at the top under no day unless the day was picked or said; Edit: minus pops in fast and solid, Add set closer, no line under the note (v353)
 - ✓ + always shows a bit of chat, Import a file and the top two lifts on every screen; Import marked in clay; blurred clay counting rows, one per set written; what lands flashes clay and scrolls into full view, panel folds so nothing covers it (v352)
 - ✓ Set % is of your heaviest real single, RPE left out (v351)
