@@ -1477,15 +1477,15 @@ main.page { overflow-x: clip; }
    letters after a /command: same weight, colour only. */
 .promptMirror .slashCmd { font-weight: inherit; }
 
-/* Computer: the total sits fixed in the top right corner of the window, in the right panel's top margin; what
+/* Computer: the total sits fixed at the top of the right panel (left side, the corner is the red pill's), in the right panel's top margin; what
    scrolls up in the panel fades out before it reaches it. Trends' own copy beside the title is the phone's. */
-.rightTotal { position: fixed; z-index: 5; top: 12px; right: 24px; }
+.rightTotal { position: fixed; z-index: 5; top: 12px; left: calc(100% - 380px + 25px); }
 .rightTotal .sbdTotal { margin: 0; display: flex; align-items: baseline; gap: 6px; }
 .rightTotal .sbdEst { order: 2; }
 .right { -webkit-mask-image: linear-gradient(180deg, transparent 0, transparent 30px, #000 46px); mask-image: linear-gradient(180deg, transparent 0, transparent 30px, #000 46px); }
 .desk .titleRow .sbdTotal { display: none; }
 /* Installed app with its own title strip: the total sits in that strip, clear of the window buttons. */
 @media (display-mode: window-controls-overlay) {
-  .rightTotal { z-index: 41; top: calc(env(titlebar-area-y, 0px) + (env(titlebar-area-height, 32px) - 22px) / 2); right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 16px); -webkit-app-region: no-drag; app-region: no-drag; }
+  .rightTotal { z-index: 41; top: calc(env(titlebar-area-y, 0px) + (env(titlebar-area-height, 32px) - 22px) / 2); -webkit-app-region: no-drag; app-region: no-drag; }
   .right { -webkit-mask-image: linear-gradient(180deg, transparent 0, transparent env(titlebar-area-height, 32px), #000 calc(env(titlebar-area-height, 32px) + 14px)); mask-image: linear-gradient(180deg, transparent 0, transparent env(titlebar-area-height, 32px), #000 calc(env(titlebar-area-height, 32px) + 14px)); }
 }
