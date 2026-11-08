@@ -51,6 +51,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Picked lift: clay dot only, the line beside it (added 6 Nov, v305, unasked) removed; rule in CLAUDE.md: no unasked visual changes (v368)
 - ✓ Switches (Strength / Recovery, Admin tabs) back to the knob; chips keep the underline; switch options B–D sent (v367)
 - ✓ Red pill hidden: invisible 44px spot left of the top-right icon (phone) / right of the name in the sidebar (computer); visible button on Admin (v366)
 - ✓ Clay underline for every picked option (chips + switches); toast numbers kept together; inner pills in the box 10px corners (#14 try); red pill is a red dot with the developer menu inside; SBD top right on the computer, est. under (v365)
