@@ -162,7 +162,7 @@ let syncState = loadSync();
 view.isAdmin = Boolean(syncState?.admin);
 try { view.adminTab = localStorage.getItem('exodia.adminTab') || 'chat'; } catch { view.adminTab = 'chat'; }
 const localJson = () => Object.fromEntries(state.sessions.map((session) => [session.date, JSON.stringify(session)]));
-const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}) });
+const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}), ...(state.visits && Object.keys(state.visits).length ? { visits: state.visits } : {}) });
 let lastSaved = localJson();
 let lastMeta = metaJson();
 
@@ -248,7 +248,7 @@ const applyIncoming = (result) => {
   }
   if (result.meta) {
     const { updated, ...incomingMeta } = result.meta;
-    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}) });
+    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}), ...(incomingMeta.visits && Object.keys(incomingMeta.visits).length ? { visits: incomingMeta.visits } : {}) });
     const dirty = lastMeta !== syncState.metaSynced;
     // Bodyweight saved on another device comes through even while this one has unsent log lines (a body just
     // typed here is kept: it goes up with the next sync).
@@ -263,6 +263,7 @@ const applyIncoming = (result) => {
         state.bests = incomingMeta.bests || {};
         state.log = incomingMeta.log || [];
         if (incomingMeta.body) state.body = incomingMeta.body;
+        state.visits = incomingMeta.visits || {};
         changed = true;
       }
     }
@@ -2737,18 +2738,21 @@ const renderCalendar = () => {
   const { days, steps } = calendarDays();
   const today = todayIso();
   const monday = (iso) => addDays(iso, -((parseIso(iso).getDay() + 6) % 7));
-  const first = [...days.keys()].sort()[0];
+  const first = [...days.keys(), ...Object.keys(state.visits || {})].sort()[0];
   const exodiaDays = new Set(exodiaHistory().days || []);
   const cell = (date, from = '', to = today) => {
     if (date > to || date < from) return '<i class="calDay future"></i>';
     const day = days.get(date);
+    const visit = state.visits?.[date];
+    if (!day && visit) return `<button class="calDay visit" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · Gym visit · ${esc(visit)}" aria-label="${dayLabel(date)}, gym visit at ${esc(visit)}, nothing logged"></button>`;
     if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
     const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
     const hit = exodiaDays.has(date);
     const text = `${dayLabel(date)} · ${tonnes(day.volume)}${day.pr ? ' · PR' : ''}${hit ? ' · Exodia' : ''}`;
     return `<button class="calDay ${hit ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
   };
-  const key = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>';
+  const baseKey = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>';
+  const key = state.visits && Object.keys(state.visits).length ? baseKey.replace(/<\/p>$/, '<i class="calDay visit"></i><span>Gym visit</span></p>') : baseKey;
   const all = Boolean(view.calAll);
   const since = addDays(today, -364);
   const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
@@ -5709,7 +5713,100 @@ const filePicker = (() => {
 })();
 // Up to 10 files wait in the box at once; more than that says so instead of quietly dropping one.
 const FILE_MAX = 10;
+// Gym visits from another app (Nordic Wellness, Nordic Performance Center, Gymet): a screen recording of its visit
+// list, or screenshots. The phone takes still frames (every 0.7 s of a video, a long screenshot cut into pieces), the AI
+// reads the date and club off each, and every visit lands on its day in the calendar. Days you logged stay as they are.
+const isPicture = (file) => /^(image|video)\//.test(file.type) || /\.(mov|mp4|m4v|png|jpe?g|heic|webp)$/i.test(file.name);
+const frameOf = (source, width, height, top = 0, part = height) => {
+  const scale = Math.min(1, 720 / width);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(part * scale);
+  canvas.getContext('2d').drawImage(source, 0, top, width, part, 0, 0, canvas.width, canvas.height);
+  return canvas;
+};
+const signature = (canvas) => {
+  const tiny = document.createElement('canvas');
+  tiny.width = 12;
+  tiny.height = 24;
+  const context = tiny.getContext('2d');
+  context.drawImage(canvas, 0, 0, 12, 24);
+  return [...context.getImageData(0, 0, 12, 24).data].filter((value, index) => index % 4 === 0);
+};
+const sameFrame = (first, second) => first && second && first.reduce((sum, value, index) => sum + Math.abs(value - second[index]), 0) / first.length < 4;
+const framesOf = async (file) => {
+  const url = URL.createObjectURL(file);
+  const frames = [];
+  try {
+    if (file.type.startsWith('video') || /\.(mov|mp4|m4v)$/i.test(file.name)) {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.src = url;
+      await new Promise((resolve, reject) => { video.onloadeddata = resolve; video.onerror = () => reject(new Error('Could not open that video.')); });
+      let last = null;
+      for (let at = 0.2; at < video.duration && frames.length < 80; at += 0.7) {
+        video.currentTime = at;
+        await new Promise((resolve) => { video.onseeked = resolve; });
+        const canvas = frameOf(video, video.videoWidth, video.videoHeight);
+        const sign = signature(canvas);
+        if (sameFrame(sign, last)) continue;
+        last = sign;
+        frames.push(canvas.toDataURL('image/jpeg', 0.72).split(',')[1]);
+      }
+    } else {
+      const image = new Image();
+      image.src = url;
+      await image.decode().catch(() => { throw new Error('Could not open that picture.'); });
+      // A long screenshot is read in pieces about a phone screen tall, overlapping a little so no row is cut.
+      const piece = Math.round(image.naturalWidth * 2);
+      for (let top = 0; top < image.naturalHeight && frames.length < 80; top += Math.round(piece * 0.85)) {
+        frames.push(frameOf(image, image.naturalWidth, image.naturalHeight, top, Math.min(piece, image.naturalHeight - top)).toDataURL('image/jpeg', 0.72).split(',')[1]);
+      }
+    }
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return frames;
+};
+const readVisits = async (files) => {
+  view.status = 'Reading your gym visits…';
+  render();
+  try {
+    const frames = [];
+    for (const file of files) frames.push(...await framesOf(file));
+    if (!frames.length) throw new Error('No pictures to read in that.');
+    const found = {};
+    for (let start = 0; start < frames.length; start += 10) {
+      view.status = `Reading your gym visits… ${Math.min(100, Math.round((start / frames.length) * 100))}%`;
+      render();
+      const response = await timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images: frames.slice(start, start + 10), today: todayIso() }) }, 90000);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Could not read that. Try again.');
+      for (const visit of body.visits || []) if (/^\d{4}-\d{2}-\d{2}$/.test(visit.date) && visit.date <= todayIso()) found[visit.date] = String(visit.place || 'Gym').slice(0, 60);
+    }
+    const dates = Object.keys(found).sort();
+    if (!dates.length) throw new Error('No gym visits found in that. Scroll the visit list slowly while recording.');
+    const fresh = dates.filter((date) => !state.visits?.[date]);
+    state.visits = { ...(state.visits || {}), ...found };
+    save();
+    view.status = '';
+    addLog(`${files.length === 1 ? files[0].name : `${files.length} files`}`, [`Added ${fresh.length} gym ${fresh.length === 1 ? 'visit' : 'visits'} (${dayLabel(dates[0])} – ${dayLabel(dates.at(-1))}). They show in Every session on Trends.`], { by: 'gym visits' });
+    view.toast = { kind: 'result', title: `Added ${fresh.length} gym ${fresh.length === 1 ? 'visit' : 'visits'}`, text: `${dayLabel(dates[0])} – ${dayLabel(dates.at(-1))} · see Every session on Trends` };
+    clearTimeout(view.toastTimer);
+    view.toastTimer = setTimeout(clearToast, 8000);
+  } catch (error) {
+    view.status = error.message;
+  }
+  render();
+};
 const takeFiles = (files) => {
+  const pictures = files.filter(isPicture);
+  if (pictures.length) {
+    readVisits(pictures);
+    files = files.filter((file) => !pictures.includes(file));
+    if (!files.length) return;
+  }
   const room = FILE_MAX - (view.files || []).length;
   files.slice(0, Math.max(0, room)).forEach((file) => takeFile(file));
   if (files.length > room) {
@@ -6409,6 +6506,19 @@ document.addEventListener('click', (event) => {
   const session = date ? sessionFor(date) : null;
   const anchor = KEEP_STILL.has(action) ? anchorOf(target) : null;
   if (action === 'import') return;
+  if (action === 'visit-day') {
+    const date = target.dataset.date;
+    view.toast = { kind: 'result', title: `Gym visit · ${dayLabel(date)}`, text: `${state.visits?.[date] || 'Gym'} · nothing logged. Say what you did and it lands on this day.` };
+    clearTimeout(view.toastTimer);
+    view.toastTimer = setTimeout(clearToast, 8000);
+    openChat();
+    view.composerDate = date;
+    view.dayPicked = true;
+    view.sheetH = SHEET_PEEK;
+    view.focusDraft = true;
+    render();
+    return;
+  }
   if (action === 'pick-file') {
     filePicker.click();
     return;

@@ -804,7 +804,7 @@ const sync = async (request, env) => {
     .map((change) => ({ date: change.date, updated: Math.round(change.updated), base: Number.isFinite(change.base) ? Math.round(change.base) : null, data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
     .filter((change) => change.data === null || change.data.length <= MAX_RECORD);
   const meta = body?.meta && typeof body.meta === 'object' && Number.isFinite(body.meta.updated)
-    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex } } : {}) }), updated: Math.round(body.meta.updated) }
+    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex } } : {}), ...cleanVisits(body.meta.visits) }), updated: Math.round(body.meta.updated) }
     : null;
   if (meta && meta.json.length > MAX_RECORD * 4) return json({ error: 'Too big' }, 400);
   const now = Date.now();
@@ -1065,6 +1065,44 @@ const personalInvite = (pathname) => {
   return /^\p{L}[\p{L}\- ]{0,29}$/u.test(name) && !RESERVED_PATHS.includes(name.toLowerCase()) ? name : '';
 };
 
+// Gym visits read from another app's visit list: { "YYYY-MM-DD": "club" }, kept with the profile.
+const cleanVisits = (visits) => {
+  if (!visits || typeof visits !== 'object') return {};
+  const kept = Object.entries(visits).filter(([date, place]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && typeof place === 'string').slice(-4000).map(([date, place]) => [date, place.slice(0, 60)]);
+  return kept.length ? { visits: Object.fromEntries(kept) } : {};
+};
+const VISITS_PROMPT = `These pictures are frames of a screen recording or screenshots of a gym app's visit history (often Swedish, like "Träning, Stockholm Liljeholmen" with "02 Nov, 2026" under it). The frames overlap, so the same visit appears in several. List every visit once: date as YYYY-MM-DD and place as the club or gym name exactly as written (keep the chain name if shown, like "Nordic Wellness Stockholm Liljeholmen"; otherwise the place, like "Stockholm Liljeholmen"). A date with no year is the most recent past one. Only visits you can read fully; never invent one. If no visit list is shown, return an empty list.`;
+const readVisits = async (request, env) => {
+  const key = request.headers.get('x-exodia-key') || '';
+  if (!PROFILE_KEY.test(key)) return json({ error: 'Not allowed' }, 403);
+  const body = await request.json().catch(() => null);
+  const images = Array.isArray(body?.images) ? body.images.filter((image) => typeof image === 'string' && image.length < 700000).slice(0, 12) : [];
+  if (!images.length) return json({ error: 'No pictures came through. Try again.' }, 400);
+  const today = typeof body?.today === 'string' ? body.today.slice(0, 10) : '';
+  const schema = { type: 'OBJECT', properties: { visits: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, place: { type: 'STRING' } }, required: ['date', 'place'] } } }, required: ['visits'] };
+  let busy = false;
+  for (const model of (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((name) => name.trim()).filter(Boolean)) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: `${VISITS_PROMPT}\nToday is ${today || 'unknown'}.` }] }, contents: [{ role: 'user', parts: [...images.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } })), { text: 'List the gym visits in these pictures.' }] }], generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: schema } }),
+    });
+    if (!response.ok) {
+      busy = busy || response.status === 429 || response.status >= 500;
+      continue;
+    }
+    const data = await response.json().catch(() => null);
+    try {
+      const parsed = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
+      const visits = (Array.isArray(parsed?.visits) ? parsed.visits : []).filter((visit) => /^\d{4}-\d{2}-\d{2}$/.test(visit?.date) && (!today || visit.date <= today)).map((visit) => ({ date: visit.date, place: String(visit.place || '').slice(0, 60) }));
+      return json({ visits, model });
+    } catch {
+      continue;
+    }
+  }
+  return json({ error: busy ? 'The AI was busy. Try again in a minute.' : 'Could not read the visits in that.' }, 503);
+};
+
 const manifest = async (request, env, url) => {
   const response = await env.ASSETS.fetch(new Request(new URL('/manifest.webmanifest', url), request));
   const data = await response.json();
@@ -1115,6 +1153,10 @@ export default {
       return sync(request, env);
     }
     if (url.pathname === '/manifest.webmanifest') return manifest(request, env, url);
+    if (url.pathname === '/api/visits') {
+      if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+      return readVisits(request, env);
+    }
     if (url.pathname === '/api/admin') return admin(request, env, ctx);
     if (url.pathname === '/api/event') return events(request, env);
     if (url.pathname === '/api/models') {

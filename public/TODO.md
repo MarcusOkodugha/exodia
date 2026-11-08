@@ -23,7 +23,6 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **Import reads screen recordings + screenshots; gym-visit days (8 Nov):** for Nordic Wellness / Nordic Performance Center visit lists (one screen recording, scrolled once). Visits land as "Gym visit · club" in a soft unknown-weight shade, logged days win.
 
 - [ ] **Show when Exodia runs out (8 Nov, Marcus to pick A–D):** A days left in the top line, B thin draining line, C bars drain together, D only when opened (date + bar + what to do). Mockups sent.
 
@@ -55,6 +54,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Gym visits: + → Import a file takes a screen recording or screenshots of a gym app's visit list; frames → /api/visits (Gemini) → visits saved with the profile, outlined squares in Every session, tap = "Gym visit · club · nothing logged" + box on that day (v380). Waiting on Marcus's first real recording.
 - ✓ QR code: two colours (dark on beige, no white tile, no orange), 104px, last in Share Exodia with the hint beside it; "add their name" note only for Marcus (v374)
 - ✓ Settings → Share Exodia: QR code (clay eyes, rounded dots) for the invite link, scan with a phone camera; follows the name Marcus types (v373)
 - ✓ PRs real lifts only: heavier single, or more kg than ever for that many reps or more; never from RPE/estimates (140×1@8 with a 145 single is not a PR) (v372)

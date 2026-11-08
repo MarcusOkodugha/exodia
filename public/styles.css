@@ -1553,3 +1553,6 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .qrNote { text-align: left; font-size: 14px; line-height: 19px; }
 .qrDots, .qrEye { fill: var(--clay); }
 .qrEyeRing { stroke: var(--clay); }
+
+/* Every session: a day you were at the gym (read from your gym app) with nothing logged: a soft square, weight unknown. */
+.calDay.visit { background: rgb(var(--clayRgb) / 0.12); box-shadow: inset 0 0 0 1px rgb(var(--clayRgb) / 0.45); }
