@@ -907,7 +907,8 @@ const WISDOM = [
   ['Hard work beats talent when talent doesn’t work hard.', 'Tim Notke'],
   ['Discipline is choosing between what you want now and what you want most.', ''],
   ['Small daily improvements are the key to staggering long-term results.', ''],
-  ['The best time to plant a tree was 20 years ago. The second best time is now.', '']
+  ['The best time to plant a tree was 20 years ago. The second best time is now.', ''],
+  ['Chop your own wood and it will warm you twice.', 'Henry Ford']
 ];
 // Short true things about Exodia, every third line, so a wait teaches something. Each is checked against the app.
 const TIPS = [

@@ -27,6 +27,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
   1. **Friends:** see a friend's Exodia from yours without it getting in the way. Tap to see their info (recovery, training, levels) and get back to yourself in one tap, so you can plan sessions together.
   2. **Training programs** in Exodia.
   3. **Health connection:** see the Health + brain item below.
+  - With the native app: **clips on sets**: tap a set to see its clip looping, with a small overlay ("Deadlift 290 × 1 @ 8.5 · e1RM 303") and scrubbing. The native app points at the video in Photos (no copy, no extra space, nothing uploaded). Not as a web app: it would double the space and couldn't sync on the free plan (decided 8 Nov 2026).
 - [ ] **Health + brain (Marcus's idea, 7 Nov 2026, keep until done).** Behind an **Experimental** switch in Settings, Marcus only at first, nothing loads for others:
   - Apple Health → Exodia: web apps can't read HealthKit, so an iPhone Shortcut sends steps, cardio/workouts and sleep each night to a new `/api/health` (per day, on the profile). Give Marcus tap-by-tap Shortcut steps.
   - Show: movement/cardio volume per week, sleep last nights, sleep before PR days vs other days (correlation).
