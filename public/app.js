@@ -915,6 +915,7 @@ const WISDOM = [
   ['Look within. Within is the fountain of good.', 'Marcus Aurelius'],
   ['Very little indeed is necessary for living a happy life.', 'Marcus Aurelius'],
   ['Before you start wishing for more, appreciate what you have and imagine life without it.', 'Marcus Aurelius'],
+  ['To grow, you must be willing to look foolish and not care what others think.', 'Epictetus'],
   ['If it is not right, do not do it; if it is not true, do not say it.', 'Marcus Aurelius'],
   ['Do every act of thy life as if it were the last.', 'Marcus Aurelius'],
   ['Loss is nothing else than change.', 'Marcus Aurelius'],
