@@ -1551,3 +1551,5 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .qrDots, .qrEye { fill: var(--text); }
 .qrEyeRing { stroke: var(--text); }
 .qrNote { text-align: left; font-size: 14px; line-height: 19px; }
+.qrDots, .qrEye { fill: var(--clay); }
+.qrEyeRing { stroke: var(--clay); }
