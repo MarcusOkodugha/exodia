@@ -1068,10 +1068,11 @@ const personalInvite = (pathname) => {
 // Gym visits read from another app's visit list: { "YYYY-MM-DD": "club" }, kept with the profile.
 const cleanVisits = (visits) => {
   if (!visits || typeof visits !== 'object') return {};
-  const kept = Object.entries(visits).filter(([date, place]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && typeof place === 'string').slice(-4000).map(([date, place]) => [date, place.slice(0, 60)]);
+  const kept = Object.entries(visits).filter(([date, visit]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && (typeof visit === 'string' || typeof visit?.place === 'string')).slice(-4000)
+    .map(([date, visit]) => [date, typeof visit === 'string' ? visit.slice(0, 60) : { place: visit.place.slice(0, 60), ...(/^\d{1,2}:\d{2}$/.test(visit.time || '') ? { time: visit.time } : {}), ...(Number(visit.minutes) > 0 && Number(visit.minutes) < 600 ? { minutes: Math.round(Number(visit.minutes)) } : {}) }]);
   return kept.length ? { visits: Object.fromEntries(kept) } : {};
 };
-const VISITS_PROMPT = `These pictures are frames of a screen recording or screenshots of a gym app's visit history (often Swedish, like "Träning, Stockholm Liljeholmen" with "02 Nov, 2026" under it). The frames overlap, so the same visit appears in several. List every visit once: date as YYYY-MM-DD and place as the club or gym name exactly as written (keep the chain name if shown, like "Nordic Wellness Stockholm Liljeholmen"; otherwise the place, like "Stockholm Liljeholmen"). A date with no year is the most recent past one. Only visits you can read fully; never invent one. If no visit list is shown, return an empty list.`;
+const VISITS_PROMPT = `These pictures are frames of a screen recording or screenshots of a gym app's visit history (often Swedish, like "Träning, Stockholm Liljeholmen" with "02 Nov, 2026" under it). The frames overlap, so the same visit appears in several. List every visit once: date as YYYY-MM-DD; time as HH:MM and minutes as how long the visit lasted, only when the picture shows them (check-in and check-out times, or a duration), otherwise leave them out; and place as the club or gym name exactly as written (keep the chain name if shown, like "Nordic Wellness Stockholm Liljeholmen"; otherwise the place, like "Stockholm Liljeholmen"). A date with no year is the most recent past one. Only visits you can read fully; never invent one. If no visit list is shown, return an empty list.`;
 const readVisits = async (request, env) => {
   const key = request.headers.get('x-exodia-key') || '';
   if (!PROFILE_KEY.test(key)) return json({ error: 'Not allowed' }, 403);
@@ -1079,7 +1080,7 @@ const readVisits = async (request, env) => {
   const images = Array.isArray(body?.images) ? body.images.filter((image) => typeof image === 'string' && image.length < 700000).slice(0, 12) : [];
   if (!images.length) return json({ error: 'No pictures came through. Try again.' }, 400);
   const today = typeof body?.today === 'string' ? body.today.slice(0, 10) : '';
-  const schema = { type: 'OBJECT', properties: { visits: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, place: { type: 'STRING' } }, required: ['date', 'place'] } } }, required: ['visits'] };
+  const schema = { type: 'OBJECT', properties: { visits: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, place: { type: 'STRING' }, time: { type: 'STRING' }, minutes: { type: 'INTEGER' } }, required: ['date', 'place'] } } }, required: ['visits'] };
   let busy = false;
   for (const model of (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((name) => name.trim()).filter(Boolean)) {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -1094,7 +1095,7 @@ const readVisits = async (request, env) => {
     const data = await response.json().catch(() => null);
     try {
       const parsed = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
-      const visits = (Array.isArray(parsed?.visits) ? parsed.visits : []).filter((visit) => /^\d{4}-\d{2}-\d{2}$/.test(visit?.date) && (!today || visit.date <= today)).map((visit) => ({ date: visit.date, place: String(visit.place || '').slice(0, 60) }));
+      const visits = (Array.isArray(parsed?.visits) ? parsed.visits : []).filter((visit) => /^\d{4}-\d{2}-\d{2}$/.test(visit?.date) && (!today || visit.date <= today)).map((visit) => ({ date: visit.date, place: String(visit.place || '').slice(0, 60), ...(visit.time ? { time: String(visit.time).slice(0, 5) } : {}), ...(Number(visit.minutes) > 0 ? { minutes: Math.round(Number(visit.minutes)) } : {}) }));
       return json({ visits, model });
     } catch {
       continue;

@@ -2734,7 +2734,7 @@ const yearStrength = (year, to) => {
 };
 const CAL_MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const renderCalendar = () => {
-  if (!state.sessions.length) return '';
+  if (!state.sessions.length && !Object.keys(state.visits || {}).length) return '';
   const { days, steps } = calendarDays();
   const today = todayIso();
   const monday = (iso) => addDays(iso, -((parseIso(iso).getDay() + 6) % 7));
@@ -2743,8 +2743,8 @@ const renderCalendar = () => {
   const cell = (date, from = '', to = today) => {
     if (date > to || date < from) return '<i class="calDay future"></i>';
     const day = days.get(date);
-    const visit = state.visits?.[date];
-    if (!day && visit) return `<button class="calDay visit" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · Gym visit · ${esc(visit)}" aria-label="${dayLabel(date)}, gym visit at ${esc(visit)}, nothing logged"></button>`;
+    const visit = visitOf(date);
+    if (!day && visit) return `<button class="calDay shade${visit.minutes > 90 ? 3 : visit.minutes > 60 ? 2 : 1} visit" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · ${esc(visitLine(visit))}" aria-label="${dayLabel(date)}, ${esc(visitLine(visit))}, nothing logged"></button>`;
     if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
     const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
     const hit = exodiaDays.has(date);
@@ -2752,7 +2752,7 @@ const renderCalendar = () => {
     return `<button class="calDay ${hit ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
   };
   const baseKey = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>';
-  const key = state.visits && Object.keys(state.visits).length ? baseKey.replace(/<\/p>$/, '<i class="calDay visit"></i><span>Gym visit</span></p>') : baseKey;
+  const key = baseKey;
   const all = Boolean(view.calAll);
   const since = addDays(today, -364);
   const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
@@ -5716,6 +5716,13 @@ const FILE_MAX = 10;
 // Gym visits from another app (Nordic Wellness, Nordic Performance Center, Gymet): a screen recording of its visit
 // list, or screenshots. The phone takes still frames (every 0.7 s of a video, a long screenshot cut into pieces), the AI
 // reads the date and club off each, and every visit lands on its day in the calendar. Days you logged stay as they are.
+// A visit is the club's name, or { place, time, minutes } when the gym app showed when and for how long.
+const visitOf = (date) => {
+  const visit = state.visits?.[date];
+  if (!visit) return null;
+  return typeof visit === 'string' ? { place: visit } : { place: String(visit.place || 'Gym'), time: visit.time || '', minutes: Number(visit.minutes) || 0 };
+};
+const visitLine = (visit) => [visit.place, visit.time, visit.minutes ? `${visit.minutes} min` : ''].filter(Boolean).join(' · ');
 const isPicture = (file) => /^(image|video)\//.test(file.type) || /\.(mov|mp4|m4v|png|jpe?g|heic|webp)$/i.test(file.name);
 const frameOf = (source, width, height, top = 0, part = height) => {
   const scale = Math.min(1, 720 / width);
@@ -5742,10 +5749,14 @@ const framesOf = async (file) => {
       const video = document.createElement('video');
       video.muted = true;
       video.playsInline = true;
+      video.preload = 'auto';
       video.src = url;
-      await new Promise((resolve, reject) => { video.onloadeddata = resolve; video.onerror = () => reject(new Error('Could not open that video.')); });
+      await new Promise((resolve, reject) => { video.onloadedmetadata = resolve; video.onerror = () => reject(new Error('Could not open that video.')); });
+      // iPhone Safari only hands over frames once a video has played: start it and pause it at once.
+      await video.play().catch(() => null);
+      video.pause();
       let last = null;
-      for (let at = 0.2; at < video.duration && frames.length < 80; at += 0.7) {
+      for (let at = 0.3; at < video.duration && frames.length < 120; at += 0.9) {
         video.currentTime = at;
         await new Promise((resolve) => { video.onseeked = resolve; });
         const canvas = frameOf(video, video.videoWidth, video.videoHeight);
@@ -5760,7 +5771,7 @@ const framesOf = async (file) => {
       await image.decode().catch(() => { throw new Error('Could not open that picture.'); });
       // A long screenshot is read in pieces about a phone screen tall, overlapping a little so no row is cut.
       const piece = Math.round(image.naturalWidth * 2);
-      for (let top = 0; top < image.naturalHeight && frames.length < 80; top += Math.round(piece * 0.85)) {
+      for (let top = 0; top < image.naturalHeight && frames.length < 120; top += Math.round(piece * 0.85)) {
         frames.push(frameOf(image, image.naturalWidth, image.naturalHeight, top, Math.min(piece, image.naturalHeight - top)).toDataURL('image/jpeg', 0.72).split(',')[1]);
       }
     }
@@ -5777,13 +5788,25 @@ const readVisits = async (files) => {
     for (const file of files) frames.push(...await framesOf(file));
     if (!frames.length) throw new Error('No pictures to read in that.');
     const found = {};
-    for (let start = 0; start < frames.length; start += 10) {
+    for (let start = 0; start < frames.length; start += 12) {
       view.status = `Reading your gym visits… ${Math.min(100, Math.round((start / frames.length) * 100))}%`;
       render();
-      const response = await timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images: frames.slice(start, start + 10), today: todayIso() }) }, 90000);
+      const send = () => timedFetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ images: frames.slice(start, start + 12), today: todayIso() }) }, 90000);
+      let response = await send();
+      // The free AI can be busy for a moment: wait and try that part once more.
+      if (response.status === 503) {
+        await new Promise((resolve) => setTimeout(resolve, 6000));
+        response = await send();
+      }
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || 'Could not read that. Try again.');
-      for (const visit of body.visits || []) if (/^\d{4}-\d{2}-\d{2}$/.test(visit.date) && visit.date <= todayIso()) found[visit.date] = String(visit.place || 'Gym').slice(0, 60);
+      for (const visit of body.visits || []) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(visit.date) || visit.date > todayIso()) continue;
+        const place = String(visit.place || 'Gym').slice(0, 60);
+        const time = /^\d{1,2}:\d{2}$/.test(visit.time || '') ? visit.time : '';
+        const minutes = Number(visit.minutes) > 0 && Number(visit.minutes) < 600 ? Math.round(Number(visit.minutes)) : 0;
+        found[visit.date] = time || minutes ? { place, ...(time ? { time } : {}), ...(minutes ? { minutes } : {}) } : place;
+      }
     }
     const dates = Object.keys(found).sort();
     if (!dates.length) throw new Error('No gym visits found in that. Scroll the visit list slowly while recording.');
@@ -6508,7 +6531,7 @@ document.addEventListener('click', (event) => {
   if (action === 'import') return;
   if (action === 'visit-day') {
     const date = target.dataset.date;
-    view.toast = { kind: 'result', title: `Gym visit · ${dayLabel(date)}`, text: `${state.visits?.[date] || 'Gym'} · nothing logged. Say what you did and it lands on this day.` };
+    view.toast = { kind: 'result', title: `${dayLabel(date)} · at the gym`, text: `${visitLine(visitOf(date))} · nothing logged. Say what you did and it lands on this day.` };
     clearTimeout(view.toastTimer);
     view.toastTimer = setTimeout(clearToast, 8000);
     openChat();
