@@ -23,6 +23,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Gym visit video import fails (8 Nov, v384): "No answer in 90 seconds".** Frames are taken and sent, but /api/visits (Gemini, 12 images per call, models tried one after another with no timeout) didn't answer in 90 s on Marcus's real recording. Likely fix: a 20 s timeout per model, 4 images per call, log every failure to commands. Marcus is done testing this on his time: only touch it if a fix can be checked against the real AI first (needs Cloudflare/Gemini access in the session). Fallback that needs no AI: GDPR request to Nordic Wellness.
+
 
 - [ ] **Show when Exodia runs out (8 Nov, Marcus to pick A–D):** A days left in the top line, B thin draining line, C bars drain together, D only when opened (date + bar + what to do). Mockups sent.
 
