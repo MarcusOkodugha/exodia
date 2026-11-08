@@ -1709,6 +1709,18 @@ const liftPicker = (big, rest, history, action = 'pick-trend', current = view.tr
     ${all.length > first ? `<button class="liftExpand" data-action="trend-more" aria-expanded="${Boolean(view.trendMore)}">${view.trendMore ? 'Show fewer' : `Show all ${all.length} lifts`}${ICONS.chev}</button>` : ''}`;
 };
 
+// Your SBD total in the empty corner beside the title: heaviest real singles of squat, bench and deadlift added up,
+// and the total your best estimated maxes add up to. Shown once all three lifts have numbers.
+const SBD = ['Squat', 'Bench Press', 'Deadlift'];
+const sbdTotal = () => {
+  const singles = SBD.map((name) => singleBefore(name, '9999-12-31'));
+  const estimates = SBD.map((name) => bestOverall(name));
+  if (estimates.some((value) => !(value > 0))) return '';
+  const actual = singles.every((value) => value > 0) ? Math.round(singles.reduce((sum, value) => sum + value, 0)) : 0;
+  const expected = Math.round(estimates.reduce((sum, value) => sum + value, 0));
+  const detail = SBD.map((name, index) => `${name} ${singles[index] ? round(singles[index]) : '–'} (est. ${Math.round(estimates[index])})`).join(', ');
+  return `<p class="sbdTotal num" title="${esc(detail)}"><span class="sbdLabel">SBD total</span><b>${actual ? `${actual} kg` : '–'}</b><span class="sbdEst">est. ${expected} kg</span></p>`;
+};
 const renderTrends = () => {
   const history = new Map();
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
@@ -1762,7 +1774,7 @@ const renderTrends = () => {
   };
   return `<main class="page trendsPage">
     <p class="eyebrow">${todayLine()}</p>
-    <h1 class="title">Trends</h1>
+    <div class="titleRow"><h1 class="title">Trends</h1>${sbdTotal()}</div>
     ${names.length ? `<div class="list">${card(view.trendOpen).replace(/<\/section>\s*$/, `${liftPicker(big, rest, history)}</section>`)}</div>` : `<p class="section">Big 3</p><div class="list">${BIG_THREE.map(emptyLift).join('')}</div>`}
     ${renderMuscles()}
     ${desktopQuery.matches ? '' : `${renderStrength()}${renderVolume()}`}

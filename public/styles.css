@@ -1466,3 +1466,10 @@ main.page { overflow-x: clip; }
 .prompt.flash { animation: promptFlash 2.6s cubic-bezier(0.37, 0, 0.63, 1) var(--flashAt, 0ms) both; }
 @keyframes promptFlash { 0% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); border-color: #E3E1D7; } 15%, 50% { box-shadow: 0 0 22px 2px rgb(var(--clayRgb) / 0.35); border-color: rgb(var(--clayRgb) / 0.7); } 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); border-color: #E3E1D7; } }
 @media (prefers-reduced-motion: reduce) { .prompt.flash { animation: none; } }
+/* Trends: the SBD total sits in the corner beside the title, two short lines no taller than the title, so nothing moves down. */
+.titleRow { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.sbdTotal { margin: 0 0 3px; display: grid; justify-items: end; text-align: right; white-space: nowrap; }
+.sbdTotal b { grid-row: 1; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--text); }
+.sbdLabel { grid-row: 1; display: none; }
+.sbdTotal b::before { content: "SBD "; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--clayText, var(--clay)); }
+.sbdEst { font-size: 12px; line-height: 16px; color: var(--text2); }
