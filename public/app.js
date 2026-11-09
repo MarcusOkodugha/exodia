@@ -1551,7 +1551,7 @@ const chartFor = (allPoints) => {
     </div>
   </div>
   <div class="axis num"><span>${dayLabel(rows[0].date)}</span>${merged ? `<span class="axisNote">monthly best of ${allPoints.length}</span>` : ''}<span>${dayLabel(rows.at(-1).date)}</span></div>
-  ${picked ? `<p class="pickInfo num"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg${picked.from && (picked.from.kg !== picked.top.kg || picked.from.reps !== picked.top.reps) ? ` from ${picked.from.kg} × ${picked.from.reps}` : ''}</span>${picked.isPr ? ' · 1RM PR' : ''}</p>` : ''}`;
+  ${picked ? `<button class="pickInfo num" data-action="jump-session" data-date="${picked.date}" aria-label="Open ${dayLabel(picked.date)} on Home"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} ${picked.sessionEstimate > 0 ? ` · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg${picked.from && (picked.from.kg !== picked.top.kg || picked.from.reps !== picked.top.reps) ? ` from ${picked.from.kg} × ${picked.from.reps}` : ''}</span>` : ''}${picked.isPr ? ' · 1RM PR' : ''} <span class="pickOpen">Open day${ICONS.chevRight}</span></button>` : ''}`;
 };
 
 const MUSCLES = [

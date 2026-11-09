@@ -1592,3 +1592,7 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 /* Both totals on one row; they only wrap on the narrowest phones. */
 .calStats { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 12px; }
 .calStats p { white-space: nowrap; }
+/* The picked point's line under the chart opens that day on Home. */
+button.pickInfo { display: block; width: calc(100% - 40px); text-align: left; background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--text2); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pickOpen { white-space: nowrap; color: var(--clayText); font-weight: 600; }
+.pickOpen .exChev { width: 12px; height: 12px; vertical-align: -1px; margin-left: 1px; }
