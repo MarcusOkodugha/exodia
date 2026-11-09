@@ -2753,7 +2753,7 @@ const renderCalendar = () => {
     if (date > to || date < from) return '<i class="calDay future"></i>';
     const day = days.get(date);
     const visit = visitOf(date);
-    if (!day && visit) return `<button class="calDay shade${visit.minutes > 90 ? 3 : visit.minutes > 60 ? 2 : 1} visit${view.visitOpen === date ? ' picked' : ''}" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · ${esc(visitLine(visit))}" aria-label="${dayLabel(date)}, ${esc(visitLine(visit))}, nothing logged"></button>`;
+    if (!day && visit) return `<button class="calDay shade${visitShade(visit)} visit${view.visitOpen === date ? ' picked' : ''}" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · ${esc(visitLine(visit))}" aria-label="${dayLabel(date)}, ${esc(visitLine(visit))}, nothing logged"></button>`;
     if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
     const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
     const hit = exodiaDays.has(date);
@@ -5768,9 +5768,11 @@ const FILE_MAX = 10;
 const visitOf = (date) => {
   const visit = state.visits?.[date];
   if (!visit) return null;
-  return typeof visit === 'string' ? { place: visit } : { place: String(visit.place || 'Gym'), time: visit.time || '', minutes: Number(visit.minutes) || 0 };
+  // A day from your photos also says what you did (title) and how hard it looked (level: light, medium, heavy).
+  return typeof visit === 'string' ? { place: visit } : { place: String(visit.place || 'Gym'), time: visit.time || '', minutes: Number(visit.minutes) || 0, title: String(visit.title || ''), level: ['light', 'medium', 'heavy'].includes(visit.level) ? visit.level : '', from: visit.from || '' };
 };
-const visitLine = (visit) => [visit.place, visit.time, visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean).join(' · ');
+const visitShade = (visit) => (visit.level ? { light: 1, medium: 2, heavy: 4 }[visit.level] : visit.minutes > 90 ? 3 : visit.minutes > 60 ? 2 : 1);
+const visitLine = (visit) => [visit.title, visit.place === 'Gym' && visit.title ? '' : visit.place, visit.time, visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean).join(' · ');
 const visitCard = () => {
   const visit = view.visitOpen && visitOf(view.visitOpen);
   if (!visit) return '';
@@ -5778,8 +5780,8 @@ const visitCard = () => {
   const facts = [visit.time ? `In at ${visit.time}` : '', visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean).join(' · ');
   return `<div class="visitCard" role="group" aria-label="Gym visit ${dayLabel(date)}">
     <div class="visitHead"><span class="visitDate">${dayLabel(date)}</span><button class="visitClose" data-action="visit-close" aria-label="Close">×</button></div>
-    <p class="visitPlace">${esc(visit.place)}</p>
-    <p class="visitFacts">${facts ? `${esc(facts)} · ` : ''}from your gym app · no sets logged</p>
+    <p class="visitPlace">${esc(visit.title ? `${visit.title}${visit.place !== 'Gym' ? ` · ${visit.place}` : ''}` : visit.place)}</p>
+    <p class="visitFacts">${[facts, visit.level ? `${visit.level[0].toUpperCase()}${visit.level.slice(1)}` : '', visit.from === 'photos' ? 'from your photos' : visit.minutes ? 'from Google Maps' : 'from your gym app', 'no sets logged'].filter(Boolean).map(esc).join(' · ')}</p>
     <button class="textBtn visitAdd" data-action="visit-add" data-date="${date}">+ Add what you did</button>
   </div>`;
 };

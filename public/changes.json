@@ -1,4 +1,8 @@
 {
+  "400": [
+    "Every session: gym days read from your photos show what you did (Deadlift, Bench, Squat) and how hard: light, medium or heavy",
+    "A gym day says where it came from: your photos, Google Maps or your gym app"
+  ],
   "399": [
     "A heavier single is a PR as soon as you have logged one single before it, so early climbs like 160, 180, 200 all count"
   ],

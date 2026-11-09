@@ -785,8 +785,14 @@ const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
     const name = incomingNewer ? incoming.name : current.name || incoming.name;
     const bodyNow = incomingNewer ? incoming.body || current.body : current.body || incoming.body;
     // Gym visits are only ever added: a device on an older Exodia (no visits) never wipes them.
-    // Same day on both: the copy that knows how long you stayed wins (a phone with an older copy can't undo that).
-    const richer = (one, other) => (Number(other?.minutes) > 0 && !(Number(one?.minutes) > 0) ? other : one);
+    // Same day on both: what each copy knows is kept (place, time, how long, what you did and how hard), the incoming
+    // copy winning only where it actually says something, so a phone with an older plain copy can't undo any of it.
+    const asVisit = (visit) => (typeof visit === 'string' ? { place: visit } : visit && typeof visit === 'object' ? visit : {});
+    const richer = (one, other) => {
+      const merged = { ...asVisit(other) };
+      for (const [key, value] of Object.entries(asVisit(one))) if (value !== '' && value !== null && value !== undefined && !(key === 'minutes' && !(Number(value) > 0))) merged[key] = value;
+      return Object.keys(merged).length === 1 && merged.place ? merged.place : merged;
+    };
     const visits = { ...(current.visits || {}) };
     for (const [date, visit] of Object.entries(incoming.visits || {})) visits[date] = visits[date] ? richer(visit, visits[date]) : visit;
     return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log, ...(bodyNow ? { body: bodyNow } : {}), ...(Object.keys(visits).length ? { visits } : {}) });
