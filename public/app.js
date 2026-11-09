@@ -2818,7 +2818,7 @@ const renderCalendar = () => {
         const timed = Object.values(state.visits || {}).map((visit) => Number(visit?.minutes) || 0).filter((minutes) => minutes > 0);
         const average = timed.length ? Math.round(timed.reduce((sum, minutes) => sum + minutes, 0) / timed.length) : 0;
         const length = humanMinutes(average);
-        return `<div class="calStats"><p><b class="num">${ever}</b><span>sessions since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}</span></p>${average ? `<p><b class="num">${length}</b><span>average at the gym</span></p>` : ''}</div>`;
+        return `<div class="calStats"><p><b class="num">${ever}</b> <span>sessions since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}</span></p>${average ? `<p><b class="num">${length}</b> <span>avg time at the gym</span></p>` : ''}</div>`;
       })()}
       ${body}
       ${key}

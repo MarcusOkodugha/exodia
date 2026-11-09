@@ -1584,3 +1584,8 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 @media (prefers-reduced-motion: reduce) { .calDay.picked { animation: none; } }
 .visitCard { border-top: 0; margin-top: 4px; padding-top: 6px; }
 .calCard .calMore { margin: 6px auto 0; }
+/* Totals up top: two quiet lines, same size as the text around them. */
+.calStats { display: block; margin: 2px 0 10px; }
+.calStats p { display: block; margin: 0; font-size: 14px; line-height: 1.5; }
+.calStats b { font-size: 14px; font-weight: 600; }
+.calStats span { font-size: 14px; }
