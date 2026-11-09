@@ -1589,3 +1589,6 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .calStats p { display: block; margin: 0; font-size: 14px; line-height: 1.5; }
 .calStats b { font-size: 14px; font-weight: 600; }
 .calStats span { font-size: 14px; }
+/* Both totals on one row; they only wrap on the narrowest phones. */
+.calStats { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 12px; }
+.calStats p { white-space: nowrap; }
