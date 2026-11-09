@@ -1055,7 +1055,8 @@ const guessSets = (text) => {
   if (!count) count = words.split(/\n|,|;|\bthen\b/i).filter((part) => /\d/.test(part)).length;
   return Math.max(1, Math.min(6, count || 2));
 };
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
+const saidQuote = (item) => (item.text && item.text !== 'Voice note' ? `<span class="ghostSaid">“${esc(item.text.length > 160 ? `${item.text.slice(0, 157)}…` : item.text)}”</span>` : '');
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${saidQuote(item)}${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 // While a note is read, the waiting rows' kg, reps and e1RM count up fast and accelerating, over and over, in the
 // real columns; the real row replaces them the moment the answer lands.
@@ -1069,7 +1070,7 @@ setInterval(() => {
     tick.textContent = Math.round(value);
   }
 }, 55);
-const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, later: true }))];
+const inFlight = () => [...view.pending, ...laterJobs().map((job) => ({ date: job.date, known: job.known, text: job.heard || job.said, later: true }))];
 
 const accessoriesOf = (session) => session.accessories ?? (session.exercises.length ? 30 : 0);
 
@@ -4793,7 +4794,24 @@ const DAY_WORDS = /\b(yesterday|today|mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\b(la
 
 // Where the writing skeleton goes until the AI answers: English and Swedish day words ("igår", "i fredags").
 const SWEDISH_DAYS = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
+// "October 21", "21st of Oct", "21 oktober 2025": that day (last year's when it would be in the future).
+const MONTH_WORDS = ['jan(?:uary|uari)?', 'feb(?:ruary|ruari)?', 'mar(?:ch|s)?', 'apr(?:il)?', 'ma[jy]', 'jun[ei]?', 'jul[yi]?', 'aug(?:ust|usti)?', 'sept?(?:ember)?', 'o[ck]t(?:ober)?', 'nov(?:ember)?', 'dec(?:ember)?'];
+const monthDate = (text) => {
+  const words = MONTH_WORDS.join('|');
+  const match = String(text || '').toLowerCase().match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th|e|:e)?(?:\\s+of)?\\s+(${words})\\b\\.?(?:\\s+(\\d{4}))?\\b|\\b(${words})\\b\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,?\\s+(\\d{4}))?`));
+  if (!match) return null;
+  const [day, month, year] = match[1] ? [match[1], match[2], match[3]] : [match[5], match[4], match[6]];
+  const index = MONTH_WORDS.findIndex((word) => new RegExp(`^(?:${word})$`).test(month));
+  if (index === -1 || Number(day) < 1 || Number(day) > 31) return null;
+  const pad = (value) => String(value).padStart(2, '0');
+  let iso = `${year || todayIso().slice(0, 4)}-${pad(index + 1)}-${pad(day)}`;
+  if (!year && iso > todayIso()) iso = `${Number(iso.slice(0, 4)) - 1}${iso.slice(4)}`;
+  return isoDate(parseIso(iso)) === iso ? iso : null;
+};
 const guessDate = (text, fallback) => {
+  text = String(text || '');
+  const named = monthDate(text);
+  if (named) return named;
   if (/\b(day before yesterday|förrgår)/i.test(text)) return addDays(todayIso(), -2);
   if (/\byesterday\b|\bi\s?går(?![a-zåäö])/i.test(text)) return addDays(todayIso(), -1);
   const swedish = SWEDISH_DAYS.findIndex((day) => text.toLowerCase().includes(day));
@@ -6160,11 +6178,11 @@ const runImport = async (text, said, onFail = () => {}) => {
 // Messages that couldn't reach the AI (busy, or no internet) wait here and are sent again by themselves:
 // soon at first, then less often, for up to a day. The log shows them as "on it" until they land.
 const LATER_WAIT = [15, 30, 60, 120, 300, 600, 900];
-const queueLater = async ({ prompt, said, date, live = '', voice = null, heard = '', context = noteContext() }) => {
+const queueLater = async ({ prompt, said, date, known = true, live = '', voice = null, heard = '', context = noteContext() }) => {
   const id = `later-${Date.now()}`;
   if (voice?.size) await keepVoice(id, voice);
   const at = Date.now();
-  state.later = [...laterJobs(), { id, prompt, said, date, live, heard, context, voice: Boolean(voice?.size), at, tries: 0, next: at + LATER_WAIT[0] * 1000 }];
+  state.later = [...laterJobs(), { id, prompt, said, date, known, live, heard, context, voice: Boolean(voice?.size), at, tries: 0, next: at + LATER_WAIT[0] * 1000 }];
   addLog(said, ['Exodia is on it in the background. It lands by itself, keep going.'], { laterId: id, manual: true });
   save();
   render();
@@ -6383,14 +6401,14 @@ const send = async () => {
     view.draft = '';
     view.status = '';
     if (!desktopQuery.matches) document.activeElement?.blur();
-    await queueLater({ prompt: text, said: text || live || 'Voice note', date: guessDate(text, date), live, voice });
+    await queueLater({ prompt: text, said: text || live || 'Voice note', date: guessDate(text || live, date), known: Boolean(guessDate(text || live, null) || view.dayPicked || view.editContext || view.editDay), live, voice });
     render();
     closeTray();
     return;
   }
   // The day is only certain when you picked it (a day's + Exercise, the day chips, editing a day) or named it ("yesterday");
   // otherwise what's on its way waits at the top, under no day, until the answer says where it goes.
-  const named = guessDate(text, null);
+  const named = guessDate(text || live, null);
   const known = Boolean(view.dayPicked || view.editContext || view.editDay || named);
   const pending = { date: named || date, known, label: text || 'your voice note', text: text || live || 'Voice note' };
   view.pending.push(pending);
@@ -6449,7 +6467,7 @@ const send = async () => {
     }
     // Busy or offline: it waits and tries again by itself; nothing for the person to do.
     if (error.later && !view.fixing) {
-      await queueLater({ prompt: text, said: text || heard || error.heard || live || 'Voice note', date: pending.date, live, voice, heard: heard || error.heard || '', context: sentContext || noteContext() });
+      await queueLater({ prompt: text, said: text || heard || error.heard || live || 'Voice note', date: pending.date, known: pending.known, live, voice, heard: heard || error.heard || '', context: sentContext || noteContext() });
       return;
     }
     const spoken = heard || error.heard || '';

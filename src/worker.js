@@ -642,6 +642,7 @@ const parse = async (request, env, ctx) => {
   const trace = [];
   // Saved with each note so speed per model can be read from the commands table: "3.5-flash 200 2140".
   const timing = () => ({ ms: Date.now() - begun, tried: trace.map((step) => `${step.model.replace('gemini-', '')} ${step.status} ${step.ms}`) });
+  let asking = 0;
   const ask = async (all, rounds) => {
     // Models that just failed sit out a minute (unless nothing else is left), so the next note doesn't wait on them.
     const fresh = all.filter((model) => !cooling(model));
@@ -651,10 +652,16 @@ const parse = async (request, env, ctx) => {
       if (round) await new Promise((resolve) => setTimeout(resolve, 1500 * round));
       for (const model of list) {
         const started = Date.now();
+        // Busy Google: the strong models get 10 s of the note's time in all, then a Lite model answers (1–3 s). A note
+        // that waited 40 s for three busy models before Flash-Lite read it in 2 s is what this stops.
+        const lite = /lite/.test(model);
+        asking = asking || started;
+        const spare = asking + 10000 - started;
+        if (!lite && spare < 2500 && list.some((other) => /lite/.test(other))) continue;
         // Google sometimes hangs for minutes when busy; with low thinking a normal answer takes 1–3 s, so give up on a
         // model after 7 s (18 s with audio) and ask the next one instead of keeping the person waiting.
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), audio ? 18000 : 7000);
+        const timer = setTimeout(() => controller.abort(), Math.min(audio ? 18000 : 7000, lite || !list.some((other) => /lite/.test(other)) ? Infinity : spare));
         let response;
         try {
           response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
