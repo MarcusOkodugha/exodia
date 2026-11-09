@@ -2741,13 +2741,15 @@ const yearStrength = (year) => {
   for (let earlier = year - 1; !before && earlier >= year - 50; earlier -= 1) before = sbdYears().get(earlier) ? { ...sbdYears().get(earlier), year: earlier } : null;
   return { ...now, change: before ? Math.round((now.total / before.total - 1) * 100) : null, since: before?.year };
 };
+// Days with a gym visit; a visit taken out stays as { removed: true } so syncing never brings it back.
+const visitDates = () => Object.keys(state.visits || {}).filter((date) => !state.visits[date]?.removed);
 const CAL_MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const renderCalendar = () => {
-  if (!state.sessions.length && !Object.keys(state.visits || {}).length) return '';
+  if (!state.sessions.length && !visitDates().length) return '';
   const { days, steps } = calendarDays();
   const today = todayIso();
   const monday = (iso) => addDays(iso, -((parseIso(iso).getDay() + 6) % 7));
-  const first = [...days.keys(), ...Object.keys(state.visits || {})].sort()[0];
+  const first = [...days.keys(), ...visitDates()].sort()[0];
   const exodiaDays = new Set(exodiaHistory().days || []);
   const cell = (date, from = '', to = today) => {
     if (date > to || date < from) return '<i class="calDay future"></i>';
@@ -2765,7 +2767,7 @@ const renderCalendar = () => {
   const all = Boolean(view.calAll);
   const since = addDays(today, -364);
   // Days at the gym: every logged day plus every gym visit read from your gym app, each day once.
-  const gymDays = [...new Set([...days.keys(), ...Object.keys(state.visits || {})])];
+  const gymDays = [...new Set([...days.keys(), ...visitDates()])];
   const lastYear = gymDays.filter((date) => date >= since && date <= today).length;
   const ever = gymDays.filter((date) => date <= today).length;
   const count = all ? `${ever} since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}` : `${lastYear} in the last 12 months`;
@@ -2810,8 +2812,9 @@ const renderCalendar = () => {
       const stronger = yearStrength(year);
       const sign = (change) => (change > 0 ? '+' : change < 0 ? '−' : '±');
       const versus = stronger ? ` · <span title="${SBD.map((lift, index) => `${lift} ${stronger.lifts[index]}${stronger.tested.includes(lift) ? '' : ' (from before)'}`).join(', ')}${stronger.change === null ? '' : `; against ${stronger.since}`}">SBD ${stronger.total} kg${stronger.change === null ? '' : `, <span class="calChange${stronger.change > 0 ? ' up' : ''}">${sign(stronger.change)}${Math.abs(stronger.change)}%</span>`}</span>` : '';
-      // Phone: the year in two rows (January–June, July–December); computer: one row. Every dot on screen.
-      const rows = desktopQuery.matches ? strip(from, `${year}-12-31`, `Training days in ${year}`, 53) : `${strip(from, `${year}-06-30`, `Training days in ${year}, January to June`, 27)}${strip(`${year}-07-01`, `${year}-12-31`, `Training days in ${year}, July to December`, 27)}`;
+      // Phone: the year in two rows, newest on top like everything else (July–December, then January–June); computer:
+      // one row. Every dot on screen.
+      const rows = desktopQuery.matches ? strip(from, `${year}-12-31`, `Training days in ${year}`, 53) : `${strip(`${year}-07-01`, `${year}-12-31`, `Training days in ${year}, July to December`, 27)}${strip(from, `${year}-06-30`, `Training days in ${year}, January to June`, 27)}`;
       return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${rows}</div>`;
     }).join('')}</div>`;
   }
@@ -5767,7 +5770,7 @@ const FILE_MAX = 10;
 // A visit is the club's name, or { place, time, minutes } when the gym app showed when and for how long.
 const visitOf = (date) => {
   const visit = state.visits?.[date];
-  if (!visit) return null;
+  if (!visit || visit.removed) return null;
   // A day from your photos also says what you did (title) and how hard it looked (level: light, medium, heavy).
   return typeof visit === 'string' ? { place: visit } : { place: String(visit.place || 'Gym'), time: visit.time || '', minutes: Number(visit.minutes) || 0, title: String(visit.title || ''), level: ['light', 'medium', 'heavy'].includes(visit.level) ? visit.level : '', from: visit.from || '' };
 };
