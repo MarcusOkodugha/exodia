@@ -2740,8 +2740,10 @@ const renderCalendar = () => {
   const key = baseKey;
   const all = Boolean(view.calAll);
   const since = addDays(today, -364);
-  const lastYear = [...days.keys()].filter((date) => date >= since && date <= today).length;
-  const ever = [...days.keys()].filter((date) => date <= today).length;
+  // Days at the gym: every logged day plus every gym visit read from your gym app, each day once.
+  const gymDays = [...new Set([...days.keys(), ...Object.keys(state.visits || {})])];
+  const lastYear = gymDays.filter((date) => date >= since && date <= today).length;
+  const ever = gymDays.filter((date) => date <= today).length;
   const count = all ? `${ever} since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}` : `${lastYear} in the last 12 months`;
   // One strip of weeks, the original look: a month row (the year where January starts), then Monday to Sunday;
   // it scrolls back from its newest week.
@@ -2769,7 +2771,7 @@ const renderCalendar = () => {
     for (let year = Number(today.slice(0, 4)); year >= Number(first.slice(0, 4)); year -= 1) years.push(year);
     body = `<div class="calYears${view.calEnter ? ' enter' : ''}">${years.map((year) => {
       const [from, to] = [`${year}-01-01`, `${year}-12-31` < today ? `${year}-12-31` : today];
-      const sessions = [...days.keys()].filter((date) => date >= from && date <= to).length;
+      const sessions = gymDays.filter((date) => date >= from && date <= to).length;
       const lifted = liftedBetween(from, to);
       const stronger = yearStrength(year, to);
       const versus = stronger ? ` · <span class="calChange${stronger.change > 0 ? ' up' : ''}">${stronger.change > 0 ? '+' : stronger.change < 0 ? '−' : '±'}${Math.abs(stronger.change)}% stronger</span> than ${year - 1}` : '';

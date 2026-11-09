@@ -55,6 +55,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Gym visits imported for Marcus (v387). Every session counts logged days + visits, each day once (v388)
 - ✓ Gym visits: an empty answer from one model no longer counts, the next model is asked; resting models asked last, not skipped (v387). Second import had said "no gym visits found". Tested with the real worker code: hang, empty, merge.
 - ✓ Gym visit video import works (217 visits read for Marcus, 8 Nov). They then vanished: the server's mergeMeta dropped visits, and the next sync wiped them on the phone. mergeMeta + client merge now union visits, so old devices can't wipe them (v386). Marcus re-imports once.
 - ✓ Gym visit video hung: /api/visits had no per-model timeout and full thinking (notes have both guards). Now thinkingLevel low, 20 s per model then the next, cooling, 6 pictures per part; proven with the real worker code against a hanging fake Gemini (old code hangs forever) (v385). Waiting on Marcus's next try.
