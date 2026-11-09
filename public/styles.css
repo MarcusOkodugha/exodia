@@ -1577,3 +1577,4 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .calYearHead .calCount { text-align: right; }
 .calFit .calMonth { overflow: hidden; text-overflow: clip; }
 .calFit .calGrid > .calMonth { overflow: visible; }
+.calStats { flex-wrap: wrap; row-gap: 8px; }

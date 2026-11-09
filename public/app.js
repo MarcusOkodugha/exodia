@@ -103,6 +103,13 @@ const dayLabel = (iso) => {
   if (iso === addDays(today, -1)) return 'Yesterday';
   return (iso.slice(0, 4) === today.slice(0, 4) ? DAY_FORMAT : DAY_FORMAT_YEAR).format(parseIso(iso)).replace(',', '');
 };
+// A length of time the way a person says it: "45 minutes", "1 hour", "1 hour and 26 minutes".
+const humanMinutes = (total) => {
+  const minutes = Math.round(Number(total) || 0);
+  const [hours, rest] = [Math.floor(minutes / 60), minutes % 60];
+  const part = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+  return hours ? `${part(hours, 'hour')}${rest ? ` and ${part(rest, 'minute')}` : ''}` : part(rest, 'minute');
+};
 const tonnes = (kg) => (kg / 1000).toFixed(1) + ' t';
 // Weight moved between two days (kg × reps, warm-ups left out), for the calendar's tonnes.
 const liftedBetween = (from, to) => state.sessions.filter((session) => session.date >= from && session.date <= to).reduce((sum, session) => sum + session.exercises.reduce((total, exercise) => total + validSets(exercise).filter((set) => !set.warmup).reduce((inner, set) => inner + Number(set.kg) * Number(set.reps), 0), 0), 0);
@@ -1107,8 +1114,8 @@ const daySummary = (session) => {
   const second = rest.find(({ name }) => hasPr(session, name)) || rest[0];
   const others = [
     ...rest.filter((item) => item !== second).map(({ name }) => name),
-    ...(session.cardio ? [`${cardioLabel(session)} ${session.cardio} min`] : []),
-    ...(accessoriesOf(session) ? [`Accessories ${accessoriesOf(session)} min`] : [])
+    ...(session.cardio ? [`${cardioLabel(session)} ${humanMinutes(session.cardio)}`] : []),
+    ...(accessoriesOf(session) ? [`Accessories ${humanMinutes(accessoriesOf(session))}`] : [])
   ];
   const row = ({ name, set }) => {
     return dayRow(name, dayPrKind(session, name), isBodyweightLift(name) ? (Number(set.kg) > 0 ? `+${set.kg}` : 'BW') : set.kg, set.reps, e1rmCell(estimate(bodyLoad(name, set.kg), Number(set.reps) + repsInTank(set))));
@@ -1146,7 +1153,7 @@ const renderSession = (session) => {
       </div>` : `<button class="head" data-action="toggle-session" data-date="${session.date}" aria-expanded="${open}">
         <span class="headName dayDate">${dayLabel(session.date)}${exodiaDaySet().has(session.date) ? '<img class="dayHand" src="/logo-blue.png" alt="Exodia hit" title="You hit Exodia this day" draggable="false">' : ''}</span>
         <span class="dayKind">${esc(dayKind(session))}</span>
-        <span class="meta num">${!sessionSets(session) && session.cardio ? `${session.cardio} min` : open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
+        <span class="meta num">${!sessionSets(session) && session.cardio ? humanMinutes(session.cardio) : open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
       </button>`}
       ${open ? `<button class="editBtn${editing ? ' done' : ''}" data-action="edit-day" data-date="${session.date}"${editing ? '' : ` aria-label="Edit ${dayLabel(session.date)}" title="Edit"`}>${editing ? 'Done' : ICONS.pencil}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
@@ -1158,11 +1165,11 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${session.cardio} min</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
+      ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${humanMinutes(session.cardio)}</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
       ${dayNote(session, editing)}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length && !editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${editing ? `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>` : ''}</span>
-        <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 h']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
+        <span class="dayAccLabel">Accessories</span>${[[10, '10 min'], [30, '30 min'], [60, '1 hour']].map(([minutes, label]) => `<button class="chip" data-action="accessories" data-date="${session.date}" data-minutes="${minutes}" aria-pressed="${accessoriesOf(session) === minutes}" aria-label="Accessories ${label}"><span class="chipFace">${label}</span></button>`).join('')}
       </div>
       ${editing ? `<button class="textBtn logDay" data-action="log-day" data-date="${session.date}">Open in Log</button>` : ''}
       ${editing ? `<button class="deleteDay" data-action="delete-day" data-date="${session.date}">Delete this whole day</button>` : ''}` : `<div class="daySummary num" data-action="toggle-session" data-date="${session.date}">${daySummary(session)}${session.note ? '<span class="dayNoteMark">Note</span>' : ''}</div>`}
@@ -1875,7 +1882,7 @@ const renderDayNow = (date) => {
   const session = sessionFor(date);
   return `<section class="card dayNow">
     <p class="dayNowTitle">${dayLabel(date)} right now</p>
-    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">${esc(cardioLabel(session))}</span><span class="dayNowSets num">${session.cardio} min</span></div>` : ''}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${accessoriesOf(session)} min</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
+    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">${esc(cardioLabel(session))}</span><span class="dayNowSets num">${humanMinutes(session.cardio)}</span></div>` : ''}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${humanMinutes(accessoriesOf(session))}</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
     <p class="dayNowHint">Say or type what's wrong. Changes go to this day.</p>
   </section>`;
 };
@@ -2795,7 +2802,7 @@ const renderCalendar = () => {
       ${(() => {
         const timed = Object.values(state.visits || {}).map((visit) => Number(visit?.minutes) || 0).filter((minutes) => minutes > 0);
         const average = timed.length ? Math.round(timed.reduce((sum, minutes) => sum + minutes, 0) / timed.length) : 0;
-        const length = average >= 60 ? `${Math.floor(average / 60)} h ${String(average % 60).padStart(2, '0')} min` : `${average} min`;
+        const length = humanMinutes(average);
         return `<div class="calStats"><p><b class="num">${ever}</b><span>sessions since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}</span></p>${average ? `<p><b class="num">${length}</b><span>average at the gym</span></p>` : ''}</div>`;
       })()}
       ${body}
@@ -4907,7 +4914,7 @@ const resultDetail = (touched) => {
     const session = sessionFor(date);
     if (!session) return '';
     const rows = session.exercises.filter((exercise) => !names.size || names.has(exercise.name)).map((exercise) => [exercise.name, condenseSets(exercise.sets)]);
-    if (!names.size && session.cardio) rows.push([cardioLabel(session), `${session.cardio} min`]);
+    if (!names.size && session.cardio) rows.push([cardioLabel(session), humanMinutes(session.cardio)]);
     return `<p class="toastDay">${dayLabel(date)}</p>${rows.map(([name, sets]) => `<div class="toastRow"><span class="toastLift">${esc(name)}</span><span class="toastSets num">${esc(sets)}</span></div>`).join('')}`;
   }).join('');
 };
@@ -5034,7 +5041,7 @@ const addLog = (said, did, extra = {}) => {
   if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
-const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${result.cardioMinutes} min on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${result.cardioMinutes} min`] : [])].join(', ')} to ${dayLabel(day)}`;
+const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${humanMinutes(result.cardioMinutes)}`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 // Your words win over the AI's guess: when the note spells out a more specific lift ("incline dumbbell press") than the
 // one the AI returned ("Incline Bench Press", whose only word in the note is "incline"), use the one you spelled out.
@@ -5102,7 +5109,7 @@ const applyResult = (result, date, said, heard = '') => {
     const session = sessionFor(day) || ensureSession(day);
     session.accessories = result.accessoriesMinutes;
     save();
-    did.push(`Accessories ${result.accessoriesMinutes} min on ${dayLabel(day)}`);
+    did.push(`Accessories ${humanMinutes(result.accessoriesMinutes)} on ${dayLabel(day)}`);
   }
   // When the AI only echoes the whole note back, say it plainly instead of repeating it: the words are already in the bubble.
   // Nothing to log plus a question: it is a question back to them, never feedback (feedback comes as result.feedback).
@@ -5728,12 +5735,12 @@ const visitOf = (date) => {
   if (!visit) return null;
   return typeof visit === 'string' ? { place: visit } : { place: String(visit.place || 'Gym'), time: visit.time || '', minutes: Number(visit.minutes) || 0 };
 };
-const visitLine = (visit) => [visit.place, visit.time, visit.minutes ? `${visit.minutes} min` : ''].filter(Boolean).join(' · ');
+const visitLine = (visit) => [visit.place, visit.time, visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean).join(' · ');
 const visitCard = () => {
   const visit = view.visitOpen && visitOf(view.visitOpen);
   if (!visit) return '';
   const date = view.visitOpen;
-  const facts = [visit.time ? `In at ${visit.time}` : '', visit.minutes ? `${visit.minutes} min` : ''].filter(Boolean).join(' · ');
+  const facts = [visit.time ? `In at ${visit.time}` : '', visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean).join(' · ');
   return `<div class="visitCard" role="group" aria-label="Gym visit ${dayLabel(date)}">
     <div class="visitHead"><span class="visitDate">${dayLabel(date)}</span><button class="visitClose" data-action="visit-close" aria-label="Close">×</button></div>
     <p class="visitPlace">${esc(visit.place)}</p>
