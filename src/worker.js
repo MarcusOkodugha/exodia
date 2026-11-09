@@ -1087,9 +1087,11 @@ const readVisits = async (request, env, ctx) => {
   // dropped after 20 s and the next one asked, and a busy model sits out a minute. Without it a call hung for minutes.
   let busy = false;
   let lastError = '';
+  const empties = [];
   const all = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((name) => name.trim()).filter(Boolean);
   const fresh = all.filter((model) => !cooling(model));
-  for (const model of fresh.length ? fresh : all) {
+  // Models resting after being busy come last instead of not at all, so the strong ones still get asked.
+  for (const model of [...fresh, ...all.filter((name) => !fresh.includes(name))]) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     let response;
@@ -1119,6 +1121,12 @@ const readVisits = async (request, env, ctx) => {
     try {
       const parsed = JSON.parse(data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '');
       const visits = (Array.isArray(parsed?.visits) ? parsed.visits : []).filter((visit) => /^\d{4}-\d{2}-\d{2}$/.test(visit?.date) && (!today || visit.date <= today)).map((visit) => ({ date: visit.date, place: String(visit.place || '').slice(0, 60), ...(visit.time ? { time: String(visit.time).slice(0, 5) } : {}), ...(Number(visit.minutes) > 0 ? { minutes: Math.round(Number(visit.minutes)) } : {}) }));
+      // An empty list from one model isn't trusted: a weaker one sometimes reads nothing in pictures another reads fine.
+      if (!visits.length) {
+        lastError = `${model}: read no visits`;
+        empties.push(model);
+        continue;
+      }
       logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { visits: visits.length, first: visits.map((visit) => visit.date).sort()[0] || '', engine: model });
       return json({ visits, model });
     } catch {
@@ -1126,7 +1134,12 @@ const readVisits = async (request, env, ctx) => {
       continue;
     }
   }
-  logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { error: lastError || (busy ? 'busy' : 'unreadable') });
+  // Every model read nothing: these pictures really have no visits (not an error).
+  if (empties.length && !busy) {
+    logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { visits: 0, empty: empties });
+    return json({ visits: [], empty: empties });
+  }
+  logCommand(request, env, ctx, { name: body?.name }, `Gym visits: ${images.length} pictures`, { error: lastError || (busy ? 'busy' : 'unreadable'), empty: empties });
   return json({ error: busy ? 'The AI was busy. Try again in a minute.' : 'Could not read the visits in that.' }, 503);
 };
 
