@@ -6,6 +6,9 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
+- [ ] **Fill the Jul–Dec 2024 gym hole.** Google Timeline stops in mid-June 2024 and the Nordic Wellness screenshots start on 1 Jan 2025, so nothing covers those six months.
+  1. Nordic Wellness app → **Statistik** → **Senaste aktiviteter** → keep scrolling past January 2025 into 2024 → screenshot every page → send them here
+  2. If the list stops at 2025: ask Nordic Wellness for your visit history (GDPR "registerutdrag", every check-in with time) at [nordicwellness.se/kundservice](https://www.nordicwellness.se/kundservice/) and send the file here
 - [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
   1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
 - [ ] **Admin builds on your second Claude account.** Builder 1's builds haven't landed since 4 Nov; Builder 2 works and is already the default. It only needs its token, all from the phone.
