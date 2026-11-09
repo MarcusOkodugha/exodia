@@ -2736,7 +2736,7 @@ const renderCalendar = () => {
     if (date > to || date < from) return '<i class="calDay future"></i>';
     const day = days.get(date);
     const visit = visitOf(date);
-    if (!day && visit) return `<button class="calDay shade${visit.minutes > 90 ? 3 : visit.minutes > 60 ? 2 : 1} visit" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · ${esc(visitLine(visit))}" aria-label="${dayLabel(date)}, ${esc(visitLine(visit))}, nothing logged"></button>`;
+    if (!day && visit) return `<button class="calDay shade${visit.minutes > 90 ? 3 : visit.minutes > 60 ? 2 : 1} visit${view.visitOpen === date ? ' picked' : ''}" data-action="visit-day" data-date="${date}" title="${dayLabel(date)} · ${esc(visitLine(visit))}" aria-label="${dayLabel(date)}, ${esc(visitLine(visit))}, nothing logged"></button>`;
     if (!day) return `<i class="calDay" title="${dayLabel(date)}"></i>`;
     const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
     const hit = exodiaDays.has(date);
@@ -2807,9 +2807,9 @@ const renderCalendar = () => {
       })()}
       ${body}
       ${key}
+      ${first < since || all ? `<button class="liftExpand calMore" data-action="cal-all" aria-expanded="${all}">${all ? 'Show the last 12 months' : 'Show every year'}${ICONS.chev}</button>` : ''}
       ${visitCard()}
-    </section>
-    ${first < since || all ? `<button class="liftExpand calMore" data-action="cal-all" aria-expanded="${all}">${all ? 'Show the last 12 months' : 'Show every year'}${ICONS.chev}</button>` : ''}`;
+    </section>`;
 };
 
 const renderVolume = () => {

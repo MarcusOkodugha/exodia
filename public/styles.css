@@ -1578,3 +1578,9 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .calFit .calMonth { overflow: hidden; text-overflow: clip; }
 .calFit .calGrid > .calMonth { overflow: visible; }
 .calStats { flex-wrap: wrap; row-gap: 8px; }
+/* The picked day: outlined and pulsing gently, so it's clear which one the card below is about; no line above the card. */
+.calDay.picked { outline: 2px solid var(--text); outline-offset: 1px; animation: calPick 1.2s ease-in-out 3; position: relative; z-index: 1; }
+@keyframes calPick { 50% { transform: scale(1.25); } }
+@media (prefers-reduced-motion: reduce) { .calDay.picked { animation: none; } }
+.visitCard { border-top: 0; margin-top: 4px; padding-top: 6px; }
+.calCard .calMore { margin: 6px auto 0; }
