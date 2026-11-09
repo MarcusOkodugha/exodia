@@ -765,10 +765,12 @@ const prKind = (name, date, set) => {
   const kg = Number(set.kg);
   const reps = Number(set.reps);
   if (set.warmup || set.kg === '' || set.reps === '' || !(kg > 0) || !(reps > 0)) return null;
-  if (earlierDays(name, date) < 3) return null;
   const today = earlierToday(name, date, set);
-  // PRs compare against logged history only; imported all-time bests would hide every climb up to them.
-  if (reps === 1 && kg > Math.max(singleBefore(name, date, true), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)))) return 'max';
+  // PRs compare against logged history only; imported all-time bests would hide every climb up to them. A single is a
+  // PR as soon as it beats every single you logged on earlier days (160, 180, then 200 × 1: the 200 is a PR).
+  const before = Math.max(singleBefore(name, date, true), ...today.filter((other) => Number(other.reps) === 1).map((other) => Number(other.kg)));
+  if (reps === 1 && singleBefore(name, date, true) > 0 && kg > before) return 'max';
+  if (earlierDays(name, date) < 3) return null;
   // A rep PR is a real lift too, never an estimate or RPE: more kg than you've ever lifted for this many reps or more
   // (140 × 2 when your heaviest double was 135). 140 × 1 @8 with a 145 single is not a PR. Light sets of reps you've
   // never done before don't count (nothing to beat), and sets over 10 reps only count when a lift has none of 1–10.
