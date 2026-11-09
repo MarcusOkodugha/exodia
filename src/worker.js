@@ -777,7 +777,9 @@ const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
     for (const [name, value] of Object.entries(incoming.bests || {})) bests[name] = Math.max(Number(bests[name]) || 0, Number(value) || 0);
     const name = incomingNewer ? incoming.name : current.name || incoming.name;
     const bodyNow = incomingNewer ? incoming.body || current.body : current.body || incoming.body;
-    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log, ...(bodyNow ? { body: bodyNow } : {}) });
+    // Gym visits are only ever added: a device on an older Exodia (no visits) never wipes them.
+    const visits = { ...(current.visits || {}), ...(incoming.visits || {}) };
+    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log, ...(bodyNow ? { body: bodyNow } : {}), ...(Object.keys(visits).length ? { visits } : {}) });
   } catch {
     return incomingJson;
   }

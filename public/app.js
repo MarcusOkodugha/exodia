@@ -263,7 +263,8 @@ const applyIncoming = (result) => {
         state.bests = incomingMeta.bests || {};
         state.log = incomingMeta.log || [];
         if (incomingMeta.body) state.body = incomingMeta.body;
-        state.visits = incomingMeta.visits || {};
+        // Visits only ever add up: an older copy without them never wipes the ones here.
+        state.visits = { ...(state.visits || {}), ...(incomingMeta.visits || {}) };
         changed = true;
       }
     }

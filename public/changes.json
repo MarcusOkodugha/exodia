@@ -1,4 +1,7 @@
 {
+  "386": [
+    "Gym visits now stay: they're saved online and every device keeps them"
+  ],
   "385": [
     "Gym visit videos no longer hang: a slow AI is skipped after 20 seconds and the next one reads it"
   ],
