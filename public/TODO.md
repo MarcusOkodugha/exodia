@@ -58,6 +58,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- [x] **Gym days from Google Photos (9 Nov, v400):** 100 days Jun 2024 – Mar 2025 read from two screenshots of the "gym" search: 90 new, 10 Nordic Wellness days given a lift and level (deadlift heavy, bench medium, push-ups light). Logged days untouched.
 
 - Gym visits from Google Maps Timeline (9 Nov): 698 days at Liljeholmen added (Gymmet Stockholm until Aug 2024, then Nordic Wellness) with arrival time and length, 2021–2026; 3 screenshot days got their length; logged days untouched; server merge now keeps the copy with the length
 - ✓ Gym visit tap opens a card under the calendar: date, gym, time/length when known, + Add what you did (v389)
