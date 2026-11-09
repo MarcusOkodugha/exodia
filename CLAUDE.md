@@ -48,6 +48,8 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 - Strength levels use five colours everywhere (anatomy Strength view, spider web, keys), defined once as `--tierBeg`, `--tierNov`, `--tierInt` in `styles.css` plus `--clay` and `--exodiaBlue`: grey, sage, soft purple, clay, Exodia blue. `TIER_COLOURS` in `app.js` repeats them for SVG gradients. Recovery stays clay only.
 - Strength web: straight lines (`WEB_CURVE = 0`), legs at the top, push on the right, pull on the left; rings 2–5 (Novice–Elite) in the level colours with their numbers; no Beginner ring.
 - Strength Level standards are per-bodyweight tables in `STANDARDS` (strengthlevel.com itself is blocked from cloud sessions).
+- Newest first, everywhere: lists, days, years, and the rows inside a year (July–December above January–June). The latest thing is always at the top.
+- Strength levels say who you beat (people who track their lifts, mostly keen lifters), never years trained.
 
 ## Open list
 
@@ -102,6 +104,7 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 - Marcus uses Exodia in both Chrome and Safari, on the phone and as the installed desktop app. Everything must look right in both; never ask which one.
 - Design taste: calm and subtle, with the clay/orange accent (`--clay`). Small, precise visual changes are better than redesigns. When he asks for a visual tweak, change only that.
 - Never change how something looks unless Marcus asked for exactly that. If another visual change seems needed, show him a before/after picture and ask first. Every visual change goes in `changes.json` and is named in the reply, so nothing changes without him knowing.
+- When he says something should change and asks for your suggestion, build the suggestion (and show it); don't stop at a proposal and wait for a yes.
 - Everything must feel smooth: anything you drag, swipe, open or close follows the finger and animates out, never jumps. If something you build or see isn't as smooth or refined as Marcus would want, say so in your reply ("not smooth yet: …") so it gets fixed.
 
 ## Change requests from the admin panel

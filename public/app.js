@@ -1647,12 +1647,14 @@ const MUSCLE_LIFTS = {
 const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#A9C4A6', tierInt: '#A88FB5', tierAdv: '#C96442', tierElite: '#7CA3DD' };
 // The level key, the same under the anatomy and under the strength web: the level's number in its colour, then its name.
 // Tap a level (or the i) for what each level means; it opens under the key that was tapped.
-const LEVEL_WHAT = ['Does the movement right, about a month in', 'Has trained it regularly for 6 months', 'Has trained it regularly for 2 years', 'More than 5 years of steady progress', 'Years spent competing in strength sport'];
+// Who you beat, not how long you trained: the people behind these numbers track their lifts, mostly keen lifters and
+// powerlifters, so Novice after 7 years of training is normal and Elite stays rare.
+const LEVEL_WHAT = ['Learning the lift', 'Lifts it with real weight', 'Stronger than the average keen lifter', 'Top 20% of keen lifters', 'Top 5%, competition strength'];
 const levelKey = (where) => {
   const open = view.levelInfo?.where === where ? view.levelInfo.level : null;
   const keys = [['tierBeg', 'Beginner'], ['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']];
   return `<div class="levelKeyBox"><p class="levelKey">${keys.map(([tier, name], index) => `<button class="levelKeyItem" data-action="level-info" data-where="${where}" data-level="${index + 1}" aria-pressed="${open === index + 1}"><b class="${tier}">${index + 1}</b>${name}</button>`).join('')}<button class="infoBtn" data-action="level-info" data-where="${where}" data-level="0" aria-expanded="${open !== null}" aria-label="What the levels mean">i</button></p></div>
-    ${open === null ? '' : `<div class="levelInfo${view.levelInfoEnter ? ' enter' : ''}" role="note"><p class="levelInfoIntro">The share of people training each lift that a level is stronger than, for your bodyweight and sex.</p>
+    ${open === null ? '' : `<div class="levelInfo${view.levelInfoEnter ? ' enter' : ''}" role="note"><p class="levelInfoIntro">Compared with people who track this lift, at your bodyweight and sex. They are mostly keen lifters and powerlifters, so the bar is high.</p>
       <div class="levelRows">${keys.map(([tier, name], index) => `<p class="levelRow${open === index + 1 ? ' on' : ''}"><b class="${tier}">${index + 1}</b><span class="levelName">${name}</span><span class="levelBeats num">Beats ${Math.round(LEVEL_BEATS[index] * 100)}%</span><span class="levelWhat">${LEVEL_WHAT[index]}</span></p>`).join('')}</div>
       <p class="levelInfoNote">Strength Level, 6.4 million checked lifts, 2015–2026. Past Elite, Exodia counts raw meet results instead (OpenPowerlifting).</p></div>`}`;
 };
