@@ -2700,29 +2700,43 @@ const calendarDays = () => remember('calendar', () => {
 });
 // Every session, GitHub style: the last 12 months, or (Show every year) one strip per year back to your first session.
 // Clay by the day's tonnage, a PR day in Exodia blue, a day you hit Exodia an empty grey square outlined in blue.
-// How much stronger a year made you: every lift you did in both this year and the year before, the heaviest set you
-// actually lifted in each (warm-ups out), this year's against last year's, averaged over those lifts. New lifts don't
-// count, so adding more kinds of training never inflates it. This year counts up to today.
-const yearStrength = (year, to) => {
-  const best = (from, until) => {
-    const top = new Map();
-    for (const session of state.sessions) {
-      if (session.date < from || session.date > until) continue;
-      for (const exercise of session.exercises) for (const set of exercise.sets || []) {
-        const kg = Number(set.kg) || 0;
-        if (set.warmup || !(kg > 0) || !(Number(set.reps) > 0)) continue;
-        const name = exercise.name.toLowerCase();
-        if (kg > (top.get(name) || 0)) top.set(name, kg);
+// How much stronger a year made you, by your SBD total: squat + bench + deadlift. Each lift counts its best set of the
+// year: a real single as it is, otherwise what the weight and reps add up to (240 × 3 ≈ 254). RPE never counts, so
+// 240 at RPE 7 is 240. A lift you didn't test that year keeps last year's number (as do sets under 70% of it, like an
+// empty bar), so the total only moves on what you actually lifted. This year counts up to today.
+const sbdYears = () => remember('sbdYears', () => {
+  const tops = new Map();
+  for (const session of state.sessions) {
+    if (session.date > todayIso()) continue;
+    const year = Number(session.date.slice(0, 4));
+    for (const exercise of session.exercises) {
+      const lift = SBD.find((name) => countsFor(name).includes(exercise.name));
+      if (!lift) continue;
+      for (const set of validSets(exercise)) {
+        const [kg, reps] = [Number(set.kg), Number(set.reps)];
+        if (set.warmup || !(kg > 0) || !(reps > 0) || reps > 10) continue;
+        const key = `${year}|${lift}`;
+        tops.set(key, Math.max(tops.get(key) || 0, estimate(kg, reps)));
       }
     }
-    return top;
-  };
-  const now = best(`${year}-01-01`, to);
-  const before = best(`${year - 1}-01-01`, `${year - 1}-12-31`);
-  const shared = [...now.keys()].filter((name) => before.has(name));
-  if (!shared.length) return null;
-  const change = shared.reduce((sum, name) => sum + now.get(name) / before.get(name) - 1, 0) / shared.length;
-  return { change: Math.round(change * 100), lifts: shared.length };
+  }
+  const years = new Map();
+  const carried = {};
+  const first = Math.min(...[...tops.keys()].map((key) => Number(key.split('|')[0])));
+  for (let year = first; year <= Number(todayIso().slice(0, 4)); year += 1) {
+    const tested = SBD.filter((lift) => tops.get(`${year}|${lift}`) >= (carried[lift] || 0) * 0.7);
+    for (const lift of tested) carried[lift] = tops.get(`${year}|${lift}`);
+    if (!tested.length || SBD.some((lift) => !carried[lift])) continue;
+    years.set(year, { total: Math.round(SBD.reduce((sum, lift) => sum + carried[lift], 0)), lifts: SBD.map((lift) => Math.round(carried[lift])), tested });
+  }
+  return years;
+});
+const yearStrength = (year) => {
+  const now = sbdYears().get(year);
+  if (!now) return null;
+  let before = null;
+  for (let earlier = year - 1; !before && earlier >= year - 50; earlier -= 1) before = sbdYears().get(earlier) ? { ...sbdYears().get(earlier), year: earlier } : null;
+  return { ...now, change: before ? Math.round((now.total / before.total - 1) * 100) : null, since: before?.year };
 };
 const CAL_MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 const renderCalendar = () => {
@@ -2790,8 +2804,9 @@ const renderCalendar = () => {
       const [from, to] = [`${year}-01-01`, `${year}-12-31` < today ? `${year}-12-31` : today];
       const sessions = gymDays.filter((date) => date >= from && date <= to).length;
       const lifted = liftedBetween(from, to);
-      const stronger = yearStrength(year, to);
-      const versus = stronger ? ` · <span class="calChange${stronger.change > 0 ? ' up' : ''}">${stronger.change > 0 ? '+' : stronger.change < 0 ? '−' : '±'}${Math.abs(stronger.change)}% stronger</span> than ${year - 1}` : '';
+      const stronger = yearStrength(year);
+      const sign = (change) => (change > 0 ? '+' : change < 0 ? '−' : '±');
+      const versus = stronger ? ` · <span title="${SBD.map((lift, index) => `${lift} ${stronger.lifts[index]}${stronger.tested.includes(lift) ? '' : ' (from before)'}`).join(', ')}${stronger.change === null ? '' : `; against ${stronger.since}`}">SBD ${stronger.total} kg${stronger.change === null ? '' : `, <span class="calChange${stronger.change > 0 ? ' up' : ''}">${sign(stronger.change)}${Math.abs(stronger.change)}%</span>`}</span>` : '';
       // Phone: the year in two rows (January–June, July–December); computer: one row. Every dot on screen.
       const rows = desktopQuery.matches ? strip(from, `${year}-12-31`, `Training days in ${year}`, 53) : `${strip(from, `${year}-06-30`, `Training days in ${year}, January to June`, 27)}${strip(`${year}-07-01`, `${year}-12-31`, `Training days in ${year}, July to December`, 27)}`;
       return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${rows}</div>`;
