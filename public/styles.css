@@ -1563,3 +1563,17 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .visitPlace { margin: 2px 0 0; font-size: 16px; line-height: 21px; }
 .visitFacts { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--text2); }
 .visitAdd { margin-top: 2px; }
+/* Every session: the all-time numbers before you expand. */
+.calStats { display: flex; gap: 28px; margin: 4px 0 12px; }
+.calStats p { margin: 0; display: flex; flex-direction: column; }
+.calStats b { font-size: 20px; line-height: 26px; font-weight: 600; color: var(--text); }
+.calStats span { font-size: 12.5px; color: var(--text2); }
+/* "Show every year": each stretch fits the width, no sideways scroll; the dots size themselves to it. */
+.calFit { margin: 0 0 6px; }
+.calFit .calGrid { width: 100%; padding: 0; grid-template-columns: repeat(var(--weeks), minmax(0, 1fr)); grid-auto-columns: minmax(0, 1fr); grid-template-rows: 13px repeat(7, auto); gap: 2px; }
+.calFit .calDay { width: 100%; height: auto; aspect-ratio: 1; border-radius: 22%; }
+.calFit .calMonth { font-size: 9.5px; }
+.calYearHead { gap: 10px; }
+.calYearHead .calCount { text-align: right; }
+.calFit .calMonth { overflow: hidden; text-overflow: clip; }
+.calFit .calGrid > .calMonth { overflow: visible; }

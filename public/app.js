@@ -2747,9 +2747,19 @@ const renderCalendar = () => {
   const count = all ? `${ever} since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}` : `${lastYear} in the last 12 months`;
   // One strip of weeks, the original look: a month row (the year where January starts), then Monday to Sunday;
   // it scrolls back from its newest week.
-  const strip = (from, to, label) => {
+  const strip = (from, to, label, fit = 0) => {
     const weeks = [];
     for (let week = monday(from); week <= to; week = addDays(week, 7)) weeks.push(week);
+    // "Show every year": the whole stretch fits the width (no sideways scroll), each week a column of equal share.
+    if (fit) {
+      const columns = weeks.map((week, index) => {
+        // A month is named over the week its first day falls in (the first column always names the half's first month).
+        const month = parseIso(index === 0 ? from : addDays(week, 6)).getMonth();
+        const newMonth = index === 0 || (index > 1 && addDays(week, 6) <= to && parseIso(addDays(weeks[index - 1], 6)).getMonth() !== month);
+        return `<span class="calMonth">${newMonth ? CAL_MONTHS[month] : ''}</span>${[0, 1, 2, 3, 4, 5, 6].map((offset) => cell(addDays(week, offset), from, to < today ? to : today)).join('')}`;
+      }).join('');
+      return `<div class="calFit" style="--weeks:${fit}"><div class="calGrid" role="group" aria-label="${label}">${columns}</div></div>`;
+    }
     const columns = weeks.map((week, index) => {
       const date = parseIso(week);
       const newMonth = index === 0 || parseIso(weeks[index - 1]).getMonth() !== date.getMonth();
@@ -2775,11 +2785,19 @@ const renderCalendar = () => {
       const lifted = liftedBetween(from, to);
       const stronger = yearStrength(year, to);
       const versus = stronger ? ` · <span class="calChange${stronger.change > 0 ? ' up' : ''}">${stronger.change > 0 ? '+' : stronger.change < 0 ? '−' : '±'}${Math.abs(stronger.change)}% stronger</span> than ${year - 1}` : '';
-      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${strip(from, `${year}-12-31`, `Training days in ${year}`)}</div>`;
+      // Phone: the year in two rows (January–June, July–December); computer: one row. Every dot on screen.
+      const rows = desktopQuery.matches ? strip(from, `${year}-12-31`, `Training days in ${year}`, 53) : `${strip(from, `${year}-06-30`, `Training days in ${year}, January to June`, 27)}${strip(`${year}-07-01`, `${year}-12-31`, `Training days in ${year}, July to December`, 27)}`;
+      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${rows}</div>`;
     }).join('')}</div>`;
   }
   return `<p class="section calHead">Every session <span class="calCount num">${count} · ${tonnes(liftedBetween(`${todayIso().slice(0, 4)}-01-01`, todayIso()))} in ${todayIso().slice(0, 4)}</span></p>
     <section class="card calCard">
+      ${(() => {
+        const timed = Object.values(state.visits || {}).map((visit) => Number(visit?.minutes) || 0).filter((minutes) => minutes > 0);
+        const average = timed.length ? Math.round(timed.reduce((sum, minutes) => sum + minutes, 0) / timed.length) : 0;
+        const length = average >= 60 ? `${Math.floor(average / 60)} h ${String(average % 60).padStart(2, '0')} min` : `${average} min`;
+        return `<div class="calStats"><p><b class="num">${ever}</b><span>sessions since ${CAL_MONTHS[parseIso(first).getMonth()]} ${first.slice(0, 4)}</span></p>${average ? `<p><b class="num">${length}</b><span>average at the gym</span></p>` : ''}</div>`;
+      })()}
       ${body}
       ${key}
       ${visitCard()}
