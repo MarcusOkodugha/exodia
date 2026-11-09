@@ -6524,6 +6524,16 @@ const anchorOf = (target) => {
   const selector = keys.filter((key) => target.dataset[key] !== undefined).map((key) => `[data-${key}="${CSS.escape(target.dataset[key])}"]`).join('');
   return { selector, right: Boolean(target.closest('.right')), top: target.getBoundingClientRect().top };
 };
+// A "show more" button sits under what it opens, so keeping the button still would carry you to the bottom of
+// everything it just opened (Show every year landed on 2021). Opening one keeps the top of that list still instead,
+// so you read on from where you were; more days on Home simply appear under the ones you've seen.
+const OPENS_ABOVE = { 'cal-all': '.calCard .calStats', 'trend-more': '.liftList', 'home-more': null };
+const stillPoint = (action, target) => {
+  const opening = (action === 'cal-all' && !view.calAll) || (action === 'trend-more' && !view.trendMore) || action === 'home-more';
+  if (!opening || !(action in OPENS_ABOVE)) return anchorOf(target);
+  const top = OPENS_ABOVE[action] && document.querySelector(OPENS_ABOVE[action]);
+  return top ? { selector: OPENS_ABOVE[action], right: Boolean(top.closest('.right')), top: top.getBoundingClientRect().top } : null;
+};
 const keepAnchor = (anchor) => {
   const found = [...document.querySelectorAll(anchor.selector)].find((element) => Boolean(element.closest('.right')) === anchor.right);
   if (!found) return;
@@ -6647,7 +6657,7 @@ document.addEventListener('click', (event) => {
   }
   const date = target.dataset.date;
   const session = date ? sessionFor(date) : null;
-  const anchor = KEEP_STILL.has(action) ? anchorOf(target) : null;
+  const anchor = KEEP_STILL.has(action) ? stillPoint(action, target) : null;
   if (action === 'import') return;
   // A gym visit opens like a day: a small card under the calendar with the date, the gym and, when the gym app
   // showed them, the time and how long. Tap it again (or the ×) to close it.
