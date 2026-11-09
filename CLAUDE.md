@@ -49,7 +49,7 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 - Strength web: straight lines (`WEB_CURVE = 0`), legs at the top, push on the right, pull on the left; rings 2–5 (Novice–Elite) in the level colours with their numbers; no Beginner ring.
 - Strength Level standards are per-bodyweight tables in `STANDARDS` (strengthlevel.com itself is blocked from cloud sessions).
 - Newest first, everywhere: lists, days, years, and the rows inside a year (July–December above January–June). The latest thing is always at the top.
-- Strength levels say who you beat (people who track their lifts, mostly keen lifters), never years trained.
+- Strength levels are numbers only: the share of people who log the lift on Strength Level that each level beats. No years trained, no vague descriptions ("keen lifter").
 
 ## Open list
 
