@@ -1554,3 +1554,12 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .qrDots, .qrEye { fill: var(--clay); }
 .qrEyeRing { stroke: var(--clay); }
 
+
+/* A gym visit, opened from Every session: date, gym, time and length when known. */
+.visitCard { margin: 10px 0 12px; padding: 12px 0 2px; border-top: 1px solid var(--sep); }
+.visitHead { display: flex; align-items: baseline; justify-content: space-between; }
+.visitDate { font-size: 17px; line-height: 22px; font-weight: 600; }
+.visitClose { width: 32px; height: 32px; margin: -6px -8px 0 0; font-size: 20px; line-height: 1; color: var(--text2); }
+.visitPlace { margin: 2px 0 0; font-size: 16px; line-height: 21px; }
+.visitFacts { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--text2); }
+.visitAdd { margin-top: 2px; }

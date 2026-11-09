@@ -2782,6 +2782,7 @@ const renderCalendar = () => {
     <section class="card calCard">
       ${body}
       ${key}
+      ${visitCard()}
     </section>
     ${first < since || all ? `<button class="liftExpand calMore" data-action="cal-all" aria-expanded="${all}">${all ? 'Show the last 12 months' : 'Show every year'}${ICONS.chev}</button>` : ''}`;
 };
@@ -5710,6 +5711,18 @@ const visitOf = (date) => {
   return typeof visit === 'string' ? { place: visit } : { place: String(visit.place || 'Gym'), time: visit.time || '', minutes: Number(visit.minutes) || 0 };
 };
 const visitLine = (visit) => [visit.place, visit.time, visit.minutes ? `${visit.minutes} min` : ''].filter(Boolean).join(' · ');
+const visitCard = () => {
+  const visit = view.visitOpen && visitOf(view.visitOpen);
+  if (!visit) return '';
+  const date = view.visitOpen;
+  const facts = [visit.time ? `In at ${visit.time}` : '', visit.minutes ? `${visit.minutes} min` : ''].filter(Boolean).join(' · ');
+  return `<div class="visitCard" role="group" aria-label="Gym visit ${dayLabel(date)}">
+    <div class="visitHead"><span class="visitDate">${dayLabel(date)}</span><button class="visitClose" data-action="visit-close" aria-label="Close">×</button></div>
+    <p class="visitPlace">${esc(visit.place)}</p>
+    <p class="visitFacts">${facts ? `${esc(facts)} · ` : ''}from your gym app · no sets logged</p>
+    <button class="textBtn visitAdd" data-action="visit-add" data-date="${date}">+ Add what you did</button>
+  </div>`;
+};
 const isPicture = (file) => /^(image|video)\//.test(file.type) || /\.(mov|mp4|m4v|png|jpe?g|heic|webp)$/i.test(file.name);
 const frameOf = (source, width, height, top = 0, part = height) => {
   const scale = Math.min(1, 720 / width);
@@ -6569,11 +6582,30 @@ document.addEventListener('click', (event) => {
   const session = date ? sessionFor(date) : null;
   const anchor = KEEP_STILL.has(action) ? anchorOf(target) : null;
   if (action === 'import') return;
+  // A gym visit opens like a day: a small card under the calendar with the date, the gym and, when the gym app
+  // showed them, the time and how long. Tap it again (or the ×) to close it.
   if (action === 'visit-day') {
+    view.visitOpen = view.visitOpen === target.dataset.date ? null : target.dataset.date;
+    render();
+    // Fully in view, above the box at the bottom (scrollIntoView doesn't know about the box).
+    requestAnimationFrame(() => {
+      const card = document.querySelector('.visitCard');
+      if (!card) return;
+      const box = card.getBoundingClientRect();
+      const floor = (document.querySelector('.dock')?.getBoundingClientRect().top || window.innerHeight) - 16;
+      const shift = box.bottom > floor ? box.bottom - floor : 0;
+      if (shift) (scrollerOf(card) || window).scrollBy({ top: shift, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    });
+    return;
+  }
+  if (action === 'visit-close') {
+    view.visitOpen = null;
+    render();
+    return;
+  }
+  if (action === 'visit-add') {
     const date = target.dataset.date;
-    view.toast = { kind: 'result', title: `${dayLabel(date)} · at the gym`, text: `${visitLine(visitOf(date))} · nothing logged. Say what you did and it lands on this day.` };
-    clearTimeout(view.toastTimer);
-    view.toastTimer = setTimeout(clearToast, 8000);
+    view.visitOpen = null;
     openChat();
     view.composerDate = date;
     view.dayPicked = true;
