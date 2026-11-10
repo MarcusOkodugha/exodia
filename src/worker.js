@@ -114,7 +114,12 @@ const transcribe = async (env, audio, known = []) => {
   try {
     // Whisper gets the gym words plus the lifts this person has logged, so it hears "pushdown", not "push down town".
     const vocabulary = ['bench press', 'paused bench', 'pause squat', 'hack squat', 'deadlift', 'incline', 'close-grip', 'lat pulldown', ...known.map((name) => name.toLowerCase())];
-    const result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, initial_prompt: `Gym log, kilos, sets and reps: ${[...new Set(vocabulary)].slice(0, 40).join(', ')}, RPE, reps in reserve, warm-up, per side, top set.` });
+    const prompt = `Gym log, kilos, sets and reps: ${[...new Set(vocabulary)].slice(0, 40).join(', ')}, RPE, reps in reserve, warm-up, per side, top set.`;
+    let result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, initial_prompt: prompt });
+    // Gym noise makes Whisper guess the language wrong ("zwei, zehn minuten" for an English note). Notes here are
+    // English or Swedish, so any other guess is heard again as English.
+    const language = String(result?.transcription_info?.language || '');
+    if (language && !['en', 'sv'].includes(language)) result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, initial_prompt: prompt, language: 'en' });
     const text = String(result?.text ?? '').trim();
     // Whisper makes these up when a recording has no speech in it (silence, a mic that picked up nothing).
     // Treat them as "heard nothing" so the app says so, instead of sending "Thank you very much." on.
@@ -411,7 +416,8 @@ const speechToText = async (request, env) => {
   const body = await request.json().catch(() => null);
   const audio = typeof body?.audio === 'string' && /^[A-Za-z0-9+/=]+$/.test(body.audio) && body.audio.length <= MAX_AUDIO ? body.audio : '';
   if (!audio) return json({ error: 'No recording.' }, 400);
-  const text = await transcribe(env, audio);
+  const known = Array.isArray(body?.known) ? body.known.filter((name) => typeof name === 'string').slice(0, 40).map((name) => name.slice(0, 60)) : [];
+  const text = await transcribe(env, audio, known);
   return text ? json({ text }) : json({ error: 'Could not hear that. Try again.' }, 502);
 };
 
@@ -624,7 +630,8 @@ const parse = async (request, env, ctx) => {
   const models = (env.GEMINI_MODELS || DEFAULT_MODELS).split(',').map((model) => model.trim()).filter(Boolean);
   const hint = typeof body?.hint === 'string' ? body.hint.slice(0, MAX_TEXT) : '';
   const context = `Today is ${weekday} ${today ?? 'unknown'}.\nCalendar, newest first:\n${calendar}\nKnown exercises: ${known.join(', ') || 'none yet'}\nDay in view: ${viewing}${focus ? `\nThe user is editing ${focus}. Plain sets ("75 kg T-bar 10 reps", "one more at 100 for 5", "add 3x10 curls") are new sets for that day: put them in exercises with that date, so they are added after the sets already there, even for an exercise already in the workout. Use replace or remove with that date only when they ask to change or remove something ("change", "make it", "should be", "was", "not", "instead", "wrong", "fix", "remove", "delete", or a set number like "set 2 is 80"), and then change only the sets they name, keeping every other set as it was.` : ''}${asked ? `\nExodia's last question to the user: "${asked}". If this message answers it, complete what was asked: use the exercise and day named in the question, even if the answer is garbled or names a similar exercise ("lat pulldown overs" answering a question about Lat Pullover is Lat Pullover).` : ''}\nRecent log, newest first:\n${recent || 'nothing logged yet'}`;
-  const heard = audio ? unglue(await transcribe(env, audio, known)) : '';
+  // The app asks Whisper first so it can show your words at once, and sends them along: no second Whisper run.
+  const heard = audio ? unglue(typeof body?.heard === 'string' && body.heard.trim() ? body.heard.trim().slice(0, MAX_TEXT) : await transcribe(env, audio, known)) : '';
   const words = unglue(text) || heard || (audio ? hint : '');
   if (env.ANTHROPIC_API_KEY && words) {
     try {
@@ -715,7 +722,8 @@ const parse = async (request, env, ctx) => {
   const tries = audio && env.GEMINI_VOICE_MODEL ? [...new Set([env.GEMINI_VOICE_MODEL, ...models])] : models;
   let found = await ask(tries, 2);
   // Not understood (and not feedback): a stronger model that thinks first gets one more look before giving up.
-  if (!found || (!logs(found.result) && !found.result.feedback)) {
+  // The second look only gets a note that's still young: after 12 s you'd rather hear "which lift?" than wait 40 s.
+  if ((!found || (!logs(found.result) && !found.result.feedback)) && Date.now() - begun < 12000) {
     const strong = (env.GEMINI_IMPORT_MODELS || IMPORT_MODELS).split(',').map((model) => model.trim()).filter((model) => model && !/pro/.test(model));
     const second = await ask(strong, 2);
     if (second && (!found || logs(second.result) || second.result.feedback)) found = second;

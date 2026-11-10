@@ -1,4 +1,10 @@
 {
+  "409": [
+    "Voice notes show what you said as soon as the recording is heard, before the sets come back",
+    "Better hearing in a noisy gym: a voice note is never read as another language than English or Swedish",
+    "Cardio minutes use the same number field as sets",
+    "In edit mode, Done glows once you have changed something"
+  ],
   "408": [
     "Each cardio you name gets its own row (Cycling, Football), and all of it counts toward Move",
     "Tap a cardio time to change it",

@@ -1186,6 +1186,10 @@ const renderSession = (session) => {
   const open = view.open.has(session.date) || pendings.length > 0;
   const landing = view.fresh && view.fresh.date === session.date && view.fresh.isNew;
   const editing = view.editDay === session.date;
+  // Done pulses warm once something on the day was changed, so the way out is easy to see.
+  if (editing && view.editStart?.date !== session.date) view.editStart = { date: session.date, json: JSON.stringify(session) };
+  if (!editing && view.editStart?.date === session.date) view.editStart = null;
+  const changed = editing && view.editStart.json !== JSON.stringify(session);
   return `<section class="card session${open ? ' open' : ''}${editing ? ' editing' : ''}${landing ? ' landing' : ''}${view.opening === session.date ? ' opening' : ''}${!open && glowing(session.date) ? ' glow' : ''}" id="session-${session.date}">
     <div class="headRow">
       ${editing ? `<div class="head">
@@ -1197,7 +1201,7 @@ const renderSession = (session) => {
         <span class="dayKind">${esc(dayKind(session))}</span>
         <span class="meta num">${!sessionSets(session) && session.cardio ? humanMinutes(session.cardio) : open ? tonnes(sessionVolume(session)) : `${tonnes(sessionVolume(session))} · ${setCount(sessionSets(session))}`}</span>
       </button>`}
-      ${open ? `<button class="editBtn${editing ? ' done' : ''}" data-action="edit-day" data-date="${session.date}"${editing ? '' : ` aria-label="Edit ${dayLabel(session.date)}" title="Edit"`}>${editing ? 'Done' : ICONS.pencil}</button>` : ''}
+      ${open ? `<button class="editBtn${editing ? ' done' : ''}${changed ? ' changed' : ''}" data-action="edit-day" data-date="${session.date}"${editing ? '' : ` aria-label="Edit ${dayLabel(session.date)}" title="Edit"`}>${editing ? 'Done' : ICONS.pencil}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
     ${open && !editing ? dayVisit(session.date) : ''}
@@ -1208,7 +1212,7 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<label class="cardioEdit"><input class="cardioMin num" type="number" inputmode="numeric" min="1" max="600" value="${part.minutes}" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span>min</span></label>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${humanMinutes(part.minutes)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
+      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<span class="cardioEdit"><input class="pill num cardioMin" inputmode="numeric" value="${part.minutes}" placeholder="min" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span class="unit">min</span></span>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${humanMinutes(part.minutes)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
       ${dayNote(session, editing)}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length && !editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${editing ? `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>` : ''}</span>
@@ -6548,9 +6552,11 @@ const send = async () => {
   }
   // The day is only certain when you picked it (a day's + Exercise, the day chips, editing a day) or named it ("yesterday");
   // otherwise what's on its way waits at the top, under no day, until the answer says where it goes.
-  const named = guessDate(text || live, null);
+  // The iPhone's live dictation is often wrong, so it's never shown: a voice note shows Whisper's words as soon as
+  // they're back (a second or two), and only those.
+  const named = guessDate(text, null);
   const known = Boolean(view.dayPicked || view.editContext || view.editDay || named);
-  const pending = { date: named || date, known, label: text || 'your voice note', text: text || live || 'Voice note' };
+  const pending = { date: named || date, known, label: text || 'your voice note', text: text || 'Voice note' };
   view.pending.push(pending);
   view.sentAt = Date.now();
   view.draft = '';
@@ -6569,7 +6575,25 @@ const send = async () => {
     const fixing = view.fixing;
     view.lastSaid = text;
     sentContext = noteContext();
-    const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '');
+    // Whisper first, on its own: your words show in the bubble and on the day right away, then go along to the AI.
+    let early = '';
+    if (audio) {
+      try {
+        const response = await timedFetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) }) }, 20000);
+        const body = await response.json().catch(() => ({}));
+        if (response.ok && body.text) {
+          early = body.text;
+          pending.text = [text, early].filter(Boolean).join(' ');
+          const when = guessDate(early, null);
+          if (when && !pending.known) Object.assign(pending, { date: when, known: true });
+          render();
+          scrollChat();
+        }
+      } catch {
+        // no words yet: the AI still gets the recording and hears it itself
+      }
+    }
+    const result = await parseWithAi(fixing ? `Correct an earlier note. Earlier note: "${fixing.said}". It was logged as: ${fixing.did}. Corrected note: ${text ? `"${text}"` : 'in the audio'}. Change what was logged so it matches the corrected note: use replace for changed sets, remove for things that should not be there, move for a wrong day, and exercises only for things that were not logged at all before.` : text, audio, voice ? live : '', early ? { heard: early } : null);
     heard = result.transcript || '';
     const said = fixing ? `Fix: ${text}` : heard || text;
     // Feedback only when they say "feedback" or "feature"; everything else in this box is training.
@@ -7543,8 +7567,12 @@ document.addEventListener('change', (event) => {
     if (session && minutes > 0 && minutes <= 600) {
       const parts = cardioParts(session);
       const part = parts[Number(target.dataset.index)];
-      if (part && part.minutes !== minutes) changeWithUndo(`${part.name} ${humanMinutes(minutes)} on ${dayLabel(session.date)}`, () => setCardioParts(session, parts.map((item) => (item === part ? { ...item, minutes } : item))), 'Change cardio time');
-    } else render();
+      if (part && part.minutes !== minutes) {
+        changeWithUndo(`${part.name} ${humanMinutes(minutes)} on ${dayLabel(session.date)}`, () => setCardioParts(session, parts.map((item) => (item === part ? { ...item, minutes } : item))), 'Change cardio time');
+        save();
+      }
+    }
+    render();
     return;
   }
   if (target.dataset.dayLabel) {
