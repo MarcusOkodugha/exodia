@@ -6,9 +6,14 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Fill the Jul–Dec 2024 gym hole.** Google Timeline stops in mid-June 2024 and the Nordic Wellness screenshots start on 1 Jan 2025, so nothing covers those six months.
-  1. Nordic Wellness app → **Statistik** → **Senaste aktiviteter** → keep scrolling past January 2025 into 2024 → screenshot every page → send them here
-  2. If the list stops at 2025: ask Nordic Wellness for your visit history (GDPR "registerutdrag", every check-in with time) (Nordic Wellness app → **Kundservice**, or [nordicwellness.se](https://www.nordicwellness.se)) and send the file here
+- [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
+  1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
+  2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
+
+## Decide later (backlog)
+
+Not urgent and not in the red pill. Marcus decides these when he wants; nothing is blocked on them.
+
 - [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
   1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
 - [ ] **Admin builds on your second Claude account.** Builder 1's builds haven't landed since 4 Nov; Builder 2 works and is already the default. It only needs its token, all from the phone.
@@ -16,6 +21,7 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   2. Open [Cloudflare → exodia → Settings](https://dash.cloudflare.com/?to=/:account/workers/services/view/exodia/production/settings) → **Variables and Secrets** → **+ Add** → Type **Secret**, name `CLAUDE_TASK_TOKEN_2`, paste → **Deploy**
   3. Send a small change from /admin to test it
 - [ ] **Decide: Claude for imports?** Imports use Gemini (free); Claude Sonnet 5.5 reads hard files better but needs an Anthropic API key with billing (a few cents per file).
+
 ## Epics (later, plan before building)
 
 Three big pieces Marcus wants done properly when the time comes. Don't start one without planning it with him first.

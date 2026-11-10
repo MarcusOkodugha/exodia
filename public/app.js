@@ -1462,6 +1462,15 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
 
+// Bottom right of the opened Exodia card, a thin ring like a usage meter: once you've hit Exodia it drains over the
+// 10 days it stays blue, with the days left in the middle; before that it fills with the pieces you have this round.
+const exodiaRing = (complete) => {
+  const { last } = exodiaHistory();
+  const left = exodiaActive() ? EXODIA_DAYS - daysBetween(last, todayIso()) : 0;
+  const share = left ? left / EXODIA_DAYS : complete / 5;
+  const label = left ? `${left} ${left === 1 ? 'day' : 'days'} left` : `${complete} of 5 this round`;
+  return `<div class="exoRingBox" title="${left ? `Exodia stays hit until ${dayLabel(addDays(last, EXODIA_DAYS))}` : 'Pieces this round'}"><svg class="exoRing${left ? ' hit' : ''}" viewBox="0 0 36 36" aria-hidden="true"><circle class="exoRingTrack" cx="18" cy="18" r="15"/><circle class="exoRingArc" cx="18" cy="18" r="15" pathLength="100" stroke-dasharray="${(share * 100).toFixed(1)} 100" transform="rotate(-90 18 18)"/><text x="18" y="22.5" text-anchor="middle">${left || complete}</text></svg><span class="exoRingLabel">${label}</span></div>`;
+};
 // Home draws the newest 30 days (fast to open); "Show older sessions" adds 60 at a time, back to the first.
 const HOME_PAGE = 30;
 const renderHome = () => {
@@ -1483,7 +1492,7 @@ const renderHome = () => {
         ${ICONS.chev}
       </button>
       <button class="bars" data-action="toggle-exodia" tabindex="-1" aria-hidden="true">${renderBars(pieces)}</button>
-      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<p class="empty" style="margin:8px 0 0">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p></div>` : ''}
+      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<div class="exoFoot"><p class="empty">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p>${exodiaRing(complete)}</div></div>` : ''}
     </section>
     <p class="section sessionsHead">Sessions${sessions[0] && !view.open.has(sessions[0].date) ? COLUMN_HEAD : ''}</p>
     <div class="list">${sessions.length || inFlight().length ? listWithGhosts(sessions.slice(0, view.homeCount || HOME_PAGE)) : quickStart()}</div>
@@ -1559,7 +1568,6 @@ const emptyChart = (name, all) => {
 };
 const chartFor = (allPoints) => {
   const points = monthlyBest(allPoints);
-  const merged = points.length < allPoints.length && allPoints.length > 36;
   if (points.length === 0) return '';
   const lines = { lift: view.lines?.lift !== false, est: view.lines?.est !== false };
   let bestSingle = 0;
@@ -1597,7 +1605,7 @@ const chartFor = (allPoints) => {
       ${lines.lift ? rows.map((row) => `<button class="dot${row.isPr ? ' pr' : ''}${row === picked ? ' on' : ''}" data-action="pick-point" data-date="${row.date}" style="left:${x(row.date) / 10}%;top:${y(row.lifted) / 10}%" aria-label="${dayLabel(row.date)}, ${row.top.kg} × ${row.top.reps}"></button>`).join('') : ''}
     </div>
   </div>
-  <div class="axis num"><span>${dayLabel(rows[0].date)}</span>${merged ? `<span class="axisNote">monthly best of ${allPoints.length}</span>` : ''}<span>${dayLabel(rows.at(-1).date)}</span></div>
+  <div class="axis num"><span>${dayLabel(rows[0].date)}</span><span>${dayLabel(rows.at(-1).date)}</span></div>
   ${picked ? `<button class="pickInfo num" data-action="jump-session" data-date="${picked.date}" aria-label="Open ${dayLabel(picked.date)} on Home"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} ${picked.sessionEstimate > 0 ? ` · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg${picked.from && (picked.from.kg !== picked.top.kg || picked.from.reps !== picked.top.reps) ? ` from ${picked.from.kg} × ${picked.from.reps}` : ''}</span>` : ''}${picked.isPr ? ' · 1RM PR' : ''} <span class="pickOpen">Open day${ICONS.chevRight}</span></button>` : ''}`;
 };
 
@@ -2845,7 +2853,7 @@ const renderCalendar = () => {
     const shade = day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1;
     const hit = exodiaDays.has(date);
     const text = `${dayLabel(date)} · ${tonnes(day.volume)}${day.pr ? ' · PR' : ''}${hit ? ' · Exodia' : ''}`;
-    return `<button class="calDay ${hit ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}" data-action="jump-session" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
+    return `<button class="calDay ${hit ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}${view.visitOpen === date ? ' picked' : ''}" data-action="visit-day" data-date="${date}" title="${text}" aria-label="${text}, open"></button>`;
   };
   const baseKey = '<p class="calKey"><span>Lighter</span><i class="calDay shade1"></i><i class="calDay shade2"></i><i class="calDay shade3"></i><i class="calDay shade4"></i><span>Heavier</span><i class="calDay pr calKeyPr"></i><span>PR</span><i class="calDay exodia calKeyPr"></i><span>Exodia</span></p>';
   const key = baseKey;
@@ -2886,7 +2894,9 @@ const renderCalendar = () => {
   };
   let body;
   // The 12-month view still scrolls back to your first session; "Show every year" lays the years out one under another.
-  if (!all) body = strip(first < since ? first : since, today, 'Training days, newest on the right; scroll back for earlier years');
+  // The day you tap opens right under the calendar (under its own year when every year shows), not on another page.
+  const picked = view.visitOpen;
+  if (!all) body = `${strip(first < since ? first : since, today, 'Training days, newest on the right; scroll back for earlier years')}${picked ? visitCard() : ''}`;
   else {
     const years = [];
     for (let year = Number(today.slice(0, 4)); year >= Number(first.slice(0, 4)); year -= 1) years.push(year);
@@ -2900,7 +2910,7 @@ const renderCalendar = () => {
       // Phone: the year in two rows, newest on top like everything else (July–December, then January–June); computer:
       // one row. Every dot on screen.
       const rows = desktopQuery.matches ? strip(from, `${year}-12-31`, `Training days in ${year}`, 53) : `${strip(`${year}-07-01`, `${year}-12-31`, `Training days in ${year}, July to December`, 27)}${strip(from, `${year}-06-30`, `Training days in ${year}, January to June`, 27)}`;
-      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${rows}</div>`;
+      return `<div class="calYearBlock"><p class="calYearHead"><span>${year}</span><span class="calCount num">${sessions} ${sessions === 1 ? 'session' : 'sessions'} · ${tonnes(lifted)} lifted${versus}</span></p>${rows}</div>${picked && picked.startsWith(String(year)) ? visitCard() : ''}`;
     }).join('')}</div>`;
   }
   return `<p class="section calHead">Every session <span class="calCount num">${count} · ${tonnes(liftedBetween(`${todayIso().slice(0, 4)}-01-01`, todayIso()))} in ${todayIso().slice(0, 4)}</span></p>
@@ -2914,7 +2924,6 @@ const renderCalendar = () => {
       ${body}
       ${key}
       ${first < since || all ? `<button class="liftExpand calMore" data-action="cal-all" aria-expanded="${all}">${all ? 'Show the last 12 months' : 'Show every year'}${ICONS.chev}</button>` : ''}
-      ${visitCard()}
     </section>`;
 };
 
@@ -3871,8 +3880,9 @@ const renderDock = () => `<div class="dock${showSheet() ? ' open' : ''}">
   ${showSheet() ? renderSheet() : ''}
   ${view.outlierAsk?.length && !view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Check a set"><p>${esc(outlierText())}</p><div class="confirmRow"><button class="textBtn" data-action="outlier-no">Leave out</button><button class="confirmYes" data-action="outlier-yes">Add it</button></div></div>` : ''}
   ${view.importConfirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm import"><p>${esc(importConfirmText())}</p>${view.importConfirm.unclear ? `<p class="confirmNote">${esc(view.importConfirm.unclear)}</p>` : ''}<div class="confirmRow"><button class="textBtn" data-action="import-no">Cancel</button><button class="confirmYes" data-action="import-yes">Add it</button></div></div>` : ''}
+  ${view.askGuess && askedOpen() && !view.confirm ? `<div class="confirm askGuess" role="alertdialog" aria-label="Did you mean"><p>Did you mean <b>${esc(view.askGuess)}</b>?</p><div class="confirmRow"><button class="textBtn" data-action="guess-no">No, I'll fill it in</button><button class="confirmYes" data-action="guess-yes">Yes, log it</button></div></div>` : ''}
   ${view.confirm ? `<div class="confirm" role="alertdialog" aria-label="Confirm removal"><p>Remove ${esc(view.confirm.text)}?</p><div class="confirmRow"><button class="textBtn" data-action="confirm-no">Cancel</button><button class="confirmYes" data-action="confirm-yes">Yes, remove</button></div></div>` : ''}
-  ${view.status ? `<p class="dockStatus" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${adminDockLine()}</p>` : ''}
+  ${view.status ? `<p class="dockStatus${askedOpen() && view.status === view.asked.question ? ' asking' : ''}" role="status">${esc(view.status)}</p>` : ''}${view.route === 'admin' && view.isAdmin ? `<p class="dockStatus" role="status">${adminDockLine()}</p>` : ''}
   <div class="slashList"${slashSuggest() ? '' : ' hidden'}>${slashListHtml()}</div>
   <div class="prompt${view.promptFlash && Date.now() - view.promptFlash < 2600 ? ' flash' : ''}${slashOn() ? ' slashOn' : ''}${view.draft.trim() ? ' hasText' : ''}${view.listening ? ' listening' : ''}${contextChip() ? ' hasChip' : ''}" style="--flashAt:-${view.promptFlash ? Math.min(2600, Date.now() - view.promptFlash) : 0}ms">
     ${contextChip()}
@@ -4723,7 +4733,9 @@ const render = () => {
     fitDraft(draft);
     if (draftFocused || view.focusDraft) {
       draft.focus();
-      const [start, end] = view.selectDraft ? [0, draft.value.length] : caret || [draft.value.length, draft.value.length];
+      // A pre-filled answer has ___ where a number is missing: the first one is selected, so typing replaces it.
+      const blank = view.selectBlank ? draft.value.indexOf('___') : -1;
+      const [start, end] = blank >= 0 ? [blank, blank + 3] : view.selectDraft ? [0, draft.value.length] : caret || [draft.value.length, draft.value.length];
       draft.setSelectionRange(start, end);
     }
   }
@@ -4751,6 +4763,7 @@ const render = () => {
   }
   view.focusDraft = false;
   view.selectDraft = false;
+  view.selectBlank = false;
   view.opening = null;
   view.menuEnter = false;
   view.rulesEnter = false;
@@ -5288,7 +5301,7 @@ const applyResult = (result, date, said, heard = '') => {
   }
   // When the AI only echoes the whole note back, say it plainly instead of repeating it: the words are already in the bubble.
   // Nothing to log plus a question: it is a question back to them, never feedback (feedback comes as result.feedback).
-  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true, question: result.unclear || '', engine: result.engine || '', raw: JSON.stringify(result).slice(0, 1500) });
+  if (did.length === 0) throw Object.assign(new Error(result.unclear && result.unclear.length <= 80 ? `Didn't understand: ${result.unclear}.` : result.unclear ? "Didn't understand that one. It's saved, so Marcus can run it through a stronger Exodia." : 'Nothing to log in that. Fix it and send again.'), { unclear: true, question: result.unclear || '', fill: result.fill || '', guess: result.guess || '', engine: result.engine || '', raw: JSON.stringify(result).slice(0, 1500) });
   if (result.unclear) {
     did.push(`Didn't understand: ${result.unclear}`);
   }
@@ -5914,6 +5927,12 @@ const visitOf = (date) => {
 const visitShade = (visit) => (visit.level ? { light: 1, medium: 2, heavy: 4 }[visit.level] : visit.minutes > 90 ? 3 : visit.minutes > 60 ? 2 : 1);
 const visitLine = (visit) => [visit.title, visit.place === 'Gym' && visit.title ? '' : visit.place, visit.time, visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean).join(' · ');
 const visitCard = () => {
+  // A day you logged opens as the full day, the same card as on Home: sets, edit, gym and time.
+  const logged = view.visitOpen && sessionFor(view.visitOpen);
+  if (logged && (logged.exercises.length || logged.cardio)) {
+    view.open.add(logged.date);
+    return `<div class="calDayCard">${renderSession(logged)}</div>`;
+  }
   const visit = view.visitOpen && visitOf(view.visitOpen);
   if (!visit) return '';
   const date = view.visitOpen;
@@ -6391,8 +6410,38 @@ for (const run of state.claudeRuns || []) {
   if (run.status === 'sending' && Date.now() - run.at > 60000) Object.assign(run, { status: 'failed', error: 'The app closed before the answer came. Check Admin in a minute before trying again.' });
 }
 
+// A question back comes up where you'll see it, with the answer half written: the box holds everything that was
+// caught with ___ where a number is missing (the first one selected, so you just type it), and when Exodia has a
+// likely full reading it asks "Did you mean …?" so one tap on Yes logs it.
+const askFor = (fill, guess) => {
+  if (fill && /___/.test(fill)) {
+    view.draft = fill;
+    view.selectBlank = true;
+  }
+  view.askGuess = guess || null;
+  view.focusDraft = true;
+  view.promptFlash = Date.now();
+};
+// Meanwhile a stronger model takes a slower, closer look at the same note. If it works the note out before you've
+// answered, it's logged and the question goes away; once you've answered (or asked something else), it's dropped.
+const secondTry = ({ text, audio, live, heard, date, asked }) => {
+  if (!text && !audio) return;
+  parseWithAi(text, audio, live || '', { ...(heard ? { heard } : {}), strong: true }).then((result) => {
+    const logs = Boolean(result.exercises?.length || result.cardioMinutes || result.accessoriesMinutes);
+    if (!logs || result.unclear || view.asked !== asked) return;
+    view.asked = null;
+    view.askGuess = null;
+    view.status = '';
+    if (view.draft === asked.fill) view.draft = '';
+    applyResult(result, result.date || date, result.transcript || heard || text, heard || '');
+    view.toast = { kind: 'rep', title: 'Worked it out', text: describeAdd(result, result.date || date) };
+    save();
+    render();
+  }).catch(() => {});
+};
 let sentContext = null;
 const send = async () => {
+  view.askGuess = null;
   // /admin from any box, and anything in the Admin page's box, goes to the builder before anything is awaited: the
   // request is on screen at once, and a recording that is still finishing goes along as a promise.
   const typed = view.draft.trim();
@@ -6570,13 +6619,14 @@ const send = async () => {
   scrollChat();
   let heard = '';
   let done = false;
+  let audio;
+  let early = '';
   try {
-    const audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
+    audio = voice?.size ? await wavBase64(voice).catch(() => Promise.reject(new Error('Could not read the recording. Try again.'))) : undefined;
     const fixing = view.fixing;
     view.lastSaid = text;
     sentContext = noteContext();
     // Whisper first, on its own: your words show in the bubble and on the day right away, then go along to the AI.
-    let early = '';
     if (audio) {
       try {
         const response = await timedFetch('/api/transcribe', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ audio, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) }) }, 20000);
@@ -6608,8 +6658,9 @@ const send = async () => {
     // A question about part of the note (missing reps): above the box where it's seen, and sent with the next note so
     // the answer completes it.
     if (result.unclear && logsSomething) {
-      view.asked = { question: result.unclear, said, at: Date.now() };
+      view.asked = { question: result.unclear, said, at: Date.now(), fill: result.fill || '' };
       view.status = result.unclear;
+      askFor(result.fill, '');
     } else if (logsSomething) view.asked = null;
     if (result.feedback && logsSomething) routeFeedback(result.feedback, said).catch((error) => addLog(said, [`Feedback not sent: ${error.message}`]));
     if (view.editDay !== view.editContext?.date) view.editContext = null;
@@ -6621,12 +6672,13 @@ const send = async () => {
     // A friend's note the AI has a question about: the question shows above the box with an example answer in it, nothing
     // is logged, and the note goes along with their answer.
     if (error.question && (text || heard) && !view.isAdmin && !view.sandbox && !view.fixing) {
-      view.asked = { question: error.question, said: text || heard, at: Date.now() };
+      view.asked = { question: error.question, said: text || heard, at: Date.now(), fill: error.fill || '' };
       view.draft = '';
       view.status = error.question;
-      view.focusDraft = desktopQuery.matches;
       openChat();
       view.sheetH = SHEET_PEEK;
+      askFor(error.fill, error.guess);
+      secondTry({ text, audio, live, heard: heard || early, date, asked: view.asked });
       return;
     }
     // Busy or offline: it waits and tries again by itself; nothing for the person to do.
@@ -6648,8 +6700,10 @@ const send = async () => {
     // A question back (nothing could be logged without it): above the box, with an example answer in the box, and the
     // note goes along with the answer so "10" is enough.
     if (error.question) {
-      view.asked = { question: error.question, said: words, at: Date.now() };
+      view.asked = { question: error.question, said: words, at: Date.now(), fill: error.fill || '' };
       view.status = error.question;
+      askFor(error.fill, error.guess);
+      secondTry({ text, audio, live, heard: heard || early || error.heard || '', date, asked: view.asked });
     } else if (!view.draft.trim() && words !== 'Voice note') view.draft = words;
     view.promptFlash = Date.now();
     view.focusDraft = true;
@@ -6814,19 +6868,20 @@ document.addEventListener('click', (event) => {
   const session = date ? sessionFor(date) : null;
   const anchor = KEEP_STILL.has(action) ? stillPoint(action, target) : null;
   if (action === 'import') return;
-  // A gym visit opens like a day: a small card under the calendar with the date, the gym and, when the gym app
-  // showed them, the time and how long. Tap it again (or the ×) to close it.
+  // A day in the calendar opens right under it: a logged day as its full card (sets, edit), a gym visit as a small
+  // card with the gym, time and how long. Tap it again (or the ×) to close it.
   if (action === 'visit-day') {
     view.visitOpen = view.visitOpen === target.dataset.date ? null : target.dataset.date;
     render();
     // Fully in view, above the box at the bottom (scrollIntoView doesn't know about the box).
     requestAnimationFrame(() => {
-      const card = document.querySelector('.visitCard');
+      const card = document.querySelector('.visitCard, .calDayCard');
       if (!card) return;
       const box = card.getBoundingClientRect();
       const floor = (document.querySelector('.dock')?.getBoundingClientRect().top || window.innerHeight) - 16;
-      const shift = box.bottom > floor ? box.bottom - floor : 0;
-      if (shift) (scrollerOf(card) || window).scrollBy({ top: shift, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+      // Its bottom comes into view, but never so far that its own top (the date) goes under the bar.
+      const shift = box.bottom > floor ? Math.min(box.bottom - floor, box.top - 110) : 0;
+      if (shift > 0) (scrollerOf(card) || window).scrollBy({ top: shift, behavior: reducedMotion.matches ? 'auto' : 'smooth' });
     });
     return;
   }
@@ -7175,6 +7230,18 @@ document.addEventListener('click', (event) => {
     view.levelInfoEnter = Boolean(view.levelInfo) && !wasOpen;
   }
   else if (action === 'confirm-yes') answerConfirm(true);
+  else if (action === 'guess-yes' && view.askGuess) {
+    view.draft = view.askGuess;
+    view.askGuess = null;
+    view.asked = null;
+    view.status = '';
+    send();
+    return;
+  } else if (action === 'guess-no') {
+    view.askGuess = null;
+    view.focusDraft = true;
+    view.selectBlank = true;
+  }
   else if (action === 'import-yes') answerImport(true);
   else if (action === 'outlier-yes') answerOutliers(true);
   else if (action === 'outlier-no') answerOutliers(false);

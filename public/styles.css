@@ -1622,3 +1622,28 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 .editBtn.done.changed { border-radius: 8px; background: rgb(var(--clayRgb) / 0.12); box-shadow: 0 0 0 6px rgb(var(--clayRgb) / 0.12); animation: donePulse 1.6s ease-in-out infinite; }
 @keyframes donePulse { 0%, 100% { box-shadow: 0 0 0 6px rgb(var(--clayRgb) / 0.12), 0 0 0 6px rgb(var(--clayRgb) / 0.3); } 60% { box-shadow: 0 0 0 6px rgb(var(--clayRgb) / 0.18), 0 0 0 14px rgb(var(--clayRgb) / 0); } }
 @media (prefers-reduced-motion: reduce) { .editBtn.done.changed { animation: none; } }
+/* Exodia's question back: in clay and a touch bigger, right above the box, so it's the first thing you see. */
+.dockStatus.asking { color: var(--clayText); font-weight: 600; font-size: 15px; }
+.askGuess p { margin: 0 0 10px; line-height: 1.4; }
+.askGuess b { font-weight: 600; }
+/* A day opened from the calendar sits under it like the cards on Home. */
+.calDayCard { margin: 8px 0 4px; animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.calDayCard .session { margin: 0; }
+/* Same day card as on Home (it is the same card), so it reads the same in both places. */
+.calDayCard .session.card { background: none; border: 0; border-radius: 0; padding: 8px 0; }
+.calDayCard .session .swipeFace { background: var(--bg); }
+.calDayCard .session .head { min-height: 54px; }
+.calDayCard .session .exercise, .calDayCard .session .ghost, .calDayCard .session .deleteDay, .calDayCard .session .dayMenu, .calDayCard .session .foot, .calDayCard .session .cardio, .calDayCard .session .dayActions { border-top: 0; }
+.calDayCard .session .exercise { padding-top: 14px; }
+.calDayCard .session .headRow + .exercise { padding-top: 2px; }
+.calDayCard .session .dayDate { min-width: 120px; }
+/* Exodia's ring: bottom right of the opened card, thin like a usage meter. */
+.exoFoot { display: flex; align-items: flex-end; gap: 14px; margin-top: 8px; }
+.exoFoot .empty { margin: 0; flex: 1; }
+.exoRingBox { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.exoRing { width: 40px; height: 40px; }
+.exoRingTrack { fill: none; stroke: var(--line); stroke-width: 3; }
+.exoRingArc { fill: none; stroke: var(--clay); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.exoRing.hit .exoRingArc { stroke: var(--exodiaBlue); }
+.exoRing text { font-size: 12px; font-weight: 600; fill: var(--text); font-variant-numeric: tabular-nums; }
+.exoRingLabel { font-size: 11.5px; color: var(--text2); white-space: nowrap; }

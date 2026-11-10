@@ -57,7 +57,7 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 
 `public/TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
 
-Its "Waiting on Marcus" section is also the red pill in the app that only Marcus sees: it opens to each item's steps and links, and `Decide:` items get Yes / No buttons that start a change session with his answer. Keep that section current and in its format (title, one line why, numbered steps with links), and do everything you can yourself so the list only holds what truly needs him.
+Decisions that aren't urgent go under "Decide later (backlog)" in the same file: out of the red pill and out of the 🔴 line, but never deleted. Its "Waiting on Marcus" section is also the red pill in the app that only Marcus sees: it opens to each item's steps and links, and `Decide:` items get Yes / No buttons that start a change session with his answer. Keep that section current and in its format (title, one line why, numbered steps with links), and do everything you can yourself so the list only holds what truly needs him.
 
 ## Before you say something is or isn't done
 

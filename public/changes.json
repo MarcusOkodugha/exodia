@@ -1,4 +1,12 @@
 {
+  "410": [
+    "When Exodia has a question, it shows above the box with the answer half written: everything it caught, with ___ where a number is missing",
+    "If it has a likely reading it asks Did you mean, and one tap on Yes logs it",
+    "Meanwhile a stronger model takes a closer look and logs the note by itself if it works it out",
+    "Tap a day in Every session and it opens right under the calendar",
+    "Opened Exodia shows a ring with the days left before it goes back to orange",
+    "The monthly best note under long charts is gone"
+  ],
   "409": [
     "Voice notes show what you said as soon as the recording is heard, before the sets come back",
     "Better hearing in a noisy gym: a voice note is never read as another language than English or Swedish",
