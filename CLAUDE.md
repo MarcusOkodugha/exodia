@@ -45,7 +45,9 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 
 ## Design decisions (keep unless Marcus changes them)
 
-- Strength levels use five colours everywhere (anatomy Strength view, spider web, keys), defined once as `--tierBeg`, `--tierNov`, `--tierInt` in `styles.css` plus `--clay` and `--exodiaBlue`: grey, sage, soft purple, clay, Exodia blue. `TIER_COLOURS` in `app.js` repeats them for SVG gradients. Recovery stays clay only.
+- Strength levels use five colours everywhere (anatomy Strength view, spider web, keys), defined once as `--tierBeg`, `--tierNov`, `--tierInt` in `styles.css` plus `--clay` and `--exodiaBlue`: grey, sage, soft purple, clay, Exodia blue. `TIER_COLOURS` in `app.js` repeats them for SVG gradients.
+- Recovery uses four clear steps: full clay (just trained), light clay, light sage, sage (recovered); grey only for a muscle never trained. Heavy days (85%+ of your best) take the full recovery time, so a 290 deadlift at RPE 8.5 keeps the lower back recovering about 5 days. The list shows days since you trained each muscle.
+- Switching views (Strength/Recovery and any other toggle) must never move the page: both sides keep exactly the same height. Measure it before pushing.
 - Strength web: straight lines (`WEB_CURVE = 0`), legs at the top, push on the right, pull on the left; rings 2–5 (Novice–Elite) in the level colours with their numbers; no Beginner ring.
 - Strength Level standards are per-bodyweight tables in `STANDARDS` (strengthlevel.com itself is blocked from cloud sessions).
 - Newest first, everywhere: lists, days, years, and the rows inside a year (July–December above January–June). The latest thing is always at the top.

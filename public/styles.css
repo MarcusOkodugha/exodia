@@ -1598,9 +1598,14 @@ button.pickInfo { display: block; width: calc(100% - 40px); text-align: left; ba
 .pickOpen .exChev { width: 12px; height: 12px; vertical-align: -1px; margin-left: 1px; }
 /* What you said, quoted on the day it's about to land on, while Exodia reads it. */
 .ghostSaid { display: block; margin: 0 0 6px; font-size: 14px; line-height: 1.4; color: var(--text2); overflow-wrap: anywhere; }
-/* Recovery: under each muscle a thin bar that empties as it recovers (clay = what's left), and when you last
-   trained it on the right, in clay while it's still recovering. */
-.muscleRow.recoveryRow { position: relative; padding-bottom: 5px; }
-.recoveryBar { position: absolute; left: 23px; right: 6px; bottom: 1px; height: 2.5px; border-radius: 2px; background: rgb(20 20 19 / 0.07); overflow: hidden; }
-.recoveryBar i { display: block; height: 100%; border-radius: inherit; background: var(--clay); }
-.muscleRow.recovering .recoveryLeft { color: var(--clayText); font-weight: 600; }
+/* Recovery in four clear steps, red to green: just trained, recovering, nearly there, recovered. */
+.recov4 { --recov: var(--clay); }
+.recov3 { --recov: color-mix(in srgb, var(--clay) 50%, var(--bg)); }
+.recov2 { --recov: color-mix(in srgb, var(--tierNov) 50%, var(--bg)); }
+.recov1 { --recov: var(--tierNov); }
+.bodyRecov { fill: var(--recov); transition: fill 0.35s ease; }
+.muscleSwatch.recov1, .muscleSwatch.recov2, .muscleSwatch.recov3, .muscleSwatch.recov4 { background: var(--recov); opacity: 1; }
+.recovKey { align-items: center; gap: 0 5px; }
+.recovKey .muscleSwatch { display: inline-block; width: 10px; height: 10px; border-radius: 2.5px; }
+.recovKey span:first-child { margin-right: 3px; }
+.recovKey span:last-child { margin-left: 3px; }

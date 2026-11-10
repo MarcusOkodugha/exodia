@@ -1600,27 +1600,42 @@ const muscleLoad = () => {
   const sets = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   const fatigue = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   const fresh = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
+  const remaining = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   for (const session of state.sessions) {
     if (session.date < since || session.date > today) continue;
-    const left = (key) => Math.max(0, 1 - Math.max(0, daysBetween(session.date, today) - 0.5) / RECOVERY_DAYS[key]);
+    const ago = Math.max(0, daysBetween(session.date, today) - 0.5);
     for (const exercise of session.exercises) {
       const rule = MUSCLE_RULES.find(([pattern]) => pattern.test(exercise.name.toLowerCase()));
       if (!rule) continue;
-      const count = validSets(exercise).filter((set) => !set.warmup).length;
+      const working = validSets(exercise).filter((set) => !set.warmup);
+      const count = working.length;
+      // How hard it was: the top set against your best for that lift. Near your max (85%+, like 290 when your best
+      // is 300) takes the full time, so a heavy deadlift keeps the lower back recovering for about 5 days; a
+      // moderate day three quarters of it, a light one half. A lift with nothing to compare to counts as moderate.
+      const best = bestOverall(exercise.name);
+      const top = Math.max(0, ...working.map((set) => setValue(exercise.name, set)));
+      const hard = best > 0 && top > 0 ? (top / best >= 0.85 ? 1 : top / best >= 0.7 ? 0.75 : 0.5) : 0.75;
       for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) {
         for (const key of keys) {
+          const needs = RECOVERY_DAYS[key] * hard * (share < 1 ? 0.75 : 1);
+          const part = Math.max(0, 1 - ago / needs);
           sets[key] += count * share;
-          fatigue[key] += count * share * left(key);
-          if (count * share >= 1) fresh[key] = Math.max(fresh[key], left(key) * (share < 1 ? 0.75 : 1));
+          fatigue[key] += count * share * part;
+          if (count * share >= 1) {
+            fresh[key] = Math.max(fresh[key], part);
+            remaining[key] = Math.max(remaining[key], part * needs);
+          }
         }
       }
     }
   }
-  return { sets, fatigue, fresh };
+  return { sets, fatigue, fresh, remaining };
 };
 // Two states you can tell apart at a glance: clay while a muscle is still recovering (deeper the more is left), and
 // the plain body grey once it's ready, the same as a muscle you haven't trained.
-const muscleStrength = ({ fresh }, key) => (fresh[key] > 0 ? 0.2 + 0.8 * fresh[key] : 0);
+// Four clear steps: full red the day you train it, lighter red, lighter green, then our green once it's recovered.
+// A muscle you've never trained stays the plain body grey.
+const recoveryStep = ({ fresh }, key) => (fresh[key] > 2 / 3 ? 'recov4' : fresh[key] > 1 / 3 ? 'recov3' : fresh[key] > 0 ? 'recov2' : lastTrained()[key] ? 'recov1' : '');
 // The last day each muscle got a real working set (a main lift for it, or two sets that hit it on the side).
 const lastTrained = () => remember('lastTrained', () => {
   const last = {};
@@ -1636,12 +1651,12 @@ const lastTrained = () => remember('lastTrained', () => {
   return last;
 });
 const trainedWhen = (date) => {
-  if (!date) return 'Not yet';
+  if (!date) return '–';
   const ago = daysBetween(date, todayIso());
-  return ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : ago < 7 ? parseIso(date).toLocaleDateString('en-GB', { weekday: 'short' }) : `${ago} days ago`;
+  return ago === 0 ? 'Today' : `${ago}<span class="tierLong">d ago</span><span class="tierShort">d</span>`;
 };
 // Whole days until a muscle is ready again (0 = ready).
-const daysLeft = ({ fresh }, key) => (fresh[key] > 0 ? Math.max(1, Math.ceil(fresh[key] * RECOVERY_DAYS[key])) : 0);
+const daysLeft = ({ remaining }, key) => (remaining[key] > 0 ? Math.max(1, Math.ceil(remaining[key])) : 0);
 // Strength view (like Symmetric Strength): each muscle takes the level of the lifts that train it, weighted, from
 // the same Strength Level scores as the spider web (now, or all time when a lift isn't done lately).
 try {
@@ -1718,8 +1733,8 @@ const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 
     const tier = key ? tierOf(levels[key] || 0) : null;
     return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
   }
-  const strength = key ? muscleStrength(load, key) : 0;
-  return `<polygon points="${points}" class="${!key ? 'bodyBone' : strength ? 'bodyHit' : 'bodyRest'}"${strength ? ` style="fill-opacity:${strength.toFixed(2)}"` : ''}/>`;
+  const step = key ? recoveryStep(load, key) : '';
+  return `<polygon points="${points}" class="${!key ? 'bodyBone' : step ? `bodyRecov ${step}` : 'bodyRest'}"/>`;
 }).join('')}</svg>`;
 const renderMuscles = () => {
   loadAnatomy();
@@ -1747,10 +1762,11 @@ const renderMuscles = () => {
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const left = daysLeft(load, key);
         const last = lastTrained()[key];
-        return `<div class="muscleRow recoveryRow${left ? ' recovering' : ' muted'}" title="${left ? `${left} ${left === 1 ? 'day' : 'days'} until recovered` : 'Recovered'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch${left ? '' : ' tierNone'}"${left ? ` style="opacity:${muscleStrength(load, key).toFixed(2)}"` : ''}></i><span>${label}</span><span class="num recoveryLeft">${trainedWhen(last)}</span><span class="recoveryBar" aria-hidden="true"><i style="width:${Math.round((load.fresh[key] || 0) * 100)}%"></i></span></div>`;
+        const step = recoveryStep(load, key);
+        return `<div class="muscleRow${last ? '' : ' muted'}" title="${left ? `About ${left} ${left === 1 ? 'day' : 'days'} until recovered` : last ? 'Recovered' : 'Not trained yet'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch ${step || 'tierNone'}"></i><span>${label}</span><span class="num">${trainedWhen(last)}</span></div>`;
       }).join('')}</div>
     </div>
-    <div class="anatomyFoot"><p class="muscleNote">The bar empties as a muscle recovers; grey is ready. Right: when you last trained it.</p></div>`;
+    <div class="anatomyFoot"><div class="levelKeyBox"><p class="levelKey recovKey"><span>Just trained</span><i class="muscleSwatch recov4"></i><i class="muscleSwatch recov3"></i><i class="muscleSwatch recov2"></i><i class="muscleSwatch recov1"></i><span>Recovered</span></p></div></div>`;
 };
 
 // Days in the range where this lift set a PR (a heavier single or a new estimated max).
