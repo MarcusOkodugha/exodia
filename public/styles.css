@@ -1609,3 +1609,5 @@ button.pickInfo { display: block; width: calc(100% - 40px); text-align: left; ba
 .recovKey .muscleSwatch { display: inline-block; width: 10px; height: 10px; border-radius: 2.5px; }
 .recovKey span:first-child { margin-right: 3px; }
 .recovKey span:last-child { margin-left: 3px; }
+/* Where and how long you trained, under an opened day's date. */
+.dayVisit { margin: -4px 0 8px; font-size: 13px; line-height: 18px; color: var(--text2); }

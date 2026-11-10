@@ -1142,6 +1142,14 @@ const dayNote = (session, editing) => {
   const open = view.noteOpen === session.date;
   return `<button class="dayNote${open ? ' open' : ''}" data-action="toggle-note" data-date="${session.date}" aria-expanded="${open}"><span class="dayNoteLabel">Note</span><span class="dayNoteText">${esc(session.note)}</span></button>`;
 };
+// An opened day says where you trained and for how long, when your gym app or Google Maps knows:
+// "Gymmet Stockholm · in at 08:32 · 1 hour and 53 minutes".
+const dayVisit = (date) => {
+  const visit = visitOf(date);
+  if (!visit) return '';
+  const parts = [visit.place !== 'Gym' ? visit.place : '', visit.time ? `in at ${visit.time}` : '', visit.minutes ? humanMinutes(visit.minutes) : ''].filter(Boolean);
+  return parts.length ? `<p class="dayVisit">${esc(parts.join(' · '))}</p>` : '';
+};
 const renderSession = (session) => {
   const pendings = inFlight().filter((pending) => pending.date === session.date && pending.known !== false);
   const open = view.open.has(session.date) || pendings.length > 0;
@@ -1161,6 +1169,7 @@ const renderSession = (session) => {
       ${open ? `<button class="editBtn${editing ? ' done' : ''}" data-action="edit-day" data-date="${session.date}"${editing ? '' : ` aria-label="Edit ${dayLabel(session.date)}" title="Edit"`}>${editing ? 'Done' : ICONS.pencil}</button>` : ''}
       <button class="chevBtn" data-action="toggle-session" data-date="${session.date}" aria-label="${open ? 'Collapse' : 'Expand'} ${dayLabel(session.date)}">${ICONS.chev}</button>
     </div>
+    ${open && !editing ? dayVisit(session.date) : ''}
     ${open && editing && view.menuEnter ? '<span class="editHint" aria-hidden="true"></span>' : ''}${open && editing ? `<div class="dayMenu${view.menuEnter ? ' enter' : ''}">
       <p class="dayMenuLabel">Move to</p>
       <div class="days scroll moveDays">${Array.from({ length: 21 }, (unused, index) => addDays(todayIso(), index - 20)).filter((iso) => iso !== session.date).map((iso) => `<button class="chip" data-action="move-day" data-date="${session.date}" data-to="${iso}"><span class="chipFace">${dayLabel(iso)}</span></button>`).join('')}<label class="chip pickDate"><span class="chipFace">${ICONS.calendar || ''}Pick a date</span><input type="date" max="${todayIso()}" value="${session.date}" data-move-from="${session.date}" aria-label="Move ${dayLabel(session.date)} to a date"></label></div>
