@@ -1598,3 +1598,9 @@ button.pickInfo { display: block; width: calc(100% - 40px); text-align: left; ba
 .pickOpen .exChev { width: 12px; height: 12px; vertical-align: -1px; margin-left: 1px; }
 /* What you said, quoted on the day it's about to land on, while Exodia reads it. */
 .ghostSaid { display: block; margin: 0 0 6px; font-size: 14px; line-height: 1.4; color: var(--text2); overflow-wrap: anywhere; }
+/* Recovery: under each muscle a thin bar that empties as it recovers (clay = what's left), and when you last
+   trained it on the right, in clay while it's still recovering. */
+.muscleRow.recoveryRow { position: relative; padding-bottom: 5px; }
+.recoveryBar { position: absolute; left: 23px; right: 6px; bottom: 1px; height: 2.5px; border-radius: 2px; background: rgb(20 20 19 / 0.07); overflow: hidden; }
+.recoveryBar i { display: block; height: 100%; border-radius: inherit; background: var(--clay); }
+.muscleRow.recovering .recoveryLeft { color: var(--clayText); font-weight: 600; }

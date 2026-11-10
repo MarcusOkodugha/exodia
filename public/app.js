@@ -1618,8 +1618,30 @@ const muscleLoad = () => {
   }
   return { sets, fatigue, fresh };
 };
-// Strong while a muscle recovers and only fading near the end, then a light tint until 7 days have passed.
-const muscleStrength = ({ sets, fresh }, key) => (!sets[key] ? 0 : fresh[key] > 0 ? 0.38 + 0.62 * fresh[key] : 0.24);
+// Two states you can tell apart at a glance: clay while a muscle is still recovering (deeper the more is left), and
+// the plain body grey once it's ready, the same as a muscle you haven't trained.
+const muscleStrength = ({ fresh }, key) => (fresh[key] > 0 ? 0.2 + 0.8 * fresh[key] : 0);
+// The last day each muscle got a real working set (a main lift for it, or two sets that hit it on the side).
+const lastTrained = () => remember('lastTrained', () => {
+  const last = {};
+  for (const session of state.sessions) {
+    if (session.date > todayIso()) continue;
+    for (const exercise of session.exercises) {
+      const rule = MUSCLE_RULES.find(([pattern]) => pattern.test(exercise.name.toLowerCase()));
+      if (!rule) continue;
+      const count = validSets(exercise).filter((set) => !set.warmup).length;
+      for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) for (const key of keys) if (count * share >= 1 && !(last[key] > session.date)) last[key] = session.date;
+    }
+  }
+  return last;
+});
+const trainedWhen = (date) => {
+  if (!date) return 'Not yet';
+  const ago = daysBetween(date, todayIso());
+  return ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : ago < 7 ? parseIso(date).toLocaleDateString('en-GB', { weekday: 'short' }) : `${ago} days ago`;
+};
+// Whole days until a muscle is ready again (0 = ready).
+const daysLeft = ({ fresh }, key) => (fresh[key] > 0 ? Math.max(1, Math.ceil(fresh[key] * RECOVERY_DAYS[key])) : 0);
 // Strength view (like Symmetric Strength): each muscle takes the level of the lifts that train it, weighted, from
 // the same Strength Level scores as the spider web (now, or all time when a lift isn't done lately).
 try {
@@ -1722,9 +1744,13 @@ const renderMuscles = () => {
   }
   return `${toggle}
     <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
-      <div class="muscleList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${sets[key] ? '' : ' muted'}"><i class="muscleSwatch" style="opacity:${muscleStrength(load, key) || 1}"></i><span>${label}</span><span class="num">${Math.round(sets[key])}</span></div>`).join('')}</div>
+      <div class="muscleList">${MUSCLES.map(([key, label]) => {
+        const left = daysLeft(load, key);
+        const last = lastTrained()[key];
+        return `<div class="muscleRow recoveryRow${left ? ' recovering' : ' muted'}" title="${left ? `${left} ${left === 1 ? 'day' : 'days'} until recovered` : 'Recovered'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch${left ? '' : ' tierNone'}"${left ? ` style="opacity:${muscleStrength(load, key).toFixed(2)}"` : ''}></i><span>${label}</span><span class="num recoveryLeft">${trainedWhen(last)}</span><span class="recoveryBar" aria-hidden="true"><i style="width:${Math.round((load.fresh[key] || 0) * 100)}%"></i></span></div>`;
+      }).join('')}</div>
     </div>
-    <div class="anatomyFoot"><p class="muscleNote">Sets in the last 7 days. Red means still recovering.</p></div>`;
+    <div class="anatomyFoot"><p class="muscleNote">The bar empties as a muscle recovers; grey is ready. Right: when you last trained it.</p></div>`;
 };
 
 // Days in the range where this lift set a PR (a heavier single or a new estimated max).
