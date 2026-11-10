@@ -813,8 +813,19 @@ const addEntries = (result, date = todayIso()) => {
   }
   // "Change the cardio to 50" sets the day's cardio; "30 min cardio" adds to it. A note that says
   // "instead of", "change" or "not" also counts as a correction when the AI forgets to flag it.
-  if (result.cardioMinutes) session.cardio = result.cardioTotal || (session.cardio && /\b(instead|change|changed|correct|should be|not \d+|was \d+)\b/i.test(`${result.transcript || ''} ${view.lastSaid || ''}`)) ? Number(result.cardioMinutes) : (session.cardio || 0) + Number(result.cardioMinutes);
-  if (result.cardioMinutes && result.cardioName) session.cardioName = result.cardioName;
+  if (result.cardioMinutes) {
+    const fixing = result.cardioTotal || (session.cardio && /\b(instead|change|changed|correct|should be|not \d+|was \d+)\b/i.test(`${result.transcript || ''} ${view.lastSaid || ''}`));
+    const name = result.cardioName || 'Cardio';
+    const parts = cardioParts(session);
+    const same = parts.find((part) => part.name.toLowerCase() === name.toLowerCase());
+    if (fixing && (same || parts.length <= 1)) {
+      // A correction changes the activity it names (or the only one there is).
+      if (same) same.minutes = Number(result.cardioMinutes);
+      else parts.splice(0, parts.length, { name: result.cardioName || parts[0]?.name || 'Cardio', minutes: Number(result.cardioMinutes) });
+    } else if (same) same.minutes += Number(result.cardioMinutes);
+    else parts.push({ name, minutes: Number(result.cardioMinutes) });
+    setCardioParts(session, parts);
+  }
   view.open.add(date);
   save();
   return names;
@@ -1096,6 +1107,26 @@ const glowing = (date, name) => {
 const KINDS = { legs: 'Leg day', pull: 'Pull day', push: 'Push day', arms: 'Arm day' };
 // What the cardio was (Football, Cycling), or plain Cardio when nobody said.
 const cardioLabel = (session) => session.cardioName || 'Cardio';
+// Each cardio you name keeps its own row (Bike 20 minutes, Football 1 hour) while session.cardio stays the day's
+// total, which is what the Move goal counts. Days from before parts existed, or whose total changed somewhere else,
+// are read back into parts that add up to the total.
+const cardioParts = (session) => {
+  const total = Number(session.cardio) || 0;
+  if (!total) return [];
+  const parts = (session.cardioParts || []).filter((part) => Number(part.minutes) > 0).map((part) => ({ name: String(part.name || 'Cardio'), minutes: Number(part.minutes) }));
+  const sum = parts.reduce((all, part) => all + part.minutes, 0);
+  if (!parts.length || sum > total) return [{ name: cardioLabel(session), minutes: total }];
+  if (sum < total) parts.push({ name: parts.length ? 'Cardio' : cardioLabel(session), minutes: total - sum });
+  return parts;
+};
+const setCardioParts = (session, parts) => {
+  const kept = parts.filter((part) => Number(part.minutes) > 0).map((part) => ({ name: part.name || 'Cardio', minutes: Math.round(Number(part.minutes)) }));
+  session.cardio = kept.reduce((all, part) => all + part.minutes, 0);
+  if (kept.length > 1) session.cardioParts = kept;
+  else delete session.cardioParts;
+  if (kept[0] && kept[0].name !== 'Cardio') session.cardioName = kept[0].name;
+  else delete session.cardioName;
+};
 const dayKind = (session) => {
   if (session.label) return session.label[0].toUpperCase() + session.label.slice(1);
   const pieces = [...new Set(session.exercises.filter((exercise) => validSets(exercise).length).map((exercise) => libraryEntry(exercise.name)?.piece).filter(Boolean))];
@@ -1117,7 +1148,7 @@ const daySummary = (session) => {
   const second = rest.find(({ name }) => hasPr(session, name)) || rest[0];
   const others = [
     ...rest.filter((item) => item !== second).map(({ name }) => name),
-    ...(session.cardio ? [`${cardioLabel(session)} ${humanMinutes(session.cardio)}`] : []),
+    ...cardioParts(session).map((part) => `${part.name} ${humanMinutes(part.minutes)}`),
     ...(accessoriesOf(session) ? [`Accessories ${humanMinutes(accessoriesOf(session))}`] : [])
   ];
   const row = ({ name, set }) => {
@@ -1177,7 +1208,7 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${session.cardio ? `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio"></button>` : ''}<span>${esc(cardioLabel(session))}</span><span class="meta num">${humanMinutes(session.cardio)}</span><button class="rowX" data-action="remove-cardio" data-date="${session.date}" aria-label="Delete cardio">×</button></div></div>` : ''}
+      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<label class="cardioEdit"><input class="cardioMin num" type="number" inputmode="numeric" min="1" max="600" value="${part.minutes}" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span>min</span></label>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${humanMinutes(part.minutes)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
       ${dayNote(session, editing)}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length && !editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${editing ? `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>` : ''}</span>
@@ -1935,7 +1966,7 @@ const renderDayNow = (date) => {
   const session = sessionFor(date);
   return `<section class="card dayNow">
     <p class="dayNowTitle">${dayLabel(date)} right now</p>
-    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${session.cardio ? `<div class="dayNowRow"><span class="dayNowName">${esc(cardioLabel(session))}</span><span class="dayNowSets num">${humanMinutes(session.cardio)}</span></div>` : ''}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${humanMinutes(accessoriesOf(session))}</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
+    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${cardioParts(session).map((part) => `<div class="dayNowRow"><span class="dayNowName">${esc(part.name)}</span><span class="dayNowSets num">${humanMinutes(part.minutes)}</span></div>`).join('')}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${humanMinutes(accessoriesOf(session))}</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
     <p class="dayNowHint">Say or type what's wrong. Changes go to this day.</p>
   </section>`;
 };
@@ -4320,6 +4351,58 @@ document.addEventListener('pointerdown', (event) => {
     toggleUpdated(true);
   }
 }, true);
+// Any banner (Undo, a PR, what was added, Sent to Marcus, Exodia is on it) swipes away like "Exodia updated": it
+// follows the finger sideways or up and fades; let go far or fast enough and it glides off and is gone, otherwise it
+// springs back. A tap still does what it did.
+let bannerSwipe = null;
+let bannerSwipedAt = 0;
+document.addEventListener('pointerdown', (event) => {
+  const banner = event.target.closest('.toast, .buildBanner');
+  bannerSwipe = banner && !event.target.closest('.toastMore') ? { banner, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
+});
+document.addEventListener('pointermove', (event) => {
+  const swipe = bannerSwipe;
+  if (!swipe) return;
+  swipe.dx = event.clientX - swipe.x;
+  swipe.dy = Math.min(0, event.clientY - swipe.y);
+  if (!swipe.moved && Math.hypot(swipe.dx, swipe.dy) < 14) return;
+  swipe.moved = true;
+  swipe.banner.style.transition = 'none';
+  swipe.banner.style.transform = `translate(${swipe.dx}px, ${swipe.dy}px)`;
+  swipe.banner.style.opacity = String(Math.max(0.2, 1 - Math.max(Math.abs(swipe.dx) / 260, -swipe.dy / 90)));
+});
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, (event) => {
+  const swipe = bannerSwipe;
+  bannerSwipe = null;
+  if (!swipe?.moved) return;
+  bannerSwipedAt = Date.now();
+  const { banner, dx, dy } = swipe;
+  const time = Math.max(1, event.timeStamp - swipe.t);
+  const away = Math.abs(dx) > 90 || dy < -40 || Math.abs(dx) / time > 0.5 || -dy / time > 0.4;
+  if (!away) {
+    banner.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease';
+    banner.style.transform = '';
+    banner.style.opacity = '';
+    return;
+  }
+  const sideways = Math.abs(dx) > -dy;
+  banner.style.transition = 'transform 0.22s ease-out, opacity 0.22s ease-out';
+  banner.style.transform = sideways ? `translate(${Math.sign(dx) * (innerWidth + 40)}px, ${dy}px)` : `translate(${dx}px, -160px)`;
+  banner.style.opacity = '0';
+  setTimeout(() => {
+    if (banner.classList.contains('toast')) {
+      clearTimeout(view.toastTimer);
+      view.toast = null;
+    } else view.bannerHidden = Number(banner.querySelector('[data-at]')?.dataset.at) || view.bannerHidden;
+    render();
+  }, 220);
+});
+document.addEventListener('click', (event) => {
+  if (Date.now() - bannerSwipedAt < 350 && event.target.closest('.toast, .buildBanner')) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, true);
 // Swiping "Exodia updated" away: it follows the finger and fades as it goes; let go far or fast enough and it glides
 // off that way, otherwise it springs back. A plain tap still opens the notes.
 let updatedSwipe = null;
@@ -5129,7 +5212,7 @@ const addLog = (said, did, extra = {}) => {
   if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
-const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `Cardio is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${humanMinutes(result.cardioMinutes)}`] : [])].join(', ')} to ${dayLabel(day)}`;
+const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `${result.cardioName || 'Cardio'} is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${humanMinutes(result.cardioMinutes)}`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 // Your words win over the AI's guess: when the note spells out a more specific lift ("incline dumbbell press") than the
 // one the AI returned ("Incline Bench Press", whose only word in the note is "incline"), use the one you spelled out.
@@ -7228,10 +7311,10 @@ document.addEventListener('click', (event) => {
     changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: true }), 'Add set');
     if (last.kg === '') view.focusSet = { date, name: exercise.name };
   } else if (action === 'remove-cardio' && session) {
-    changeWithUndo(`Removed cardio on ${dayLabel(date)}`, () => {
-      session.cardio = 0;
-      delete session.cardioName;
-    }, 'Remove cardio');
+    const parts = cardioParts(session);
+    const index = target.dataset.index === undefined ? -1 : Number(target.dataset.index);
+    const gone = parts[index]?.name || 'cardio';
+    changeWithUndo(`Removed ${gone === 'Cardio' ? 'cardio' : gone} on ${dayLabel(date)}`, () => setCardioParts(session, index >= 0 ? parts.filter((part, at) => at !== index) : []), 'Remove cardio');
   } else if (action === 'quick-all') {
     view.quickAll = !view.quickAll;
     const body = document.querySelector('.sheetBody');
@@ -7452,6 +7535,16 @@ document.addEventListener('change', (event) => {
       save();
       render();
     }
+    return;
+  }
+  if (target.dataset.cardioDate) {
+    const session = sessionFor(target.dataset.cardioDate);
+    const minutes = Math.round(Number(target.value));
+    if (session && minutes > 0 && minutes <= 600) {
+      const parts = cardioParts(session);
+      const part = parts[Number(target.dataset.index)];
+      if (part && part.minutes !== minutes) changeWithUndo(`${part.name} ${humanMinutes(minutes)} on ${dayLabel(session.date)}`, () => setCardioParts(session, parts.map((item) => (item === part ? { ...item, minutes } : item))), 'Change cardio time');
+    } else render();
     return;
   }
   if (target.dataset.dayLabel) {
@@ -7828,7 +7921,14 @@ const openSwipe = (row, open) => {
 };
 document.addEventListener('pointerdown', (event) => {
   const face = event.target.closest('.swipeFace');
-  for (const open of document.querySelectorAll('.swipe.open')) if (open !== face?.parentElement) openSwipe(open, false);
+  // A tap on the Delete a swipe showed must reach it: closing its row first slid the row back over the button.
+  const shown = event.target.closest('.swipe.open .swipeDel')?.closest('.swipe');
+  for (const open of document.querySelectorAll('.swipe.open')) if (open !== face?.parentElement && open !== shown) openSwipe(open, false);
+  if (shown) {
+    swipe = null;
+    lastSwipe = 0;
+    return;
+  }
   swipe = face && event.pointerType !== 'mouse' ? { face, ...uiPoint(event), dx: 0, active: false } : null;
 });
 document.addEventListener('pointermove', (event) => {
@@ -7969,7 +8069,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // Trends, swipe right back to Home. The page follows the finger and glides out; a short or slow swipe springs back.
 let pageSwipe = null;
 let pageSwipedAt = 0;
-const PAGE_SWIPE_SKIP = '.dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .confirm';
+const PAGE_SWIPE_SKIP = '.dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
 document.addEventListener('pointerdown', (event) => {
   pageSwipe = null;
   if (event.pointerType !== 'touch' || desktopQuery.matches || turn || view.menu || view.composer || !['home', 'trends'].includes(view.route)) return;
