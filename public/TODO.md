@@ -63,6 +63,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- [x] **Names are accounts (12 Nov, v415):** a taken name opens that person's log on any phone, link or reinstall; Settings refuses taken names. Also: a leaked default bench best is ignored (v412–v413), the web counts lift name variants like Incline Barbell Bench (v414), and bodyweight logged inside pull-up weights is caught by the AI (v414).
 - [x] **Voice words first (10 Nov, v409):** Whisper's words show ~1 s after recording, before the sets; never the iPhone's live dictation. Non-English/Swedish guesses are re-heard as English; the slow second look is skipped after 12 s.
 - [x] **Gym days from Google Photos (9 Nov, v400):** 100 days Jun 2024 – Mar 2025 read from two screenshots of the "gym" search: 90 new, 10 Nordic Wellness days given a lift and level (deadlift heavy, bench medium, push-ups light). Logged days untouched.
 
