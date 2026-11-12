@@ -6468,6 +6468,22 @@ const secondTry = ({ text, audio, live, heard, date, asked }) => {
     render();
   }).catch(() => {});
 };
+let nameWatch = null;
+// Their own log, on this phone: joined, the start screen gone, and a "Welcome back, Romi".
+const welcomeBack = async (key, name) => {
+  if (view.onboard) Object.assign(view.onboard, { busy: true, status: 'Opening your log…' });
+  render();
+  if (await joinProfile(key)) {
+    view.onboard = null;
+    state.started = true;
+    save();
+    view.toast = { kind: 'rep', title: `Welcome back, ${state.name || name}`, text: 'Your log is here, the same as on your other phone.' };
+    location.hash = '#/';
+    return render();
+  }
+  if (view.onboard) Object.assign(view.onboard, { busy: false, status: 'Could not reach Exodia. Check your internet and try again.' });
+  return render();
+};
 // Who has a name: { key } for someone's log, { taken } for one that can't be handed out, { free } otherwise.
 // No connection counts as free, so starting never gets stuck.
 const nameOwner = (name) => timedFetch('/api/name', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) }, 10000)
@@ -7059,18 +7075,7 @@ document.addEventListener('click', (event) => {
           view.onboard.status = `${name} is taken. Use another name, or open your own link.`;
           return render();
         }
-        if (owner.key) {
-          if (await joinProfile(owner.key)) {
-            view.onboard = null;
-            state.started = true;
-            save();
-            view.toast = { kind: 'rep', title: `Welcome back, ${state.name || name}`, text: 'Your log is here, the same as on your other phone.' };
-            location.hash = '#/';
-            return render();
-          }
-          view.onboard.status = 'Could not reach Exodia. Check your internet and try again.';
-          return render();
-        }
+        if (owner.key) return welcomeBack(owner.key, name);
         view.onboard.nameChecked = true;
         render();
         document.querySelector(`[data-action="${action}"]`)?.click();
@@ -7607,7 +7612,15 @@ document.addEventListener('input', (event) => {
   }
   if (target.id === 'onboardName' || target.id === 'onboardData') {
     view.onboard[target.id === 'onboardName' ? 'name' : 'data'] = target.value;
-    if (target.id === 'onboardName') view.onboard.nameChecked = false;
+    if (target.id === 'onboardName') {
+      view.onboard.nameChecked = false;
+      // A name someone already has opens their log by itself, a moment after typing stops; no Enter needed.
+      clearTimeout(nameWatch);
+      const typed = target.value.trim();
+      if (typed.length >= 2) nameWatch = setTimeout(() => nameOwner(typed).then((owner) => {
+        if (owner.key && view.onboard && !view.onboard.busy && view.onboard.name.trim() === typed) welcomeBack(owner.key, typed);
+      }), 700);
+    }
     if (target.id === 'onboardData') fitDraft(target);
     const prompt = document.querySelector('.onboardPrompt');
     const filled = view.onboard.data.trim().length > 0 || Boolean(view.onboard.file);
