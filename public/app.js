@@ -259,6 +259,7 @@ const applyIncoming = (result) => {
   }
   if (result.meta) {
     const { updated, ...incomingMeta } = result.meta;
+    if (JSON.stringify(incomingMeta.bests || {}) === LEAKED_BESTS) incomingMeta.bests = {};
     const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}), ...(incomingMeta.visits && Object.keys(incomingMeta.visits).length ? { visits: incomingMeta.visits } : {}) });
     const dirty = lastMeta !== syncState.metaSynced;
     // Bodyweight saved on another device comes through even while this one has unsent log lines (a body just
