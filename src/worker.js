@@ -408,6 +408,23 @@ const columns = async (request, env) => {
   }
 };
 
+// A name is an account: once someone has it, typing it on a new phone (or after deleting the app, or on a fresh
+// /join link) opens that person's latest log instead of an empty one. The admin profile is never handed out this way.
+const nameLookup = async (request, env) => {
+  const body = await request.json().catch(() => null);
+  const name = typeof body?.name === 'string' ? body.name.trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 40) : '';
+  if (!name) return json({ error: 'No name.' }, 400);
+  if (env.PARSE_LIMITER) {
+    const { success } = await env.PARSE_LIMITER.limit({ key: `name:${request.headers.get('cf-connecting-ip') || 'x'}` });
+    if (!success) return json({ error: 'Slow down a little. Try again in a minute.' }, 429);
+  }
+  // Two profiles with one name (from before names were accounts): the one written to last wins.
+  const row = await env.DB.prepare("SELECT id FROM profiles p WHERE lower(trim(json_extract(meta, '$.name'))) = ?1 ORDER BY coalesce((SELECT max(updated) FROM sessions s WHERE s.profile = p.id), 0) DESC, meta_updated DESC LIMIT 1").bind(name).first();
+  if (!row) return json({ free: true });
+  if (row.id === env.ADMIN_PROFILE) return json({ taken: true });
+  return json({ key: row.id });
+};
+
 const speechToText = async (request, env) => {
   const key = request.headers.get('x-exodia-key') ?? '';
   if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
@@ -1252,6 +1269,10 @@ export default {
       let html = await (await env.ASSETS.fetch(new Request(new URL('/', url), request))).text();
       if (personal) html = html.replace('</head>', `<link rel="manifest" href="/manifest.webmanifest?k=${personal[1]}">\n</head>`);
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
+    if (url.pathname === '/api/name') {
+      if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+      return nameLookup(request, env);
     }
     if (url.pathname === '/api/transcribe') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);

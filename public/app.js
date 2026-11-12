@@ -6468,6 +6468,11 @@ const secondTry = ({ text, audio, live, heard, date, asked }) => {
     render();
   }).catch(() => {});
 };
+// Who has a name: { key } for someone's log, { taken } for one that can't be handed out, { free } otherwise.
+// No connection counts as free, so starting never gets stuck.
+const nameOwner = (name) => timedFetch('/api/name', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) }, 10000)
+  .then((response) => (response.ok ? response.json() : { free: true }))
+  .catch(() => ({ free: true }));
 let sentContext = null;
 const send = async () => {
   view.askGuess = null;
@@ -7042,6 +7047,36 @@ document.addEventListener('click', (event) => {
   }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
+    // A name someone already has opens their log: same person, new phone, deleted app or a fresh link.
+    if (name && !view.onboard.nameChecked) {
+      view.onboard.busy = true;
+      view.onboard.status = 'Checking your name…';
+      render();
+      nameOwner(name).then(async (owner) => {
+        view.onboard.busy = false;
+        view.onboard.status = '';
+        if (owner.taken) {
+          view.onboard.status = `${name} is taken. Use another name, or open your own link.`;
+          return render();
+        }
+        if (owner.key) {
+          if (await joinProfile(owner.key)) {
+            view.onboard = null;
+            state.started = true;
+            save();
+            view.toast = { kind: 'rep', title: `Welcome back, ${state.name || name}`, text: 'Your log is here, the same as on your other phone.' };
+            location.hash = '#/';
+            return render();
+          }
+          view.onboard.status = 'Could not reach Exodia. Check your internet and try again.';
+          return render();
+        }
+        view.onboard.nameChecked = true;
+        render();
+        document.querySelector(`[data-action="${action}"]`)?.click();
+      });
+      return;
+    }
     if (name) state.name = name.slice(0, 40);
     state.started = true;
     save();
@@ -7572,6 +7607,7 @@ document.addEventListener('input', (event) => {
   }
   if (target.id === 'onboardName' || target.id === 'onboardData') {
     view.onboard[target.id === 'onboardName' ? 'name' : 'data'] = target.value;
+    if (target.id === 'onboardName') view.onboard.nameChecked = false;
     if (target.id === 'onboardData') fitDraft(target);
     const prompt = document.querySelector('.onboardPrompt');
     const filled = view.onboard.data.trim().length > 0 || Boolean(view.onboard.file);
@@ -7683,9 +7719,25 @@ document.addEventListener('change', (event) => {
     return;
   }
   if (target.hasAttribute('data-name-input')) {
-    state.name = target.value.trim().slice(0, 40);
-    save();
-    render();
+    const name = target.value.trim().slice(0, 40);
+    const before = state.name || '';
+    if (!name || name.toLowerCase() === before.toLowerCase()) {
+      state.name = name || before;
+      save();
+      render();
+      return;
+    }
+    // A name is an account, so someone else's can't be taken.
+    nameOwner(name).then((owner) => {
+      if (owner.taken || (owner.key && owner.key !== syncState.profile)) {
+        view.toast = { kind: 'rep', title: `${name} is taken`, text: 'Names are accounts here. Pick another one.' };
+        render();
+        return;
+      }
+      state.name = name;
+      save();
+      render();
+    });
     return;
   }
   if (target.dataset.field) {
