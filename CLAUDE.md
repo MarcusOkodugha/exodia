@@ -50,6 +50,7 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 - Switching views (Strength/Recovery and any other toggle) must never move the page: both sides keep exactly the same height. Measure it before pushing.
 - Strength web: straight lines (`WEB_CURVE = 0`), legs at the top, push on the right, pull on the left; rings 2–5 (Novice–Elite) in the level colours with their numbers; no Beginner ring.
 - Strength Level standards are per-bodyweight tables in `STANDARDS` (strengthlevel.com itself is blocked from cloud sessions).
+- Exodia is a rolling 10 days: blue only while all five pieces (2 heavy presses, a heavy deadlift, legs, arms, 2 moves) sit inside the last 10 days; it goes orange the day the first one drops out unless something newer replaced it. A hit is each time it turns blue. The ring in the opened card shows the days left and which piece runs out first.
 - Newest first, everywhere: lists, days, years, and the rows inside a year (July–December above January–June). The latest thing is always at the top.
 - Strength levels are numbers only: the share of people who log the lift on Strength Level that each level beats. No years trained, no vague descriptions ("keen lifter").
 

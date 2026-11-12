@@ -573,49 +573,63 @@ const dayHits = () => {
   return map;
 };
 
-// Exodia works in rounds: when all five pieces land within 10 days you hit it, it stays hit (blue) for 10 days, then
-// goes back to orange. Each round counts only days after the last hit, so it resets, and training during the blue
-// days already counts toward the next one. One walk through the days, kept until your log changes.
+// Exodia is a rolling 10 days: it's hit (blue) while everything it needs (2 heavy presses, a heavy deadlift, legs,
+// arms, 2 moves of 20 min) all sit inside the last 10 days, and it goes back to orange the day the first of them
+// drops out, unless something newer replaced it. So you can hit it with 2 days of the window left and be blue for
+// those 2 days. Each time it turns blue counts as one hit. One walk through the days, kept until your log changes.
 const exodiaHistory = () => {
   const today = todayIso();
   const empty = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
-  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty }, days: [] };
+  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty }, days: [], active: false, left: 0 };
   const hits = dayHits();
   if (hitsCache.history?.today === today) return hitsCache.history.value;
   const first = [...hits.keys()].sort()[0];
-  let counts = { ...empty };
-  let total = 0;
-  let last = null;
-  // The days Exodia was hit, for the calendar.
-  const days = [];
+  const counts = { ...empty };
   const add = (iso, sign) => {
     const hit = hits.get(iso);
     if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += sign;
   };
+  const complete = () => PIECES.every((piece) => counts[piece.id] >= piece.target);
+  let total = 0;
+  let last = null;
+  let was = false;
+  // The days Exodia turned blue, for the calendar.
+  const days = [];
   for (let iso = first; iso <= today; iso = addDays(iso, 1)) {
     add(iso, 1);
-    const leaving = addDays(iso, -EXODIA_DAYS);
-    if (!last || leaving > last) add(leaving, -1);
-    if (PIECES.every((piece) => counts[piece.id] >= piece.target)) {
+    add(addDays(iso, -EXODIA_DAYS), -1);
+    const now = complete();
+    if (now && !was) {
       total += 1;
       last = iso;
       days.push(iso);
-      counts = { ...empty };
+    }
+    was = now;
+  }
+  const active = was;
+  const window = { ...counts };
+  // While blue: how many days until the oldest piece leaves the window, if nothing new is logged, and which one.
+  let left = 0;
+  let firstOut = '';
+  if (active) {
+    for (let ahead = 1; ahead <= EXODIA_DAYS; ahead += 1) {
+      add(addDays(today, ahead - EXODIA_DAYS), -1);
+      if (!complete()) {
+        left = ahead;
+        firstOut = PIECES.find((piece) => counts[piece.id] < piece.target)?.name || '';
+        break;
+      }
     }
   }
-  const value = { hits: total, last, counts, days };
+  const value = { hits: total, last, counts: window, days, active, left, runsOut: firstOut };
   hitsCache.history = { today, value };
   return value;
 };
-const exodiaActive = () => {
-  const { last } = exodiaHistory();
-  return Boolean(last) && last > addDays(todayIso(), -EXODIA_DAYS);
-};
-// The bars: full while Exodia is hit, otherwise this round's days (since the last hit, within the last 10 days).
+const exodiaActive = () => exodiaHistory().active;
+// The bars: what the last 10 days hold, full while Exodia is hit.
 const pieceProgress = () => {
-  const active = exodiaActive();
   const { counts } = exodiaHistory();
-  return PIECES.map((piece) => (active ? { ...piece, done: piece.target, complete: true } : { ...piece, done: counts[piece.id], complete: counts[piece.id] >= piece.target }));
+  return PIECES.map((piece) => ({ ...piece, done: counts[piece.id], complete: counts[piece.id] >= piece.target }));
 };
 
 const findExerciseName = (rawName) => {
@@ -1462,14 +1476,13 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
 
-// Bottom right of the opened Exodia card, a thin ring like a usage meter: once you've hit Exodia it drains over the
-// 10 days it stays blue, with the days left in the middle; before that it fills with the pieces you have this round.
+// Bottom right of the opened Exodia card, a thin ring like a usage meter: while you're blue it shows the days until
+// the oldest piece leaves the 10 days (if nothing new is logged); before that it fills with the pieces you have.
 const exodiaRing = (complete) => {
-  const { last } = exodiaHistory();
-  const left = exodiaActive() ? EXODIA_DAYS - daysBetween(last, todayIso()) : 0;
+  const { left, runsOut } = exodiaHistory();
   const share = left ? left / EXODIA_DAYS : complete / 5;
-  const label = left ? `${left} ${left === 1 ? 'day' : 'days'} left` : `${complete} of 5 this round`;
-  return `<div class="exoRingBox" title="${left ? `Exodia stays hit until ${dayLabel(addDays(last, EXODIA_DAYS))}` : 'Pieces this round'}"><svg class="exoRing${left ? ' hit' : ''}" viewBox="0 0 36 36" aria-hidden="true"><circle class="exoRingTrack" cx="18" cy="18" r="15"/><circle class="exoRingArc" cx="18" cy="18" r="15" pathLength="100" stroke-dasharray="${(share * 100).toFixed(1)} 100" transform="rotate(-90 18 18)"/><text x="18" y="22.5" text-anchor="middle">${left || complete}</text></svg><span class="exoRingLabel">${label}</span></div>`;
+  const label = left ? `${left} ${left === 1 ? 'day' : 'days'} left${runsOut ? `<br>${esc(runsOut)} runs out first` : ''}` : `${complete} of 5 in 10 days`;
+  return `<div class="exoRingBox" title="${left ? `Blue until ${dayLabel(addDays(todayIso(), left - 1))} unless you train again` : 'Pieces in the last 10 days'}"><svg class="exoRing${left ? ' hit' : ''}" viewBox="0 0 36 36" aria-hidden="true"><circle class="exoRingTrack" cx="18" cy="18" r="15"/><circle class="exoRingArc" cx="18" cy="18" r="15" pathLength="100" stroke-dasharray="${(share * 100).toFixed(1)} 100" transform="rotate(-90 18 18)"/><text x="18" y="22.5" text-anchor="middle">${left || complete}</text></svg><span class="exoRingLabel">${label}</span></div>`;
 };
 // Home draws the newest 30 days (fast to open); "Show older sessions" adds 60 at a time, back to the first.
 const HOME_PAGE = 30;

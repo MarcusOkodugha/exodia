@@ -1,4 +1,8 @@
 {
+  "411": [
+    "Exodia is now a rolling 10 days: blue only while all five pieces are inside the last 10 days, and it goes back the day the first one drops out",
+    "The Exodia ring says which piece runs out first"
+  ],
   "410": [
     "When Exodia has a question, it shows above the box with the answer half written: everything it caught, with ___ where a number is missing",
     "If it has a likely reading it asks Did you mean, and one tap on Yes logs it",
