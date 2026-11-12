@@ -467,7 +467,7 @@ const topEstimate = (exercise) => Math.max(0, ...estimateSets(exercise).map((set
 
 // Harder variants count for their main lift (a 140 kg paused bench means you bench at least 140), never the other way.
 const HARDER_VARIANTS = {
-  'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press', 'Paused Bench Press', 'Spoto Press', 'Larsen Press', 'Pin Press'],
+  'Bench Press': ['Close-Grip Bench Press', 'Pause Bench Press', 'Paused Bench Press', 'Bench Press With Pause', 'Spoto Press', 'Larsen Press', 'Pin Press'],
   Squat: ['Pause Squat', 'Paused Squat', 'Pin Squat', 'Tempo Squat', 'High Bar Squat', 'High-Bar Squat', 'Front Squat', 'Safety Bar Squat', 'SSB Squat'],
   Deadlift: ['Deficit Deadlift', 'Pause Deadlift', 'Paused Deadlift'],
 };
@@ -762,7 +762,7 @@ const parseWithAi = async (text, audio, hint = '', saved = null) => {
   const response = await fetchOrLater('/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile },
-    body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', ...noteContext(), ...(saved || {}), recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
+    body: JSON.stringify({ text, audio, hint, ...(view.sandbox ? { dry: true } : {}), name: state.name || '', ...(state.body?.kg ? { bodyweight: state.body.kg } : {}), ...noteContext(), ...(saved || {}), recent: recentLog(), deviceId: state.deviceId, known: [...new Set(state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)))].slice(0, 40) })
   });
   const body = await response.json().catch(() => ({}));
   // Busy, rate-limited or down: worth trying again later by itself. A note the AI read but couldn't use is not.
@@ -3071,15 +3071,19 @@ const LEVELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
 // How much the shape bends between corners: 0 straight, 1 a full smooth curve.
 const WEB_CURVE = 0;
 // Clockwise from the top: legs at the top, push down the right side, pull down the left.
+// The names each web lift counts, in any case and with or without hyphens ("Pull-up" is "pull up"). Barbell versions
+// only: dumbbell, Smith and machine presses have their own (lighter) standards, so they don't count here. Harder
+// variants (pause, close-grip, deficit…) count for their main lift through HARDER_VARIANTS.
 const WEB_LIFTS = [
-  { label: 'Squat', key: 'squat', names: ['squat', 'back squat'] },
-  { label: 'Bench', key: 'bench-press', names: ['bench press'] },
-  { label: 'Incline bench', key: 'incline-bench-press', names: ['incline bench press', 'incline bench'] },
-  { label: 'Overhead', key: 'shoulder-press', names: ['overhead press', 'shoulder press', 'military press', 'ohp'] },
-  { label: 'Pull-up', key: 'pull-ups', names: ['pull-up', 'pull up', 'pullup', 'chin-up', 'chin up', 'weighted pull-up', 'weighted pull up', 'weighted chin-up'], reps: true },
-  { label: 'Row', key: 'bent-over-row', names: ['barbell row', 'bent over row', 'pendlay row'] },
-  { label: 'Deadlift', key: 'deadlift', names: ['deadlift'] }
+  { label: 'Squat', key: 'squat', names: ['squat', 'squats', 'back squat', 'barbell squat', 'barbell back squat'] },
+  { label: 'Bench', key: 'bench-press', names: ['bench press', 'bench', 'barbell bench press', 'flat bench', 'flat bench press', 'flat barbell bench press'] },
+  { label: 'Incline bench', key: 'incline-bench-press', names: ['incline bench press', 'incline bench', 'incline barbell bench press', 'incline barbell bench', 'incline barbell press', 'barbell incline bench press', 'incline press'] },
+  { label: 'Overhead', key: 'shoulder-press', names: ['overhead press', 'shoulder press', 'military press', 'ohp', 'standing overhead press', 'barbell overhead press', 'strict press', 'barbell shoulder press'] },
+  { label: 'Pull-up', key: 'pull-ups', names: ['pull up', 'pull ups', 'pullup', 'pullups', 'chin up', 'chin ups', 'chinup', 'chinups', 'weighted pull up', 'weighted pull ups', 'weighted chin up', 'weighted chin ups'], reps: true },
+  { label: 'Row', key: 'bent-over-row', names: ['barbell row', 'bent over row', 'barbell bent over row', 'bent over barbell row', 'pendlay row'] },
+  { label: 'Deadlift', key: 'deadlift', names: ['deadlift', 'deadlifts', 'conventional deadlift', 'barbell deadlift'] }
 ];
+const liftName = (name) => String(name || '').toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
 // 0 … 5 where 1 is Beginner and 5 Elite; past Elite it keeps going by the Advanced→Elite step.
 const levelScore = (value, marks) => {
   if (!(value > 0) || !marks) return 0;
@@ -3112,7 +3116,8 @@ const liftStrength = (lift, body) => {
   for (const session of [...state.sessions].sort((first, second) => first.date.localeCompare(second.date))) {
     for (const exercise of session.exercises) {
       const named = exercise.name.toLowerCase();
-      if (!lift.names.includes(named) && !lift.names.includes(MAIN_LIFT[named])) continue;
+      const names = lift.normal || (lift.normal = lift.names.map(liftName));
+      if (!names.includes(liftName(named)) && !names.includes(liftName(MAIN_LIFT[named]))) continue;
       for (const set of validSets(exercise)) {
         if (set.warmup) continue;
         const [kg, reps] = [Number(set.kg) || 0, Number(set.reps)];
@@ -5853,7 +5858,7 @@ const importPause = async (attempt, progress, index, total) => {
   progress(index, total, total > 1 ? `Reading part ${index + 1} of ${total}…` : 'Reading the file…');
 };
 const sendImportPart = async (text, extra = {}) => {
-  const response = await fetchOrLater('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) }, 150000);
+  const response = await fetchOrLater('/api/add', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ text, today: todayIso(), ...(view.sandbox ? { dry: true } : {}), ...extra, name: state.name || '', ...(state.body?.kg ? { bodyweight: state.body.kg } : {}), known: [...new Set([...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name)), ...LIBRARY.map((entry) => entry.name)])].slice(0, 100) }) }, 150000);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(body.error || 'Could not read that. Try again.'), { busy: response.status === 429 || response.status >= 500 });
   return body;
