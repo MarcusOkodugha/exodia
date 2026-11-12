@@ -1,4 +1,4 @@
-const CACHE = 'exodia-v411';
+const CACHE = 'exodia-v412';
 const PIECES = ['palm', 'thumb-left', 'index', 'middle', 'ring', 'thumb-right'].flatMap((name) => [`/fist/${name}-line.png`, `/fist/${name}-fill.png`]);
 const SHELL = ['/', '/styles.css', '/app.js', '/manifest.webmanifest', '/anatomy.json', '/changes.json', '/favicon-64.png', '/logo.png', '/logo-blue.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/hamsa-512.png', '/hamsa-512-blue.png', '/hamsa-mask.png', '/hamsa-mask-back.png', ...PIECES];
 

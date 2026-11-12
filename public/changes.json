@@ -1,4 +1,8 @@
 {
+  "412": [
+    "Fixed: logs started between 2 and 5 November showed a bench best of 145 kg that was never theirs",
+    "Opening someone else's link on your phone no longer mixes your days into their log"
+  ],
   "411": [
     "Exodia is now a rolling 10 days: blue only while all five pieces are inside the last 10 days, and it goes back the day the first one drops out",
     "The Exodia ring says which piece runs out first"

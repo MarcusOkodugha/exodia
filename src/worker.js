@@ -796,7 +796,9 @@ const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
       .sort((first, second) => (second.at || 0) - (first.at || 0))
       .slice(0, 80);
     const bests = { ...(current.bests || {}) };
-    for (const [name, value] of Object.entries(incoming.bests || {})) bests[name] = Math.max(Number(bests[name]) || 0, Number(value) || 0);
+    // A phone that still has the bench best new phones wrongly started with (2–5 Nov) can't write it back.
+    const leaked = JSON.stringify(incoming.bests || {}) === '{"Bench Press":145}';
+    for (const [name, value] of Object.entries(leaked ? {} : incoming.bests || {})) bests[name] = Math.max(Number(bests[name]) || 0, Number(value) || 0);
     const name = incomingNewer ? incoming.name : current.name || incoming.name;
     const bodyNow = incomingNewer ? incoming.body || current.body : current.body || incoming.body;
     // Gym visits are only ever added: a device on an older Exodia (no visits) never wipes them.

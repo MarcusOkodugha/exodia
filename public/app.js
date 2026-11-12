@@ -129,6 +129,10 @@ const loadState = () => {
 };
 
 let state = loadState();
+// From 2 to 5 Nov a new phone started with someone else's bench best (145) saved as its own; it showed as a 145 bench
+// on logs that never went near it. It's dropped here, on the phone that still has it (the server drops it too).
+const LEAKED_BESTS = '{"Bench Press":145}';
+if (JSON.stringify(state.bests || {}) === LEAKED_BESTS) state.bests = {};
 const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 0, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null, search: { query: '', local: [], ai: [], loading: false } };
 
 const SYNC_KEY = 'exodia.sync';
@@ -389,7 +393,13 @@ const joinProfile = async (key) => {
   if (key === syncState.profile) return true;
   // Example data never joins a real log: drop it first, or the join can't sync and Alex's days would merge in.
   if (state.demo) Object.assign(state, { sessions: [], name: '', bests: {}, demo: false });
+  // One lifter's log never pours into another's. A log this phone already synced stays with its own profile (its last
+  // edits are sent there first); only days that were never synced anywhere come along to the joined log.
+  const ownLog = Boolean(syncState.profile && (syncState.cursor > 0 || Object.keys(syncState.synced || {}).length));
+  if (ownLog) await syncNow().catch(() => false);
   const previous = { sessions: state.sessions, name: state.name, bests: state.bests, sync: syncState };
+  // What comes along into the joined log: nothing when the old log lives on its own profile.
+  const carried = ownLog ? { sessions: [], name: '', bests: {} } : previous;
   syncState = freshSync(key);
   state.sessions = [];
   state.name = '';
@@ -405,7 +415,7 @@ const joinProfile = async (key) => {
     lastMeta = metaJson();
     return false;
   }
-  for (const old of previous.sessions) {
+  for (const old of carried.sessions) {
     const session = sessionFor(old.date);
     if (!session) {
       state.sessions.push(old);
@@ -416,8 +426,8 @@ const joinProfile = async (key) => {
     }
     session.cardio = Math.max(session.cardio || 0, old.cardio || 0);
   }
-  if (!state.name && previous.name) state.name = previous.name;
-  state.bests = { ...previous.bests, ...state.bests };
+  if (!state.name && carried.name) state.name = carried.name;
+  state.bests = { ...carried.bests, ...state.bests };
   save();
   pointManifest();
   return true;
