@@ -1845,3 +1845,17 @@ button.wnDay { cursor: pointer; }
 /* Notifications offer under a plan: the link sits in the sentence, no extra line height. */
 .tgPush { margin: -10px 0 22px; }
 .tgPush .textBtn { display: inline; min-height: 0; padding: 0; font-size: inherit; line-height: inherit; }
+
+/* Train together extras (optional): a note and the muscles you'll train, quiet until used. */
+.tgPlanExtras { margin: -12px 0 22px; }
+.tgExtras { display: flex; gap: 18px; margin: 0; }
+.tgExtras .textBtn { min-height: 0; padding: 0; font-size: 14px; font-weight: 500; color: var(--text2); }
+.tgNoteText { margin: 0 0 8px; font-size: 15px; line-height: 21px; color: var(--text); }
+.tgNoteText span { display: block; font-size: 13px; color: var(--text2); }
+.tgNoteForm { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
+.tgNoteField { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--field); font: inherit; font-size: 15px; color: var(--text); }
+.tgNoteField:focus { outline: none; box-shadow: 0 0 0 2px rgb(var(--clayRgb) / 0.35); }
+.tgPlanExtras .tgWhy { margin: 0 0 8px; }
+/* Muscles picked for a plan: the same look as picking one on Trends, the rest of each figure softer. */
+.tgBodies.chosen .bodyFig polygon[data-action]:not(.picked) { opacity: 0.4; }
+.tgBodies.chosen .bodyFig polygon.picked.bodyRest { fill: rgb(var(--clayRgb) / 0.55); }

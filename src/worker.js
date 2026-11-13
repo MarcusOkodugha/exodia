@@ -1356,7 +1356,10 @@ const planOut = async (env, plan, key) => {
     if (row) people.push({ handle: row.handle || '', name: metaName(row.meta), ...(member === key ? { me: true } : {}) });
   }
   const by = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.by).first();
-  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated };
+  const noteBy = plan.note && plan.note_by ? (plan.note_by === key ? 'me' : metaName((await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.note_by).first())?.meta)) : '';
+  let muscles = [];
+  try { muscles = JSON.parse(plan.muscles || '[]'); } catch { /* old row */ }
+  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated, note: plan.note || '', noteBy, muscles };
 };
 const myPlan = (env, date, key) => env.DB.prepare('SELECT * FROM plans WHERE date = ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) ORDER BY updated DESC LIMIT 1').bind(date, key).first();
 const dayPlus = (iso, days) => {
@@ -1645,6 +1648,21 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     tell(membersOf(plan), { title: `${myName} moved ${plan.kind.toLowerCase()} day`, body: `Now ${planDay(to)}`, url: `/#/together/${to}` });
     const fresh = await myPlan(env, to, key);
     return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today) });
+  }
+  // Optional extras: a note for everyone in the plan, and the muscles you'll train. Last one written wins.
+  if (action === 'note') {
+    if (!plan) return answer();
+    const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+    if (note === plan.note) return answer();
+    await env.DB.prepare('UPDATE plans SET note = ?, note_by = ?, version = version + 1, updated = ? WHERE id = ?').bind(note, note ? key : '', now, plan.id).run();
+    if (note) tell(membersOf(plan), { title: `${myName} added a note to ${plan.kind.toLowerCase()} day`, body: note, url });
+    return answer();
+  }
+  if (action === 'muscles') {
+    if (!plan) return answer();
+    const muscles = Array.isArray(body.muscles) ? [...new Set(body.muscles.filter((muscle) => typeof muscle === 'string' && /^[a-zA-Z]{2,24}$/.test(muscle)))].slice(0, 20) : [];
+    await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify(muscles), now, plan.id).run();
+    return answer();
   }
   if (action === 'kind') {
     if (!kind) return json({ error: 'Pick Push, Pull, Legs, Full body or Move.' }, 400);

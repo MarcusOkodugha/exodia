@@ -1831,14 +1831,16 @@ const headLogo = (side, points, tier) => {
   return `<mask id="hamsa-${side}" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}"><image href="/hamsa-mask${side === 'back' ? '-back' : ''}.png" x="${x}" y="${y}" width="${size}" height="${size}"/></mask><rect x="${x}" y="${y}" width="${size}" height="${size}" mask="url(#hamsa-${side})" class="bodyHead ${tier}"/>`;
 };
 let headTierNow = null;
+// Train together: the muscles a plan is for, lit on every figure (set only while Train together draws).
+let bodyChosen = null;
 const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 -7 100 207" aria-hidden="true">${anatomy[side].map(([key, points]) => {
   if (key === 'head') return headTierNow ? headLogo(side, points, headTierNow).replace('<rect ', '<rect data-head ') : `<polygon data-head points="${points}" class="bodyBone"/>`;
   if (levels) {
     const tier = key ? tierOf(levels[key] || 0) : null;
-    return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}${key && view.musclePick === key ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
+    return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}${key && (view.musclePick === key || bodyChosen?.has(key)) ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
   }
   const step = key ? recoveryStep(load, key) : '';
-  return `<polygon points="${points}" class="${!key ? 'bodyBone' : step ? `bodyRecov ${step}` : 'bodyRest'}${key && view.musclePick === key ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
+  return `<polygon points="${points}" class="${!key ? 'bodyBone' : step ? `bodyRecov ${step}` : 'bodyRest'}${key && (view.musclePick === key || bodyChosen?.has(key)) ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
 }).join('')}</svg>`;
 const renderMuscles = () => {
   loadAnatomy();
@@ -5172,6 +5174,21 @@ const renderFriend = () => {
 const backDock = () => `<div class="backDock"><a class="backHome" href="#/">${ICONS.chevRight.replace('class="exChev"', 'class="exChev back"')}Back to ${esc(myName())}</a></div>`;
 
 // Train together.
+// Optional, off the normal path: a note everyone in the plan sees, and the muscles you'll train, tapped on the
+// figures above. Both are quiet text until someone uses them.
+const planExtras = (plan) => {
+  const together = view.together;
+  const label = (key) => MUSCLES.find(([muscle]) => muscle === key)?.[1] || key;
+  const chosen = plan.muscles || [];
+  const note = together.noteOpen
+    ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
+    : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
+  const muscles = together.picking
+    ? `<p class="tgWhy">Tap muscles on the figures to add or remove them.${chosen.length ? ` <b>${chosen.map((key) => esc(label(key))).join(', ')}</b>.` : ''}</p>`
+    : chosen.length ? `<p class="tgWhy">Focus: <b>${chosen.map((key) => esc(label(key))).join(', ')}</b></p>` : '';
+  const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
+  return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
+};
 const renderTogether = () => {
   if (!featureOn('friends')) return renderHome();
   if (!view.together) startTogether();
@@ -5194,7 +5211,9 @@ const renderTogether = () => {
   const drawn = anatomy && anatomy !== 'loading';
   // The figures turn to fit what you train: Pull shows the back, Push, Legs and Move the front, Full body both.
   const sides = picked === 'Pull' ? ['back'] : picked === 'Full body' ? ['front', 'back'] : ['front'];
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  bodyChosen = plan?.muscles?.length ? new Set(plan.muscles) : null;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  bodyChosen = null;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
@@ -5209,6 +5228,7 @@ const renderTogether = () => {
     ${bodies}
     ${what}
     ${planLine}
+    ${plan ? planExtras(plan) : ''}
     ${plan && featureOn('notifications') && pushSupported() && pushState() === 'off' && !view.pushOfferGone ? `<p class="tgWhy tgPush">Get a notice if ${esc(plan.members.find((member) => !member.me)?.name || 'a friend')} changes it. Only plans and friend requests, never reminders. <button class="textBtn clay" data-action="push-toggle">Turn on notifications</button></p>` : ''}
     ${together.note ? `<p class="tgNote" role="status">${esc(together.note)}</p>` : ''}
     <p class="tgLabel">When <span class="wnNow">${parseIso(together.date).toLocaleDateString('en-GB', { month: 'long' })}</span></p>
@@ -7895,6 +7915,29 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
+  if (action === 'pick-muscle' && view.route === 'together' && view.together?.picking) {
+    const plan = togetherPlan();
+    if (!plan) return;
+    const key = target.dataset.muscle;
+    const muscles = (plan.muscles || []).includes(key) ? plan.muscles.filter((muscle) => muscle !== key) : [...(plan.muscles || []), key];
+    plan.muscles = muscles;
+    render();
+    togetherSend({ action: 'muscles', muscles });
+    return;
+  }
+  if (action === 'together-muscles') {
+    view.together.picking = !view.together.picking;
+    render();
+    return;
+  }
+  if (action === 'together-note-open') {
+    view.together.noteOpen = true;
+    render();
+    const field = document.getElementById('planNote');
+    field?.focus();
+    field?.setSelectionRange(field.value.length, field.value.length);
+    return;
+  }
   if (action === 'pick-muscle') {
     const key = target.dataset.muscle;
     pickMuscle(view.musclePick === key ? null : key);
@@ -8752,6 +8795,17 @@ const route = () => {
   if (view.route === 'home' && view.homeScroll && !view.trendScroll) scrollPage(view.homeScroll);
   if (view.route === 'log' || (view.route === 'admin' && view.adminTab === 'chat')) scrollPage(scroller().scrollHeight);
 };
+// Train together note: Return or Save keeps it for everyone in the plan; an empty note removes it.
+document.addEventListener('submit', (event) => {
+  if (!event.target.closest('.tgNoteForm')) return;
+  event.preventDefault();
+  const note = document.getElementById('planNote')?.value || '';
+  const plan = togetherPlan();
+  view.together.noteOpen = false;
+  if (plan) Object.assign(plan, { note: note.replace(/\s+/g, ' ').trim().slice(0, 200), noteBy: 'me' });
+  render();
+  togetherSend({ action: 'note', note });
+});
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);
 view.focusDraft = desktopQuery.matches;
