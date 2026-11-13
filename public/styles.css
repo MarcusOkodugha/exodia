@@ -1141,7 +1141,6 @@ button.calDay:active { transform: scale(0.85); }
 /* Nothing may make the page wider than the screen (a chart dot's touch area at the right edge did, by 1px), or Safari lets
    the whole page sit a little to one side. */
 main.page { overflow-x: clip; }
-<<<<<<< Updated upstream
 
 .daySummary:empty { display: none; }
 
@@ -1825,28 +1824,3 @@ button.wnDay { cursor: pointer; }
 .tgPlan .tgPlanDay { display: inline-block; font-size: 19px; line-height: 25px; font-weight: 600; color: var(--clayText); animation: planText 2.4s ease-in-out 2; }
 @keyframes planText { 50% { text-shadow: 0 0 14px rgb(var(--clayRgb) / 0.45); } }
 @media (prefers-reduced-motion: reduce) { .wnDay.planned > span, .tgPlan .tgPlanDay { animation: none; } }
-=======
-/* Level key is a button: tap it for what the levels mean. */
-.levelKeyBox { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.levelKey { align-items: center; }
-.levelKeyInfo { display: inline-grid; place-items: center; flex: none; width: 15px; height: 15px; margin-left: 2px; border: 1px solid var(--line); border-radius: 50%; font-size: 10px; font-style: normal; font-weight: 600; color: var(--text2); }
-.levelInfo { margin: 10px 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); animation: levelInfoIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.trendsPage .levelInfo { background: rgb(20 20 19 / 0.025); }
-@keyframes levelInfoIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.levelInfoLead { margin: 0 0 8px; font-size: 13px; line-height: 18px; color: var(--text2); }
-.levelInfoRow { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 8px; margin: 0; padding: 4px 0; font-size: 14px; border-top: 1px solid rgb(20 20 19 / 0.05); }
-.levelInfoRow b, .impressiveLevel b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #FFFFFF; }
-.levelInfoRow b.tierBeg { color: #4A4740; } .levelInfoRow b.tierNov { color: #2F4A33; }
-.levelInfoRow .num { color: var(--text2); font-size: 13px; text-align: right; }
-.levelInfoNote { margin: 8px 0 0; font-size: 12px; line-height: 17px; color: var(--text2); }
-/* Your most impressive lift. */
-.impressiveCard { padding: 12px 2px 14px; }
-.impressiveLift { margin: 0; font-size: 20px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.impressiveLift .num { font-weight: 600; }
-.impressiveWhen { flex-basis: 100%; font-size: 12.5px; font-weight: 400; color: var(--text2); }
-.impressiveLevel { margin: 10px 0 0; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.impressiveLevel b { width: auto; height: auto; padding: 3px 10px; border-radius: 999px; font-size: 14px; }
-.impressiveLevel .num { color: var(--text2); font-weight: 500; }
-.impressiveRare { margin: 10px 0 0; font-size: 15px; line-height: 21px; }
-.impressiveWhy { margin: 4px 0 0; font-size: 13.5px; line-height: 19px; color: var(--text2); }
->>>>>>> Stashed changes

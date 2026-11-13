@@ -1768,7 +1768,6 @@ const MUSCLE_LIFTS = {
 // The same five colours as --tierBeg … in styles.css (SVG gradients need the values).
 const TIER_COLOURS = { tierBeg: '#BDB7AA', tierNov: '#A9C4A6', tierInt: '#A88FB5', tierAdv: '#C96442', tierElite: '#7CA3DD' };
 // The level key, the same under the anatomy and under the strength web: the level's number in its colour, then its name.
-<<<<<<< Updated upstream
 // Tap a level (or the i) for what each level means; it opens under the key that was tapped.
 const levelKey = (where) => {
   const open = view.levelInfo?.where === where ? view.levelInfo.level : null;
@@ -1778,16 +1777,6 @@ const levelKey = (where) => {
       <div class="levelRows">${keys.map(([tier, name], index) => `<p class="levelRow${open === index + 1 ? ' on' : ''}"><b class="${tier}">${index + 1}</b><span class="levelName">${name}</span><span class="levelBeats num">Beats ${Math.round(LEVEL_BEATS[index] * 100)}%</span></p>`).join('')}</div>
       <p class="levelInfoNote">6.4 million checked lifts, 2015–2026. Past Elite, Exodia counts raw meet results instead (OpenPowerlifting).</p></div>`}`;
 };
-=======
-const levelKey = () => `<button class="levelKeyBox" data-action="level-info" aria-expanded="${Boolean(view.levelInfo)}"><span class="levelKey">${[['tierBeg', 'Beginner'], ['tierNov', 'Novice'], ['tierInt', 'Intermediate'], ['tierAdv', 'Advanced'], ['tierElite', 'Elite']].map(([tier, name], index) => `<span><b class="${tier}">${index + 1}</b>${name}</span>`).join('')}<i class="levelKeyInfo" aria-hidden="true">i</i></span></button>${view.levelInfo ? levelInfo() : ''}`;
-// Tap the key: what the levels mean, from Strength Level's own definitions.
-const levelInfo = () => `<div class="levelInfo">
-    <p class="levelInfoLead">Each lift's best one-rep max against Strength Level's standards for ${state.body?.kg ? `${Math.round(state.body.kg)} kg ${state.body.sex === 'female' ? 'women' : 'men'}` : 'your bodyweight and sex'}. Stronger than:</p>
-    ${[['tierBeg', 'Beginner', '5% of lifters'], ['tierNov', 'Novice', '20%'], ['tierInt', 'Intermediate', '50%, the middle'], ['tierAdv', 'Advanced', '80%'], ['tierElite', 'Elite', '95%']].map(([tier, name, share], index) => `<p class="levelInfoRow"><b class="${tier}">${index + 1}</b><span>${name}</span><span class="num">${share}</span></p>`).join('')}
-    <p class="levelInfoRow"><b class="tierElite">+</b><span>Elite +</span><span class="num">past Elite: ${beatsShare(5.5).toFixed(0)}% at 5.5, ${beatsShare(6.5).toFixed(1)}% at 6.5</span></p>
-    <p class="levelInfoNote">The number after a level (like 4.5) is how far you are toward the next one. "Lifters" means people who log lifts on Strength Level, so it's measured against people who train.</p>
-  </div>`;
->>>>>>> Stashed changes
 const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tierAdv', 'Adv.'], [3, 'Intermediate', 'tierInt', 'Int.'], [2, 'Novice', 'tierNov', 'Nov.'], [0.01, 'Beginner', 'tierBeg', 'Beg.']];
 const muscleLevels = () => {
   const body = state.body;
@@ -1958,11 +1947,7 @@ const renderTrends = () => {
     ${renderMuscles()}
     ${desktopQuery.matches ? '' : `${renderStrength()}${renderVolume()}`}
     ${renderCalendar()}
-<<<<<<< Updated upstream
     ${desktopQuery.matches ? '' : renderImpressive()}
-=======
-    ${renderImpressive()}
->>>>>>> Stashed changes
   </main>`;
 };
 
@@ -3128,28 +3113,8 @@ const textWidth = (text, font) => {
   measurer.font = `${font} ${getComputedStyle(document.body).fontFamily}`;
   return measurer.measureText(text).width;
 };
-<<<<<<< Updated upstream
 // A level's number cut, not rounded, to one decimal, so 4.99 reads 4.9 next to "Advanced", never 5.0.
 const levelNumber = (score) => (Math.floor(Math.min(score, 9.99) * 10) / 10).toFixed(1);
-=======
-// On the web the level is short (the key under it spells it out in the same colours), so the web itself can be bigger.
-const levelShort = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 5 ? 'Elite' : score >= 4 ? 'Adv.' : score >= 3 ? 'Int.' : score >= 2 ? 'Nov.' : score >= 1 ? 'Beg.' : score > 0 ? '< Beg.' : '');
-// How many lifters a level beats. Strength Level defines its levels this way: Beginner is stronger than 5% of lifters,
-// Novice 20%, Intermediate 50%, Advanced 80%, Elite 95%. In between it's read off a straight line; past Elite it carries on
-// along the same bell curve (Advanced→Elite is about 0.8 standard deviations per level).
-const LEVEL_SHARE = [[0, 0], [1, 5], [2, 20], [3, 50], [4, 80], [5, 95]];
-const normal = (z) => {
-  const t = 1 / (1 + 0.2316419 * Math.abs(z));
-  const tail = 0.3989423 * Math.exp((-z * z) / 2) * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  return z >= 0 ? 1 - tail : tail;
-};
-const beatsShare = (score) => {
-  if (score >= 5) return normal(1.645 + 0.82 * (score - 5)) * 100;
-  const index = Math.max(0, Math.min(4, Math.floor(score)));
-  const [[from, low], [, high]] = [LEVEL_SHARE[index], LEVEL_SHARE[index + 1]];
-  return low + (high - low) * (score - from);
-};
->>>>>>> Stashed changes
 const levelWord = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
 // The same, short (Int. 3.6), where room is tight; the level key underneath spells each one out.
 const levelShort = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? ['Beg.', 'Nov.', 'Int.', 'Adv.', 'Elite'][Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beg.' : '');
@@ -3219,30 +3184,6 @@ const bodyForm = (title) => `<div class="bodyForm">
       <button class="chip saveBody" data-action="body-save"><span class="chipFace">Save</span></button></div>
     ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
   </div>`;
-// Bottom of Trends: the lift that stands out most against its standard, how rare it is, and why.
-const renderImpressive = () => {
-  const body = state.body;
-  if (!body?.kg || !body?.sex || !Object.keys(STANDARDS).length) return '';
-  const lifts = WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks && (lift.value || lift.ever));
-  if (!lifts.length) return '';
-  const best = lifts.map((lift) => ({ ...lift, top: Math.max(lift.score, lift.everScore), lately: lift.score >= lift.everScore - 0.01 })).sort((first, second) => second.top - first.top)[0];
-  if (best.top < 1) return '';
-  const share = beatsShare(best.top);
-  const oneIn = 100 / Math.max(0.01, 100 - share);
-  const rounded = oneIn >= 20 ? Math.round(oneIn / 5) * 5 : Math.round(oneIn);
-  const kg = Math.round(best.lately ? best.value : best.ever);
-  const elite = best.marks[4];
-  const tier = tierOf(best.top)?.[2] || 'tierBeg';
-  const shown = best.reps ? `${Math.round(kg - body.kg) >= 0 ? `+${Math.round(kg - body.kg)}` : Math.round(kg - body.kg)} kg on your bodyweight` : `${kg} kg`;
-  const versus = elite ? (kg >= elite ? `Elite for ${Math.round(body.kg)} kg starts at ${Math.round(best.reps ? elite - body.kg : elite)} kg${best.reps ? ' added' : ''}; you're ${Math.round(kg - elite)} kg past it.` : `Elite for ${Math.round(body.kg)} kg starts at ${Math.round(best.reps ? elite - body.kg : elite)} kg${best.reps ? ' added' : ''}; ${Math.round(elite - kg)} kg to go.`) : '';
-  return `<p class="section">Your most impressive lift</p>
-    <section class="card impressiveCard">
-      <p class="impressiveLift">${esc(best.label)} <span class="num">${shown}</span><span class="impressiveWhen">${best.lately ? 'est. one-rep max, last 3 months' : 'est. one-rep max, all time'}</span></p>
-      <p class="impressiveLevel"><b class="${tier}">${levelWord(best.top)}</b> <span class="num">${best.top.toFixed(1)}</span></p>
-      <p class="impressiveRare">Stronger than about <b class="num">${share >= 99 ? share.toFixed(1) : Math.round(share)}%</b> of ${Math.round(body.kg)} kg ${body.sex === 'female' ? 'women' : 'men'} who lift: about <b class="num">1 in ${rounded}</b>.</p>
-      ${versus ? `<p class="impressiveWhy">${versus}</p>` : ''}
-    </section>`;
-};
 const renderStrength = () => {
   if (!Object.keys(STANDARDS).length) return '';
   // No bodyweight yet: the web shows empty with the form on it, so it's clear what to fill in (one saved on another
@@ -3284,7 +3225,6 @@ const renderStrength = () => {
     // A corner at the top moves up a line, so its set line never touches the outer ring.
     const [x, y] = [middle + Math.cos(angle(index)) * (radius + 22), middle + Math.sin(angle(index)) * (radius + 22) - (Math.sin(angle(index)) < -0.5 ? 50 : 0)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
-<<<<<<< Updated upstream
     // The set the level comes from, under it; tapping the corner opens that day.
     const source = known && shown(lift) ? (recent ? lift.recent : lift.best) : null;
     const setLine = source ? (lift.key === 'pull-ups' ? (Number(source.set.kg) > 0 ? `+${Number(source.set.kg)} kg × ${source.set.reps}` : `${source.set.reps} reps`) : `${Number(source.set.kg)} × ${source.set.reps}`) : '';
@@ -3297,16 +3237,6 @@ const renderStrength = () => {
     if (!source) return corner;
     const when = parseIso(source.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     return `<g class="webCorner" data-action="jump-session" data-date="${source.date}" role="button" aria-label="${esc(lift.label)}: ${setLine}, ${when}, open the day">${corner}<text x="${x.toFixed(1)}" y="${(y + 41).toFixed(1)}" text-anchor="${anchor}" class="webSet">${setLine}</text><text x="${x.toFixed(1)}" y="${(y + 59).toFixed(1)}" text-anchor="${anchor}" class="webSet">${when}</text></g>`;
-=======
-    const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelShort(shownScore(lift))} 0.0`, '500 15px'));
-    const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
-    [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
-    // Not done in the last 3 months: the corner shows the all-time level, marked so, instead of looking empty.
-    const swatch = lift.value || lift.ever ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
-    const level = !known ? '<tspan class="webNone">–</tspan>' : lift.value ? `${swatch}${levelShort(lift.score)} <tspan class="webNum">${lift.score.toFixed(1)}</tspan>` : lift.ever ? `${swatch}<tspan class="webEverWord">${levelShort(lift.everScore)} ${lift.everScore.toFixed(1)}</tspan>` : '<tspan class="webNone">Not logged</tspan>';
-    const allTime = !lift.value && lift.ever ? `<text x="${x.toFixed(1)}" y="${(y + 38).toFixed(1)}" text-anchor="${anchor}" class="webEver">all time</text>` : '';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>${allTime}`;
->>>>>>> Stashed changes
   }).join('');
   // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
   const half = Math.max(middle - left, right - middle) + 4;
@@ -7885,10 +7815,6 @@ document.addEventListener('click', (event) => {
       render();
       keepAnchor(anchor);
     }, 230);
-  }
-  if (action === 'level-info') {
-    view.levelInfo = !view.levelInfo;
-    return render();
   }
   if (action === 'body-sex') {
     view.bodySex = target.dataset.sex;
