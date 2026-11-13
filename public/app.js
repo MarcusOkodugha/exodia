@@ -1751,7 +1751,8 @@ const MUSCLE_LIFTS = {
   traps: { deadlift: 0.75, 'bent-over-row': 0.25 },
   biceps: { 'pull-ups': 0.6, 'bent-over-row': 0.4 },
   lowerBack: { deadlift: 0.7, squat: 0.2, 'bent-over-row': 0.1 },
-  quads: { squat: 1 },
+  // Squat leads; front squat, hack squat and barbell split squat count too, each on its own Strength Level table.
+  quads: { squat: 0.6, 'hack-squat': 0.15, 'bulgarian-split-squat': 0.15, 'front-squat': 0.1 },
   glutes: { squat: 0.5, deadlift: 0.5 },
   hamstrings: { deadlift: 0.7, squat: 0.3 },
   forearms: { deadlift: 0.5, 'bent-over-row': 0.3, 'pull-ups': 0.2 },
@@ -1775,7 +1776,7 @@ const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tie
 const muscleLevels = () => {
   const body = state.body;
   if (!body?.kg || !body?.sex) return null;
-  const scores = Object.fromEntries([...WEB_LIFTS, ...MUSCLE_ONLY_LIFTS(), ...OTHER_LIFTS.filter((lift) => lift.key === 'face-pull')].map((lift) => {
+  const scores = Object.fromEntries([...WEB_LIFTS, ...MUSCLE_ONLY_LIFTS(), ...OTHER_LIFTS.filter((lift) => Object.values(MUSCLE_LIFTS).some((lifts) => lift.key in lifts))].map((lift) => {
     const result = liftStrength(lift, body);
     return [lift.key, result.everScore || 0];
   }));
