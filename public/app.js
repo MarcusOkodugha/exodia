@@ -5097,17 +5097,17 @@ const renderTogether = () => {
   const row = `<div class="tgWho" role="group" aria-label="Who's coming">
     <span class="tgP on me">${avatar(myName(), view.blue)}<span class="tgName">${esc(myName())}</span></span>
     ${friends.map((friend) => `<button class="tgP${coming(friend.handle) ? ' on' : ''}" data-action="together-person" data-handle="${friend.handle}" aria-pressed="${coming(friend.handle)}">${avatar(friend.name, friendHasExodia(friend))}<span class="tgName">${esc(friend.name)}</span></button>`).join('')}
-    <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">+</span><span class="tgName">Add</span></a></div>`;
+    <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.plus}</span><span class="tgName">Add</span></a></div>`;
   loadAnatomy();
   const drawn = anatomy && anatomy !== 'loading';
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => `<figure>${entry.me ? bodySvg('back', entry.load) : asPerson(entry.person, () => bodySvg('back', entry.load))}<figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => `<figure>${entry.me ? bodySvg('back', entry.load) : asPerson(entry.person, () => bodySvg('back', entry.load))}<figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
     ${conflict ? `<p class="tgWhy">${esc(conflict.plan.by === 'me' ? 'You' : conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b> for ${short(conflict.plan.date)}.<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`
       : `<p class="tgWhy">${picked === fit.best || people.length === 1 ? fit.why : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}</p>`}`;
-  const planLine = plan ? `<p class="tgPlan">${esc(plan.kind)} planned for ${together.date === today ? 'today' : short(together.date)} with ${esc(plan.members.filter((member) => !member.me).map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1'))}${plan.by !== 'me' ? `, picked by ${esc(plan.by)}` : ''}. <button class="textBtn" data-action="together-leave">Leave</button></p>` : '';
+  const planLine = plan ? `<p class="tgPlan">${esc(plan.kind)} planned for ${together.date === today ? 'today' : short(together.date)} with ${esc(plan.members.filter((member) => !member.me).map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1'))}${plan.by !== 'me' ? `, picked by ${esc(plan.by)}` : ''}.</p><button class="fxBtn tgLeave" data-action="together-leave">Leave this plan</button>` : '';
   return `<main class="page togetherPage">
     <div class="titleRow"><h1 class="title">Train together</h1></div>
     ${row}

@@ -1808,3 +1808,6 @@ button.wnDay { cursor: pointer; }
 .setLinks .setLink .exChev { flex: none; color: var(--text2); }
 /* The menu slides in once; redraws while it's open keep it still. */
 .overlay.shown .drawer, .overlay.shown .scrim { animation: none; }
+/* Train together: the + in Add is drawn and centred like Add friends; Leave this plan reads as a button. */
+.tgP.add .fav svg { width: 18px; height: 18px; display: block; }
+.tgLeave { display: block; margin: -6px 0 16px; }
