@@ -73,6 +73,7 @@ const ICONS = {
   mic: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
   up: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   clip: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
+  favPlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16" vector-effect="non-scaling-stroke"/></svg>',
   plusThin: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   trophy: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5.5a2.5 2.5 0 0 0 2.6 3.5M16 6h2.5a2.5 2.5 0 0 1-2.6 3.5"/><path d="M12 13v4M9 20h6M10 17h4"/></svg>'
@@ -5017,7 +5018,7 @@ const friendsSide = () => {
   return `<div class="fxSide"><p class="drawerLabel">Friends</p>
     ${friends.length ? `<a class="fxRow${view.route === 'together' ? ' on' : ''}" href="#/together"><span class="fxStack" aria-hidden="true"><i></i><i></i></span><span class="fxName">Train together</span></a>` : ''}
     ${friends.map((friend) => `<a class="fxRow${view.route === 'friend' && view.friendHandle === friend.handle ? ' on' : ''}" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span>${friendStatus(friend) ? `<span class="fxSub">${friendStatus(friend)}</span>` : ''}</span>${view.isAdmin && friend.admin?.errors ? `<span class="fxErr">${friend.admin.errors} ${friend.admin.errors === 1 ? 'error' : 'errors'}</span>` : ''}</a>`).join('')}
-    <a class="fxRow fxAdd${view.route === 'friends' ? ' on' : ''}" href="#/friends"><span class="fav add" aria-hidden="true">+</span><span class="fxName">${friends.length ? 'Add a friend' : 'Find friends'}</span>${requests ? `<span class="fxCount">${requests}</span>` : ''}</a></div>`;
+    <a class="fxRow fxAdd${view.route === 'friends' ? ' on' : ''}" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.favPlus}</span><span class="fxName">${friends.length ? 'Add a friend' : 'Find friends'}</span>${requests ? `<span class="fxCount">${requests}</span>` : ''}</a></div>`;
 };
 
 // The Friends page: find people by name, answer requests, and choose what friends see.
@@ -5083,7 +5084,7 @@ const renderTogether = () => {
   const row = `<div class="tgWho" role="group" aria-label="Who's coming">
     <span class="tgP on me">${avatar(myName(), view.blue)}<span class="tgName">${esc(myName())}</span></span>
     ${friends.map((friend) => `<button class="tgP${coming(friend.handle) ? ' on' : ''}" data-action="together-person" data-handle="${friend.handle}" aria-pressed="${coming(friend.handle)}">${avatar(friend.name, friendHasExodia(friend))}<span class="tgName">${esc(friend.name)}</span></button>`).join('')}
-    <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">+</span><span class="tgName">Add</span></a></div>`;
+    <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.favPlus}</span><span class="tgName">Add</span></a></div>`;
   loadAnatomy();
   const drawn = anatomy && anatomy !== 'loading';
   const bodies = !drawn ? '<div class="tgBodies"></div>' : `<div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => `<figure>${entry.me ? bodySvg('back', entry.load) : asPerson(entry.person, () => bodySvg('back', entry.load))}<figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`;

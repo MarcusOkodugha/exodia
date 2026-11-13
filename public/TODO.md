@@ -78,6 +78,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Exodia 1.0 in the box is a full round pill (like the model picker in Claude); the plus on Add / Add a friend is drawn on the true centre, line as thin as the ring (v429)
 - ✓ Avatars: everyone on screen (friends, requests, People on Exodia, search) spread by golden angle over the full wheel, alternating light/deep; Marcus has Hide on People on Exodia (findable = 0, log stays) (v428)
 - [x] **Year marks under the Trends chart: decided No (13 Nov).** The lift chart stays as it is: first and last date only, dots evenly spaced.
 - [x] **Exact % on each lift: decided No (13 Nov).** Levels stay as "Squat · Int. 3.6"; no "beats 68%" added.

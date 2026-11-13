@@ -1498,8 +1498,8 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 /* Toasts break between words, never inside "15 × 10", and balance their lines. */
 .toastTitle { text-wrap: balance; }
 
-/* Pills inside the box follow its corners: the box's 16px less the gap around them. */
-.prompt .modelTag { border-radius: 10px; }
+/* Exodia 1.0 is a full pill (round ends), like the model picker in Claude; the context chip follows the box's corners. */
+.prompt .modelTag { border-radius: 999px; }
 .prompt .contextChip { border-radius: 9px; }
 
 /* The red pill is a dot now: Marcus only, top right on a phone, beside the name in the computer's sidebar. */
@@ -1737,7 +1737,9 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 .tgP { flex: none; width: 62px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--text); text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity 0.2s ease, filter 0.2s ease; }
 .tgP .fav { width: 50px; height: 50px; font-size: 18px; }
 .tgP:not(.on):not(.add) { opacity: 0.38; filter: grayscale(1); }
-.tgP.add { color: var(--text2); } .tgP.add .fav { font-size: 24px; }
+.tgP.add { color: var(--text2); }
+/* The plus is drawn, so it sits on the circle's true centre (a typed + rides high), its line as thin as the ring. */
+.fav.add svg { display: block; width: 44%; height: 44%; stroke-width: 1.6; }
 .tgP.me { cursor: default; }
 .tgP.on .fav::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; border-radius: 50%; background: var(--clay) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12.5l4 4 8-9"/></svg>') center / 12px no-repeat; box-shadow: 0 0 0 2px var(--bg); }
 .tgName { max-width: 62px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
