@@ -9038,3 +9038,6 @@ for (const type of ['focus', 'visibilitychange']) window.addEventListener(type, 
   if (featureOn('friends')) loadSocial();
 });
 setTimeout(sendUse, 4000);
+// The app started: the rescue in index.html stands down (and may help again another day).
+window.__exodiaBooted = true;
+try { sessionStorage.removeItem('exodia.rescued'); } catch { /* private mode */ }

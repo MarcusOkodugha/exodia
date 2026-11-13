@@ -31,6 +31,20 @@
 <body>
   <div id="app"><div class="boot" aria-hidden="true"><img src="/logo.png" alt=""><p class="bootTip" id="bootTip"></p></div></div>
   <script>bootTip.textContent=["Hold a day to edit it.","Say 3 sets and Exodia adds three.","Type /help to see what Exodia understands.","Paused and close-grip sets count for your bench too.","Hit push, pull, legs, arms and move in 10 days for Exodia.","No great thing is created suddenly."][Math.random()*6|0]</script>
+  <script>
+  // If the app hasn't started (a broken or half-saved copy on this phone), throw the saved copy away and load it fresh, once.
+  (function () {
+    var rescue = function () {
+      try { if (window.__exodiaBooted || sessionStorage.getItem('exodia.rescued')) return; sessionStorage.setItem('exodia.rescued', '1'); } catch (e) { return; }
+      var wipe = window.caches ? caches.keys().then(function (keys) { return Promise.all(keys.map(function (key) { return caches.delete(key); })); }) : Promise.resolve();
+      wipe.then(function () { return navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : []; })
+        .then(function (regs) { return Promise.all(regs.map(function (reg) { return reg.update(); })); })
+        .catch(function () {}).then(function () { location.reload(); });
+    };
+    window.addEventListener('error', function (event) { if (event.filename && /\/app\.js/.test(event.filename)) setTimeout(rescue, 300); });
+    setTimeout(rescue, 8000);
+  })();
+  </script>
   <script src="/app.js" defer></script>
 </body>
 </html>
