@@ -6,8 +6,6 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Decide: year marks under the Trends chart?** The chart only shows the first and last date, so your 190 squat (Sep 2023) looked like 2021. Yes puts 2021, 2022, 2023 … along the bottom and spaces the dots by date, so a quiet year looks quiet and a busy month doesn't take half the chart.
-  1. Yes changes the lift chart on Trends; No keeps it as it is.
 - [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
   1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
   2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
@@ -78,6 +76,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- [x] **Year marks under the Trends chart: decided No (13 Nov).** The lift chart stays as it is: first and last date only, dots evenly spaced.
 - [x] **Exact % on each lift: decided No (13 Nov).** Levels stay as "Squat · Int. 3.6"; no "beats 68%" added.
 - [x] **Anatomy (13 Nov, v419–v421):** rear delts are their own muscle (back of the shoulder; strength from rows, face pulls and pull-ups; recovery from rows, face pulls, reverse flys). A tapped muscle gets a square row with a clay glow and a deeper colour; tap anywhere else or Esc to clear. Deeper recovered green.
 - [x] **Names are accounts (12 Nov, v415):** a taken name opens that person's log on any phone, link or reinstall; Settings refuses taken names. Also: a leaked default bench best is ignored (v412–v413), the web counts lift name variants like Incline Barbell Bench (v414), and bodyweight logged inside pull-up weights is caught by the AI (v414).
