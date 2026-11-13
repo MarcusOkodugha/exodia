@@ -1677,8 +1677,7 @@ const loadAnatomy = () => {
 // Days until a muscle is recovered. After that it keeps a light tint until it drops out of the 7 days.
 const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, traps: 4, chest: 3, shoulders: 3, rearDelts: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
 const daysBetween = (from, to) => Math.round((new Date(`${to}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
-const muscleLoad = () => {
-  const today = todayIso();
+const muscleLoad = (today = todayIso()) => {
   const since = addDays(today, -6);
   const sets = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
   const fatigue = Object.fromEntries(MUSCLES.map(([key]) => [key, 0]));
@@ -2681,6 +2680,7 @@ const renderAdmin = () => {
     ${(view.adminBuilders || []).length > 1 ? `<div class="builderRow"><span class="builderLabel">Built with</span><div class="segment full builderSwitch" role="group" aria-label="Claude account that builds">${view.adminBuilders.map((builder) => `<button class="segmentOption" data-action="pick-builder" data-slot="${builder.slot}" aria-pressed="${view.adminBuilder === builder.slot}"${builder.ready ? '' : ' disabled'}>Account ${builder.slot}${builder.ready ? '' : ' · not set up'}</button>`).join('')}</div></div><p class="feedbackMeta">If that account can't start, the other one is tried.</p>` : ''}
     ${view.adminError ? `<p class="feedbackMeta"><span class="runFailed">${esc(view.adminError)}</span> <button class="textBtn" data-action="admin-reload">Try again</button></p>` : ''}
     <div class="chat">${adminChat()}</div>` : `
+    ${(view.beta || []).length ? `<p class="section">Beta</p><div class="betaList">${view.beta.map((feature) => `<div class="betaRow"><span class="betaText"><b>${esc(feature.title)}</b><small>${feature.launched ? 'Everyone has it' : 'Only you (and test profiles) see it'}</small></span><button class="fxBtn${feature.launched ? ' quiet' : ' clay'}" data-action="feature-launch" data-name="${esc(feature.name)}" data-launch="${feature.launched ? '0' : '1'}">${feature.launched ? 'Pull back' : 'Launch for everyone'}</button></div>`).join('')}</div>` : ''}
     <p class="section">Overview</p>
     ${renderAdminStats()}
     <p class="section">Invite someone</p>
@@ -3608,6 +3608,7 @@ const runAiSearch = () => {
 const drawerContent = () => {
   const history = exodiaHistory();
   return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ['help', 'Help', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+      ${friendsSide()}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>
       <div class="drawerTools"><button class="drawerTool" data-action="undo-change" ${undoSteps.length ? '' : 'disabled'}>Undo</button><button class="drawerTool" data-action="redo-change" ${redoSteps.length ? '' : 'disabled'}>Redo</button></div>`;
@@ -4704,6 +4705,430 @@ const keepPrivateUrl = () => {
   if (location.pathname !== own) history.replaceState(history.state, '', `${own}${location.search}${location.hash}`);
 };
 
+// Beta and launch: a feature Marcus hasn't launched yet is only for him (and test profiles named "Test …").
+// The launched list comes from /api/features and is kept, so the app opens with the right pages straight away.
+try {
+  view.launched = JSON.parse(localStorage.getItem('exodia.launched') || '[]');
+} catch {
+  view.launched = [];
+}
+const featureOn = (name) => Boolean(view.isAdmin) || /^test\s/i.test(state.name || '') || (view.launched || []).includes(name);
+const loadFeatures = () => fetch('/api/features', { headers: syncState?.profile ? { 'x-exodia-key': syncState.profile } : {} })
+  .then((response) => (response.ok ? response.json() : null))
+  .then((data) => {
+    if (!data) return;
+    const before = JSON.stringify([view.launched, view.beta]);
+    view.launched = data.launched || [];
+    if (data.beta) view.beta = data.beta;
+    try {
+      localStorage.setItem('exodia.launched', JSON.stringify(view.launched));
+    } catch {
+      // private mode: asked again next time
+    }
+    if (JSON.stringify([view.launched, view.beta]) !== before) {
+      if (featureOn('friends')) loadSocial();
+      render();
+    }
+  })
+  .catch(() => {});
+
+// Friends: what the server says (you, requests, friends with what they share, plans), kept per profile so the
+// sidebar has it on the next open even offline.
+const socialKey = () => `exodia.social.${syncState?.profile || ''}`;
+try {
+  view.social = JSON.parse(localStorage.getItem(socialKey()) || 'null');
+} catch {
+  view.social = null;
+}
+let socialLoading = null;
+const socialPost = (path, body) => timedFetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ ...body, today: todayIso() }) }, 15000)
+  .then(async (response) => ({ ok: response.ok, status: response.status, data: await response.json().catch(() => ({})) }));
+const keepSocial = (data) => {
+  if (!data?.me) return;
+  view.social = data;
+  view.friendStates = null;
+  try {
+    localStorage.setItem(socialKey(), JSON.stringify(data));
+  } catch {
+    // too big or private mode: kept in memory only
+  }
+};
+const loadSocial = () => {
+  if (!featureOn('friends') || !syncState?.profile || socialLoading) return socialLoading;
+  socialLoading = socialPost('/api/friends', { action: 'list' })
+    .then(({ ok, data }) => {
+      if (ok) {
+        keepSocial(data);
+        syncTogether();
+      }
+      render();
+    })
+    .catch(() => {})
+    .finally(() => {
+      socialLoading = null;
+    });
+  return socialLoading;
+};
+const friendsList = () => view.social?.friends || [];
+const friendByHandle = (handle) => friendsList().find((friend) => friend.handle === handle) || null;
+const myName = () => state.name || view.social?.me?.name || 'You';
+
+// Seeing a friend through the same code as yourself: their sessions are swapped in for a moment.
+const asPerson = (person, compute) => {
+  const [keepState, keepHits] = [state, hitsCache];
+  state = person;
+  memoSaved = Symbol('friend');
+  hitsCache = null;
+  try {
+    return compute();
+  } finally {
+    state = keepState;
+    memoSaved = null;
+    hitsCache = keepHits;
+  }
+};
+// A friend as Exodia sees them: their last 3 weeks of sessions, plus their heaviest set of each lift (for levels).
+const friendState = (friend) => {
+  view.friendStates ||= new Map();
+  if (view.friendStates.has(friend.handle)) return view.friendStates.get(friend.handle);
+  const recentFrom = addDays(todayIso(), -21);
+  const byDate = new Map();
+  for (const top of friend.tops || []) {
+    if (top.date >= recentFrom) continue;
+    if (!byDate.has(top.date)) byDate.set(top.date, { date: top.date, exercises: [] });
+    byDate.get(top.date).exercises.push({ name: top.name, sets: [top.set] });
+  }
+  const person = { version: 1, deviceId: friend.handle, name: friend.name, body: friend.body || null, bests: {}, visits: {}, log: [], sessions: [...(friend.sessions || []), ...byDate.values()] };
+  view.friendStates.set(friend.handle, person);
+  return person;
+};
+const friendHasExodia = (friend) => asPerson(friendState(friend), () => exodiaActive());
+
+// Avatars: a soft two-hue gradient from the name, warm reds and sands, greens, purples and pinks, never blue (blue is
+// Exodia). Friends next to each other never get the same hue; two who start with the same letter show two letters.
+const nameHash = (name) => {
+  let hash = 2166136261;
+  for (const character of String(name).toLowerCase()) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+  return hash;
+};
+const WARM_HUES = [[0, 50], [85, 150], [275, 345]];
+const warmHue = (step) => {
+  const total = WARM_HUES.reduce((sum, [from, to]) => sum + to - from, 0);
+  let left = ((step % total) + total) % total;
+  for (const [from, to] of WARM_HUES) {
+    if (left < to - from) return from + left;
+    left -= to - from;
+  }
+  return 0;
+};
+// One letter, or two when someone else starts with the same one: the first letters of the first and last name
+// (Test Ava → TA), or for one name its first and last letter (Isabella → IA, Isak → IK).
+const initials = (name, names) => {
+  const first = name.trim()[0] || '?';
+  if (!names.some((other) => other !== name && other.trim()[0]?.toLowerCase() === first.toLowerCase())) return first.toUpperCase();
+  const words = name.trim().split(/\s+/);
+  return (words.length > 1 ? `${first}${words.at(-1)[0]}` : `${first}${name.trim().at(-1)}`).toUpperCase();
+};
+const avatarLook = () => {
+  const names = [myName(), ...friendsList().map((friend) => friend.name)];
+  const sig = names.join('|');
+  if (view.avatarLook?.sig === sig) return view.avatarLook.map;
+  const map = new Map();
+  const taken = [];
+  for (const name of [...names].sort((one, two) => nameHash(one) - nameHash(two))) {
+    let step = (nameHash(name) >>> 4) % 205;
+    for (let tries = 0; tries < 8 && taken.some((hue) => Math.abs(hue - step) < 26 || Math.abs(hue - step) > 205 - 26); tries += 1) step = (step + 37) % 205;
+    taken.push(step);
+    map.set(name, { background: `linear-gradient(135deg, hsl(${warmHue(step)} 32% 60%), hsl(${warmHue(step + 28)} 36% 71%))`, letters: initials(name, names) });
+  }
+  view.avatarLook = { sig, map };
+  return map;
+};
+const avatar = (name, exodia = false) => {
+  if (exodia) return '<span class="fav exo" aria-hidden="true"><img src="/hamsa-512-blue.png" alt="" draggable="false"></span>';
+  const look = avatarLook().get(name) || { background: 'var(--line)', letters: String(name).slice(0, 1) };
+  return `<span class="fav" style="background:${look.background}" aria-hidden="true"><b>${esc(look.letters)}</b></span>`;
+};
+
+// What fits whom: muscles per kind of day, and how fresh they are for each person on a day.
+const KIND_MUSCLES = { Push: ['chest', 'shoulders', 'triceps'], Pull: ['upperBack', 'rearDelts', 'biceps', 'traps'], Legs: ['quads', 'hamstrings', 'glutes', 'adductors'] };
+KIND_MUSCLES['Full body'] = [...KIND_MUSCLES.Push, ...KIND_MUSCLES.Pull, ...KIND_MUSCLES.Legs];
+const KIND_REGION = { Push: 'chest and shoulders', Pull: 'back', Legs: 'legs', 'Full body': 'whole body', Move: 'cardio' };
+const PLAN_KINDS = ['Push', 'Pull', 'Legs', 'Full body', 'Move'];
+const areOrIs = (region) => (region === 'legs' || region.includes(' and ') ? 'are' : 'is');
+const readiness = (load, kind) => {
+  const muscles = KIND_MUSCLES[kind];
+  if (!muscles) return 1;
+  return 1 - muscles.reduce((sum, key) => sum + (load.fresh[key] || 0), 0) / muscles.length;
+};
+// The people on the page (you first), each with how fresh they are on the day and what they last trained.
+const togetherPeople = (date) => {
+  const handles = [...(view.together?.people || [])];
+  const people = [{ name: myName(), me: true, person: state }];
+  for (const handle of handles) {
+    const friend = friendByHandle(handle);
+    if (friend) people.push({ name: friend.name, handle, friend, person: friendState(friend) });
+  }
+  for (const entry of people) {
+    const [load, last] = entry.me ? [muscleLoad(date), lastTrained()] : asPerson(entry.person, () => [muscleLoad(date), lastTrained()]);
+    entry.load = load;
+    entry.last = last;
+    entry.ready = Object.fromEntries(PLAN_KINDS.map((kind) => [kind, readiness(load, kind)]));
+  }
+  return people;
+};
+const whenTrained = (date, day) => {
+  if (!date) return '';
+  const ago = daysBetween(date, day);
+  return ago <= 0 ? 'today' : ago === 1 ? 'yesterday' : `${ago} days ago`;
+};
+// Best fit: the kind of day that is freshest for everyone, from fixed rules (no AI): Push, Pull or Legs by how
+// recovered everyone's muscles are; Full body only when everyone is fully fresh; Move when nothing is.
+const bestFit = (people, date) => {
+  const main = ['Pull', 'Push', 'Legs'];
+  const average = (kind) => people.reduce((sum, entry) => sum + entry.ready[kind], 0) / people.length;
+  const ranked = [...main].sort((one, two) => average(two) - average(one));
+  let best = ranked[0];
+  let second = ranked[1];
+  if (main.every((kind) => average(kind) >= 0.97)) {
+    // Everyone fresh everywhere: the muscles trained longest ago go first.
+    const since = (kind) => Math.min(...people.map((entry) => Math.min(...KIND_MUSCLES[kind].map((key) => (entry.last[key] ? daysBetween(entry.last[key], date) : 99)))));
+    const byRest = [...main].sort((one, two) => since(two) - since(one));
+    [best, second] = [byRest[0], byRest[1]];
+  } else if (average(best) < 0.35) [best, second] = ['Move', best];
+  const solo = people.length === 1;
+  const who = solo ? 'Your' : people.length === 2 ? 'Both your' : "Everyone's";
+  const region = KIND_REGION[best];
+  const lead = best === 'Move' ? `Most muscles are still recovering, so cardio fits ${solo ? 'you' : 'everyone'} well.` : average(best) >= 0.9 ? `${who} ${region} ${areOrIs(region)} fresh.` : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} the freshest for ${solo ? 'you' : 'everyone'}.`;
+  // What the second option needs to know: the one who trained it most recently.
+  const tired = second === 'Move' ? null : [...people].sort((one, two) => one.ready[second] - two.ready[second])[0];
+  const lastOf = tired && KIND_MUSCLES[second].map((key) => tired.last[key]).filter(Boolean).sort().at(-1);
+  const note = tired && tired.ready[second] < 0.7 && lastOf ? `${second} works too, ${tired.me ? 'you' : esc(tired.name)} trained ${KIND_REGION[second]} ${whenTrained(lastOf, date)}.` : `${second} works well too.`;
+  return { best, second, why: `${lead} ${note}` };
+};
+// Recommended until then: for a plan a few days ahead, the order of other sessions that fit, and the last day for a
+// heavy session of the same muscles so they're fresh on the day. Works for tomorrow and for two weeks ahead alike,
+// and never assumes you train every day.
+const leadUp = (date, kind) => {
+  const today = todayIso();
+  const days = daysBetween(today, date);
+  if (days < 1) return '';
+  const short = (iso) => parseIso(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const load = muscleLoad();
+  const others = ['Legs', 'Pull', 'Push'].filter((other) => other !== kind && kind !== 'Full body').sort((one, two) => readiness(load, two) - readiness(load, one));
+  const rows = [];
+  if (kind === 'Move') rows.push('<li>Anything works until then. Cardio is easy on the muscles.</li>');
+  else if (kind === 'Full body') rows.push(`<li>Lighter sessions until then, so everything is fresh on ${short(date)}.</li>`);
+  else {
+    const order = days === 1 ? others.slice(0, 2) : others;
+    rows.push(`<li><span class="leadOrder">${order.map((other, index) => `<span><b>${index + 1}</b>${other}</span>`).join('')}</span>${days === 1 ? '<span class="leadWhen">or rest</span>' : ''}</li>`);
+    const rest = Math.max(...KIND_MUSCLES[kind].map((key) => RECOVERY_DAYS[key] || 3));
+    const lastHeavy = addDays(date, -rest);
+    rows.push(lastHeavy > today ? `<li>Last heavy ${KIND_REGION[kind]} day by ${short(lastHeavy)}, so your ${KIND_REGION[kind]} ${areOrIs(KIND_REGION[kind])} fresh on the day.</li>` : `<li>Easy on ${KIND_REGION[kind]} until then, so ${areOrIs(KIND_REGION[kind]) === 'are' ? 'they are' : 'it is'} fresh on ${short(date)}.</li>`);
+  }
+  const still = kind !== 'Move' && readiness(muscleLoad(date), kind) < 0.66 ? `<li>Your ${KIND_REGION[kind]} may still be recovering on ${short(date)}.</li>` : '';
+  return `<div class="leadUp"><p class="tgLabel">Recommended until then</p><ul>${rows.join('')}${still}</ul></div>`;
+};
+
+// Train together state: the day, who's coming (friend handles) and what you picked. The plan on that day, if there is
+// one, decides; the server keeps it, so everyone coming sees the same.
+const togetherPlan = (date = view.together?.date) => (view.social?.plans || []).find((plan) => plan.date === date) || null;
+const syncTogether = () => {
+  if (!view.together || view.together.pending) return;
+  const plan = togetherPlan();
+  if (plan) {
+    view.together.people = new Set(plan.members.filter((member) => !member.me && friendByHandle(member.handle)).map((member) => member.handle));
+    if (!view.together.conflict) view.together.kind = plan.kind;
+  } else if (view.together.saved) {
+    view.together.people = new Set();
+    view.together.saved = false;
+  }
+};
+const startTogether = (handle) => {
+  view.together = { date: todayIso(), people: new Set(handle ? [handle] : []), kind: null, conflict: null, pending: 0, note: '' };
+  syncTogether();
+  if (handle && !togetherPlan()?.members.some((member) => member.handle === handle)) togetherSend({ action: 'add', handle });
+};
+// Every change goes out in order, one at a time; the answer is the plan as the server has it.
+let togetherQueue = Promise.resolve();
+const togetherSend = (body) => {
+  const together = view.together;
+  together.pending += 1;
+  togetherQueue = togetherQueue.then(() => socialPost('/api/together', { date: together.date, kind: together.kind || together.fit || 'Pull', ...body })
+    .then(({ ok, status, data }) => {
+      if (data?.plans) view.social = { ...(view.social || {}), plans: data.plans };
+      if (status === 409 && data?.conflict && data.plan) together.conflict = { plan: data.plan, wanted: body.kind };
+      else if (!ok && status !== 409) together.note = data?.error || 'Exodia could not save that. Try again.';
+      else together.note = '';
+      together.saved = Boolean(data?.plan);
+    })
+    .catch(() => {
+      together.note = "You're offline. Nothing changed, try again when you're back.";
+    })
+    .finally(() => {
+      together.pending -= 1;
+      if (!together.pending) {
+        if (view.social) keepSocial(view.social);
+        syncTogether();
+      }
+      render();
+    }));
+  return togetherQueue;
+};
+
+const friendStatus = (friend) => {
+  if (view.isAdmin && friend.admin) {
+    const at = friend.admin.online;
+    const ago = at ? Math.round((Date.now() - at) / 60000) : null;
+    const when = ago === null ? 'Not online yet' : ago < 5 ? 'Online now' : ago < 60 ? `Online ${ago} min ago` : ago < 60 * 24 ? `Online ${Math.round(ago / 60)} h ago` : `Online ${Math.round(ago / 1440)} days ago`;
+    return `${when}${friend.admin.phone ? ` · ${esc(friend.admin.phone)}` : ''}`;
+  }
+  if (friendHasExodia(friend)) return 'Exodia';
+  const person = friendState(friend);
+  if (person.sessions.some((session) => session.date === todayIso() && session.exercises.length)) return 'Trained today';
+  if (!friend.shares?.recovery) return '';
+  const entry = asPerson(person, () => muscleLoad());
+  const best = ['Pull', 'Push', 'Legs'].sort((one, two) => readiness(entry, two) - readiness(entry, one))[0];
+  return `Fresh for ${best.toLowerCase()}`;
+};
+// The Friends part of the sidebar and the phone menu.
+const friendsSide = () => {
+  if (!featureOn('friends')) return '';
+  const requests = (view.social?.requests || []).length;
+  const friends = friendsList();
+  return `<div class="fxSide"><p class="drawerLabel">Friends</p>
+    ${friends.length ? `<a class="fxRow${view.route === 'together' ? ' on' : ''}" href="#/together"><span class="fxStack" aria-hidden="true"><i></i><i></i></span><span class="fxName">Train together</span></a>` : ''}
+    ${friends.map((friend) => `<a class="fxRow${view.route === 'friend' && view.friendHandle === friend.handle ? ' on' : ''}" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span>${friendStatus(friend) ? `<span class="fxSub">${friendStatus(friend)}</span>` : ''}</span>${view.isAdmin && friend.admin?.errors ? `<span class="fxErr">${friend.admin.errors} ${friend.admin.errors === 1 ? 'error' : 'errors'}</span>` : ''}</a>`).join('')}
+    <a class="fxRow fxAdd${view.route === 'friends' ? ' on' : ''}" href="#/friends"><span class="fav add" aria-hidden="true">+</span><span class="fxName">${friends.length ? 'Add a friend' : 'Find friends'}</span>${requests ? `<span class="fxCount">${requests}</span>` : ''}</a></div>`;
+};
+
+// The Friends page: find people by name, answer requests, and choose what friends see.
+const SHARE_ROWS = [['recovery', 'Recovery', 'Which muscles are fresh, days since trained'], ['strength', 'Strength levels', 'Anatomy levels and the strength web'], ['workouts', 'Workouts', 'Your recent days, lifts and sets'], ['bodyweight', 'Bodyweight', 'Off: friends see levels, not your weight'], ['findable', 'Findable by name', 'Off: only people you already know can add you']];
+const renderFriends = () => {
+  if (!featureOn('friends')) return renderHome();
+  const social = view.social;
+  const search = view.friendSearch || { q: '', people: [] };
+  const person = (row, button) => `<div class="fxLine">${avatar(row.name)}<span class="fxText"><span class="fxName">${esc(row.name)}</span></span>${button}</div>`;
+  const statusButton = (row) => (row.status === 'friends' ? '<span class="fxState">Friends</span>' : row.status === 'asked' ? `<button class="fxBtn quiet" data-action="friend-cancel" data-handle="${row.handle}">Asked</button>` : row.status === 'asks' ? `<button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>` : `<button class="fxBtn clay" data-action="friend-ask" data-handle="${row.handle}">Add</button>`);
+  return `<main class="page friendsPage">
+    <h1 class="title">Friends</h1>
+    <label class="fxSearch">${ICONS.search}<span class="sr">Find friends by name</span><input id="friendSearch" type="search" placeholder="Find friends by name" autocomplete="off" enterkeyhint="search" value="${esc(search.q)}"></label>
+    ${search.q.trim().length >= 2 ? `<div class="fxList">${search.people.length ? search.people.map((row) => person(row, statusButton(row))).join('') : `<p class="fxEmpty">${search.loading ? 'Looking…' : 'Nobody with that name yet.'}</p>`}</div>` : ''}
+    ${social?.requests?.length ? `<p class="section">Wants to be your friend</p><div class="fxList">${social.requests.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-decline" data-handle="${row.handle}">No</button><button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>`)).join('')}</div>` : ''}
+    ${social?.friends?.length ? `<p class="section">Your friends</p><div class="fxList">${social.friends.map((friend) => `<div class="fxLine"><a class="fxLink" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span></span></a><button class="fxBtn quiet" data-action="friend-remove" data-handle="${friend.handle}">Remove</button></div>`).join('')}</div>` : ''}
+    ${social?.asked?.length ? `<p class="section">Waiting for them</p><div class="fxList">${social.asked.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-cancel" data-handle="${row.handle}">Cancel</button>`)).join('')}</div>` : ''}
+    ${!social ? `<p class="fxEmpty">${navigator.onLine ? 'Loading…' : "You're offline. Friends show up when you're back."}</p>` : ''}
+    ${social?.me ? `<p class="section">What friends see</p><div class="fxSettings">${SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(social.me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('')}<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div></div>` : ''}
+    ${view.friendNote ? `<p class="fxNote" role="status">${esc(view.friendNote)}</p>` : ''}
+  </main>`;
+};
+
+// A friend's Exodia: their name as the title, everything read only, and the way back where your box sits.
+const renderFriend = () => {
+  const friend = friendByHandle(view.friendHandle);
+  if (!featureOn('friends')) return renderHome();
+  if (!friend) return `<main class="page"><h1 class="title">Not found</h1><p class="empty">${view.social ? 'This person is not on your friends list.' : 'Loading…'}</p></main>`;
+  const person = friendState(friend);
+  const days = [...person.sessions].filter((session) => session.exercises.length || session.cardio).sort((one, two) => two.date.localeCompare(one.date)).slice(0, 7);
+  const readOnly = (html) => html.replace(/ data-action="(jump-session|body-edit|body-save|body-sex|level-info)"[^>]*?(?=>)/g, '');
+  const body = asPerson(person, () => `
+    ${friend.shares?.recovery || friend.shares?.strength ? `<section class="friendAnatomy">${renderMuscles()}</section>` : ''}
+    ${friend.shares?.strength && friend.body ? readOnly(renderStrength()).replace("The heaviest you've lifted in each", `The heaviest ${esc(friend.name)} has lifted in each`).replace(/<button class="textBtn bodyEdit"[^>]*>([^<]*)<\/button>/, friend.body.exact ? '<span class="muted">$1</span>' : '') : ''}
+    ${friend.shares?.workouts ? `<p class="section">Recent days</p><div class="fxDays">${days.map((session) => `<div class="fxDay"><span class="fxDayName">${esc(dayName(session))}</span><span class="muted">${dayLabel(session.date)}</span></div>`).join('') || '<p class="empty">Nothing in the last 3 weeks.</p>'}</div>` : ''}`);
+  return `<main class="page friendPage">
+    <p class="eyebrow">${friendHasExodia(friend) ? 'Has Exodia' : 'Friend'}</p>
+    <div class="titleRow"><h1 class="title">${esc(friend.name)}</h1></div>
+    <a class="fxTogether" href="#/together" data-action="together-with" data-handle="${friend.handle}">Train together with ${esc(friend.name)}${ICONS.chevRight}</a>
+    ${body}
+  </main>`;
+};
+const backDock = () => `<div class="backDock"><a class="backHome" href="#/">${ICONS.chevRight.replace('class="exChev"', 'class="exChev back"')}Back to ${esc(myName())}</a></div>`;
+
+// Train together.
+const renderTogether = () => {
+  if (!featureOn('friends')) return renderHome();
+  if (!view.together) startTogether();
+  const together = view.together;
+  const today = todayIso();
+  if (together.date < today) together.date = today;
+  const plan = togetherPlan();
+  const people = togetherPeople(together.date);
+  const fit = bestFit(people, together.date);
+  together.fit = fit.best;
+  const picked = together.kind || fit.best;
+  const friends = friendsList();
+  const short = (iso) => parseIso(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const coming = (handle) => together.people.has(handle);
+  const row = `<div class="tgWho" role="group" aria-label="Who's coming">
+    <span class="tgP on me">${avatar(myName(), view.blue)}<span class="tgName">${esc(myName())}</span></span>
+    ${friends.map((friend) => `<button class="tgP${coming(friend.handle) ? ' on' : ''}" data-action="together-person" data-handle="${friend.handle}" aria-pressed="${coming(friend.handle)}">${avatar(friend.name, friendHasExodia(friend))}<span class="tgName">${esc(friend.name)}</span></button>`).join('')}
+    <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">+</span><span class="tgName">Add</span></a></div>`;
+  loadAnatomy();
+  const drawn = anatomy && anatomy !== 'loading';
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => `<figure>${entry.me ? bodySvg('back', entry.load) : asPerson(entry.person, () => bodySvg('back', entry.load))}<figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`;
+  const conflict = together.conflict;
+  const what = `<p class="tgLabel">What to train</p>
+    <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
+    <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
+    ${conflict ? `<p class="tgWhy">${esc(conflict.plan.by === 'me' ? 'You' : conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b> for ${short(conflict.plan.date)}.<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`
+      : `<p class="tgWhy">${picked === fit.best || people.length === 1 ? fit.why : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}</p>`}`;
+  const planLine = plan ? `<p class="tgPlan">${esc(plan.kind)} planned for ${together.date === today ? 'today' : short(together.date)} with ${esc(plan.members.filter((member) => !member.me).map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1'))}${plan.by !== 'me' ? `, picked by ${esc(plan.by)}` : ''}. <button class="textBtn" data-action="together-leave">Leave</button></p>` : '';
+  return `<main class="page togetherPage">
+    <div class="titleRow"><h1 class="title">Train together</h1></div>
+    ${row}
+    ${friends.length ? '' : '<p class="tgWhy">Add a friend to train together. Their recovery shows next to yours.</p>'}
+    ${bodies}
+    ${what}
+    ${planLine}
+    ${together.note ? `<p class="tgNote" role="status">${esc(together.note)}</p>` : ''}
+    <p class="tgLabel">When</p>
+    ${whenCalendar()}
+    ${view.visitOpen && view.visitOpen < today ? visitCard() : ''}
+    ${together.date > today ? leadUp(together.date, picked) : ''}
+  </main>`;
+};
+// When: weeks back through your history and ahead, Monday first, a month's name where it starts. Logged days are
+// dots in the same shades as the Every session calendar (PR blue, Exodia outlined); a past day opens like there.
+const whenCalendar = () => {
+  const today = todayIso();
+  const { days, steps } = calendarDays();
+  const exodiaDays = new Set(exodiaHistory().days || []);
+  const monday = (iso) => addDays(iso, -((parseIso(iso).getDay() + 6) % 7));
+  const first = [...days.keys()].sort()[0] || today;
+  const start = monday(addDays(today, -26 * 7) > first ? addDays(today, -26 * 7) : first);
+  const end = addDays(monday(today), 7 * 9 - 1);
+  const planned = new Set((view.social?.plans || []).map((plan) => plan.date));
+  const weeks = [];
+  for (let week = start; week <= end; week = addDays(week, 7)) {
+    const cells = Array.from({ length: 7 }, (_, index) => addDays(week, index));
+    const opens = cells.find((iso) => iso.endsWith('-01'));
+    if (opens || week === start) weeks.push(`<p class="wnMonth">${parseIso(opens || week).toLocaleDateString('en-GB', { month: 'long', ...(String(opens || week).slice(0, 4) === today.slice(0, 4) ? {} : { year: 'numeric' }) })}</p>`);
+    weeks.push(`<div class="wnWeek${week === monday(today) ? ' now' : ''}">${cells.map((iso) => {
+      const day = days.get(iso);
+      const shade = day ? (day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1) : 0;
+      const mark = day ? `<i class="calDay ${exodiaDays.has(iso) ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}"></i>` : '';
+      const classes = `wnDay${iso === today ? ' today' : ''}${iso === view.together.date ? ' picked' : ''}${planned.has(iso) ? ' planned' : ''}${iso < today ? ' past' : ''}`;
+      const number = parseIso(iso).getDate();
+      if (iso < today) return day ? `<button class="${classes}" data-action="visit-day" data-date="${iso}" aria-label="${dayLabel(iso)}, open"><span>${number}</span>${mark}</button>` : `<span class="${classes}"><span>${number}</span></span>`;
+      return `<button class="${classes}" data-action="together-date" data-date="${iso}" aria-label="${dayLabel(iso)}" aria-pressed="${iso === view.together.date}"><span>${number}</span>${mark}</button>`;
+    }).join('')}</div>`);
+  }
+  return `<div class="wnHead" aria-hidden="true">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((letter, index) => `<span${index > 4 ? ' class="we"' : ''}>${letter}</span>`).join('')}</div><div class="wnScroll" tabindex="-1">${weeks.join('')}</div>`;
+};
+// The When calendar keeps its place across redraws, and opens with this week in view (no jump: set before paint).
+const placeWhen = () => {
+  const box = document.querySelector('.wnScroll');
+  if (!box) return;
+  if (view.whenScroll !== undefined && view.whenScroll !== null) box.scrollTop = view.whenScroll;
+  else {
+    const now = box.querySelector('.wnWeek.now');
+    if (now) box.scrollTop = now.offsetTop - box.clientHeight / 3;
+  }
+  box.addEventListener('scroll', () => {
+    view.whenScroll = box.scrollTop;
+  }, { passive: true });
+};
+
 // The last Exodia hit this device has shown the animation for.
 let hitSeen = null;
 const seenHit = (date) => {
@@ -4752,12 +5177,13 @@ const render = () => {
   const draftFocused = focused && focused.id === 'draft';
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
   const searchFocused = focused && focused.id === 'search';
+  const friendSearchFocused = focused && focused.id === 'friendSearch';
   // A set's kg / reps / @ box has no id, so it is found again by what it edits, and keeps its caret.
   const setFocus = focused && focused.dataset?.field && focused.matches('input') ? { ...focused.dataset, caret: [focused.selectionStart, focused.selectionEnd] } : null;
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
-  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : view.route === 'help' ? renderHelp() : renderHome();
-  const dock = `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
+  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : view.route === 'help' ? renderHelp() : view.route === 'friends' ? renderFriends() : view.route === 'together' ? renderTogether() : view.route === 'friend' ? renderFriend() : renderHome();
+  const dock = view.route === 'friend' && featureOn('friends') ? backDock() : `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
         <nav class="side" aria-label="Exodia"><a class="sideBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
@@ -4784,6 +5210,7 @@ const render = () => {
     </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
   const freshRight = document.querySelector('.right');
   if (freshRight && rightTop) freshRight.scrollTop = rightTop;
+  placeWhen();
   const freshPill = document.querySelector('.updatedPill');
   if (keptPill && freshPill && keptPill !== freshPill && keptPill.dataset.sig === freshPill.dataset.sig && !keptPill.classList.contains('gone')) freshPill.replaceWith(keptPill);
   if (view.toast) view.toast.shown = true;
@@ -4798,6 +5225,11 @@ const render = () => {
       const [start, end] = blank >= 0 ? [blank, blank + 3] : view.selectDraft ? [0, draft.value.length] : caret || [draft.value.length, draft.value.length];
       draft.setSelectionRange(start, end);
     }
+  }
+  if (friendSearchFocused) {
+    const box = document.getElementById('friendSearch');
+    box?.focus();
+    box?.setSelectionRange(box.value.length, box.value.length);
   }
   if (searchFocused) {
     const search = document.getElementById('search');
@@ -7177,6 +7609,122 @@ document.addEventListener('click', (event) => {
     return;
   }
   // Tap a muscle (on the body or in the list): it lights up in both, the rest fades back. Tap it again to clear.
+  if (action === 'feature-launch') {
+    const launch = target.dataset.launch === '1';
+    fetch('/api/features', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify({ name: target.dataset.name, launch }) })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.beta) view.beta = data.beta;
+        view.launched = data.launched || view.launched;
+        render();
+      })
+      .catch(() => {});
+    return;
+  }
+  if (['friend-ask', 'friend-accept', 'friend-decline', 'friend-cancel', 'friend-remove', 'friend-share'].includes(action)) {
+    if (target.disabled) return;
+    const step = { 'friend-ask': 'ask', 'friend-accept': 'accept', 'friend-decline': 'decline', 'friend-cancel': 'decline', 'friend-remove': 'remove', 'friend-share': 'sharing' }[action];
+    const body = { action: step, handle: target.dataset.handle };
+    if (step === 'sharing') {
+      const key = target.dataset.key;
+      const on = !view.social?.me?.shares?.[key];
+      body.settings = { [key]: on };
+      if (view.social?.me) view.social.me.shares = { ...view.social.me.shares, [key]: on };
+    }
+    // Shown at once; the server's answer replaces it.
+    for (const row of view.friendSearch?.people || []) if (row.handle === target.dataset.handle) row.status = step === 'ask' ? (row.status === 'asks' ? 'friends' : 'asked') : step === 'accept' ? 'friends' : 'none';
+    target.disabled = true;
+    view.friendNote = '';
+    render();
+    socialPost('/api/friends', body)
+      .then(({ ok, data }) => {
+        if (ok) keepSocial(data);
+        else view.friendNote = data?.error === 'Not found' ? 'That person is not findable any more.' : data?.error || 'Exodia could not do that. Try again.';
+        if (view.together) syncTogether();
+      })
+      .catch(() => {
+        view.friendNote = "You're offline. Nothing changed, try again when you're back.";
+        loadSocial();
+      })
+      .finally(render);
+    return;
+  }
+  if (action === 'together-with') {
+    view.togetherWith = target.dataset.handle;
+    startTogether(target.dataset.handle);
+    return;
+  }
+  if (action === 'together-person') {
+    const together = view.together;
+    const handle = target.dataset.handle;
+    const adding = !together.people.has(handle);
+    if (adding) together.people.add(handle);
+    else together.people.delete(handle);
+    together.conflict = null;
+    render();
+    togetherSend({ action: adding ? 'add' : 'remove', handle });
+    return;
+  }
+  if (action === 'together-kind') {
+    const together = view.together;
+    const kind = target.dataset.kind;
+    const plan = togetherPlan();
+    together.conflict = null;
+    if (plan && plan.kind !== kind) {
+      // Someone else picked it: ask first. Your own plan just changes.
+      if (plan.by !== 'me') together.conflict = { plan, wanted: kind };
+      else {
+        together.kind = kind;
+        togetherSend({ action: 'kind', kind, version: plan.version });
+      }
+    } else together.kind = kind;
+    render();
+    return;
+  }
+  if (action === 'together-confirm') {
+    const together = view.together;
+    const plan = togetherPlan() || together.conflict?.plan;
+    together.kind = target.dataset.kind;
+    together.conflict = null;
+    render();
+    if (plan) togetherSend({ action: 'kind', kind: target.dataset.kind, version: plan.version, confirm: true });
+    return;
+  }
+  if (action === 'together-keep') {
+    const together = view.together;
+    together.kind = together.conflict?.plan.kind || together.kind;
+    together.conflict = null;
+    render();
+    return;
+  }
+  if (action === 'together-leave') {
+    view.together.people = new Set();
+    view.together.kind = null;
+    render();
+    togetherSend({ action: 'leave' });
+    return;
+  }
+  if (action === 'together-date') {
+    const together = view.together;
+    if (together.date === target.dataset.date) return;
+    const plan = togetherPlan();
+    together.date = target.dataset.date;
+    together.conflict = null;
+    together.note = '';
+    view.visitOpen = null;
+    const there = togetherPlan();
+    // Your plan moves with the day you pick; a day that already has a plan just opens it.
+    if (plan && !there) {
+      together.kind = plan.kind;
+      togetherSend({ action: 'move', date: plan.date, to: together.date });
+    } else {
+      together.people = new Set();
+      together.kind = null;
+      syncTogether();
+    }
+    render();
+    return;
+  }
   if (action === 'pick-muscle') {
     const key = target.dataset.muscle;
     pickMuscle(view.musclePick === key ? null : key);
@@ -7645,8 +8193,34 @@ document.addEventListener('click', (event) => {
   if (action === 'toggle-session' && view.open.has(date)) requestAnimationFrame(() => centreDay(date));
 });
 
+let friendSearchTimer = null;
 document.addEventListener('input', (event) => {
   const target = event.target;
+  if (target.id === 'friendSearch') {
+    const q = target.value;
+    view.friendSearch = { q, people: view.friendSearch?.people || [], loading: true };
+    clearTimeout(friendSearchTimer);
+    friendSearchTimer = setTimeout(() => {
+      if (q.trim().length < 2) {
+        view.friendSearch = { q, people: [] };
+        render();
+        return;
+      }
+      socialPost('/api/friends', { action: 'search', q })
+        .then(({ data }) => {
+          if (view.friendSearch?.q !== q) return;
+          view.friendSearch = { q, people: data.people || [] };
+          render();
+        })
+        .catch(() => {
+          view.friendSearch = { q, people: [] };
+          view.friendNote = "You're offline. Search works when you're back.";
+          render();
+        });
+    }, 250);
+    render();
+    return;
+  }
   if (target.hasAttribute('data-share-name')) {
     view.shareName = target.value.slice(0, 30);
     const linkText = target.closest('.card').querySelector('.muted');
@@ -7967,7 +8541,17 @@ const route = () => {
   }
   // Leaving Home remembers how far down you were; coming back puts you there again, not at the top.
   if (view.route === 'home') view.homeScroll = scroller().scrollTop;
-  view.route = ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help'].includes(name) ? name : 'home';
+  const friendPage = name.match(/^friend\/([a-f0-9]{16})$/);
+  const wasRoute = view.route;
+  view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together'].includes(name) ? name : 'home';
+  view.friendHandle = friendPage ? friendPage[1] : null;
+  if (['friends', 'together', 'friend'].includes(view.route)) loadSocial();
+  if (view.route === 'together' && wasRoute !== 'together') {
+    view.whenScroll = null;
+    view.visitOpen = null;
+    if (!view.togetherWith) startTogether();
+    view.togetherWith = null;
+  }
   noteUse('view', view.route);
   if (view.route !== 'log') {
     view.logDate = null;
@@ -8371,5 +8955,17 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
   }
 }, true);
-noteUse('open', window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'app' : 'browser');
+const phoneKind = /iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : /Windows/.test(navigator.userAgent) ? 'Windows' : '';
+noteUse('open', `${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'app' : 'browser'}${phoneKind ? ` · ${phoneKind}` : ''}`);
+loadFeatures();
+if (featureOn('friends')) loadSocial();
+// Friends' changes (a new request, a plan someone changed) show up while Exodia is open, without a reload.
+setInterval(() => {
+  if (!document.hidden && featureOn('friends') && ['friends', 'together', 'friend'].includes(view.route)) loadSocial();
+}, 20000);
+for (const type of ['focus', 'visibilitychange']) window.addEventListener(type, () => {
+  if (document.hidden) return;
+  loadFeatures();
+  if (featureOn('friends')) loadSocial();
+});
 setTimeout(sendUse, 4000);

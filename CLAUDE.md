@@ -53,11 +53,16 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 - Exodia legs and arms need real work: 2 working sets, top set at least half your best on that lift (an empty-bar warm-up doesn't count). The hit animation plays once per hit on each device, the next time Home is on screen, so it's never missed.
 - Exodia is a rolling 10 days: blue only while all five pieces (2 heavy presses, a heavy deadlift, legs, arms, 2 moves) sit inside the last 10 days; it goes orange the day the first one drops out unless something newer replaced it. A hit is each time it turns blue. The ring in the opened card shows the days left and which piece runs out first.
 - A name is an account: typing a name someone already has (onboarding on any phone or link) opens that person's latest log via `/api/name`; Settings refuses a taken name. The admin profile is never handed out by name. Anyone who knows a name can open that log; a PIN would be the next step if that matters.
+- Options in a switch or row are always the same size, on the same line, same weight; labels like Best fit go outside the switch, aligned under their option, never inside it.
 - No emojis anywhere in the app. Exodia is clean; words, numbers, the level colours and the logo carry everything.
 - Lines show what belongs together. Never put a divider line inside one thing (a card, a group like Train together); separate parts of the same thing with space, not lines. No extra horizontal or vertical lines. Marcus has asked for this at least 4 times.
 - Recovery is a helping tool, never a rule: no "Not legs", "avoid", "can't train" wording. Fully red and still training is fine; say what's fresh and what's still recovering, neutrally.
 - Newest first, everywhere: lists, days, years, and the rows inside a year (July–December above January–June). The latest thing is always at the top.
 - Strength levels are numbers only: the share of people who log the lift on Strength Level that each level beats. No years trained, no vague descriptions ("keen lifter").
+
+## Beta and launch
+
+Bigger features ship behind a feature name (the `BETA` list in `src/worker.js`, rows in the D1 `features` table). Until launched, only Marcus (the admin profile) and test profiles named "Test …" see them; friends see nothing. Marcus launches with Admin → Dashboard → Beta → "Launch for everyone" (and "Pull back"), or tells a session to launch it, which then writes the row: `npx wrangler d1 execute exodia --remote --command "INSERT INTO features (name, launched_at) VALUES ('friends', strftime('%s','now')*1000) ON CONFLICT(name) DO UPDATE SET launched_at = excluded.launched_at"`. Launching needs no deploy; it takes effect on the next open. Every push still deploys to main as today. In the app, check `featureOn('name')`; on the server, `launchedFeatures(env)`.
 
 ## Open list
 

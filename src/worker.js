@@ -1237,9 +1237,325 @@ const demo = async (env) => {
   return new Response(demoCache.body, { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' } });
 };
 
+// Beta and launch: bigger features ship behind a name. Until Marcus taps Launch in Admin (a row in features with
+// launched_at), only he and test profiles (a name starting "Test ") get them; everyone else sees nothing new.
+const BETA = [{ name: 'friends', title: 'Friends and Train together' }];
+let launchedCache = { at: 0, names: new Set() };
+const launchedFeatures = async (env, fresh = false) => {
+  if (!fresh && Date.now() - launchedCache.at < 30000) return launchedCache.names;
+  const { results } = await env.DB.prepare('SELECT name FROM features WHERE launched_at IS NOT NULL').all().catch(() => ({ results: [] }));
+  launchedCache = { at: Date.now(), names: new Set(results.map((row) => row.name)) };
+  return launchedCache.names;
+};
+const features = async (request, env) => {
+  const key = request.headers.get('x-exodia-key') ?? '';
+  const isAdmin = Boolean(env.ADMIN_PROFILE) && key === env.ADMIN_PROFILE;
+  if (request.method === 'POST') {
+    if (!isAdmin) return json({ error: 'Not found' }, 404);
+    const body = (await request.json().catch(() => null)) || {};
+    if (!BETA.some((feature) => feature.name === body.name)) return json({ error: 'Unknown feature.' }, 400);
+    await env.DB.prepare('INSERT INTO features (name, launched_at) VALUES (?1, ?2) ON CONFLICT(name) DO UPDATE SET launched_at = ?2').bind(body.name, body.launch ? Date.now() : null).run();
+    await launchedFeatures(env, true);
+  }
+  const launched = await launchedFeatures(env, request.method === 'POST');
+  return json({ launched: [...launched], ...(isAdmin ? { beta: BETA.map((feature) => ({ ...feature, launched: launched.has(feature.name) })) } : {}) });
+};
+
+// Friends and Train together (beta "friends": see above).
+// Friends know each other by a handle, never by the profile key. A friend gets only what the other person shares:
+// recent sessions (for recovery and Exodia), their best set per lift (for strength levels), their name. Never what
+// they said or typed, never gym visits, and bodyweight only when shared (otherwise rounded to 5 kg for the levels).
+const PLAN_KINDS = ['Push', 'Pull', 'Legs', 'Full body', 'Move'];
+const SHARE_KEYS = ['recovery', 'strength', 'workouts', 'bodyweight', 'gym', 'findable'];
+const HANDLE = /^[a-f0-9]{16}$/;
+const metaName = (meta) => {
+  try {
+    return String(JSON.parse(meta || '{}').name || '').trim().slice(0, 40);
+  } catch {
+    return '';
+  }
+};
+const tester = (name) => /^test\s/i.test(name);
+const hexId = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+// Names Marcus asked to start private (not findable until they choose), kept in the database, not in this public code.
+const privateNames = async (env) => {
+  const row = await env.DB.prepare("SELECT said FROM commands WHERE name = 'Friends: private names' ORDER BY at DESC LIMIT 1").first().catch(() => null);
+  return new Set(String(row?.said || '').toLowerCase().split(',').map((name) => name.trim()).filter(Boolean));
+};
+const sharingFor = async (env, profile, name, privates) => {
+  const known = await env.DB.prepare('SELECT * FROM sharing WHERE profile = ?').bind(profile).first();
+  if (known) return known;
+  const hidden = (privates || await privateNames(env)).has(name.toLowerCase());
+  await env.DB.prepare('INSERT OR IGNORE INTO sharing (profile, handle, findable, updated) VALUES (?, ?, ?, ?)').bind(profile, hexId(8), hidden ? 0 : 1, Date.now()).run();
+  return env.DB.prepare('SELECT * FROM sharing WHERE profile = ?').bind(profile).first();
+};
+const linkBetween = (env, one, two) => env.DB.prepare('SELECT a, b, status FROM friends WHERE (a = ?1 AND b = ?2) OR (a = ?2 AND b = ?1)').bind(one, two).first();
+const friendKeys = async (env, key) => {
+  const { results } = await env.DB.prepare("SELECT CASE WHEN a = ?1 THEN b ELSE a END AS other FROM friends WHERE status = 'friends' AND (a = ?1 OR b = ?1)").bind(key).all();
+  return new Set(results.map((row) => row.other));
+};
+const shareSet = (set) => ({ kg: Number(set?.kg) || 0, reps: Number(set?.reps) || 0, ...(Number(set?.rpe) ? { rpe: Number(set.rpe) } : {}), ...(set?.warmup ? { warmup: true } : {}) });
+const shareSession = (date, data) => ({
+  date,
+  ...(data.label ? { label: String(data.label).slice(0, 30) } : {}),
+  ...(Number(data.cardio) > 0 ? { cardio: Number(data.cardio) } : {}),
+  exercises: (data.exercises || []).map((exercise) => ({ name: String(exercise.name || '').slice(0, 60), sets: (exercise.sets || []).map(shareSet) })).filter((exercise) => exercise.name),
+});
+// What one friend sees of another.
+const friendView = async (env, profile, share, isAdmin, today) => {
+  const row = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(profile).first();
+  let meta = {};
+  try {
+    meta = JSON.parse(row?.meta || '{}');
+  } catch {
+    meta = {};
+  }
+  const out = { handle: share.handle, name: metaName(row?.meta), shares: Object.fromEntries(SHARE_KEYS.filter((key) => key !== 'findable').map((key) => [key, Boolean(share[key])])) };
+  const since = dayPlus(today, -21);
+  const { results } = await env.DB.prepare('SELECT date, data FROM sessions WHERE profile = ? AND data IS NOT NULL').bind(profile).all();
+  const recent = [];
+  const tops = new Map();
+  for (const { date, data } of results) {
+    let day;
+    try {
+      day = JSON.parse(data);
+    } catch {
+      continue;
+    }
+    if (date >= since && date <= dayPlus(today, 1)) recent.push(shareSession(date, day));
+    for (const exercise of day.exercises || []) {
+      for (const set of exercise.sets || []) {
+        const kg = Number(set.kg) || 0;
+        const reps = Number(set.reps) || 0;
+        if (set.warmup || !(reps > 0)) continue;
+        const name = String(exercise.name || '').slice(0, 60);
+        const known = tops.get(name);
+        if (!known || kg > known.set.kg || (kg === known.set.kg && reps > known.set.reps)) tops.set(name, { date, set: shareSet(set) });
+      }
+    }
+  }
+  // Recovery and Exodia need the last 3 weeks; the day list shows them only when workouts are shared.
+  out.sessions = share.recovery || share.workouts ? recent.sort((one, two) => two.date.localeCompare(one.date)) : [];
+  // Strength levels need the heaviest set of each lift, nothing more.
+  out.tops = share.strength ? [...tops].map(([name, top]) => ({ name, date: top.date, set: top.set })) : [];
+  const body = meta.body && Number(meta.body.kg) > 0 ? meta.body : null;
+  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight) };
+  if (isAdmin) {
+    const open = await env.DB.prepare("SELECT at, detail FROM events WHERE profile = ? AND kind = 'open' ORDER BY at DESC LIMIT 1").bind(profile).first();
+    const last = await env.DB.prepare('SELECT max(at) AS at FROM events WHERE profile = ?').bind(profile).first();
+    const stuck = await env.DB.prepare("SELECT count(*) AS n FROM events WHERE profile = ? AND kind = 'stuck' AND at > ?").bind(profile, Date.now() - 2 * 86400000).first();
+    out.admin = { online: last?.at || open?.at || null, phone: String(open?.detail || '').split(' · ')[1] || '', errors: stuck?.n || 0 };
+  }
+  return out;
+};
+const planOut = async (env, plan, key) => {
+  const members = JSON.parse(plan.members || '[]');
+  const people = [];
+  for (const member of members) {
+    const row = await env.DB.prepare('SELECT s.handle, p.meta FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE p.id = ?').bind(member).first();
+    if (row) people.push({ handle: row.handle || '', name: metaName(row.meta), ...(member === key ? { me: true } : {}) });
+  }
+  const by = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.by).first();
+  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated };
+};
+const myPlan = (env, date, key) => env.DB.prepare('SELECT * FROM plans WHERE date = ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) ORDER BY updated DESC LIMIT 1').bind(date, key).first();
+const dayPlus = (iso, days) => {
+  const date = new Date(`${iso}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+const social = async (request, env, which) => {
+  if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+  const key = request.headers.get('x-exodia-key') ?? '';
+  if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
+  if (env.SYNC_LIMITER) {
+    const { success } = await env.SYNC_LIMITER.limit({ key: `social:${key}` });
+    if (!success) return json({ error: 'Slow down a little.' }, 429);
+  }
+  const me = await env.DB.prepare('SELECT id, meta FROM profiles WHERE id = ?').bind(key).first();
+  const myName = metaName(me?.meta);
+  const isAdmin = Boolean(env.ADMIN_PROFILE) && key === env.ADMIN_PROFILE;
+  const launched = (await launchedFeatures(env)).has('friends');
+  if (!me || (!isAdmin && !tester(myName) && !launched)) return json({ error: 'Not found' }, 404);
+  const body = (await request.json().catch(() => null)) || {};
+  const serverToday = new Date().toISOString().slice(0, 10);
+  const today = typeof body.today === 'string' && DATE.test(body.today) && Math.abs(new Date(body.today) - new Date(serverToday)) <= 2 * 86400000 ? body.today : serverToday;
+  const privates = await privateNames(env);
+  const mine = await sharingFor(env, key, myName, privates);
+  const other = async (handle) => {
+    if (typeof handle !== 'string' || !HANDLE.test(handle)) return null;
+    return env.DB.prepare('SELECT s.*, p.meta FROM sharing s JOIN profiles p ON p.id = s.profile WHERE s.handle = ?').bind(handle).first();
+  };
+  return which === 'friends' ? friendsAction(env, body, { key, isAdmin, myName, mine, privates, other, today, launched }) : togetherAction(env, body, { key, other, today });
+};
+const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, other, today, launched }) => {
+  const action = body.action || 'list';
+  const now = Date.now();
+  if (action === 'search') {
+    const query = typeof body.q === 'string' ? body.q.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 40) : '';
+    if (query.length < 2) return json({ people: [] });
+    const { results } = await env.DB.prepare("SELECT p.id, p.meta, s.findable FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE lower(trim(json_extract(p.meta, '$.name'))) LIKE ?1 || '%' AND p.id != ?2 ORDER BY p.meta_updated DESC LIMIT 40").bind(query.replace(/[%_]/g, ''), key).all();
+    const seen = new Set();
+    const people = [];
+    for (const row of results) {
+      const name = metaName(row.meta);
+      const lower = name.toLowerCase();
+      if (!name || seen.has(lower)) continue;
+      seen.add(lower);
+      // Before launch, test profiles only ever find each other and Marcus.
+      if (!launched && !isAdmin && !tester(name) && row.id !== env.ADMIN_PROFILE) continue;
+      const link = await linkBetween(env, key, row.id);
+      const findable = row.findable === null || row.findable === undefined ? !privates.has(lower) : Boolean(row.findable);
+      if (!findable && !link) continue;
+      const share = await sharingFor(env, row.id, name, privates);
+      people.push({ handle: share.handle, name, status: !link ? 'none' : link.status === 'friends' ? 'friends' : link.a === key ? 'asked' : 'asks' });
+      if (people.length >= 8) break;
+    }
+    return json({ people });
+  }
+  if (action === 'sharing') {
+    const settings = body.settings && typeof body.settings === 'object' ? body.settings : {};
+    const keys = SHARE_KEYS.filter((name) => typeof settings[name] === 'boolean');
+    if (keys.length) await env.DB.prepare(`UPDATE sharing SET ${keys.map((name) => `${name} = ?`).join(', ')}, updated = ? WHERE profile = ?`).bind(...keys.map((name) => (settings[name] ? 1 : 0)), now, key).run();
+  } else if (['ask', 'accept', 'decline', 'remove'].includes(action)) {
+    const target = await other(body.handle);
+    if (!target || target.profile === key) return json({ error: 'Not found' }, 404);
+    const link = await linkBetween(env, key, target.profile);
+    if (action === 'ask') {
+      if (link?.status === 'asked' && link.a === target.profile) await env.DB.prepare("UPDATE friends SET status = 'friends', at = ? WHERE a = ? AND b = ?").bind(now, target.profile, key).run();
+      else if (!link) {
+        if (!target.findable) return json({ error: 'Not found' }, 404);
+        await env.DB.prepare("INSERT OR IGNORE INTO friends (a, b, status, at) VALUES (?, ?, 'asked', ?)").bind(key, target.profile, now).run();
+      }
+    } else if (action === 'accept') {
+      if (link?.status === 'asked' && link.a === target.profile) await env.DB.prepare("UPDATE friends SET status = 'friends', at = ? WHERE a = ? AND b = ?").bind(now, target.profile, key).run();
+    } else {
+      // No, cancel and remove are the same: the link goes, in either direction.
+      await env.DB.prepare('DELETE FROM friends WHERE (a = ?1 AND b = ?2) OR (a = ?2 AND b = ?1)').bind(key, target.profile).run();
+    }
+  }
+  // The list: you, who asked you, who you asked, your friends with what they share, your plans.
+  const { results: links } = await env.DB.prepare('SELECT a, b, status, at FROM friends WHERE a = ?1 OR b = ?1 ORDER BY at DESC').bind(key).all();
+  const friends = [];
+  const requests = [];
+  const asked = [];
+  for (const link of links) {
+    const otherKey = link.a === key ? link.b : link.a;
+    const row = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(otherKey).first();
+    if (!row) continue;
+    const name = metaName(row.meta);
+    const share = await sharingFor(env, otherKey, name, privates);
+    if (link.status === 'friends') friends.push(await friendView(env, otherKey, share, isAdmin, today));
+    else if (link.a === key) asked.push({ handle: share.handle, name });
+    else requests.push({ handle: share.handle, name });
+  }
+  const fresh = await env.DB.prepare('SELECT * FROM sharing WHERE profile = ?').bind(key).first();
+  return json({ me: { handle: fresh.handle, name: myName, shares: Object.fromEntries(SHARE_KEYS.map((name) => [name, Boolean(fresh[name])])) }, friends, requests, asked, plans: await plansFor(env, key, today) });
+};
+const plansFor = async (env, key, today) => {
+  const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date >= ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) ORDER BY date').bind(dayPlus(today, -1), key).all();
+  return Promise.all(results.map((plan) => planOut(env, plan, key)));
+};
+// Train together. Adding and removing people are small steps the server applies to the plan as it is now, so two
+// people tapping at once never undo each other. Changing what to train needs the plan's version: if someone else
+// changed it since, or picked it in the first place, the answer is the plan as it is, and the app asks first.
+const togetherAction = async (env, body, { key, other, today }) => {
+  const action = body.action || 'list';
+  const now = Date.now();
+  if (action === 'list') return json({ plans: await plansFor(env, key, today) });
+  const date = typeof body.date === 'string' && DATE.test(body.date) ? body.date : '';
+  if (!date || date < dayPlus(today, -1) || date > dayPlus(today, 90)) return json({ error: 'Pick a day from today on.' }, 400);
+  const kind = PLAN_KINDS.includes(body.kind) ? body.kind : null;
+  const friends = await friendKeys(env, key);
+  let plan = await myPlan(env, date, key);
+  const write = async (next, members, newKind, extra = {}) => {
+    const changed = await env.DB.prepare('UPDATE plans SET kind = ?, members = ?, by = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(newKind, JSON.stringify(members), extra.by || key, now, next.id, next.version).run();
+    return changed.meta?.changes > 0;
+  };
+  const answer = async (status = 200, extra = {}) => {
+    const fresh = await myPlan(env, date, key);
+    return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today), ...extra }, status);
+  };
+  if (action === 'add') {
+    const target = await other(body.handle);
+    if (!target || !friends.has(target.profile)) return json({ error: 'Only friends can be added.' }, 403);
+    // They already have a plan that day with others: you join it (one plan per group and day).
+    const theirs = await myPlan(env, date, target.profile);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      plan = await myPlan(env, date, key);
+      if (!plan && theirs) {
+        const members = [...new Set([...JSON.parse(theirs.members), key])];
+        if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, theirs.id, theirs.version).run().then((result) => result.meta?.changes > 0)) return answer(200, { joined: true });
+        continue;
+      }
+      if (!plan) {
+        await env.DB.prepare('INSERT INTO plans (id, date, kind, owner, by, members, version, updated) VALUES (?, ?, ?, ?, ?, ?, 1, ?)').bind(hexId(8), date, kind || 'Pull', key, key, JSON.stringify([key, target.profile]), now).run();
+        return answer();
+      }
+      const members = JSON.parse(plan.members);
+      if (members.includes(target.profile)) return answer();
+      // Their own plan that day folds into yours.
+      if (theirs && theirs.id !== plan.id) {
+        const merged = [...new Set([...members, ...JSON.parse(theirs.members)])];
+        if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(merged), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) {
+          await env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(theirs.id).run();
+          return answer();
+        }
+        continue;
+      }
+      if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify([...members, target.profile]), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) return answer();
+    }
+    return answer(409, { busy: true });
+  }
+  if (action === 'remove' || action === 'leave') {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      plan = await myPlan(env, date, key);
+      if (!plan) return answer();
+      let gone = key;
+      if (action === 'remove') {
+        const target = await other(body.handle);
+        if (!target || !friends.has(target.profile)) return json({ error: 'Not found' }, 404);
+        gone = target.profile;
+      }
+      const members = JSON.parse(plan.members).filter((member) => member !== gone);
+      // A plan with one person left isn't training together any more.
+      const done = members.length < 2
+        ? await env.DB.prepare('DELETE FROM plans WHERE id = ? AND version = ?').bind(plan.id, plan.version).run()
+        : await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, plan.id, plan.version).run();
+      if (done.meta?.changes > 0) return answer();
+    }
+    return answer(409, { busy: true });
+  }
+  if (action === 'move') {
+    // The whole plan moves to another day, for everyone in it, unless someone already has a plan there.
+    const to = typeof body.to === 'string' && DATE.test(body.to) ? body.to : '';
+    if (!to || to < dayPlus(today, -1) || to > dayPlus(today, 90)) return json({ error: 'Pick a day from today on.' }, 400);
+    if (!plan) return answer();
+    for (const member of JSON.parse(plan.members)) if (await myPlan(env, to, member)) return answer(409, { taken: true });
+    const moved = await env.DB.prepare('UPDATE plans SET date = ?, by = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(to, key, now, plan.id, plan.version).run();
+    if (!(moved.meta?.changes > 0)) return answer(409, { busy: true });
+    const fresh = await myPlan(env, to, key);
+    return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today) });
+  }
+  if (action === 'kind') {
+    if (!kind) return json({ error: 'Pick Push, Pull, Legs, Full body or Move.' }, 400);
+    if (!plan) return answer();
+    if (plan.kind === kind) return answer();
+    const version = Number(body.version);
+    // Someone else picked it, or it changed since you looked: ask first.
+    if (version !== plan.version || (plan.by !== key && body.confirm !== true)) return answer(409, { conflict: true });
+    if (await write(plan, JSON.parse(plan.members), kind)) return answer();
+    return answer(409, { conflict: true });
+  }
+  return json({ error: 'Unknown action.' }, 400);
+};
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/features') return features(request, env);
+    if (url.pathname === '/api/friends') return social(request, env, 'friends');
+    if (url.pathname === '/api/together') return social(request, env, 'together');
     if (url.pathname === '/api/sync') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return sync(request, env);
