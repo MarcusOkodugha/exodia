@@ -1634,7 +1634,7 @@ const chartFor = (allPoints) => {
 };
 
 const MUSCLES = [
-  ['chest', 'Chest'], ['traps', 'Traps'], ['upperBack', 'Upper back'], ['lowerBack', 'Lower back'], ['quads', 'Quads'], ['hamstrings', 'Hamstrings'], ['shoulders', 'Shoulders'], ['biceps', 'Biceps'],
+  ['chest', 'Chest'], ['traps', 'Traps'], ['upperBack', 'Upper back'], ['lowerBack', 'Lower back'], ['quads', 'Quads'], ['hamstrings', 'Hamstrings'], ['shoulders', 'Shoulders'], ['rearDelts', 'Rear delts'], ['biceps', 'Biceps'],
   ['triceps', 'Triceps'], ['glutes', 'Glutes'], ['abs', 'Abs'], ['calves', 'Calves'], ['forearms', 'Forearms'], ['adductors', 'Adductors'],
 ];
 // First match wins: [name pattern, muscles worked hard, muscles helping (half a set)].
@@ -1653,10 +1653,11 @@ const MUSCLE_RULES = [
   [/tricep|pushdown|skull|extension|french/, ['triceps']],
   [/hammer/, ['biceps', 'forearms']],
   [/curl/, ['biceps'], ['forearms']],
-  [/upright|face pull/, ['shoulders'], ['traps']],
+  [/face pull|rear delt|reverse fl|reverse pec|rear fl|band pull/, ['rearDelts'], ['traps']],
+  [/upright/, ['shoulders'], ['traps']],
   [/overhead|ohp|shoulder|military|arnold|lateral|delt|front raise/, ['shoulders'], ['triceps']],
   [/bench|chest|push.?up|fly|flye|pec|incline|decline|press/, ['chest'], ['shoulders', 'triceps']],
-  [/row/, ['upperBack'], ['biceps', 'traps']],
+  [/row/, ['upperBack'], ['biceps', 'traps', 'rearDelts']],
   [/pull.?up|chin.?up|pulldown|\blat\b/, ['upperBack'], ['biceps']],
   [/crunch|sit.?up|plank|\babs?\b|leg raise|core|oblique/, ['abs']],
   [/wrist|forearm|farmer|grip/, ['forearms']],
@@ -1668,7 +1669,7 @@ const loadAnatomy = () => {
   fetch('/anatomy.json').then((response) => response.json()).then((data) => { anatomy = data; render(); }).catch(() => { anatomy = null; });
 };
 // Days until a muscle is recovered. After that it keeps a light tint until it drops out of the 7 days.
-const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, traps: 4, chest: 3, shoulders: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
+const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, traps: 4, chest: 3, shoulders: 3, rearDelts: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
 const daysBetween = (from, to) => Math.round((new Date(`${to}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
 const muscleLoad = () => {
   const today = todayIso();
@@ -1729,7 +1730,8 @@ const lastTrained = () => remember('lastTrained', () => {
 const trainedWhen = (date) => {
   if (!date) return '–';
   const ago = daysBetween(date, todayIso());
-  return ago === 0 ? 'Today' : `${ago}<span class="tierLong">d ago</span><span class="tierShort">d</span>`;
+  // Narrow rows show only the number of days, so today is 0 there (a long word would cut the muscle's name).
+  return ago === 0 ? '<span class="tierShort">Today</span><span class="todayNum">0</span>' : `${ago}<span class="tierLong">d ago</span><span class="tierShort">d</span>`;
 };
 // Whole days until a muscle is ready again (0 = ready).
 const daysLeft = ({ remaining }, key) => (remaining[key] > 0 ? Math.max(1, Math.ceil(remaining[key])) : 0);
@@ -1745,6 +1747,7 @@ const MUSCLE_LIFTS = {
   shoulders: { 'shoulder-press': 0.55, 'incline-bench-press': 0.25, 'bench-press': 0.2 },
   triceps: { 'bench-press': 0.5, 'shoulder-press': 0.3, 'incline-bench-press': 0.2 },
   upperBack: { 'bent-over-row': 0.5, 'pull-ups': 0.5 },
+  rearDelts: { 'bent-over-row': 0.6, 'face-pull': 0.25, 'pull-ups': 0.15 },
   traps: { deadlift: 0.75, 'bent-over-row': 0.25 },
   biceps: { 'pull-ups': 0.6, 'bent-over-row': 0.4 },
   lowerBack: { deadlift: 0.7, squat: 0.2, 'bent-over-row': 0.1 },
@@ -1772,7 +1775,7 @@ const STRENGTH_TIERS = [[5, 'Elite', 'tierElite', 'Elite'], [4, 'Advanced', 'tie
 const muscleLevels = () => {
   const body = state.body;
   if (!body?.kg || !body?.sex) return null;
-  const scores = Object.fromEntries([...WEB_LIFTS, ...MUSCLE_ONLY_LIFTS()].map((lift) => {
+  const scores = Object.fromEntries([...WEB_LIFTS, ...MUSCLE_ONLY_LIFTS(), ...OTHER_LIFTS.filter((lift) => lift.key === 'face-pull')].map((lift) => {
     const result = liftStrength(lift, body);
     return [lift.key, result.everScore || 0];
   }));
