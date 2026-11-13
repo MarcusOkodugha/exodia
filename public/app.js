@@ -1665,7 +1665,7 @@ let anatomy = null;
 const loadAnatomy = () => {
   if (anatomy) return;
   anatomy = 'loading';
-  fetch('/anatomy.json').then((response) => response.json()).then((data) => { anatomy = data; if (view.route === 'trends') render(); }).catch(() => { anatomy = null; });
+  fetch('/anatomy.json').then((response) => response.json()).then((data) => { anatomy = data; render(); }).catch(() => { anatomy = null; });
 };
 // Days until a muscle is recovered. After that it keeps a light tint until it drops out of the 7 days.
 const RECOVERY_DAYS = { quads: 6, hamstrings: 6, glutes: 6, adductors: 5, lowerBack: 5, upperBack: 4, traps: 4, chest: 3, shoulders: 3, biceps: 3, triceps: 3, calves: 3, forearms: 4, abs: 4 };
