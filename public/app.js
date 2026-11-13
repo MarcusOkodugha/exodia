@@ -3,6 +3,8 @@
 const STORE_KEY = 'exodia.v1';
 // Exodia: a heavy set is a top set at least 80% of your best; everything counts over the last 10 days.
 const HEAVY_SHARE = 0.8;
+// Legs and arms count from half of your best on that lift (a warm-up with the empty bar doesn't).
+const WORK_SHARE = 0.5;
 const EXODIA_DAYS = 10;
 
 const LIBRARY = [
@@ -48,8 +50,8 @@ const LIBRARY = [
 const PIECES = [
   { id: 'push', name: 'Push', target: 2, rule: 'heavy press, 2 times' },
   { id: 'pull', name: 'Pull', target: 1, rule: 'heavy deadlift' },
-  { id: 'legs', name: 'Legs', target: 1, rule: 'any leg lift: squat, hack squat, leg press, leg extension…' },
-  { id: 'arms', name: 'Arms', target: 1, rule: 'arm work' },
+  { id: 'legs', name: 'Legs', target: 1, rule: 'a leg lift, 2 working sets: squat, hack squat, leg press, leg extension…' },
+  { id: 'arms', name: 'Arms', target: 1, rule: 'arm work, 2 working sets' },
   { id: 'move', name: 'Move', target: 2, rule: 'cardio or a walk, 20 min or more, 2 times' }
 ];
 
@@ -570,8 +572,12 @@ const dayHits = () => {
     for (const exercise of session.exercises) {
       const entry = libraryEntry(exercise.name);
       if (!entry || !entry.piece || validSets(exercise).length === 0) continue;
+      // Legs and arms need real work, not a warm-up: at least 2 working sets, and when you have a best on that lift,
+      // a top set of at least half of it (an empty-bar 20 × 10 squat with a 190 best doesn't count as legs).
       if (entry.piece === 'arms' || entry.piece === 'legs') {
-        hit[entry.piece] = true;
+        const working = validSets(exercise).filter((set) => !set.warmup);
+        const best = bestOf(exercise.name);
+        if (working.length >= 2 && (!best || isBodyweightLift(exercise.name) || topEstimate(exercise) >= best * WORK_SHARE)) hit[entry.piece] = true;
         continue;
       }
       if (!entry.heavy || (entry.piece !== 'pull' && entry.piece !== 'push')) continue;
@@ -4698,11 +4704,30 @@ const keepPrivateUrl = () => {
   if (location.pathname !== own) history.replaceState(history.state, '', `${own}${location.search}${location.hash}`);
 };
 
+// The last Exodia hit this device has shown the animation for.
+let hitSeen = null;
+const seenHit = (date) => {
+  if (date) hitSeen = date;
+  try {
+    if (date) localStorage.setItem('exodia.hitSeen', date);
+    hitSeen = localStorage.getItem('exodia.hitSeen') || hitSeen;
+  } catch {
+    // private mode: remembered until the app closes
+  }
+  return hitSeen;
+};
+
 const render = () => {
   keepPrivateUrl();
   const app = document.getElementById('app');
   const hit = exodiaHit();
-  if (view.wasHit === false && hit && !view.celebrating) celebrate();
+  // Each Exodia hit plays its animation once on this device, the next time Home is on screen, so a hit that landed
+  // while you were on another page, on another device or with the app closed is never missed.
+  const lastHit = hit && !view.devHit && !state.demo && !view.sandbox ? exodiaHistory().last : null;
+  if (lastHit && view.route === 'home' && !view.celebrating && !document.hidden && seenHit() !== lastHit) {
+    seenHit(lastHit);
+    celebrate();
+  } else if (view.wasHit === false && hit && view.devHit && !view.celebrating) celebrate();
   view.wasHit = hit;
   view.blue = hit && view.celebrating !== 'orange';
   document.documentElement.classList.toggle('demo', Boolean(state.demo && !view.preview));
