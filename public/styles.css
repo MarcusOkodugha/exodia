@@ -1602,7 +1602,7 @@ button.pickInfo { display: block; width: calc(100% - 40px); text-align: left; ba
 .recov4 { --recov: var(--clay); }
 .recov3 { --recov: color-mix(in srgb, var(--clay) 50%, var(--bg)); }
 .recov2 { --recov: color-mix(in srgb, var(--tierNov) 50%, var(--bg)); }
-.recov1 { --recov: var(--tierNov); }
+.recov1 { --recov: #6F9B6A; }
 .bodyRecov { fill: var(--recov); transition: fill 0.35s ease; }
 .muscleSwatch.recov1, .muscleSwatch.recov2, .muscleSwatch.recov3, .muscleSwatch.recov4 { background: var(--recov); opacity: 1; }
 .recovKey { align-items: center; gap: 0 5px; }
@@ -1652,10 +1652,9 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 @container (max-width: 199px) { .tierShort { display: none; } .tierNum { display: inline; opacity: 1; color: var(--text); font-weight: 600; } }
 /* A tapped muscle lights up on the body and in the list; the others fade back. */
 .bodyFig polygon[data-action] { cursor: pointer; transition: opacity 0.2s ease, stroke-width 0.2s ease; }
-.muscles.picking .bodyFig polygon[data-action]:not(.picked) { opacity: 0.28; }
-.bodyFig polygon.picked { stroke: var(--text); stroke-width: 1.2; paint-order: stroke; }
+.muscles.picking .bodyFig polygon[data-action]:not(.picked) { opacity: 0.12; }
 .muscleRow[data-action] { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.2s ease; }
-.muscleRow.picked { background: rgb(var(--clayRgb) / 0.14) !important; border-radius: 6px; }
+.muscleRow.picked { position: relative; z-index: 1; border-radius: 0; background: rgb(var(--clayRgb) / 0.1) !important; box-shadow: 0 0 14px rgb(var(--clayRgb) / 0.32), 0 0 4px rgb(var(--clayRgb) / 0.14); }
 /* The list says the level short (Int. 3.7); the key under the body spells it out. Each row decides by its own width,
    so the two-column list on the computer gets the short word too and muscle names are never cut. On the narrowest
    rows only the number shows (the swatch colour says the level). */
