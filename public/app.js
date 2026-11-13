@@ -4842,17 +4842,22 @@ const initials = (name, names) => {
   return (words.length > 1 ? `${first}${words.at(-1)[0]}` : `${first}${name.trim().at(-1)}`).toUpperCase();
 };
 const avatarLook = () => {
-  const names = [myName(), ...friendsList().map((friend) => friend.name)];
+  // Everyone who can be on screen (you, friends, requests, People on Exodia, search) gets a colour from their name,
+  // and the colours are spread evenly round the wheel so no two people look alike.
+  const others = [...friendsList(), ...(view.social?.requests || []), ...(view.social?.asked || []), ...(view.everyone || []), ...(view.friendSearch?.people || [])].map((row) => row.name).filter(Boolean);
+  const names = [...new Set([myName(), ...others])];
   const sig = names.join('|');
   if (view.avatarLook?.sig === sig) return view.avatarLook.map;
   const map = new Map();
-  const taken = [];
-  for (const name of [...names].sort((one, two) => nameHash(one) - nameHash(two))) {
-    let step = (nameHash(name) >>> 4) % 205;
-    for (let tries = 0; tries < 8 && taken.some((hue) => Math.abs(hue - step) < 26 || Math.abs(hue - step) > 205 - 26); tries += 1) step = (step + 37) % 205;
-    taken.push(step);
-    map.set(name, { background: `linear-gradient(135deg, hsl(${warmHue(step)} 32% 60%), hsl(${warmHue(step + 28)} 36% 71%))`, letters: initials(name, names) });
-  }
+  // The whole colour wheel, blue included: each next person is a golden angle (137.5°) on from the last, so neighbours
+  // never look alike, and every other one a little deeper.
+  const ordered = [...names].sort((one, two) => nameHash(one) - nameHash(two));
+  const start = (nameHash(ordered[0] || '') >>> 4) % 360;
+  ordered.forEach((name, index) => {
+    const hue = Math.round(start + index * 137.5) % 360;
+    const light = index % 2 ? 56 : 64;
+    map.set(name, { background: `linear-gradient(135deg, hsl(${hue} 34% ${light}%), hsl(${(hue + 26) % 360} 38% ${light + 10}%))`, letters: initials(name, names) });
+  });
   view.avatarLook = { sig, map };
   return map;
 };
@@ -5022,7 +5027,8 @@ const renderFriends = () => {
   const social = view.social;
   const search = view.friendSearch || { q: '', people: [] };
   if (!view.everyone && !view.everyoneLoading) setTimeout(loadEveryone, 0);
-  const person = (row, button) => `<div class="fxLine">${avatar(row.name)}<span class="fxText"><span class="fxName">${esc(row.name)}</span></span>${button}</div>`;
+  // Marcus can take someone off People on Exodia (their log stays; they're just not listed or findable).
+  const person = (row, button) => `<div class="fxLine">${avatar(row.name)}<span class="fxText"><span class="fxName">${esc(row.name)}</span></span>${view.isAdmin && row.status === 'none' ? `<button class="fxBtn quiet" data-action="friend-hide" data-handle="${row.handle}">Hide</button>` : ''}${button}</div>`;
   const statusButton = (row) => (row.status === 'friends' ? '<span class="fxState">Friends</span>' : row.status === 'asked' ? `<button class="fxBtn quiet" data-action="friend-cancel" data-handle="${row.handle}">Asked</button>` : row.status === 'asks' ? `<button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>` : `<button class="fxBtn clay" data-action="friend-ask" data-handle="${row.handle}">Add</button>`);
   return `<main class="page friendsPage">
     <h1 class="title">Friends</h1>
@@ -7636,9 +7642,13 @@ document.addEventListener('click', (event) => {
       .catch(() => {});
     return;
   }
-  if (['friend-ask', 'friend-accept', 'friend-decline', 'friend-cancel', 'friend-remove', 'friend-share'].includes(action)) {
+  if (['friend-ask', 'friend-accept', 'friend-decline', 'friend-cancel', 'friend-remove', 'friend-share', 'friend-hide'].includes(action)) {
     if (target.disabled) return;
-    const step = { 'friend-ask': 'ask', 'friend-accept': 'accept', 'friend-decline': 'decline', 'friend-cancel': 'decline', 'friend-remove': 'remove', 'friend-share': 'sharing' }[action];
+    const step = { 'friend-ask': 'ask', 'friend-accept': 'accept', 'friend-decline': 'decline', 'friend-cancel': 'decline', 'friend-remove': 'remove', 'friend-share': 'sharing', 'friend-hide': 'hide' }[action];
+    if (step === 'hide') {
+      if (view.everyone) view.everyone = view.everyone.filter((row) => row.handle !== target.dataset.handle);
+      if (view.friendSearch?.people) view.friendSearch.people = view.friendSearch.people.filter((row) => row.handle !== target.dataset.handle);
+    }
     const body = { action: step, handle: target.dataset.handle };
     if (step === 'sharing') {
       const key = target.dataset.key;

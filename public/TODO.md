@@ -45,6 +45,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Adam not on People on Exodia (13 Nov):** check in D1 why (list needs a name, at least one logged day, findable, not in "Friends: private names"). Needs a session with Cloudflare access.
+
 
 
 - [ ] **Show when Exodia runs out (8 Nov, Marcus to pick A–D):** A days left in the top line, B thin draining line, C bars drain together, D only when opened (date + bar + what to do). Mockups sent.
@@ -76,6 +78,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ Avatars: everyone on screen (friends, requests, People on Exodia, search) spread by golden angle over the full wheel, alternating light/deep; Marcus has Hide on People on Exodia (findable = 0, log stays) (v428)
 - [x] **Year marks under the Trends chart: decided No (13 Nov).** The lift chart stays as it is: first and last date only, dots evenly spaced.
 - [x] **Exact % on each lift: decided No (13 Nov).** Levels stay as "Squat · Int. 3.6"; no "beats 68%" added.
 - [x] **Anatomy (13 Nov, v419–v421):** rear delts are their own muscle (back of the shoulder; strength from rows, face pulls and pull-ups; recovery from rows, face pulls, reverse flys). A tapped muscle gets a square row with a clay glow and a deeper colour; tap anywhere else or Esc to clear. Deeper recovered green.

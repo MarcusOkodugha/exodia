@@ -1421,6 +1421,11 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
     const settings = body.settings && typeof body.settings === 'object' ? body.settings : {};
     const keys = SHARE_KEYS.filter((name) => typeof settings[name] === 'boolean');
     if (keys.length) await env.DB.prepare(`UPDATE sharing SET ${keys.map((name) => `${name} = ?`).join(', ')}, updated = ? WHERE profile = ?`).bind(...keys.map((name) => (settings[name] ? 1 : 0)), now, key).run();
+  } else if (action === 'hide' && isAdmin) {
+    // Marcus only: off People on Exodia and search. Their log and friends stay.
+    const target = await other(body.handle);
+    if (!target) return json({ error: 'Not found' }, 404);
+    await env.DB.prepare('UPDATE sharing SET findable = 0, updated = ? WHERE profile = ?').bind(now, target.profile).run();
   } else if (['ask', 'accept', 'decline', 'remove'].includes(action)) {
     const target = await other(body.handle);
     if (!target || target.profile === key) return json({ error: 'Not found' }, 404);
