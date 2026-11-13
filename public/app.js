@@ -1100,7 +1100,25 @@ const guessSets = (text) => {
   return Math.max(1, Math.min(6, count || 2));
 };
 const saidQuote = (item) => (item.text && item.text !== 'Voice note' ? `<span class="ghostSaid">“${esc(item.text.length > 160 ? `${item.text.slice(0, 157)}…` : item.text)}”</span>` : '');
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${saidQuote(item)}${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span><span class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</span>`}</div>`;
+// A file import runs on this phone, part by part, so it says how far it is, roughly how long is left, and to keep
+// Exodia open (closing it stops the reading). A typed note just lands by itself.
+const importLeft = (item) => {
+  const { index = 0, total = 1 } = item.parts || {};
+  if (total < 2 || index < 1) return total > 2 ? 'This can take a few minutes.' : 'This can take a minute.';
+  const minutes = Math.max(1, Math.round((((Date.now() - item.started) / index) * (total - index)) / 60000));
+  return `About ${minutes} min left.`;
+};
+const pendingHint = (item, tag) => {
+  if (!item.import) return `<${tag} class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</${tag}>`;
+  const { index = 0, total = 1 } = item.parts || {};
+  // The bar grows from where it was to the new part, also when the page draws again meanwhile.
+  const width = Math.round((index / total) * 100);
+  if (item.barTo !== width) Object.assign(item, { barFrom: item.barTo ?? 0, barTo: width, barAt: Date.now() });
+  const from = Date.now() - item.barAt < 600 ? item.barFrom : width;
+  const bar = total > 1 ? `<span class="importBar" aria-hidden="true"><i style="--from:${from}%;width:${width}%"></i></span>` : '';
+  return `${bar}<${tag} class="ghostHint importHint">${importLeft(item)} <b>Keep Exodia open</b> until it's done; you can keep using it.</${tag}>`;
+};
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${saidQuote(item)}${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span>${pendingHint(item, 'span')}`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 // While a note is read, the waiting rows' kg, reps and e1RM count up fast and accelerating, over and over, in the
 // real columns; the real row replaces them the moment the answer lands.
@@ -3717,7 +3735,7 @@ const nameQuery = () => {
   return text && !/\d/.test(text) && text.split(/\s+/).length <= 3 && !view.fixing && !view.editContext ? text : '';
 };
 
-const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p><p class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</p></div></div>`).join('');
+const pendingChat = () => view.pending.map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine(pending.progress || '')}</p>${pendingHint(pending, 'p')}</div></div>`).join('');
 
 // + says "here": Quick add lights up softly, then settles. Import from a file is always marked in clay (styles.css).
 const calloutQuick = () => requestAnimationFrame(() => {
@@ -6760,12 +6778,13 @@ const addImported = (days, name) => {
 };
 const runFiles = async (files, note) => {
   const said = `${files.map((file) => `📎 ${file.name}`).join(' ')}${note ? `\n${note}` : ''}`;
-  const pending = { date: todayIso(), label: 'your training', text: said };
+  const pending = { date: todayIso(), label: 'your training', text: said, import: true, started: Date.now() };
   view.pending.push(pending);
   render();
   closeTray();
   const progress = (index, total, text) => {
     pending.progress = text || (total > 1 ? `Reading part ${index + 1} of ${total}…` : 'Reading the file…');
+    pending.parts = { index, total };
     render();
   };
   const did = [];
@@ -6862,13 +6881,14 @@ const importConfirmText = () => {
 
 // One import at a time, with a bubble that says how far it got.
 const runImport = async (text, said, onFail = () => {}) => {
-  const pending = { date: todayIso(), label: 'your training', text: said };
+  const pending = { date: todayIso(), label: 'your training', text: said, import: true, started: Date.now() };
   view.pending.push(pending);
   render();
   closeTray();
   try {
     const did = await importText(text, (index, total, note) => {
       pending.progress = note || (total > 1 ? `Reading part ${index + 1} of ${total}…` : '');
+      pending.parts = { index, total };
       render();
     });
     addLog(said.slice(0, 300), did);
@@ -9039,5 +9059,8 @@ for (const type of ['focus', 'visibilitychange']) window.addEventListener(type, 
 });
 setTimeout(sendUse, 4000);
 // The app started: the rescue in index.html stands down (and may help again another day).
+addEventListener('beforeunload', (event) => {
+  if (view.pending.some((item) => item.import)) event.preventDefault();
+});
 window.__exodiaBooted = true;
 try { sessionStorage.removeItem('exodia.rescued'); } catch { /* private mode */ }

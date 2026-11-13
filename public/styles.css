@@ -1824,3 +1824,9 @@ button.wnDay { cursor: pointer; }
 .tgPlan .tgPlanDay { display: inline-block; font-size: 19px; line-height: 25px; font-weight: 600; color: var(--clayText); animation: planText 2.4s ease-in-out 2; }
 @keyframes planText { 50% { text-shadow: 0 0 14px rgb(var(--clayRgb) / 0.45); } }
 @media (prefers-reduced-motion: reduce) { .wnDay.planned > span, .tgPlan .tgPlanDay { animation: none; } }
+
+/* File import: how far it got, under the reading line. */
+.importBar { display: block; height: 3px; margin: 10px 0 2px; border-radius: 2px; background: color-mix(in oklab, var(--clay) 16%, transparent); overflow: hidden; }
+.importBar i { display: block; height: 100%; border-radius: 2px; background: var(--clay); animation: importGrow 0.6s ease; }
+@keyframes importGrow { from { width: var(--from); } }
+.importHint b { font-weight: 600; color: var(--text); }
