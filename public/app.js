@@ -6848,7 +6848,15 @@ const centreDay = (date) => {
 document.addEventListener('mousedown', (event) => {
   if (event.target.closest('[data-action="fill-name"]')) event.preventDefault();
 });
+// A tapped muscle lights up on the body and in the list, the rest fades back. Tap it again, or anywhere else, to clear.
+function pickMuscle(key) {
+  view.musclePick = key;
+  for (const box of document.querySelectorAll('.muscles')) box.classList.toggle('picking', Boolean(key));
+  for (const item of document.querySelectorAll('[data-action="pick-muscle"]')) item.classList.toggle('picked', item.dataset.muscle === key);
+}
+
 document.addEventListener('click', (event) => {
+  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"]')) pickMuscle(null);
   // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
   if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
@@ -7140,9 +7148,7 @@ document.addEventListener('click', (event) => {
   // Tap a muscle (on the body or in the list): it lights up in both, the rest fades back. Tap it again to clear.
   if (action === 'pick-muscle') {
     const key = target.dataset.muscle;
-    view.musclePick = view.musclePick === key ? null : key;
-    for (const box of document.querySelectorAll('.muscles')) box.classList.toggle('picking', Boolean(view.musclePick));
-    for (const item of document.querySelectorAll('[data-action="pick-muscle"]')) item.classList.toggle('picked', item.dataset.muscle === view.musclePick);
+    pickMuscle(view.musclePick === key ? null : key);
     return;
   }
   if (action === 'muscle-mode') {
@@ -7883,6 +7889,7 @@ document.addEventListener('scroll', (event) => {
   if (mirror) mirror.scrollTop = event.target.scrollTop;
 }, true);
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && view.musclePick) pickMuscle(null);
   if (event.target.id === 'search' && event.key === 'Enter') {
     event.preventDefault();
     clearTimeout(searchTimer);

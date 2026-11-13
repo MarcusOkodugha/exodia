@@ -1652,7 +1652,11 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 @container (max-width: 199px) { .tierShort { display: none; } .tierNum { display: inline; opacity: 1; color: var(--text); font-weight: 600; } }
 /* A tapped muscle lights up on the body and in the list; the others fade back. */
 .bodyFig polygon[data-action] { cursor: pointer; transition: opacity 0.2s ease, stroke-width 0.2s ease; }
-.muscles.picking .bodyFig polygon[data-action]:not(.picked) { opacity: 0.12; }
+.muscles.picking .bodyFig polygon[data-action]:not(.picked) { opacity: 0.4; }
+/* The picked one a touch deeper and more saturated than its level colour, so it stands out without an outline. */
+.bodyFig polygon.picked.tierBeg { --pk: var(--tierBeg); } .bodyFig polygon.picked.tierNov { --pk: var(--tierNov); } .bodyFig polygon.picked.tierInt { --pk: var(--tierInt); }
+.bodyFig polygon.picked.tierAdv { --pk: var(--clay); } .bodyFig polygon.picked.tierElite { --pk: var(--exodiaBlue); } .bodyFig polygon.picked.bodyRecov { --pk: var(--recov); }
+.bodyFig polygon.picked:is(.tierBeg, .tierNov, .tierInt, .tierAdv, .tierElite, .bodyRecov) { fill: oklch(from var(--pk) calc(l - 0.03) calc(c + 0.025) h); }
 .muscleRow[data-action] { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.2s ease; }
 .muscleRow.picked { position: relative; z-index: 1; border-radius: 0; background: rgb(var(--clayRgb) / 0.1) !important; box-shadow: 0 0 14px rgb(var(--clayRgb) / 0.32), 0 0 4px rgb(var(--clayRgb) / 0.14); }
 /* The list says the level short (Int. 3.7); the key under the body spells it out. Each row decides by its own width,
