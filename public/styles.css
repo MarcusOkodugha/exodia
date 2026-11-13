@@ -1842,3 +1842,6 @@ button.wnDay { cursor: pointer; }
 .tgLabel .wnNow { margin-left: 6px; color: var(--text); }
 .wnDay > span { position: relative; }
 .wnFirst { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font-size: 10px; line-height: 10px; font-weight: 600; color: var(--clayText); letter-spacing: 0.02em; }
+/* Notifications offer under a plan: the link sits in the sentence, no extra line height. */
+.tgPush { margin: -10px 0 22px; }
+.tgPush .textBtn { display: inline; min-height: 0; padding: 0; font-size: inherit; line-height: inherit; }
