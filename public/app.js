@@ -1807,10 +1807,10 @@ const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 
   if (key === 'head') return headTierNow ? headLogo(side, points, headTierNow).replace('<rect ', '<rect data-head ') : `<polygon data-head points="${points}" class="bodyBone"/>`;
   if (levels) {
     const tier = key ? tierOf(levels[key] || 0) : null;
-    return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}"/>`;
+    return `<polygon points="${points}" class="${!key ? 'bodyBone' : tier ? `bodyTier ${tier[2]}` : 'bodyRest'}${key && view.musclePick === key ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
   }
   const step = key ? recoveryStep(load, key) : '';
-  return `<polygon points="${points}" class="${!key ? 'bodyBone' : step ? `bodyRecov ${step}` : 'bodyRest'}"/>`;
+  return `<polygon points="${points}" class="${!key ? 'bodyBone' : step ? `bodyRecov ${step}` : 'bodyRest'}${key && view.musclePick === key ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
 }).join('')}</svg>`;
 const renderMuscles = () => {
   loadAnatomy();
@@ -1822,10 +1822,10 @@ const renderMuscles = () => {
   const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `${toggle}
-    ${levels ? `<div class="muscles">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
+    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
-        return `<div class="muscleRow${tier ? '' : ' muted'}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
+        return `<div class="muscleRow${tier ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}" data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
     <div class="anatomyFoot">${levelKey('body')}</div>`
@@ -1834,12 +1834,12 @@ const renderMuscles = () => {
     </div>`}`;
   }
   return `${toggle}
-    <div class="muscles">${bodySvg('front', load)}${bodySvg('back', load)}
+    <div class="muscles${view.musclePick ? ' picking' : ''}">${bodySvg('front', load)}${bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const left = daysLeft(load, key);
         const last = lastTrained()[key];
         const step = recoveryStep(load, key);
-        return `<div class="muscleRow${last ? '' : ' muted'}" title="${left ? `About ${left} ${left === 1 ? 'day' : 'days'} until recovered` : last ? 'Recovered' : 'Not trained yet'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch ${step || 'tierNone'}"></i><span>${label}</span><span class="num">${trainedWhen(last)}</span></div>`;
+        return `<div class="muscleRow${last ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}" data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0" title="${left ? `About ${left} ${left === 1 ? 'day' : 'days'} until recovered` : last ? 'Recovered' : 'Not trained yet'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch ${step || 'tierNone'}"></i><span>${label}</span><span class="num">${trainedWhen(last)}</span></div>`;
       }).join('')}</div>
     </div>
     <div class="anatomyFoot"><div class="levelKeyBox"><p class="levelKey recovKey"><span>Just trained</span><i class="muscleSwatch recov4"></i><i class="muscleSwatch recov3"></i><i class="muscleSwatch recov2"></i><i class="muscleSwatch recov1"></i><span>Recovered</span></p></div></div>`;
@@ -7135,6 +7135,14 @@ document.addEventListener('click', (event) => {
     view.adminRows = null;
     view.adminError = '';
     render();
+    return;
+  }
+  // Tap a muscle (on the body or in the list): it lights up in both, the rest fades back. Tap it again to clear.
+  if (action === 'pick-muscle') {
+    const key = target.dataset.muscle;
+    view.musclePick = view.musclePick === key ? null : key;
+    for (const box of document.querySelectorAll('.muscles')) box.classList.toggle('picking', Boolean(view.musclePick));
+    for (const item of document.querySelectorAll('[data-action="pick-muscle"]')) item.classList.toggle('picked', item.dataset.muscle === view.musclePick);
     return;
   }
   if (action === 'muscle-mode') {

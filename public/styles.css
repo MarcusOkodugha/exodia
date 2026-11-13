@@ -1647,3 +1647,12 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 .exoRing.hit .exoRingArc { stroke: var(--exodiaBlue); }
 .exoRing text { font-size: 12px; font-weight: 600; fill: var(--text); font-variant-numeric: tabular-nums; }
 .exoRingLabel { font-size: 11.5px; line-height: 14px; color: var(--text2); white-space: nowrap; text-align: center; }
+/* Phones: the list is narrow, so each muscle shows its level number in the level colour (the swatch says which
+   level); the level word comes back where there's room. */
+@container (max-width: 199px) { .tierShort { display: none; } .tierNum { display: inline; opacity: 1; color: var(--text); font-weight: 600; } }
+/* A tapped muscle lights up on the body and in the list; the others fade back. */
+.bodyFig polygon[data-action] { cursor: pointer; transition: opacity 0.2s ease, stroke-width 0.2s ease; }
+.muscles.picking .bodyFig polygon[data-action]:not(.picked) { opacity: 0.28; }
+.bodyFig polygon.picked { stroke: var(--text); stroke-width: 1.2; paint-order: stroke; }
+.muscleRow[data-action] { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.2s ease; }
+.muscleRow.picked { background: rgb(var(--clayRgb) / 0.14) !important; border-radius: 6px; }
