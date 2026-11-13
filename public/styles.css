@@ -1811,3 +1811,7 @@ button.wnDay { cursor: pointer; }
 /* Train together: the + in Add is drawn and centred like Add friends; Leave this plan reads as a button. */
 .tgP.add .fav svg { width: 18px; height: 18px; display: block; }
 .tgLeave { display: block; margin: -6px 0 16px; }
+/* Full body: front and back side by side for each person. */
+.tgPair { display: flex; justify-content: center; }
+.tgBodies .tgPair .bodyFig { height: 104px; margin: 0; }
+.tgBodies.many .tgPair .bodyFig { height: 90px; }

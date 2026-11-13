@@ -5101,7 +5101,9 @@ const renderTogether = () => {
     <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.plus}</span><span class="tgName">Add</span></a></div>`;
   loadAnatomy();
   const drawn = anatomy && anatomy !== 'loading';
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => `<figure>${entry.me ? bodySvg('back', entry.load) : asPerson(entry.person, () => bodySvg('back', entry.load))}<figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`;
+  // The figures turn to fit what you train: Pull shows the back, Push, Legs and Move the front, Full body both.
+  const sides = picked === 'Pull' ? ['back'] : picked === 'Full body' ? ['front', 'back'] : ['front'];
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
