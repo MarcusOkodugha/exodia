@@ -1286,7 +1286,7 @@ const sharingFor = async (env, profile, name, privates) => {
   const known = await env.DB.prepare('SELECT * FROM sharing WHERE profile = ?').bind(profile).first();
   if (known) return known;
   const hidden = (privates || await privateNames(env)).has(name.toLowerCase());
-  await env.DB.prepare('INSERT OR IGNORE INTO sharing (profile, handle, findable, updated) VALUES (?, ?, ?, ?)').bind(profile, hexId(8), hidden ? 0 : 1, Date.now()).run();
+  await env.DB.prepare('INSERT OR IGNORE INTO sharing (profile, handle, findable, bodyweight, updated) VALUES (?, ?, ?, 1, ?)').bind(profile, hexId(8), hidden ? 0 : 1, Date.now()).run();
   return env.DB.prepare('SELECT * FROM sharing WHERE profile = ?').bind(profile).first();
 };
 const linkBetween = (env, one, two) => env.DB.prepare('SELECT a, b, status FROM friends WHERE (a = ?1 AND b = ?2) OR (a = ?2 AND b = ?1)').bind(one, two).first();
@@ -1393,8 +1393,10 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
   const now = Date.now();
   if (action === 'search') {
     const query = typeof body.q === 'string' ? body.q.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 40) : '';
-    if (query.length < 2) return json({ people: [] });
-    const { results } = await env.DB.prepare("SELECT p.id, p.meta, s.findable FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE lower(trim(json_extract(p.meta, '$.name'))) LIKE ?1 || '%' AND p.id != ?2 ORDER BY p.meta_updated DESC LIMIT 40").bind(query.replace(/[%_]/g, ''), key).all();
+    // No name typed: everyone public who has logged something, so friends can be added from the list without searching.
+    if (query.length === 1) return json({ people: [] });
+    const all = query.length === 0;
+    const { results } = await env.DB.prepare("SELECT p.id, p.meta, s.findable FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE lower(trim(json_extract(p.meta, '$.name'))) LIKE ?1 || '%' AND p.id != ?2 AND EXISTS (SELECT 1 FROM sessions WHERE profile = p.id AND data IS NOT NULL) ORDER BY p.meta_updated DESC LIMIT ?3").bind(query.replace(/[%_]/g, ''), key, all ? 300 : 40).all();
     const seen = new Set();
     const people = [];
     for (const row of results) {
@@ -1409,7 +1411,9 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
       if (!findable && !link) continue;
       const share = await sharingFor(env, row.id, name, privates);
       people.push({ handle: share.handle, name, status: !link ? 'none' : link.status === 'friends' ? 'friends' : link.a === key ? 'asked' : 'asks' });
-      if (people.length >= 8) break;
+      // Test profiles stay out of the list everyone sees.
+      if (all && tester(name) && !tester(myName)) people.pop();
+      if (people.length >= (all ? 80 : 8)) break;
     }
     return json({ people });
   }

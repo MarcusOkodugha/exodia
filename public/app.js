@@ -4753,6 +4753,18 @@ const keepSocial = (data) => {
     // too big or private mode: kept in memory only
   }
 };
+// Everyone public, for the list on Friends (no typing needed). Refreshed with the rest of Friends.
+const loadEveryone = () => {
+  if (view.route !== 'friends' || view.everyoneLoading) return;
+  view.everyoneLoading = true;
+  socialPost('/api/friends', { action: 'search', q: '' })
+    .then(({ data }) => {
+      view.everyone = data?.people || [];
+      if (view.route === 'friends') render();
+    })
+    .catch(() => {})
+    .finally(() => { view.everyoneLoading = false; });
+};
 const loadSocial = () => {
   if (!featureOn('friends') || !syncState?.profile || socialLoading) return socialLoading;
   socialLoading = socialPost('/api/friends', { action: 'list' })
@@ -4846,7 +4858,8 @@ const avatarLook = () => {
 };
 const avatar = (name, exodia = false) => {
   if (exodia) return '<span class="fav exo" aria-hidden="true"><img src="/hamsa-512-blue.png" alt="" draggable="false"></span>';
-  const look = avatarLook().get(name) || { background: 'var(--line)', letters: String(name).slice(0, 1) };
+  const step = (nameHash(String(name)) >>> 4) % 205;
+  const look = avatarLook().get(name) || { background: `linear-gradient(135deg, hsl(${warmHue(step)} 32% 60%), hsl(${warmHue(step + 28)} 36% 71%))`, letters: String(name).trim().slice(0, 1).toUpperCase() };
   return `<span class="fav" style="background:${look.background}" aria-hidden="true"><b>${esc(look.letters)}</b></span>`;
 };
 
@@ -5003,16 +5016,18 @@ const friendsSide = () => {
 };
 
 // The Friends page: find people by name, answer requests, and choose what friends see.
-const SHARE_ROWS = [['recovery', 'Recovery', 'Which muscles are fresh, days since trained'], ['strength', 'Strength levels', 'Anatomy levels and the strength web'], ['workouts', 'Workouts', 'Your recent days, lifts and sets'], ['bodyweight', 'Bodyweight', 'Off: friends see levels, not your weight'], ['findable', 'Findable by name', 'Off: only people you already know can add you']];
+const SHARE_ROWS = [['recovery', 'Recovery', 'Which muscles are fresh, days since trained'], ['strength', 'Strength levels', 'Anatomy levels and the strength web'], ['workouts', 'Workouts', 'Your recent days, lifts and sets'], ['bodyweight', 'Bodyweight', 'Shown next to your strength levels'], ['findable', 'Public profile', 'In the list everyone sees. Off: only people you already know can add you']];
 const renderFriends = () => {
   if (!featureOn('friends')) return renderHome();
   const social = view.social;
   const search = view.friendSearch || { q: '', people: [] };
+  if (!view.everyone && !view.everyoneLoading) setTimeout(loadEveryone, 0);
   const person = (row, button) => `<div class="fxLine">${avatar(row.name)}<span class="fxText"><span class="fxName">${esc(row.name)}</span></span>${button}</div>`;
   const statusButton = (row) => (row.status === 'friends' ? '<span class="fxState">Friends</span>' : row.status === 'asked' ? `<button class="fxBtn quiet" data-action="friend-cancel" data-handle="${row.handle}">Asked</button>` : row.status === 'asks' ? `<button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>` : `<button class="fxBtn clay" data-action="friend-ask" data-handle="${row.handle}">Add</button>`);
   return `<main class="page friendsPage">
     <h1 class="title">Friends</h1>
     <label class="fxSearch">${ICONS.search}<span class="sr">Find friends by name</span><input id="friendSearch" type="search" placeholder="Find friends by name" autocomplete="off" enterkeyhint="search" value="${esc(search.q)}"></label>
+    ${search.q.trim().length < 2 && view.everyone?.length ? `<p class="section">People on Exodia</p><div class="fxList">${view.everyone.filter((row) => row.status !== 'friends').map((row) => person(row, statusButton(row))).join('')}</div>` : ''}
     ${search.q.trim().length >= 2 ? `<div class="fxList">${search.people.length ? search.people.map((row) => person(row, statusButton(row))).join('') : `<p class="fxEmpty">${search.loading ? 'Looking…' : 'Nobody with that name yet.'}</p>`}</div>` : ''}
     ${social?.requests?.length ? `<p class="section">Wants to be your friend</p><div class="fxList">${social.requests.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-decline" data-handle="${row.handle}">No</button><button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>`)).join('')}</div>` : ''}
     ${social?.friends?.length ? `<p class="section">Your friends</p><div class="fxList">${social.friends.map((friend) => `<div class="fxLine"><a class="fxLink" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span></span></a><button class="fxBtn quiet" data-action="friend-remove" data-handle="${friend.handle}">Remove</button></div>`).join('')}</div>` : ''}
@@ -7632,7 +7647,7 @@ document.addEventListener('click', (event) => {
       if (view.social?.me) view.social.me.shares = { ...view.social.me.shares, [key]: on };
     }
     // Shown at once; the server's answer replaces it.
-    for (const row of view.friendSearch?.people || []) if (row.handle === target.dataset.handle) row.status = step === 'ask' ? (row.status === 'asks' ? 'friends' : 'asked') : step === 'accept' ? 'friends' : 'none';
+    for (const row of [...(view.friendSearch?.people || []), ...(view.everyone || [])]) if (row.handle === target.dataset.handle) row.status = step === 'ask' ? (row.status === 'asks' ? 'friends' : 'asked') : step === 'accept' ? 'friends' : 'none';
     target.disabled = true;
     view.friendNote = '';
     render();
@@ -8546,6 +8561,7 @@ const route = () => {
   view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together'].includes(name) ? name : 'home';
   view.friendHandle = friendPage ? friendPage[1] : null;
   if (['friends', 'together', 'friend'].includes(view.route)) loadSocial();
+  if (view.route === 'friends') loadEveryone();
   if (view.route === 'together' && wasRoute !== 'together') {
     view.whenScroll = null;
     view.visitOpen = null;

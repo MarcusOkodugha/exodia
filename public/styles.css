@@ -1793,3 +1793,6 @@ button.wnDay { cursor: pointer; }
 .tgPlan .textBtn { min-height: 0; color: var(--text2); font-weight: 500; }
 .backHome .exChev { color: #fff; }
 .friendPage { padding-bottom: 140px; }
+/* Friends: headings line up with the rows under them, and Remove ends where the switches end. */
+.friendsPage .section { margin-left: 0; margin-right: 0; }
+.friendsPage .fxBtn.quiet { padding-right: 0; }
