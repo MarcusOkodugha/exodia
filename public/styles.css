@@ -826,7 +826,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
 .promptInput { scrollbar-width: none; }
 .promptInput::-webkit-scrollbar { display: none; }
 .slashCmd { color: var(--clayText, var(--clay)); font-weight: 600; }
-.slashSuggest { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text2); font: inherit; font-size: 14px; }
+.slashSuggest { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 14px; border: 0; outline: none; border-radius: 12px; background: var(--bg); color: var(--text2); font: inherit; font-size: 14px; }
 .slashList { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
 .slashList[hidden] { display: none; }
 .slashList .slashSuggest { margin: 0; width: 100%; text-align: left; }
