@@ -5069,6 +5069,7 @@ const renderFriend = () => {
   const body = asPerson(person, () => `
     ${friend.shares?.recovery || friend.shares?.strength ? `<section class="friendAnatomy">${renderMuscles()}</section>` : ''}
     ${friend.shares?.strength && friend.body ? readOnly(renderStrength()).replace("The heaviest you've lifted in each", `The heaviest ${esc(friend.name)} has lifted in each`).replace(/<button class="textBtn bodyEdit"[^>]*>([^<]*)<\/button>/, friend.body.exact ? '<span class="muted">$1</span>' : '') : ''}
+    ${friend.shares?.strength && friend.body ? renderImpressive().replace('Your most impressive lift', `${esc(friend.name)}&#39;s most impressive lift`) : ''}
     ${friend.shares?.workouts ? `<p class="section">Recent days</p><div class="fxDays">${days.map((session) => `<div class="fxDay"><span class="fxDayName">${esc(dayName(session))}</span><span class="muted">${dayLabel(session.date)}</span></div>`).join('') || '<p class="empty">Nothing in the last 3 weeks.</p>'}</div>` : ''}`);
   return `<main class="page friendPage">
     <p class="eyebrow">${friendHasExodia(friend) ? 'Has Exodia' : 'Friend'}</p>
