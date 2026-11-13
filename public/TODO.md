@@ -27,6 +27,9 @@ Not urgent and not in the red pill. Marcus decides these when he wants; nothing 
 Three big pieces Marcus wants done properly when the time comes. Don't start one without planning it with him first.
 
 - [ ] **Friends.** See a friend from the top of Home without it getting in the way: tap to open their Exodia (recovery, strength, recent days), one tap back to yours. For planning sessions together.
+  - Mockups sent 13 Nov (waiting on Marcus): Friends in the sidebar / phone menu with a status line ("Ready for pull"); a friend's Exodia has a clay-tinted top bar and "Back to mine" where the box was (read only, nothing to change); **Train together** first: both recovery bodies, a suggested day ("Pull day, rear delt focus") and why (both recovered, who isn't, lowest shared level); Friends page: search by name, Add, Accept/No.
+  - Privacy: friends are mutual (ask and accept). Each person picks what friends see: recovery, strength levels, workouts on; bodyweight, gym and times off; what you said (voice, messages, feedback) never shared; "findable by name" can be turned off (then invite link only).
+  - Must come first: names are accounts with no lock, so anyone who types a name opens that log. A searchable friends list makes names easy to find, so add a lock (PIN or this-phone-only claim) before Friends ships.
 - [ ] **Training program.** Programs inside Exodia (plan days and weeks, follow along, log against them).
 - [ ] **Apple Health.** Connect to the Health app (workouts, steps, bodyweight in; training out).
 
