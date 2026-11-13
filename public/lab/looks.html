@@ -1,0 +1,127 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Anatomy looks</title>
+<style>
+:root{--bg:#FAF9F5;--text:#141413;--text2:#6B6A64}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+main{max-width:1100px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 18px) 16px 40px}
+h1{font-family:ui-serif,'New York',Georgia,serif;font-weight:400;font-size:34px;margin:0 0 14px}
+.stage{position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+canvas{display:block;width:100%;height:auto}
+.names{position:absolute;inset:0;pointer-events:none}
+.names span{position:absolute;transform:translateX(-50%);font-size:15px;font-weight:600}
+.names small{display:block;text-align:center;font-weight:400;font-size:12.5px;color:var(--text2)}
+.credit{font-size:11.5px;color:var(--text2);margin-top:22px;line-height:16px}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body><main>
+<h1>Pick a look</h1>
+<div class="stage" id="stage"><canvas id="c"></canvas><div class="names" id="names"></div></div>
+<p class="credit">Drag to spin. Model: Z-Anatomy (Gauthier Kervyn), BodyParts3D (DBCLS), CC BY-SA 4.0.</p>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+// Recovery colours, same as the app.
+const C = { r4: '#C96442', r3: '#E4B2A0', r2: '#D4E1D2', r1: '#6F9B6A' };
+const COLORS = { chest: 'r4', shoulders: 'r4', rearDelts: 'r2', traps: 'r2', upperBack: 'r1', lowerBack: 'r3', biceps: 'r2', triceps: 'r4', forearms: 'r1', abs: 'r2', glutes: 'r3', quads: 'r3', hamstrings: 'r3', adductors: 'r2', calves: 'r1' };
+const GROUP = (n) => /hamstring|biceps_femoris|semitend|semimem/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt|supraspinatus/.test(n) ? 'shoulders' : /trap/.test(n) ? 'traps' : /lat|rhomboid|teres|infraspinatus|serratus/.test(n) ? 'upperBack' : /erector|iliocostalis|longissimus|spinalis/.test(n) ? 'lowerBack' : /biceps|brachialis/.test(n) ? 'biceps' : /triceps/.test(n) ? 'triceps' : /forearm|brachiorad|carpi|digitorum|pollicis|flexor|extensor|palmaris|pronator/.test(n) ? 'forearms' : /rectus_abd|oblique|abdom/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus|quad|sartorius/.test(n) ? 'quads' : /adductor|gracilis|pectineus/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis|calf/.test(n) ? 'calves' : null;
+const nameOf = (o) => { let n = ''; for (let x = o; x; x = x.parent) n += ' ' + (x.name || ''); return n.toLowerCase(); };
+// The four looks. fibre: how deep the muscle fibre lines are; grain: stipple in the shadows; ink: outline per muscle;
+// book: one anatomy-book red instead of recovery colours, on paper.
+const LOOKS = [
+  { name: 'A', note: 'Book', book: true, fibre: 0.42, grain: 0.35, ink: '#2B1A14', ao: true },
+  { name: 'B', note: 'Fibres', fibre: 0.3, grain: 0.12, ink: '#3A2E28', ao: true },
+  { name: 'C', note: 'Grain', fibre: 0.0, grain: 0.6, ink: '#3A2E28', ao: true },
+  { name: 'D', note: 'Now', fibre: 0, grain: 0, ink: null, ao: false },
+];
+const canvas = document.getElementById('c'), stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+let W, H, cellW, cellH, cols;
+const size = () => { W = stage.clientWidth; cols = W < 700 ? 2 : 4; cellW = W / cols; cellH = cellW * (cols === 2 ? 2.0 : 2.1); H = cellH * Math.ceil(LOOKS.length / cols); renderer.setSize(W, H, false); canvas.style.height = H + 'px';
+  document.getElementById('names').innerHTML = LOOKS.map((l, i) => `<span style="left:${(i % cols + 0.5) * cellW}px;top:${(Math.floor(i / cols) + 1) * cellH - 46}px">${l.name}<small>${l.note}</small></span>`).join(''); };
+size(); addEventListener('resize', size);
+renderer.setScissorTest(true);
+const gltf = await new GLTFLoader().loadAsync('./anatomy.glb');
+const box = new THREE.Box3().setFromObject(gltf.scene); const center = box.getCenter(new THREE.Vector3()); const height = box.getSize(new THREE.Vector3()).y;
+
+// Each muscle's long axis (its main direction), so fibre lines run along the muscle.
+const axisOf = (geo) => {
+  const p = geo.attributes.position; const n = p.count; const m = new THREE.Vector3();
+  for (let i = 0; i < n; i++) m.add(new THREE.Vector3().fromBufferAttribute(p, i)); m.divideScalar(n);
+  const c = [0, 0, 0, 0, 0, 0]; const v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { v.fromBufferAttribute(p, i).sub(m); c[0] += v.x * v.x; c[1] += v.x * v.y; c[2] += v.x * v.z; c[3] += v.y * v.y; c[4] += v.y * v.z; c[5] += v.z * v.z; }
+  let a = new THREE.Vector3(0.1, 1, 0.1);
+  for (let k = 0; k < 24; k++) a = new THREE.Vector3(c[0] * a.x + c[1] * a.y + c[2] * a.z, c[1] * a.x + c[3] * a.y + c[4] * a.z, c[2] * a.x + c[4] * a.y + c[5] * a.z).normalize();
+  const arr = new Float32Array(n * 3); for (let i = 0; i < n; i++) arr.set([a.x, a.y, a.z], i * 3);
+  geo.setAttribute('aAxis', new THREE.BufferAttribute(arr, 3));
+};
+const NOISE = `
+float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
+const scale = 1 / height;
+const muscleMat = (hex, look, vc) => {
+  const m = new THREE.MeshLambertMaterial({ color: hex, vertexColors: vc });
+  if (!look.fibre && !look.grain) return m;
+  m.onBeforeCompile = (s) => {
+    s.uniforms.uFibre = { value: look.fibre }; s.uniforms.uGrain = { value: look.grain }; s.uniforms.uScale = { value: scale };
+    s.vertexShader = 'attribute vec3 aAxis; varying vec3 vOP; varying vec3 vON; varying vec3 vAx;\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vOP = position; vON = normal; vAx = aAxis;');
+    s.fragmentShader = 'uniform float uFibre; uniform float uGrain; uniform float uScale; varying vec3 vOP; varying vec3 vON; varying vec3 vAx;\n' + NOISE + '\n' + s.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        vec3 nn = normalize(vON); vec3 t = normalize(vAx - dot(vAx, nn) * nn + 1e-5); vec3 bb = normalize(cross(nn, t));
+        vec3 q = vOP * uScale;
+        float along = dot(q, t), across = dot(q, bb);
+        float wob = n3(q * 60.0) * 0.6 + n3(vec3(across * 300.0, along * 30.0, 0.0)) * 0.5;
+        float f = sin((across * 520.0 + wob * 3.0) ) * 0.5 + 0.5;
+        f = smoothstep(0.25, 0.9, f) * (0.65 + 0.35 * n3(vec3(across * 260.0, along * 14.0, 3.0)));
+        diffuseColor.rgb *= 1.0 - uFibre * f;`)
+      .replace('#include <opaque_fragment>', `
+        float lum = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
+        float g = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453);
+        float dark = clamp(1.0 - lum * 1.15, 0.0, 1.0);
+        outgoingLight *= 1.0 - uGrain * step(g, dark * 0.9) * 0.55;
+        #include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey = () => look.name;
+  return m;
+};
+const inkMat = (look) => { const m = new THREE.MeshBasicMaterial({ color: look.ink, side: THREE.BackSide });
+  m.onBeforeCompile = (s) => { s.vertexShader = s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n transformed += normal * ${(height * 0.0022).toFixed(5)};`); }; return m; };
+
+const scenes = LOOKS.map((look) => {
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xffffff, look.book ? 0xc8b9a0 : 0xd8d2c4, look.book ? 1.7 : 2.2));
+  const dir = new THREE.DirectionalLight(0xffffff, look.book ? 1.8 : 1.1); dir.position.set(2, 3, 4); scene.add(dir);
+  const f = gltf.scene.clone(true); const mats = {}; const ink = look.ink && inkMat(look);
+  const hulls = [];
+  f.traverse((o) => { if (!o.isMesh) return; const full = nameOf(o); const ctx = /context/.test(full); const skin = /skin/.test(full);
+    const vc = look.ao && Boolean(o.geometry.attributes.color) && !skin;
+    if (!o.geometry.attributes.aAxis) axisOf(o.geometry);
+    const g = ctx ? null : GROUP(full);
+    const hex = look.book ? (ctx ? (skin ? '#EFE6D6' : '#E8DCC6') : '#B8503A') : g ? C[COLORS[g]] : skin ? '#F1EEE7' : '#E9E5DC';
+    const key = hex + vc + ctx; o.material = mats[key] ||= ctx ? new THREE.MeshLambertMaterial({ color: hex, vertexColors: vc, transparent: skin }) : muscleMat(hex, look, vc);
+    if (ink && !ctx) hulls.push(o); });
+  for (const o of hulls) { const h = new THREE.Mesh(o.geometry, ink); o.add(h); }
+  f.position.sub(center); const pivot = new THREE.Group(); pivot.add(f); scene.add(pivot);
+  return { scene, pivot, look };
+});
+const cam = new THREE.PerspectiveCamera(30, cellW / cellH, 0.01, 100); cam.position.set(0, -height * 0.1, height * 2.3); cam.lookAt(0, -height * 0.1, 0);
+let angle = 0.5, speed = 0.25, drag = null;
+stage.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, a: angle, last: e.clientX, lt: e.timeStamp }; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener('pointermove', (e) => { if (!drag) return; angle = drag.a + (e.clientX - drag.x) * 0.012; speed = (e.clientX - drag.last) * 0.012 / Math.max(1, e.timeStamp - drag.lt) * 16; drag.last = e.clientX; drag.lt = e.timeStamp; });
+const up = () => { drag = null; }; stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+const paper = new THREE.Color('#F1E8D6');
+window.__look = (a) => { angle = a; speed = 0; };
+const draw = () => {
+  if (!drag) { speed += (0.012 * Math.sign(speed || 1) - speed) * 0.03; angle += speed * 0.016; }
+  cam.aspect = cellW / cellH; cam.updateProjectionMatrix();
+  scenes.forEach(({ scene, pivot, look }, i) => { pivot.rotation.y = angle; const x = (i % cols) * cellW, y = H - (Math.floor(i / cols) + 1) * cellH;
+    renderer.setViewport(x, y, cellW, cellH); renderer.setScissor(x, y, cellW, cellH);
+    renderer.setClearColor(look.book ? paper : 0x000000, look.book ? 1 : 0); renderer.clear(); renderer.render(scene, cam); });
+  requestAnimationFrame(draw);
+};
+renderer.autoClear = false;
+draw();
+</script></body></html>
