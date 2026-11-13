@@ -4779,6 +4779,18 @@ const loadEveryone = () => {
     .catch(() => {})
     .finally(() => { view.everyoneLoading = false; });
 };
+// A friend put you on a plan: one banner per plan (tap it to open that day in Train together), never again after.
+const planAddedBanner = () => {
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem('exodia.plansSeen') || '[]'); } catch { /* private mode */ }
+  const today = todayIso();
+  const fresh = (view.social?.plans || []).find((plan) => plan.date >= today && plan.by && plan.by !== 'me' && !seen.includes(`${plan.date}|${plan.kind}|${plan.by}`));
+  if (!fresh || view.toast) return;
+  seen = [...seen, `${fresh.date}|${fresh.kind}|${fresh.by}`].slice(-40);
+  try { localStorage.setItem('exodia.plansSeen', JSON.stringify(seen)); } catch { /* private mode */ }
+  const when = fresh.date === today ? 'today' : parseIso(fresh.date).toLocaleDateString('en-GB', { weekday: 'long' });
+  view.toast = { kind: 'rep', title: `${fresh.by} added you to ${fresh.kind.toLowerCase() === 'full body' ? 'a full body day' : `${fresh.kind} day`} ${fresh.date === today ? 'today' : `on ${when}`}`, text: 'Tap to see the plan', go: fresh.date };
+};
 const loadSocial = () => {
   if (!featureOn('friends') || !syncState?.profile || socialLoading) return socialLoading;
   socialLoading = socialPost('/api/friends', { action: 'list' })
@@ -4786,6 +4798,7 @@ const loadSocial = () => {
       if (ok) {
         keepSocial(data);
         syncTogether();
+        planAddedBanner();
       }
       render();
     })
@@ -4931,7 +4944,7 @@ const bestFit = (people, date) => {
   const solo = people.length === 1;
   const who = solo ? 'Your' : people.length === 2 ? 'Both your' : "Everyone's";
   const region = KIND_REGION[best];
-  const lead = best === 'Move' ? `Most muscles are still recovering, so cardio fits ${solo ? 'you' : 'everyone'} well.` : average(best) >= 0.9 ? `${who} ${region} ${areOrIs(region)} fresh.` : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} the freshest for ${solo ? 'you' : 'everyone'}.`;
+  const lead = best === 'Move' ? `Most muscles are still recovering, so cardio fits ${solo ? 'you' : 'everyone'} well.` : average(best) >= 0.9 ? (solo ? `Your ${region} ${areOrIs(region)} fresh.` : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} fresh for ${people.length === 2 ? 'both of you' : 'everyone'}.`) : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} the freshest for ${solo ? 'you' : 'everyone'}.`;
   // What the second option needs to know: the one who trained it most recently.
   const tired = second === 'Move' ? null : [...people].sort((one, two) => one.ready[second] - two.ready[second])[0];
   const lastOf = tired && KIND_MUSCLES[second].map((key) => tired.last[key]).filter(Boolean).sort().at(-1);
@@ -5110,7 +5123,7 @@ const renderTogether = () => {
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
     ${conflict ? `<p class="tgWhy">${esc(conflict.plan.by === 'me' ? 'You' : conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b> for ${short(conflict.plan.date)}.<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`
       : `<p class="tgWhy">${picked === fit.best || people.length === 1 ? fit.why : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}</p>`}`;
-  const planLine = plan ? `<p class="tgPlan">${esc(plan.kind)} planned for ${together.date === today ? 'today' : short(together.date)} with ${esc(plan.members.filter((member) => !member.me).map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1'))}${plan.by !== 'me' ? `, picked by ${esc(plan.by)}` : ''}.</p><button class="fxBtn tgLeave" data-action="together-leave">Leave this plan</button>` : '';
+  const planLine = plan ? `<p class="tgPlan"><b class="tgPlanDay">${esc(plan.kind)} day ${together.date === today ? 'today' : `on ${parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}`}</b><br>${(() => { const names = (list) => esc(list.map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1')); const others = plan.members.filter((member) => !member.me); if (plan.by === 'me') return `With ${names(others)}.`; const rest = others.filter((member) => member.name !== plan.by); return `${esc(plan.by)} picked it${rest.length ? `, with ${names(rest)}` : ''}.`; })()}</p><button class="fxBtn tgLeave" data-action="together-leave">Leave this plan</button>` : '';
   return `<main class="page togetherPage">
     <div class="titleRow"><h1 class="title">Train together</h1></div>
     ${row}
@@ -5244,7 +5257,7 @@ const render = () => {
   app.innerHTML = `
     ${layout}
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
-      <div class="toastMain"><button class="toastBody" data-action="${view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
+      <div class="toastMain"><button class="toastBody" data-action="${view.toast.go ? 'toast-go' : view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
   const freshRight = document.querySelector('.right');
@@ -7737,6 +7750,18 @@ document.addEventListener('click', (event) => {
     const together = view.together;
     together.kind = together.conflict?.plan.kind || together.kind;
     together.conflict = null;
+    render();
+    return;
+  }
+  if (action === 'toast-go') {
+    const date = view.toast?.go;
+    view.toast = null;
+    startTogether();
+    if (date) view.together.date = date;
+    syncTogether();
+    // Opening Train together normally starts on today; this one opens on the planned day.
+    view.togetherWith = true;
+    location.hash = '#/together';
     render();
     return;
   }
