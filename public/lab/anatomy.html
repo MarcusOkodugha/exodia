@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Squad recovery 3D</title>
+<style>
+:root{--bg:#FAF9F5;--text:#141413;--text2:#6B6A64;--clay:#C96442}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+main{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 18px) 16px 40px}
+h1{font-family:ui-serif,'New York',Georgia,serif;font-weight:400;font-size:34px;margin:0 0 4px}
+p{margin:0 0 14px;color:var(--text2);font-size:14px;line-height:20px}
+.stage{position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+canvas{display:block;width:100%;height:auto}
+.names{position:absolute;inset:0;pointer-events:none}
+.names span{position:absolute;transform:translateX(-50%);font-size:13px;color:var(--text2)}
+.stat{font-size:12.5px;color:var(--text2);margin-top:10px}
+.credit{font-size:11.5px;color:var(--text2);margin-top:22px;line-height:16px}
+.key{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--text2);margin:6px 0 0}
+.key i{width:10px;height:10px;border-radius:2.5px;display:inline-block}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body><main>
+<h1>Squad recovery</h1>
+<p>Test page, only for you. Drag sideways to spin everyone; let go and they keep turning, then slowly carry on by themselves.</p>
+<div class="stage" id="stage"><canvas id="c"></canvas><div class="names" id="names"></div></div>
+<p class="key">Just trained <i style="background:#C96442"></i><i style="background:#E4B2A0"></i><i style="background:#D4E1D2"></i><i style="background:#6F9B6A"></i> Recovered</p>
+<p class="stat" id="stat">Loading…</p>
+<p class="credit">3D model: Gymmetry muscle model, adapted from Z-Anatomy (Gauthier Kervyn) and BodyParts3D (DBCLS, Kousaku Okubo), CC BY-SA 4.0.</p>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const t0 = performance.now();
+const C = { r4: '#C96442', r3: '#E4B2A0', r2: '#D4E1D2', r1: '#6F9B6A', none: '#E6E3D8' };
+const KEYS = ['chest','shoulders','rearDelts','traps','upperBack','lowerBack','biceps','triceps','forearms','abs','glutes','quads','hamstrings','adductors','calves'];
+const pick = (seed) => Object.fromEntries(KEYS.map((k, i) => [k, ['r1','r1','r2','r3','r4','r1','r2'][(seed * 5 + i * 3 + (seed * i) % 4) % 7]]));
+const people = [['Marcus', pick(1)], ['Romi', pick(2)], ['Adam', pick(3)], ['Benjamin', pick(4)], ['Isak', pick(5)], ['Oliver', pick(6)], ['Emil', pick(7)]];
+const GROUP = (n) => /hamstring|biceps_femoris|semitend|semimem/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt|supraspinatus/.test(n) ? 'shoulders' : /trap/.test(n) ? 'traps' : /lat|rhomboid|teres|infraspinatus|serratus/.test(n) ? 'upperBack' : /erector|iliocostalis|longissimus|spinalis/.test(n) ? 'lowerBack' : /biceps|brachialis/.test(n) ? 'biceps' : /triceps/.test(n) ? 'triceps' : /forearm|brachiorad|carpi|digitorum|pollicis|flexor|extensor|palmaris|pronator/.test(n) ? 'forearms' : /rectus_abd|oblique|abdom/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus|quad|sartorius/.test(n) ? 'quads' : /adductor|gracilis|pectineus/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis|calf/.test(n) ? 'calves' : null;
+const nameOf = (o) => { let n = ''; for (let x = o; x; x = x.parent) n += ' ' + (x.name || ''); return n.toLowerCase(); };
+const canvas = document.getElementById('c'), stage = document.getElementById('stage');
+const cols = 4, rows = Math.ceil(people.length / cols);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+const low = /Android/.test(navigator.userAgent) && (navigator.hardwareConcurrency || 8) < 6;
+renderer.setPixelRatio(Math.min(low ? 1.5 : 2, devicePixelRatio));
+let W, H, cellW, cellH;
+const size = () => { W = stage.clientWidth; cellW = W / cols; cellH = cellW * 2.25; H = cellH * rows; renderer.setSize(W, H, false); canvas.style.height = H + 'px';
+  document.getElementById('names').innerHTML = people.map(([n], i) => `<span style="left:${(i % cols + 0.5) * cellW}px;top:${(Math.floor(i / cols) + 1) * cellH - 20}px">${n}</span>`).join(''); };
+size(); addEventListener('resize', size);
+renderer.setScissorTest(true);
+const gltf = await new GLTFLoader().loadAsync('./anatomy.glb');
+const loaded = performance.now();
+// One shared geometry per muscle; each person only gets their own coloured materials.
+const mats = {}; const mat = (hex) => (mats[hex] ||= new THREE.MeshLambertMaterial({ color: hex }));
+const box = new THREE.Box3().setFromObject(gltf.scene); const center = box.getCenter(new THREE.Vector3()); const height = box.getSize(new THREE.Vector3()).y;
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(2, 3, 4); scene.add(dir);
+const figs = people.map(([, colors]) => { const f = gltf.scene.clone(true);
+  f.traverse((o) => { if (!o.isMesh) return; const full = nameOf(o); const g = /context/.test(full) ? null : GROUP(full); o.material = mat(g ? C[colors[g] || 'none'] : /skin/.test(full) ? '#F1EEE7' : '#E9E5DC'); });
+  f.position.sub(center); const pivot = new THREE.Group(); pivot.add(f); pivot.visible = false; scene.add(pivot); return pivot; });
+const cam = new THREE.PerspectiveCamera(30, cellW / cellH, 0.01, 100); cam.position.set(0, -height * 0.07, height * 2.05); cam.lookAt(0, -height * 0.07, 0);
+let angle = 0, speed = 0.25, drag = null, frames = 0, since = performance.now(), fps = 0;
+stage.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, a: angle, t: e.timeStamp, last: e.clientX, lt: e.timeStamp }; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener('pointermove', (e) => { if (!drag) return; angle = drag.a + (e.clientX - drag.x) * 0.012; speed = (e.clientX - drag.last) * 0.012 / Math.max(1, e.timeStamp - drag.lt) * 16; drag.last = e.clientX; drag.lt = e.timeStamp; });
+const up = () => { drag = null; }; stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+const draw = () => {
+  if (!drag) { speed += (0.012 * Math.sign(speed || 1) - speed) * 0.03; angle += speed * 0.016 * 60 / 60; }
+  figs.forEach((pivot, i) => { pivot.visible = true; pivot.rotation.y = angle; const x = (i % cols) * cellW, y = H - (Math.floor(i / cols) + 1) * cellH; renderer.setViewport(x, y, cellW, cellH); renderer.setScissor(x, y, cellW, cellH); renderer.render(scene, cam); pivot.visible = false; });
+  frames++; const now = performance.now(); if (now - since > 1000) { fps = Math.round(frames * 1000 / (now - since)); frames = 0; since = now;
+    document.getElementById('stat').textContent = `${people.length} people · ${fps} frames a second · model loaded in ${((loaded - t0) / 1000).toFixed(1)} s`; }
+  requestAnimationFrame(draw);
+};
+draw();
+</script></body></html>
