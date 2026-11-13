@@ -3103,6 +3103,8 @@ const textWidth = (text, font) => {
 // A level's number cut, not rounded, to one decimal, so 4.99 reads 4.9 next to "Advanced", never 5.0.
 const levelNumber = (score) => (Math.floor(Math.min(score, 9.99) * 10) / 10).toFixed(1);
 const levelWord = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? LEVELS[Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beginner' : '');
+// The same, short (Int. 3.6), where room is tight; the level key underneath spells each one out.
+const levelShort = (score) => (score >= 5.25 ? 'Elite\u2009+' : score >= 1 ? ['Beg.', 'Nov.', 'Int.', 'Adv.', 'Elite'][Math.min(5, Math.floor(score)) - 1] : score > 0 ? 'Below Beg.' : '');
 // All time = the heaviest you've ever lifted: the web's solid shape and the anatomy, so one light day never pulls a
 // level down. Now = the heaviest of the last 3 months, the web's dotted line (tap "Last 3 months" to swap them).
 const STRENGTH_NOW_DAYS = 90;
@@ -3183,7 +3185,7 @@ const renderStrength = () => {
   const outer = Math.min(8, Math.max(5.6, top + 0.25));
   const size = 320;
   const middle = size / 2;
-  const radius = 118;
+  const radius = 100;
   const angle = (index) => -Math.PI / 2 + (index / lifts.length) * Math.PI * 2;
   const point = (index, score) => [middle + Math.cos(angle(index)) * radius * (Math.min(score, outer) / outer), middle + Math.sin(angle(index)) * radius * (Math.min(score, outer) / outer)];
   const fixed = ([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`;
@@ -3208,20 +3210,20 @@ const renderStrength = () => {
   let [left, right] = [-6, size + 6];
   const labels = lifts.map((lift, index) => {
     // A corner at the top moves up a line, so its set line never touches the outer ring.
-    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 28), middle + Math.sin(angle(index)) * (radius + 28) - (Math.sin(angle(index)) < -0.5 ? 17 : 0)];
+    const [x, y] = [middle + Math.cos(angle(index)) * (radius + 22), middle + Math.sin(angle(index)) * (radius + 22) - (Math.sin(angle(index)) < -0.5 ? 50 : 0)];
     const anchor = Math.abs(x - middle) < 8 ? 'middle' : x > middle ? 'start' : 'end';
     // The set the level comes from, under it; tapping the corner opens that day.
     const source = known && shown(lift) ? (recent ? lift.recent : lift.best) : null;
     const setLine = source ? (lift.key === 'pull-ups' ? (Number(source.set.kg) > 0 ? `+${Number(source.set.kg)} kg × ${source.set.reps}` : `${source.set.reps} reps`) : `${Number(source.set.kg)} × ${source.set.reps}`) : '';
-    const wide = Math.max(textWidth(lift.label, '600 18px'), textWidth(`■ ${levelWord(shownScore(lift))} 0.0`, '500 15px'), textWidth(`${setLine} · 00 Mmm 0000`, '400 13px'));
+    const wide = Math.max(textWidth(lift.label, '600 21px'), textWidth(`■ ${levelShort(shownScore(lift))} 0.0`, '500 18px'), textWidth('00 Sept 0000', '400 16px'), textWidth(setLine, '400 16px'));
     const [from, to] = anchor === 'middle' ? [x - wide / 2, x + wide / 2] : anchor === 'start' ? [x, x + wide] : [x - wide, x];
     [left, right] = [Math.min(left, from - 4), Math.max(right, to + 4)];
     const swatch = shown(lift) ? `<tspan class="webSwatch ${tierOf(shownScore(lift))?.[2] || 'tierBeg'}">■</tspan> ` : '';
-    const level = !known ? '<tspan class="webNone">–</tspan>' : shown(lift) ? `${swatch}${levelWord(shownScore(lift))} <tspan class="webNum">${levelNumber(shownScore(lift))}</tspan>` : `<tspan class="webNone">${lift.ever ? 'Not lately' : 'Not logged'}</tspan>`;
-    const corner = `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 20).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
+    const level = !known ? '<tspan class="webNone">–</tspan>' : shown(lift) ? `${swatch}${levelShort(shownScore(lift))} <tspan class="webNum">${levelNumber(shownScore(lift))}</tspan>` : `<tspan class="webNone">${lift.ever ? 'Not lately' : 'Not logged'}</tspan>`;
+    const corner = `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="webLift">${esc(lift.label)}</text><text x="${x.toFixed(1)}" y="${(y + 22).toFixed(1)}" text-anchor="${anchor}" class="webLevel">${level}</text>`;
     if (!source) return corner;
     const when = parseIso(source.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    return `<g class="webCorner" data-action="jump-session" data-date="${source.date}" role="button" aria-label="${esc(lift.label)}: ${setLine}, ${when}, open the day">${corner}<text x="${x.toFixed(1)}" y="${(y + 37).toFixed(1)}" text-anchor="${anchor}" class="webSet">${setLine} · ${when}</text></g>`;
+    return `<g class="webCorner" data-action="jump-session" data-date="${source.date}" role="button" aria-label="${esc(lift.label)}: ${setLine}, ${when}, open the day">${corner}<text x="${x.toFixed(1)}" y="${(y + 41).toFixed(1)}" text-anchor="${anchor}" class="webSet">${setLine}</text><text x="${x.toFixed(1)}" y="${(y + 59).toFixed(1)}" text-anchor="${anchor}" class="webSet">${when}</text></g>`;
   }).join('');
   // Same room on both sides, so the web's centre is the screen's centre whatever the labels say.
   const half = Math.max(middle - left, right - middle) + 4;
@@ -3243,7 +3245,7 @@ const renderStrength = () => {
     <section class="card webCard${known ? '' : ' empty'}">
       ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
       ${!known ? '' : `<div class="webTop"><p class="webIntro">The heaviest you've lifted in each, against Strength Level's standards for your bodyweight</p><p class="webLegend">${[[false, 'All time', 'solid'], [true, 'Last 3 months', 'dotted']].map(([value, label, look]) => `<button class="webPick" data-action="web-now" data-now="${value ? 1 : 0}" aria-pressed="${recent === value}"><i class="${look}"></i>${label}</button>`).join('')}</p></div>`}
-      <svg class="web" viewBox="${(middle - half).toFixed(0)} -30 ${(half * 2).toFixed(0)} 384" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
+      <svg class="web" viewBox="${(middle - half).toFixed(0)} -40 ${(half * 2).toFixed(0)} 394" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
         ${known ? `<path d="${outline(corners)}" class="webShape"/>

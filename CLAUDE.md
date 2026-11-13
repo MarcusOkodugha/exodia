@@ -94,6 +94,7 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 
 ## Working with Marcus
 
+- Marcus lives in Sweden (Stockholm). Use Swedish context by default: Swedish federations and championships (SM, Svenska Styrkelyftförbundet), kg, Swedish dates and places. Never assume the US.
 - Marcus often writes fast from his phone, sometimes at the gym, so expect typos. Work out what he means, and ask only when it's genuinely unclear.
 - Half the words, all the facts. Name things exactly ("Gemini 3.5 Flash-Lite read it", "Claude Sonnet 5.5 is what we used"), never vague ("a weaker model"). No fluff, but it must still be understandable.
 - When he says something more than once, it matters: act on it fully, and do more than asked when it comes to the app working well. Only bring him what he truly has to do himself.
@@ -107,6 +108,7 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 - Do the whole thing end to end: edit, check, commit, push, then confirm it's live. Don't hand him steps you can do yourself.
 - Marcus uses Exodia in both Chrome and Safari, on the phone and as the installed desktop app. Everything must look right in both; never ask which one.
 - Design taste: calm and subtle, with the clay/orange accent (`--clay`). Small, precise visual changes are better than redesigns. When he asks for a visual tweak, change only that.
+- Visual asks are design problems, not literal instructions. "Make the text easier to read" may be best solved by size, weight, contrast, spacing or layout; think it through, pick the best-looking answer, and check optical centre and balance in the screenshot, not just the numbers. Before shipping a visual change, send a before/after screenshot of exactly how it will look on the phone and the computer.
 - Never change how something looks unless Marcus asked for exactly that. If another visual change seems needed, show him a before/after picture and ask first. Every visual change goes in `changes.json` and is named in the reply, so nothing changes without him knowing.
 - When he says something should change and asks for your suggestion, build the suggestion (and show it); don't stop at a proposal and wait for a yes.
 - Everything must feel smooth: anything you drag, swipe, open or close follows the finger and animates out, never jumps. If something you build or see isn't as smooth or refined as Marcus would want, say so in your reply ("not smooth yet: …") so it gets fixed.

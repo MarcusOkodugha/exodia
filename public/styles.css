@@ -1672,3 +1672,9 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 .todayNum { display: none; }
 @container (max-width: 174px) { .muscleList .todayNum { display: inline; } }
 @container (min-width: 129px) { .right .muscleList .todayNum { display: none; } }
+/* Strength web text a third bigger, so it reads without squinting on a phone and in the computer's side panel: the set
+   and its date get a line each and the web itself is a little smaller to make room. */
+.webLift { font-size: 21px; }
+.webLevel, .webLevel.tierInt, .webLevel.tierNov, .webLevel.tierBeg, .webLevel.tierAdv, .webLevel.tierElite { font-size: 18px; }
+.webSet { font-size: 16px; }
+.webRingNumber { font-size: 14px; }
