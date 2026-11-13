@@ -1239,7 +1239,7 @@ const demo = async (env) => {
 
 // Beta and launch: bigger features ship behind a name. Until Marcus taps Launch in Admin (a row in features with
 // launched_at), only he and test profiles (a name starting "Test ") get them; everyone else sees nothing new.
-const BETA = [{ name: 'friends', title: 'Friends and Train together' }];
+const BETA = [{ name: 'friends', title: 'Friends and Train together' }, { name: 'notifications', title: 'Notifications' }];
 let launchedCache = { at: 0, names: new Set() };
 const launchedFeatures = async (env, fresh = false) => {
   if (!fresh && Date.now() - launchedCache.at < 30000) return launchedCache.names;
@@ -1364,7 +1364,79 @@ const dayPlus = (iso, days) => {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 };
-const social = async (request, env, which) => {
+// Notifications. Only what's useful: a friend adds you to a workout, changes or moves it, leaves it, asks to be your
+// friend or accepts. No reminders, nothing about not logging. A push carries no data: the device asks /api/push for
+// what to show, so nothing is encrypted per device. The sender key (VAPID) is made here the first time and kept in D1.
+const PUSH_HOSTS = /^https:\/\/(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com|[a-z0-9.-]+\.push\.apple\.com)\//;
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64url = (text) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0));
+let vapid = null;
+const vapidKeys = async (env) => {
+  if (vapid) return vapid;
+  let row = await env.DB.prepare("SELECT value FROM app_keys WHERE name = 'vapid'").first();
+  if (!row) {
+    const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const jwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+    await env.DB.prepare("INSERT OR IGNORE INTO app_keys (name, value) VALUES ('vapid', ?)").bind(JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, d: jwk.d })).run();
+    row = await env.DB.prepare("SELECT value FROM app_keys WHERE name = 'vapid'").first();
+  }
+  const jwk = JSON.parse(row.value);
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  vapid = { key, public: b64url(new Uint8Array([4, ...fromB64url(jwk.x), ...fromB64url(jwk.y)])) };
+  return vapid;
+};
+const pushTo = async (env, endpoint) => {
+  const { key, public: publicKey } = await vapidKeys(env);
+  const text = (value) => b64url(new TextEncoder().encode(JSON.stringify(value)));
+  const unsigned = `${text({ typ: 'JWT', alg: 'ES256' })}.${text({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'https://exodia.marcusokodugha.workers.dev' })}`;
+  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(unsigned));
+  return fetch(endpoint, { method: 'POST', headers: { authorization: `vapid t=${unsigned}.${b64url(signature)}, k=${publicKey}`, ttl: '86400', urgency: 'high', 'content-length': '0' } });
+};
+// Tell these people (profile keys). Only people with notifications on get a row and a push.
+const notify = async (env, profiles, notice) => {
+  const now = Date.now();
+  for (const profile of new Set(profiles)) {
+    const { results } = await env.DB.prepare('SELECT endpoint FROM push_subs WHERE profile = ?').bind(profile).all();
+    if (!results.length) continue;
+    await env.DB.prepare('INSERT INTO notices (profile, title, body, url, created) VALUES (?, ?, ?, ?, ?)').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now).run();
+    for (const { endpoint } of results) {
+      const response = await pushTo(env, endpoint).catch(() => null);
+      if (response && (response.status === 404 || response.status === 410)) await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ?').bind(endpoint).run();
+    }
+  }
+};
+const notificationsOn = async (env, key, name) => (Boolean(env.ADMIN_PROFILE) && key === env.ADMIN_PROFILE) || tester(name) || (await launchedFeatures(env)).has('notifications');
+const pushRoute = async (request, env) => {
+  if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+  const body = (await request.json().catch(() => null)) || {};
+  if (body.action === 'key') return json({ key: (await vapidKeys(env)).public });
+  const endpoint = typeof body.endpoint === 'string' && body.endpoint.length < 1000 && PUSH_HOSTS.test(body.endpoint) ? body.endpoint : '';
+  if (!endpoint) return json({ error: 'Missing endpoint.' }, 400);
+  // The device's service worker, woken by a push: what to show. Newer than what this device showed, else the newest.
+  if (body.action === 'latest') {
+    const sub = await env.DB.prepare('SELECT profile, last FROM push_subs WHERE endpoint = ?').bind(endpoint).first();
+    if (!sub) return json({ notices: [] });
+    let { results } = await env.DB.prepare('SELECT id, title, body, url FROM notices WHERE profile = ? AND id > ? AND created > ? ORDER BY id DESC LIMIT 4').bind(sub.profile, sub.last, Date.now() - 2 * 86400000).all();
+    if (results.length) await env.DB.prepare('UPDATE push_subs SET last = ? WHERE endpoint = ?').bind(results[0].id, endpoint).run();
+    else ({ results } = await env.DB.prepare('SELECT id, title, body, url FROM notices WHERE profile = ? ORDER BY id DESC LIMIT 1').bind(sub.profile).all());
+    return json({ notices: results });
+  }
+  const key = request.headers.get('x-exodia-key') ?? '';
+  if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
+  const me = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(key).first();
+  if (!me || !(await notificationsOn(env, key, metaName(me.meta)))) return json({ error: 'Not found' }, 404);
+  if (body.action === 'subscribe') {
+    await env.DB.prepare('INSERT INTO push_subs (endpoint, profile, last, created) VALUES (?1, ?2, (SELECT COALESCE(MAX(id), 0) FROM notices), ?3) ON CONFLICT(endpoint) DO UPDATE SET profile = excluded.profile').bind(endpoint, key, Date.now()).run();
+  } else if (body.action === 'unsubscribe') {
+    await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ? AND profile = ?').bind(endpoint, key).run();
+  } else if (body.action === 'test') {
+    const sub = await env.DB.prepare('SELECT 1 FROM push_subs WHERE endpoint = ? AND profile = ?').bind(endpoint, key).first();
+    if (sub) await notify(env, [key], { title: 'Notifications are on', body: 'You get one when a friend adds you to a workout or changes it.', url: '/#/together' });
+  }
+  return json({ ok: true });
+};
+const planDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const social = async (request, env, which, ctx) => {
   if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
   const key = request.headers.get('x-exodia-key') ?? '';
   if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
@@ -1386,9 +1458,14 @@ const social = async (request, env, which) => {
     if (typeof handle !== 'string' || !HANDLE.test(handle)) return null;
     return env.DB.prepare('SELECT s.*, p.meta FROM sharing s JOIN profiles p ON p.id = s.profile WHERE s.handle = ?').bind(handle).first();
   };
-  return which === 'friends' ? friendsAction(env, body, { key, isAdmin, myName, mine, privates, other, today, launched }) : togetherAction(env, body, { key, other, today });
+  // Notices go out after the answer, so a slow push service never slows the app.
+  const tell = (profiles, notice) => {
+    const others = profiles.filter((profile) => profile && profile !== key);
+    if (others.length) ctx?.waitUntil(notify(env, others, notice).catch(() => {}));
+  };
+  return which === 'friends' ? friendsAction(env, body, { key, isAdmin, myName, mine, privates, other, today, launched, tell }) : togetherAction(env, body, { key, other, today, myName, tell });
 };
-const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, other, today, launched }) => {
+const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, other, today, launched, tell }) => {
   const action = body.action || 'list';
   const now = Date.now();
   if (action === 'search') {
@@ -1430,14 +1507,21 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
     const target = await other(body.handle);
     if (!target || target.profile === key) return json({ error: 'Not found' }, 404);
     const link = await linkBetween(env, key, target.profile);
+    const accepted = () => tell([target.profile], { title: `${myName} accepted your friend request`, body: 'You can see each other and train together now.', url: `/#/friend/${mine.handle}` });
     if (action === 'ask') {
-      if (link?.status === 'asked' && link.a === target.profile) await env.DB.prepare("UPDATE friends SET status = 'friends', at = ? WHERE a = ? AND b = ?").bind(now, target.profile, key).run();
-      else if (!link) {
+      if (link?.status === 'asked' && link.a === target.profile) {
+        await env.DB.prepare("UPDATE friends SET status = 'friends', at = ? WHERE a = ? AND b = ?").bind(now, target.profile, key).run();
+        accepted();
+      } else if (!link) {
         if (!target.findable) return json({ error: 'Not found' }, 404);
         await env.DB.prepare("INSERT OR IGNORE INTO friends (a, b, status, at) VALUES (?, ?, 'asked', ?)").bind(key, target.profile, now).run();
+        tell([target.profile], { title: `${myName} wants to be your friend`, body: 'Tap to answer.', url: '/#/friends' });
       }
     } else if (action === 'accept') {
-      if (link?.status === 'asked' && link.a === target.profile) await env.DB.prepare("UPDATE friends SET status = 'friends', at = ? WHERE a = ? AND b = ?").bind(now, target.profile, key).run();
+      if (link?.status === 'asked' && link.a === target.profile) {
+        await env.DB.prepare("UPDATE friends SET status = 'friends', at = ? WHERE a = ? AND b = ?").bind(now, target.profile, key).run();
+        accepted();
+      }
     } else {
       // No, cancel and remove are the same: the link goes, in either direction.
       await env.DB.prepare('DELETE FROM friends WHERE (a = ?1 AND b = ?2) OR (a = ?2 AND b = ?1)').bind(key, target.profile).run();
@@ -1468,7 +1552,7 @@ const plansFor = async (env, key, today) => {
 // Train together. Adding and removing people are small steps the server applies to the plan as it is now, so two
 // people tapping at once never undo each other. Changing what to train needs the plan's version: if someone else
 // changed it since, or picked it in the first place, the answer is the plan as it is, and the app asks first.
-const togetherAction = async (env, body, { key, other, today }) => {
+const togetherAction = async (env, body, { key, other, today, myName, tell }) => {
   const action = body.action || 'list';
   const now = Date.now();
   if (action === 'list') return json({ plans: await plansFor(env, key, today) });
@@ -1485,6 +1569,8 @@ const togetherAction = async (env, body, { key, other, today }) => {
     const fresh = await myPlan(env, date, key);
     return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today), ...extra }, status);
   };
+  const url = `/#/together/${date}`;
+  const membersOf = (row) => (row ? JSON.parse(row.members) : []);
   if (action === 'add') {
     const target = await other(body.handle);
     if (!target || !friends.has(target.profile)) return json({ error: 'Only friends can be added.' }, 403);
@@ -1494,11 +1580,15 @@ const togetherAction = async (env, body, { key, other, today }) => {
       plan = await myPlan(env, date, key);
       if (!plan && theirs) {
         const members = [...new Set([...JSON.parse(theirs.members), key])];
-        if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, theirs.id, theirs.version).run().then((result) => result.meta?.changes > 0)) return answer(200, { joined: true });
+        if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, theirs.id, theirs.version).run().then((result) => result.meta?.changes > 0)) {
+          tell(membersOf(theirs), { title: `${myName} joined ${theirs.kind.toLowerCase()} day`, body: planDay(date), url });
+          return answer(200, { joined: true });
+        }
         continue;
       }
       if (!plan) {
         await env.DB.prepare('INSERT INTO plans (id, date, kind, owner, by, members, version, updated) VALUES (?, ?, ?, ?, ?, ?, 1, ?)').bind(hexId(8), date, kind || 'Pull', key, key, JSON.stringify([key, target.profile]), now).run();
+        tell([target.profile], { title: `${myName} added you to ${(kind || 'Pull').toLowerCase()} day`, body: planDay(date), url });
         return answer();
       }
       const members = JSON.parse(plan.members);
@@ -1508,11 +1598,15 @@ const togetherAction = async (env, body, { key, other, today }) => {
         const merged = [...new Set([...members, ...JSON.parse(theirs.members)])];
         if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(merged), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) {
           await env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(theirs.id).run();
+          tell(membersOf(theirs), { title: `${myName} added you to ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
           return answer();
         }
         continue;
       }
-      if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify([...members, target.profile]), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) return answer();
+      if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify([...members, target.profile]), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) {
+        tell([target.profile], { title: `${myName} added you to ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+        return answer();
+      }
     }
     return answer(409, { busy: true });
   }
@@ -1531,7 +1625,12 @@ const togetherAction = async (env, body, { key, other, today }) => {
       const done = members.length < 2
         ? await env.DB.prepare('DELETE FROM plans WHERE id = ? AND version = ?').bind(plan.id, plan.version).run()
         : await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, plan.id, plan.version).run();
-      if (done.meta?.changes > 0) return answer();
+      if (done.meta?.changes > 0) {
+        // Leaving tells the others; being taken off tells the one taken off.
+        if (action === 'leave') tell(members, { title: `${myName} left ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+        else tell([gone], { title: `${myName} took you off ${plan.kind.toLowerCase()} day`, body: planDay(date), url: '/#/together' });
+        return answer();
+      }
     }
     return answer(409, { busy: true });
   }
@@ -1543,6 +1642,7 @@ const togetherAction = async (env, body, { key, other, today }) => {
     for (const member of JSON.parse(plan.members)) if (await myPlan(env, to, member)) return answer(409, { taken: true });
     const moved = await env.DB.prepare('UPDATE plans SET date = ?, by = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(to, key, now, plan.id, plan.version).run();
     if (!(moved.meta?.changes > 0)) return answer(409, { busy: true });
+    tell(membersOf(plan), { title: `${myName} moved ${plan.kind.toLowerCase()} day`, body: `Now ${planDay(to)}`, url: `/#/together/${to}` });
     const fresh = await myPlan(env, to, key);
     return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today) });
   }
@@ -1553,7 +1653,10 @@ const togetherAction = async (env, body, { key, other, today }) => {
     const version = Number(body.version);
     // Someone else picked it, or it changed since you looked: ask first.
     if (version !== plan.version || (plan.by !== key && body.confirm !== true)) return answer(409, { conflict: true });
-    if (await write(plan, JSON.parse(plan.members), kind)) return answer();
+    if (await write(plan, JSON.parse(plan.members), kind)) {
+      tell(membersOf(plan), { title: `${myName} changed it to ${kind.toLowerCase()} day`, body: planDay(date), url });
+      return answer();
+    }
     return answer(409, { conflict: true });
   }
   return json({ error: 'Unknown action.' }, 400);
@@ -1563,8 +1666,9 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/features') return features(request, env);
-    if (url.pathname === '/api/friends') return social(request, env, 'friends');
-    if (url.pathname === '/api/together') return social(request, env, 'together');
+    if (url.pathname === '/api/friends') return social(request, env, 'friends', ctx);
+    if (url.pathname === '/api/together') return social(request, env, 'together', ctx);
+    if (url.pathname === '/api/push') return pushRoute(request, env);
     if (url.pathname === '/api/sync') {
       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
       return sync(request, env);

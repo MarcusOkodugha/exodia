@@ -1507,6 +1507,7 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
   <div class="devMenu" role="menu">
     <button role="menuitem" data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
     <button role="menuitem" data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
+    <button role="menuitem" data-action="dev-3d">3D body: four looks</button>
     ${view.devHit ? '<button role="menuitem" data-action="dev-normal">Back to normal colors</button>' : ''}
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
@@ -2280,6 +2281,7 @@ const renderLeft = () => {
       <div class="leftDev">
         <button data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
         <button data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
+        <button data-action="dev-3d">3D body: four looks</button>
         ${view.devHit ? '<button data-action="dev-normal">Back to normal colors</button>' : ''}
         ${view.sandbox ? '<button data-action="dev-exit">Leave test mode</button>' : '<button data-action="dev-newuser">Simulate new user</button>'}
       </div>
@@ -2755,6 +2757,7 @@ const renderYou = () => {
       <a class="row setLink" href="#/feedback"><span>Help &amp; feedback</span><span class="muted">How it works, ideas, bugs</span>${ICONS.chevRight}</a>
       <a class="row setLink" href="#/import"><span>Add your data</span><span class="muted">Files from other apps</span>${ICONS.chevRight}</a>
     </section>
+    ${pushRow() ? `<div class="fxSettings setPush">${pushRow()}</div>` : ''}
     <p class="section">Share Exodia</p>
     ${shareCard()}
     <p class="section">Add from any AI</p>
@@ -4745,6 +4748,63 @@ try {
   view.launched = [];
 }
 const featureOn = (name) => Boolean(view.isAdmin) || /^test\s/i.test(state.name || '') || (view.launched || []).includes(name);
+// Notifications: only when a friend adds you to a workout, changes, moves or leaves it, or asks to be your friend.
+// iPhone only allows them for Exodia on the Home Screen, so Safari in a tab gets that one step instead of a switch.
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const pushNeedsHomeScreen = () => !pushSupported() && /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone;
+const pushState = () => {
+  if (view.push !== undefined) return view.push;
+  view.push = null;
+  if (!pushSupported() || !featureOn('notifications')) return null;
+  navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).then((subscription) => {
+    view.push = subscription && Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'blocked' : 'off';
+    renderSoon();
+  }).catch(() => {});
+  return null;
+};
+const pushPost = (body) => fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify(body) });
+const turnPush = async (on) => {
+  const registration = await navigator.serviceWorker.ready;
+  if (!on) {
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await pushPost({ action: 'unsubscribe', endpoint: subscription.endpoint }).catch(() => {});
+      await subscription.unsubscribe().catch(() => {});
+    }
+    view.push = 'off';
+    render();
+    return;
+  }
+  view.push = 'asking';
+  render();
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    view.push = permission === 'denied' ? 'blocked' : 'off';
+    render();
+    return;
+  }
+  try {
+    const { key } = await (await fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'key' }) })).json();
+    const raw = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0));
+    const subscription = (await registration.pushManager.getSubscription()) || (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw }));
+    const response = await pushPost({ action: 'subscribe', endpoint: subscription.endpoint });
+    if (!response.ok) throw new Error('subscribe');
+    view.push = 'on';
+    pushPost({ action: 'test', endpoint: subscription.endpoint }).catch(() => {});
+  } catch {
+    view.push = 'failed';
+  }
+  render();
+};
+// The switch, the same one as What friends see. Off by default; nothing is ever sent about not training.
+const pushRow = () => {
+  if (!featureOn('notifications')) return '';
+  if (pushNeedsHomeScreen()) return `<div class="fxSet still"><span class="fxSetText"><b>Notifications</b><small>On iPhone: Share, then Add to Home Screen. Open Exodia from there and turn them on here.</small></span></div>`;
+  if (!pushSupported()) return '';
+  const state = pushState();
+  const note = state === 'blocked' ? "Off in your phone's settings. Without them you won't hear when a friend adds you to a workout. Exodia never sends reminders or ads." : state === 'failed' ? "Couldn't turn them on. Try again." : state === 'on' ? 'When a friend adds you to a workout, changes it or asks to be your friend. Nothing else.' : "Off: you won't hear when a friend adds you to a workout or changes it. Exodia never sends reminders or ads.";
+  return `<button class="fxSet" role="switch" aria-checked="${state === 'on' || state === 'asking'}" data-action="push-toggle"${state === 'blocked' ? ' disabled' : ''}><span class="fxSetText"><b>Notifications</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`;
+};
 const loadFeatures = () => fetch('/api/features', { headers: syncState?.profile ? { 'x-exodia-key': syncState.profile } : {} })
   .then((response) => (response.ok ? response.json() : null))
   .then((data) => {
@@ -5149,6 +5209,7 @@ const renderTogether = () => {
     ${bodies}
     ${what}
     ${planLine}
+    ${plan && featureOn('notifications') && pushSupported() && pushState() === 'off' && !view.pushOfferGone ? `<p class="tgWhy tgPush">Get a notice if ${esc(plan.members.find((member) => !member.me)?.name || 'a friend')} changes it. Only plans and friend requests, never reminders. <button class="textBtn clay" data-action="push-toggle">Turn on notifications</button></p>` : ''}
     ${together.note ? `<p class="tgNote" role="status">${esc(together.note)}</p>` : ''}
     <p class="tgLabel">When <span class="wnNow">${parseIso(together.date).toLocaleDateString('en-GB', { month: 'long' })}</span></p>
     ${whenCalendar()}
@@ -7796,6 +7857,16 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
+  if (action === 'dev-3d') {
+    location.href = '/lab/looks.html';
+    return;
+  }
+  if (action === 'push-toggle') {
+    if (view.push === 'asking') return;
+    view.pushOfferGone = true;
+    turnPush(view.push !== 'on');
+    return;
+  }
   if (action === 'together-leave') {
     view.together.people = new Set();
     view.together.kind = null;
@@ -8640,6 +8711,18 @@ const route = () => {
   }
   // Leaving Home remembers how far down you were; coming back puts you there again, not at the top.
   if (view.route === 'home') view.homeScroll = scroller().scrollTop;
+  const planDay = name.match(/^together\/(\d{4}-\d{2}-\d{2})$/);
+  if (planDay) {
+    startTogether();
+    view.together.date = planDay[1] < todayIso() ? todayIso() : planDay[1];
+    view.togetherWith = true;
+    history.replaceState(null, '', '#/together');
+    loadSocial();
+    syncTogether();
+    route();
+    view.togetherWith = null;
+    return;
+  }
   const friendPage = name.match(/^friend\/([a-f0-9]{16})$/);
   const wasRoute = view.route;
   view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together'].includes(name) ? name : 'home';
@@ -8933,6 +9016,10 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     setInterval(() => {
       if (!document.hidden) registration.update();
     }, 120000);
+  });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const open = typeof event.data?.open === 'string' ? new URL(event.data.open, location.origin) : null;
+    if (open && open.origin === location.origin && open.hash) location.hash = open.hash;
   });
   // When a new version takes over in the background, offer a quiet tap to load it now.
   const hadVersion = Boolean(navigator.serviceWorker.controller);
