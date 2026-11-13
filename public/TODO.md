@@ -6,6 +6,10 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
+- [ ] **Decide: show the exact % on each lift?** Today a lift on the strength web says "Squat · Int. 3.6". With this it would also say who you beat: "Squat · Int. 3.6 · beats 68%" (the share of people on Strength Level at your bodyweight that your best lifts more than). Same in the anatomy list on the computer.
+  1. Yes adds it everywhere a level shows; No leaves the levels as they are.
+- [ ] **Decide: year marks under the Trends chart?** The chart only shows the first and last date, so your 190 squat (Sep 2023) looked like 2021. Yes puts 2021, 2022, 2023 … along the bottom and spaces the dots by date, so a quiet year looks quiet and a busy month doesn't take half the chart.
+  1. Yes changes the lift chart on Trends; No keeps it as it is.
 - [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
   1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
   2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
