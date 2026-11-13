@@ -1796,3 +1796,15 @@ button.wnDay { cursor: pointer; }
 /* Friends: headings line up with the rows under them, and Remove ends where the switches end. */
 .friendsPage .section { margin-left: 0; margin-right: 0; }
 .friendsPage .fxBtn.quiet { padding-right: 0; }
+/* The model pill is as round as the + next to it, just longer. */
+.prompt .modelTag, .modelTag { border-radius: 999px; }
+/* Add friends: a drawn plus, centred in its circle. */
+.fav.add { display: grid; place-items: center; }
+.fav.add svg { width: 14px; height: 14px; display: block; }
+/* Settings reaches everything: Friends, Help & feedback, Add your data. */
+.setLinks .setLink { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
+.setLinks .setLink span:first-child { flex: none; }
+.setLinks .setLink .muted { flex: 1; text-align: right; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setLinks .setLink .exChev { flex: none; color: var(--text2); }
+/* The menu slides in once; redraws while it's open keep it still. */
+.overlay.shown .drawer, .overlay.shown .scrim { animation: none; }

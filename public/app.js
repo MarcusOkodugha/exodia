@@ -2069,10 +2069,11 @@ const loadAdmin = () => fetch('/api/admin?dashboard=1', { headers: { 'x-exodia-k
 const FEEDBACK_EXAMPLES = ['The mic stopped after a minute', 'Add a rest timer between sets', 'Let me log my body weight', 'Trends should show my squat first', 'The app froze when I pasted my notes'];
 
 const renderFeedback = () => `<main class="page">
-    <p class="eyebrow">Ideas and bugs</p>
-    <h1 class="title">Feedback</h1>
+    <p class="eyebrow">Ideas, bugs and how it works</p>
+    <h1 class="title">Help &amp; feedback</h1>
     <p class="feedbackLead">Missing something, or did something break? Say it or type it in the box below, any way you like. Exodia writes it up and sends it to Marcus, who reads every one and decides what gets built.</p>
     <div class="chat">${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div><div class="bubbleOut" role="status"><p>${writingLine()}</p></div></div>`).join('')}</div>
+    ${helpSections()}
   </main>`;
 
 const sendFeedback = async (text, voice) => {
@@ -2731,6 +2732,11 @@ const renderYou = () => {
   return `<main class="page youPage">
     <p class="eyebrow">Settings</p>
     <h1 class="title nameTitle"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="Your name" data-name-input><label for="name" class="nameEdit" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg></label></h1>
+    <section class="card setLinks">
+      ${featureOn('friends') ? `<a class="row setLink" href="#/friends"><span>Friends</span><span class="muted">Add friends, what they see</span>${ICONS.chevRight}</a>` : ''}
+      <a class="row setLink" href="#/feedback"><span>Help &amp; feedback</span><span class="muted">How it works, ideas, bugs</span>${ICONS.chevRight}</a>
+      <a class="row setLink" href="#/import"><span>Add your data</span><span class="muted">Files from other apps</span>${ICONS.chevRight}</a>
+    </section>
     <p class="section">Share Exodia</p>
     ${shareCard()}
     <p class="section">Add from any AI</p>
@@ -3607,7 +3613,7 @@ const runAiSearch = () => {
 
 const drawerContent = () => {
   const history = exodiaHistory();
-  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Feedback', ICONS.idea], ['help', 'Help', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Help & feedback', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route || (route === 'feedback' && view.route === 'help') ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       ${friendsSide()}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>
@@ -3635,6 +3641,8 @@ const HELP_EXAMPLES = [
   ['bench was 105, not 100', 'fixes the last set'],
   ['last friday deadlift 200 for 2', 'any day, any language'],
 ];
+// How Exodia works, shown under feedback on Help & feedback (one place in the menu for both).
+const helpSections = () => renderHelp().replace(/^<main class="page">\s*<p class="eyebrow">How Exodia works<\/p>\s*<h1 class="title">Help<\/h1>/, '').replace(/<\/main>\s*$/, '');
 const renderHelp = () => `<main class="page">
     <p class="eyebrow">How Exodia works</p>
     <h1 class="title">Help</h1>
@@ -3669,7 +3677,13 @@ const renderImport = () => `<main class="page">
     ${exportHelp(true)}
   </main>`;
 
-const renderDrawer = () => `<div class="overlay">
+// The menu slides in once. Redraws while it's open (sync, friends, the red pill) keep it still, so it never looks like
+// it closes and opens again by itself.
+const renderDrawer = () => {
+  if (!view.menuShown && !view.menuTimer) view.menuTimer = setTimeout(() => { view.menuShown = true; view.menuTimer = null; }, 260);
+  return drawerHtml();
+};
+const drawerHtml = () => `<div class="overlay${view.menuShown ? ' shown' : ''}">
     <button class="scrim" data-action="close-menu" aria-label="Close menu"></button>
     <nav class="drawer" aria-label="Exodia"><a class="drawerBrand" href="#/"><span class="logo${view.blue ? ' blue' : ''}" aria-hidden="true"></span>Exodia</a>${drawerContent()}</nav>
   </div>`;
@@ -5017,7 +5031,7 @@ const friendsSide = () => {
   return `<div class="fxSide"><p class="drawerLabel">Friends</p>
     ${friends.length ? `<a class="fxRow${view.route === 'together' ? ' on' : ''}" href="#/together"><span class="fxStack" aria-hidden="true"><i></i><i></i></span><span class="fxName">Train together</span></a>` : ''}
     ${friends.map((friend) => `<a class="fxRow${view.route === 'friend' && view.friendHandle === friend.handle ? ' on' : ''}" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span>${friendStatus(friend) ? `<span class="fxSub">${friendStatus(friend)}</span>` : ''}</span>${view.isAdmin && friend.admin?.errors ? `<span class="fxErr">${friend.admin.errors} ${friend.admin.errors === 1 ? 'error' : 'errors'}</span>` : ''}</a>`).join('')}
-    <a class="fxRow fxAdd${view.route === 'friends' ? ' on' : ''}" href="#/friends"><span class="fav add" aria-hidden="true">+</span><span class="fxName">${friends.length ? 'Add a friend' : 'Find friends'}</span>${requests ? `<span class="fxCount">${requests}</span>` : ''}</a></div>`;
+    <a class="fxRow fxAdd${view.route === 'friends' ? ' on' : ''}" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.plus}</span><span class="fxName">Add friends</span>${requests ? `<span class="fxCount">${requests}</span>` : ''}</a></div>`;
 };
 
 // The Friends page: find people by name, answer requests, and choose what friends see.
@@ -5032,7 +5046,7 @@ const renderFriends = () => {
   const statusButton = (row) => (row.status === 'friends' ? '<span class="fxState">Friends</span>' : row.status === 'asked' ? `<button class="fxBtn quiet" data-action="friend-cancel" data-handle="${row.handle}">Asked</button>` : row.status === 'asks' ? `<button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>` : `<button class="fxBtn clay" data-action="friend-ask" data-handle="${row.handle}">Add</button>`);
   return `<main class="page friendsPage">
     <h1 class="title">Friends</h1>
-    <label class="fxSearch">${ICONS.search}<span class="sr">Find friends by name</span><input id="friendSearch" type="search" placeholder="Find friends by name" autocomplete="off" enterkeyhint="search" value="${esc(search.q)}"></label>
+    <label class="fxSearch">${ICONS.search}<span class="sr">Search names</span><input id="friendSearch" type="search" placeholder="Search names" autocomplete="off" enterkeyhint="search" value="${esc(search.q)}"></label>
     ${search.q.trim().length < 2 && view.everyone?.length ? `<p class="section">People on Exodia</p><div class="fxList">${view.everyone.filter((row) => row.status !== 'friends').map((row) => person(row, statusButton(row))).join('')}</div>` : ''}
     ${search.q.trim().length >= 2 ? `<div class="fxList">${search.people.length ? search.people.map((row) => person(row, statusButton(row))).join('') : `<p class="fxEmpty">${search.loading ? 'Looking…' : 'Nobody with that name yet.'}</p>`}</div>` : ''}
     ${social?.requests?.length ? `<p class="section">Wants to be your friend</p><div class="fxList">${social.requests.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-decline" data-handle="${row.handle}">No</button><button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>`)).join('')}</div>` : ''}
@@ -5217,6 +5231,7 @@ const render = () => {
         ${view.route === 'home' ? `<a class="iconBtn" href="#/trends" aria-label="Trends">${ICONS.trends}</a>` : `<a class="iconBtn" href="#/" aria-label="Home">${ICONS.home}</a>`}
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
+    if (!view.menu) { view.menuShown = false; clearTimeout(view.menuTimer); view.menuTimer = null; }
   // The update pill keeps its own element across redraws (sync and checks redraw often), so a tap that is under way
   // on it is never lost to a fresh copy.
   const keptPill = document.querySelector('.updatedPill');
