@@ -5141,7 +5141,7 @@ const renderTogether = () => {
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
     ${conflict ? `<p class="tgWhy">${esc(conflict.plan.by === 'me' ? 'You' : conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b> for ${short(conflict.plan.date)}.<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`
       : `<p class="tgWhy">${picked === fit.best || people.length === 1 ? fit.why : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}</p>`}`;
-  const planLine = plan ? `<p class="tgPlan"><b class="tgPlanDay">${esc(plan.kind)} day ${together.date === today ? 'today' : `on ${parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}`}</b><br>${(() => { const names = (list) => esc(list.map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1')); const others = plan.members.filter((member) => !member.me); if (plan.by === 'me') return `With ${names(others)}.`; const rest = others.filter((member) => member.name !== plan.by); return `${esc(plan.by)} picked it${rest.length ? `, with ${names(rest)}` : ''}.`; })()}</p><button class="fxBtn tgLeave" data-action="together-leave">Leave this plan</button>` : '';
+  const planLine = plan ? `<div class="tgPlanRow"><p class="tgPlan"><b class="tgPlanDay">${esc(plan.kind)} day ${together.date === today ? 'today' : `on ${parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}`}</b><br>${(() => { const names = (list) => esc(list.map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1')); const others = plan.members.filter((member) => !member.me); if (plan.by === 'me') return `With ${names(others)}.`; const rest = others.filter((member) => member.name !== plan.by); return `${esc(plan.by)} picked it${rest.length ? `, with ${names(rest)}` : ''}.`; })()}</p><button class="fxBtn quiet" data-action="together-leave">Leave plan</button></div>` : '';
   return `<main class="page togetherPage">
     <div class="titleRow"><h1 class="title">Train together</h1></div>
     ${row}
@@ -5150,7 +5150,7 @@ const renderTogether = () => {
     ${what}
     ${planLine}
     ${together.note ? `<p class="tgNote" role="status">${esc(together.note)}</p>` : ''}
-    <p class="tgLabel">When</p>
+    <p class="tgLabel">When <span class="wnNow">${parseIso(together.date).toLocaleDateString('en-GB', { month: 'long' })}</span></p>
     ${whenCalendar()}
     ${view.visitOpen && view.visitOpen < today ? visitCard() : ''}
     ${together.date > today ? leadUp(together.date, picked) : ''}
@@ -5170,14 +5170,15 @@ const whenCalendar = () => {
   const weeks = [];
   for (let week = start; week <= end; week = addDays(week, 7)) {
     const cells = Array.from({ length: 7 }, (_, index) => addDays(week, index));
-    const opens = cells.find((iso) => iso.endsWith('-01'));
-    if (opens || week === start) weeks.push(`<p class="wnMonth">${parseIso(opens || week).toLocaleDateString('en-GB', { month: 'long', ...(String(opens || week).slice(0, 4) === today.slice(0, 4) ? {} : { year: 'numeric' }) })}</p>`);
-    weeks.push(`<div class="wnWeek${week === monday(today) ? ' now' : ''}">${cells.map((iso) => {
+    // The week is named after the month most of its days are in (its Thursday); the name shows next to When.
+    const named = cells[3];
+    const month = parseIso(named).toLocaleDateString('en-GB', { month: 'long', ...(named.slice(0, 4) === today.slice(0, 4) ? {} : { year: 'numeric' }) });
+    weeks.push(`<div class="wnWeek${week === monday(today) ? ' now' : ''}" data-month="${month}">${cells.map((iso) => {
       const day = days.get(iso);
       const shade = day ? (day.volume > steps[2] ? 4 : day.volume > steps[1] ? 3 : day.volume > steps[0] ? 2 : 1) : 0;
       const mark = day ? `<i class="calDay ${exodiaDays.has(iso) ? 'exodia' : `shade${shade}${day.pr ? ' pr' : ''}`}"></i>` : '';
       const classes = `wnDay${iso === today ? ' today' : ''}${iso === view.together.date ? ' picked' : ''}${planned.has(iso) ? ' planned' : ''}${iso < today ? ' past' : ''}`;
-      const number = parseIso(iso).getDate();
+      const number = parseIso(iso).getDate() === 1 ? `<b class="wnFirst">${parseIso(iso).toLocaleDateString('en-GB', { month: 'short' })}</b>1` : parseIso(iso).getDate();
       if (iso < today) return day ? `<button class="${classes}" data-action="visit-day" data-date="${iso}" aria-label="${dayLabel(iso)}, open"><span>${number}</span>${mark}</button>` : `<span class="${classes}"><span>${number}</span></span>`;
       return `<button class="${classes}" data-action="together-date" data-date="${iso}" aria-label="${dayLabel(iso)}" aria-pressed="${iso === view.together.date}"><span>${number}</span>${mark}</button>`;
     }).join('')}</div>`);
@@ -5193,8 +5194,18 @@ const placeWhen = () => {
     const now = box.querySelector('.wnWeek.now');
     if (now) box.scrollTop = now.offsetTop - box.clientHeight / 3;
   }
+  // When names the month of the week a third of the way down, the same place this week opens at.
+  const label = document.querySelector('.wnNow');
+  const weeks = [...box.querySelectorAll('.wnWeek')];
+  const name = () => {
+    const line = box.scrollTop + box.clientHeight / 3;
+    const week = weeks.find((row) => row.offsetTop + row.offsetHeight > line) || weeks[weeks.length - 1];
+    if (label && week && label.textContent !== week.dataset.month) label.textContent = week.dataset.month;
+  };
+  name();
   box.addEventListener('scroll', () => {
     view.whenScroll = box.scrollTop;
+    name();
   }, { passive: true });
 };
 

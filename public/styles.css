@@ -1830,3 +1830,15 @@ button.wnDay { cursor: pointer; }
 .importBar i { display: block; height: 100%; border-radius: 2px; background: var(--clay); animation: importGrow 0.6s ease; }
 @keyframes importGrow { from { width: var(--from); } }
 .importHint b { font-weight: 600; color: var(--text); }
+
+/* Train together plan: the day shimmers like everything live in Exodia; Leave sits on the same line, the same quiet
+   button as Remove on the Friends page. */
+.tgPlanRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 22px; }
+.tgPlanRow .tgPlan { margin: 0; min-width: 0; }
+.tgPlanRow .fxBtn.quiet { padding-right: 0; }
+.tgPlan .tgPlanDay { background: linear-gradient(90deg, var(--clayText) 30%, #E9B9A2 50%, var(--clayText) 70%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 2.4s linear infinite; }
+/* When: the month you're looking at sits next to When and changes as you scroll; the 1st of a month carries its
+   short name above the number. */
+.tgLabel .wnNow { margin-left: 6px; color: var(--text); }
+.wnDay > span { position: relative; }
+.wnFirst { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); font-size: 10px; line-height: 10px; font-weight: 600; color: var(--clayText); letter-spacing: 0.02em; }
