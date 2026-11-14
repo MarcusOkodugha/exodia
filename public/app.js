@@ -563,6 +563,23 @@ const lastSetsFor = (name, skipDate = todayIso()) => {
   return null;
 };
 
+// What + adds for a lift: your usual way up, the warm-up ladder of last time (one set per weight, in order) up to the
+// first heavy set (90% of last time's top), not the heavy sets themselves, so a day you stop at 130 never shows a
+// 140 you didn't lift. Bodyweight lifts and days without a ladder copy last time as before.
+const usualStart = (name, day) => {
+  const last = lastSetsFor(name, day);
+  if (!last) return null;
+  const top = Math.max(...last.map((set) => Number(set.kg) || 0));
+  if (isBodyweightLift(name) || !(top > 0)) return last;
+  const ladder = [];
+  for (const set of last) {
+    const kg = Number(set.kg) || 0;
+    if (kg >= top * 0.9) break;
+    if (!ladder.length || Number(ladder.at(-1).kg) !== kg) ladder.push(set);
+  }
+  return ladder.length ? ladder : last.slice(0, 1);
+};
+
 // Which Exodia pieces each day hit, worked out once in one pass through your history (a heavy press or deadlift is
 // judged against your best before that day). Opening the app used to redo this for every day of your history, which
 // took seconds with a few years of training. Kept until your log changes.
@@ -8596,7 +8613,7 @@ document.addEventListener('click', (event) => {
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
     const day = view.composerDate || todayIso();
-    const last = lastSetsFor(name, day);
+    const last = usualStart(name, day);
     changeWithUndo(`Added ${name} to ${dayLabel(day)}`, () => addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps })) : [{ kg: '', reps: '' }] }] }, day), `Add ${name}`);
     closeComposer();
     if (!last) view.focusSet = { date: day, name };
