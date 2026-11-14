@@ -3201,8 +3201,9 @@ const liftStrength = (lift, body) => {
 // on screen at once (computer), so each reads its own field.
 const bodyForm = (title) => `<div class="bodyForm">
     <p class="bodyTitle">${title}</p>
-    <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Saved on your account, on all your devices.</p>
-    <div class="bodyRow"><label class="bodyKgWrap"><input class="pill num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label>
+    <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Height lines you up next to friends. Saved on your account, on all your devices.</p>
+    <div class="bodyRow"><label class="bodyKgWrap"><input class="pill num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="bodyKgWrap"><input class="pill num bodyKg bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label></div>
+    <div class="bodyRow">
       ${['male', 'female'].map((sex) => `<button class="chip" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}"><span class="chipFace">${sex === 'male' ? 'Male' : 'Female'}</span></button>`).join('')}
       <button class="chip saveBody" data-action="body-save"><span class="chipFace">Save</span></button></div>
     ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
@@ -3277,9 +3278,9 @@ const renderStrength = () => {
     return `<text x="${(middle + Math.cos(gap) * reach).toFixed(1)}" y="${(middle + Math.sin(gap) * reach + 4).toFixed(1)}" text-anchor="middle" class="webRingNumber">${level}</text>`;
   }).join('');
   const rings = [[1, 'tierBeg'], [2, 'tierNov'], [3, 'tierInt'], [4, 'tierAdv'], [5, 'tierElite']].map(([level, tier]) => `${ring(level)} class="webRing ${tier}"/>`).join('');
-  return `<p class="section">Strength level ${known ? `<button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg · ${body.sex === 'male' ? 'Male' : 'Female'}</button>` : ''}</p>
+  return `<p class="section">Strength level ${known ? `<button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg${body.cm ? ` · ${body.cm} cm` : ''} · ${body.sex === 'male' ? 'Male' : 'Female'}</button>` : ''}</p>
     <section class="card webCard${known ? '' : ' empty'}">
-      ${askBody ? bodyForm(known ? 'Change your bodyweight or sex' : 'Add your bodyweight to see your strength level') : ''}
+      ${askBody ? bodyForm(known ? 'Change your bodyweight, height or sex' : 'Add your bodyweight to see your strength level') : ''}
       ${!known ? '' : `<div class="webTop"><p class="webIntro">The heaviest you've lifted in each, against Strength Level's standards for your bodyweight</p><p class="webLegend">${[[false, 'All time', 'solid'], [true, 'Last 3 months', 'dotted']].map(([value, label, look]) => `<button class="webPick" data-action="web-now" data-now="${value ? 1 : 0}" aria-pressed="${recent === value}"><i class="${look}"></i>${label}</button>`).join('')}</p></div>`}
       <svg class="web" viewBox="${(middle - half).toFixed(0)} -40 ${(half * 2).toFixed(0)} 394" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
@@ -7973,11 +7974,14 @@ document.addEventListener('click', (event) => {
   if (action === 'body-save') {
     const kg = Number(String(target.closest('.bodyForm')?.querySelector('.bodyKg')?.value || '').replace(',', '.'));
     const sex = view.bodySex || state.body?.sex;
-    if (!(kg >= 30 && kg <= 250) || !sex) {
-      view.bodyError = !(kg >= 30 && kg <= 250) ? 'Type your bodyweight in kg, like 85.' : 'Pick Male or Female.';
+    const cmText = String(target.closest('.bodyForm')?.querySelector('.bodyCm')?.value || '').trim();
+    const cm = Math.round(Number(cmText.replace(',', '.')));
+    if (!(kg >= 30 && kg <= 250) || !sex || (cmText && !(cm >= 120 && cm <= 230))) {
+      view.bodyError = !(kg >= 30 && kg <= 250) ? 'Type your bodyweight in kg, like 85.' : !sex ? 'Pick Male or Female.' : 'Type your height in cm, like 180.';
       return render();
     }
-    state.body = { kg: Math.round(kg * 10) / 10, sex };
+    // Height is optional; it lines people up by height in Train together.
+    state.body = { kg: Math.round(kg * 10) / 10, sex, ...(cm >= 120 && cm <= 230 ? { cm } : {}) };
     view.bodyEdit = false;
     view.bodyError = '';
     save();

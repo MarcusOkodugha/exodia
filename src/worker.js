@@ -858,7 +858,7 @@ const sync = async (request, env) => {
     .map((change) => ({ date: change.date, updated: Math.round(change.updated), base: Number.isFinite(change.base) ? Math.round(change.base) : null, data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
     .filter((change) => change.data === null || change.data.length <= MAX_RECORD);
   const meta = body?.meta && typeof body.meta === 'object' && Number.isFinite(body.meta.updated)
-    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex } } : {}), ...cleanVisits(body.meta.visits) }), updated: Math.round(body.meta.updated) }
+    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex, ...(Number(body.meta.body.cm) >= 120 && Number(body.meta.body.cm) <= 230 ? { cm: Math.round(Number(body.meta.body.cm)) } : {}) } } : {}), ...cleanVisits(body.meta.visits) }), updated: Math.round(body.meta.updated) }
     : null;
   if (meta && meta.json.length > MAX_RECORD * 4) return json({ error: 'Too big' }, 400);
   const now = Date.now();
@@ -1339,7 +1339,8 @@ const friendView = async (env, profile, share, isAdmin, today) => {
   // Strength levels need the heaviest set of each lift, nothing more.
   out.tops = share.strength ? [...tops].map(([name, top]) => ({ name, date: top.date, set: top.set })) : [];
   const body = meta.body && Number(meta.body.kg) > 0 ? meta.body : null;
-  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight) };
+  // Height goes with bodyweight: shared exactly when bodyweight is, so Train together can line people up by height.
+  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight), ...(share.bodyweight && Number(body.cm) > 0 ? { cm: Number(body.cm) } : {}) };
   if (isAdmin) {
     const open = await env.DB.prepare("SELECT at, detail FROM events WHERE profile = ? AND kind = 'open' ORDER BY at DESC LIMIT 1").bind(profile).first();
     const last = await env.DB.prepare('SELECT max(at) AS at FROM events WHERE profile = ?').bind(profile).first();
