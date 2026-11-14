@@ -619,53 +619,73 @@ const dayHits = () => {
 const exodiaHistory = () => {
   const today = todayIso();
   const empty = { push: 0, pull: 0, legs: 0, arms: 0, move: 0 };
-  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty }, days: [], active: false, left: 0 };
+  if (state.sessions.length === 0) return { hits: 0, last: null, counts: { ...empty }, days: [], active: false, left: 0, since: null, pieceDays: {} };
   const hits = dayHits();
   if (hitsCache.history?.today === today) return hitsCache.history.value;
   const first = [...hits.keys()].sort()[0];
-  const counts = { ...empty };
-  const add = (iso, sign) => {
-    const hit = hits.get(iso);
-    if (hit) for (const key of Object.keys(counts)) if (hit[key]) counts[key] += sign;
+  // What the days from..to hold (both ends included), and on which days each piece was done.
+  const range = (from, to) => {
+    const counts = { ...empty };
+    const on = { push: [], pull: [], legs: [], arms: [], move: [] };
+    for (let iso = from; iso <= to; iso = addDays(iso, 1)) {
+      const hit = hits.get(iso);
+      if (hit) for (const key of Object.keys(counts)) if (hit[key]) { counts[key] += hit[key] === true ? 1 : Number(hit[key]) || 1; on[key].push(iso); }
+    }
+    return { counts, on };
   };
-  const complete = () => PIECES.every((piece) => counts[piece.id] >= piece.target);
+  const complete = (counts) => PIECES.every((piece) => counts[piece.id] >= piece.target);
+  const later = (one, two) => (one > two ? one : two);
+  // A round: all five pieces inside the last 10 days, every one of them done after the last hit. That's a hit, and
+  // the next round starts the day after. Blue lasts while the pieces of the latest hit's round (and anything newer)
+  // still fill the last 10 days; losing a piece and doing it again is not a new hit.
+  let roundStart = first;
+  let blueStart = null;
   let total = 0;
   let last = null;
-  let was = false;
-  // The days Exodia turned blue, for the calendar.
   const days = [];
+  let blue = false;
   for (let iso = first; iso <= today; iso = addDays(iso, 1)) {
-    add(iso, 1);
-    add(addDays(iso, -EXODIA_DAYS), -1);
-    const now = complete();
-    if (now && !was) {
+    const windowStart = addDays(iso, -(EXODIA_DAYS - 1));
+    if (complete(range(later(windowStart, roundStart), iso).counts)) {
       total += 1;
       last = iso;
       days.push(iso);
+      blueStart = roundStart;
+      roundStart = addDays(iso, 1);
     }
-    was = now;
+    blue = blueStart !== null && complete(range(later(windowStart, blueStart), iso).counts);
   }
-  const active = was;
-  const window = { ...counts };
-  // While blue: how many days until the oldest piece leaves the window, if nothing new is logged, and which one.
+  const active = blue;
+  const windowStart = addDays(today, -(EXODIA_DAYS - 1));
+  // The bars: while blue, what keeps it blue; otherwise this round, what counts towards the next hit.
+  const shown = active ? range(later(windowStart, blueStart), today) : range(later(windowStart, roundStart), today);
+  // While blue: how many days until the first piece leaves the 10 days, if nothing new is logged, and which one.
   let left = 0;
   let firstOut = '';
   if (active) {
     for (let ahead = 1; ahead <= EXODIA_DAYS; ahead += 1) {
-      add(addDays(today, ahead - EXODIA_DAYS), -1);
-      if (!complete()) {
+      const counts = range(later(addDays(today, ahead - (EXODIA_DAYS - 1)), blueStart), today).counts;
+      if (!complete(counts)) {
         left = ahead;
         firstOut = PIECES.find((piece) => counts[piece.id] < piece.target)?.name || '';
         break;
       }
     }
   }
-  const value = { hits: total, last, counts: window, days, active, left, runsOut: firstOut };
+  const value = { hits: total, last, counts: shown.counts, pieceDays: shown.on, days, active, left, runsOut: firstOut, since: active ? blueStart : roundStart };
   hitsCache.history = { today, value };
   return value;
 };
 const exodiaActive = () => exodiaHistory().active;
 // The bars: what the last 10 days hold, full while Exodia is hit.
+// When each piece was done this round, newest last: "8 & 10 Nov", or "1 of 2 · 7 Nov" while it isn't full yet.
+const pieceWhen = (piece) => {
+  const on = (exodiaHistory().pieceDays?.[piece.id] || []).slice(-piece.target);
+  const month = (iso) => parseIso(iso).toLocaleDateString('en-GB', { month: 'short' });
+  const dates = on.map((iso, index) => (index < on.length - 1 && month(iso) === month(on[index + 1]) ? String(parseIso(iso).getDate()) : `${parseIso(iso).getDate()} ${month(iso)}`)).join(' & ');
+  if (piece.complete) return dates || 'Done';
+  return `${Math.min(piece.done, piece.target)} of ${piece.target}${dates ? ` · ${dates}` : ''}`;
+};
 const pieceProgress = () => {
   const { counts } = exodiaHistory();
   return PIECES.map((piece) => ({ ...piece, done: counts[piece.id], complete: counts[piece.id] >= piece.target }));
@@ -1571,7 +1591,7 @@ const renderHome = () => {
         ${ICONS.chev}
       </button>
       <button class="bars" data-action="toggle-exodia" tabindex="-1" aria-hidden="true">${renderBars(pieces)}</button>
-      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${piece.complete ? 'Done' : Math.min(piece.done, piece.target) + ' of ' + piece.target}</span></div>`).join('')}<div class="exoFoot"><p class="empty">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p>${exodiaRing(complete)}</div></div>` : ''}
+      ${view.exodiaOpen ? `<div class="rules${view.rulesEnter ? ' enter' : ''}">${pieces.map((piece) => `<div class="rule"><span><b>${piece.name}</b> <span class="muted">· ${piece.rule}</span></span><span class="muted num">${pieceWhen(piece)}</span></div>`).join('')}<div class="exoFoot"><p class="empty">Heavy means your top set is at least 80% of your best. Last 10 days, any program.</p>${exodiaRing(complete)}</div></div>` : ''}
     </section>
     <p class="section sessionsHead">Sessions${sessions[0] && !view.open.has(sessions[0].date) ? COLUMN_HEAD : ''}</p>
     <div class="list">${sessions.length || inFlight().length ? listWithGhosts(sessions.slice(0, view.homeCount || HOME_PAGE)) : quickStart()}</div>
