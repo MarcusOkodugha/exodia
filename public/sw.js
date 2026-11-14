@@ -1,4 +1,4 @@
-const CACHE = 'exodia-v459';
+const CACHE = 'exodia-v460';
 const PIECES = ['palm', 'thumb-left', 'index', 'middle', 'ring', 'thumb-right'].flatMap((name) => [`/fist/${name}-line.png`, `/fist/${name}-fill.png`]);
 const SHELL = ['/', '/styles.css', '/app.js', '/manifest.webmanifest', '/anatomy.json', '/changes.json', '/favicon-64.png', '/logo.png', '/logo-blue.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/hamsa-512.png', '/hamsa-512-blue.png', '/hamsa-mask.png', '/hamsa-mask-back.png', ...PIECES];
 
@@ -41,7 +41,10 @@ self.addEventListener('push', (event) => {
       notices = (await response.json()).notices || [];
     } catch { /* offline: show the plain one below */ }
     if (!notices.length) notices = [{ id: 0, title: 'Exodia', body: 'Something changed in Train together.', url: '/#/together' }];
-    await Promise.all(notices.reverse().map((notice) => self.registration.showNotification(notice.title, { body: notice.body, tag: `exodia-${notice.id}`, icon: '/icon-192.png', badge: '/favicon-64.png', data: { url: notice.url } })));
+    // One notice per workout and one for friend requests: a newer one about the same plan replaces the older one,
+    // so the phone shows a short stack, never a pile of changes to the same day.
+    const tagOf = (notice) => (/\/together\/(\d{4}-\d{2}-\d{2})/.exec(notice.url || '')?.[1] ? `exodia-plan-${/\/together\/(\d{4}-\d{2}-\d{2})/.exec(notice.url)[1]}` : /friends|\/friend\//.test(notice.url || '') ? `exodia-friend-${notice.title}` : `exodia-${notice.id}`);
+    await Promise.all(notices.reverse().map((notice) => self.registration.showNotification(notice.title, { body: notice.body, tag: tagOf(notice), renotify: true, icon: '/icon-192.png', badge: '/favicon-64.png', data: { url: notice.url } })));
   })());
 });
 
