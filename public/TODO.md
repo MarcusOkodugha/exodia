@@ -45,6 +45,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **3D body: lower back colour hidden (14 Nov, Marcus).** The erector_spinae part sits under lower_lats in the model, so from behind the low back shows the upper-back (lats) colour; only a thin strip shows above the glutes. Tried SHAPE.lowerBack 2.6 (push it out): some colour shows by the spine, but it z-fights (red specks through the traps) and the lumbar area stays lats. Needs a real fix, e.g. draw the erector over the lats below the ribs, or trim lower_lats at the midline. Also checked every model part: hip_rotators were matched as upper back by the /rotator/ test (fixed: glutes). Uncoloured on purpose: hip_flexors, neck, hand and foot muscles. To render the 3D body in a session where jsDelivr is blocked: npm i three@0.170.0 in the scratchpad and route the CDN URL in Playwright to node_modules/three/build/three.module.min.js.
+
 - [ ] **Bodyweight, height and sex always open (14 Nov):** no tap to open; the empty fields glow softly until filled (today height missing still hides the form behind Change).
 - [ ] **Tapped muscle in its view's colour (14 Nov):** in Strength the picked muscle and its row light up in its level colour (Intermediate = purple), in Recovery in its recovery colour; the rest of the figure goes see-through as it does now. Check the 3D body too, and the row highlight (still clay today).
 
