@@ -101,11 +101,11 @@ const merge = (THREE, parts, R = 0) => {
   const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
   const ao = new Float32Array(nv), end = new Float32Array(nv), grp = new Float32Array(nv), idx = new Uint32Array(ni);
   const plain = new THREE.Color(PLAIN), skinC = new THREE.Color(SKIN);
-  let vo = 0, io = 0, headI = null;
+  let vo = 0, io = 0, headI = null; const lats = new Uint8Array(nv);
   for (const o of parts) {
     const cnt = o.count, ctx = /context/.test(o.name), skin = /skin/.test(o.name), head = /body_context/.test(o.name);
     const gi = ctx ? 0 : GROUPS.indexOf(GROUP(o.name)) + 1;
-    pos.set(o.pos, vo * 3); nor.set(o.nor, vo * 3);
+    pos.set(o.pos, vo * 3); nor.set(o.nor, vo * 3); if (/lats/.test(o.name)) lats.fill(1, vo, vo + cnt);
     const cc = skin ? skinC : plain;
     for (let i = 0; i < cnt; i++) { ao[vo + i] = o.ao && !skin && !head ? o.ao[i] : 1; grp[vo + i] = gi; col.set([cc.r, cc.g, cc.b], (vo + i) * 3); }
     // Fibre direction. Real fibres fan: a pec runs from the sternum and collarbone to one spot on the upper arm,
@@ -170,6 +170,18 @@ const merge = (THREE, parts, R = 0) => {
       A.fromArray(pos, idx[j] * 3); B.fromArray(pos, idx[j + 1] * 3); Cc.fromArray(pos, idx[j + 2] * 3); fn.crossVectors(B.sub(A), Cc.sub(A));
       for (let k = 0; k < 3; k++) { const w = weld[idx[j + k] - v0] * 3; wn[w] += fn.x; wn[w + 1] += fn.y; wn[w + 2] += fn.z; } }
     for (let i = v0; i < v1; i++) { const w = weld[i - v0] * 3; fn.set(wn[w], wn[w + 1], wn[w + 2]).normalize(); nor.set([fn.x, fn.y, fn.z], i * 3); } }
+  // The low back. In the model the erectors lie under the lower lats, so from behind the lumbar area took the
+  // upper-back colour and the lower back never showed. What covers the erectors there is a flat tendon sheet, not
+  // lat muscle, so the part of the lats lying right over an erector counts as lower back: colour, size and tap.
+  const gLow = GROUPS.indexOf('lowerBack') + 1;
+  if (R > 0 && gLow) { let y0 = Infinity, y1 = -Infinity; for (let i = 0; i < nv; i++) if (grp[i] === gLow) { y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); }
+    const top = y0 + (y1 - y0) * 0.4; // the erectors run up to the neck; the low back is their lower part, below the ribs
+    const r = R * 0.45, cells = new Map(), ck = (x, y) => Math.floor(x / r) * 8192 + Math.floor(y / r);
+    for (let i = 0; i < nv; i++) if (grp[i] === gLow) { const k = ck(pos[i * 3], pos[i * 3 + 1]); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
+    for (let i = 0; i < nv; i++) { if (!lats[i] || pos[i * 3 + 1] > top) continue; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2]; let over = false;
+      for (let a = -1; a <= 1 && !over; a++) for (let b = -1; b <= 1 && !over; b++) { const cell = cells.get(ck(x + a * r, y + b * r)); if (!cell) continue;
+        for (const j of cell) { const dx = pos[j * 3] - x, dy = pos[j * 3 + 1] - y; if (dx * dx + dy * dy < r * r && Math.abs(pos[j * 3 + 2] - z) < R * 3) { over = true; break; } } }
+      if (over) grp[i] = gLow; } }
   // Neighbours. For every muscle vertex: the nearest vertex of another muscle group within R, and how near it is.
   // The shader moves the two towards the same bulk where they meet (see V_BODY). A grid keeps the search short.
   const near = new Float32Array(nv * 2);
@@ -207,7 +219,7 @@ float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * 
 float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
-const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef;';
+const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
   uniform vec3 uPal[16]; uniform float uBulk[16]; uniform float uDef[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
@@ -219,8 +231,11 @@ const V_PARS = `
 const V_BODY = `
   float sa = (1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, sb = (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w;
   float sel = max(sa, sb), anySel = max(uSel.y, uSel.w); int gi = int(aGroup + 0.5);
-  vCol = mix(mix(uPal[gi], uPlain, 0.55 * anySel), uClay, sel);
-  vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel);
+  // The picked muscle keeps the colour it has (its level, its recovery) and the rest of the body fades towards
+  // plain, so it stands out by being the only one left in colour. A muscle with no colour is picked in clay.
+  vec3 own = uPal[gi]; vec3 picked = distance(own, uPlain) < 0.02 ? uClay : own;
+  vCol = mix(mix(own, uPlain, 0.82 * anySel), picked, sel);
+  vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel); vFade = anySel * (1.0 - sel);
   // x: definition by level. y: how much the ends pale to tendon; not the chest, which read as a white patch on the breastbone.
   vDef = vec2(uDef[gi], step(0.5, abs(aGroup - 1.0)));
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
@@ -258,6 +273,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
   const DPR = Math.min(weak ? 1.5 : 2, window.devicePixelRatio || 1);
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }); } catch (e) { throw new Error('body3d: no WebGL'); }
+  // Opened, a figure is drawn at the screen's full sharpness (up to 3); in the page it stays at 2 to save work.
+  const DPR_OPEN = weak ? DPR : Math.min(3, window.devicePixelRatio || 1); let pr = DPR;
   renderer.setPixelRatio(DPR); renderer.setScissorTest(true); renderer.autoClear = false; renderer.info.autoReset = false; renderer.setClearColor(0x000000, 0);
 
   // Overlay for the open view: the same canvas moves in here and covers the screen.
@@ -277,7 +294,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
         if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
-        float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x; float fG = fibre(normalize(vON));
+        float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
         diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -344,7 +361,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
     // Fibre spacing is fixed on the body (about 2.4 px on a figure in the row), so opening a figure zooms into it.
     // Small figures (a row of seven) get the spacing of a 380 px one: finer than the screen, so it melts to a tone.
-    U.uFreq.value = Math.max(s.ppu, 380 / height) / Math.max(2.4, 3.4 / DPR);
+    // Opened, the spacing follows the zoom most of the way, so a figure that fills the screen shows about twice
+    // as many fibres as in the row instead of the same ones drawn thicker.
+    U.uFreq.value = Math.max(s.ppu * Math.pow(r.ppu / s.ppu, 0.75), 380 / height) / Math.max(2.4, 3.4 / pr);
     U.uQ.value.x = Math.max(0.45, Math.min(1, (r.ppu * height - 90) / 200));
     const y = H - r.y - r.h; renderer.setViewport(r.x, y, r.w, r.h); renderer.setScissor(r.x, y, r.w, r.h); renderer.render(scene, cam);
   };
@@ -363,7 +382,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
   const live = () => !dead && !document.hidden && (onScreen || inOver);
   const idleSpeed = () => (reduced.matches || selGroup || hold ? 0 : 0.006 * Math.sign(speed || 1));
   const settle = () => { // back in the row after closing
-    inOver = false; over.classList.remove('on', 'in'); document.removeEventListener('keydown', onKey);
+    inOver = false; pr = DPR; renderer.setPixelRatio(pr); W = H = 0; over.classList.remove('on', 'in'); document.removeEventListener('keydown', onKey);
     if (hostEl) hostEl.appendChild(canvas);
     size(); render();
   };
@@ -401,12 +420,16 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     const hit = ray.intersectObjects([muscle, ctx], false)[0];
     return hit ? (hit.object === muscle ? muscleGeo.userData.grp[hit.face.a] : 0) : null;
   };
+  // The line under the open figure: the picked muscle with what the app says about it ("Traps · Elite 5.4",
+  // "Quads · 2 days ago") when it passes a label, else just its name.
+  const showName = () => { const key = GROUPS[selGroup - 1];
+    if (key) { nameEl.textContent = people[open >= 0 ? open : 0]?.labels[key] || LABEL[key]; nameEl.classList.add('on'); } else nameEl.classList.remove('on'); };
   const doExpand = (i) => {
     if (dead || i === open || !people[i]) return false;
-    open = i; whoEl.textContent = people[i].name || '';
+    open = i; whoEl.textContent = people[i].name || ''; showName();
     if (!inOver) {
       const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); if (/^#[0-9a-f]{6}$/i.test(bg)) veilMat.color.set(bg);
-      inOver = true; if (!over.parentNode) document.body.appendChild(over);
+      inOver = true; pr = DPR_OPEN; renderer.setPixelRatio(pr); W = H = 0; if (!over.parentNode) document.body.appendChild(over);
       over.insertBefore(canvas, over.firstChild); over.classList.add('on'); document.addEventListener('keydown', onKey);
       size(); render(); requestAnimationFrame(() => { if (open >= 0) over.classList.add('in'); });
     }
@@ -459,21 +482,22 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     },
     setPeople(list) {
       people = (list || []).map((p) => {
-        const pal = [plainC], bulk = [0], def = [1];
-        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}, b = bulkOf(m.level); pal.push(m.color ? new THREE.Color(m.color) : plainC); bulk.push(b > 0 ? b * (SHAPE[g] || 1) : b); def.push(defOf(m.level)); }
+        const pal = [plainC], bulk = [0], def = [1], labels = {};
+        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}, b = bulkOf(m.level); pal.push(m.color ? new THREE.Color(m.color) : plainC); if (m.label) labels[g] = String(m.label); bulk.push(b > 0 ? b * (SHAPE[g] || 1) : b); def.push(defOf(m.level)); }
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
-        return { id: p.id, name: p.name || '', cm, pal, bulk, def, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', cm, pal, bulk, def, labels, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
       if (open >= 0) whoEl.textContent = people[open].name;
+      showName();
       layout(); dirty = true; kick();
     },
     setSelected(key) {
       const g = GROUPS.indexOf(key) + 1; if (g === selGroup) return;
       if (sel.y > 0.01) { sel.z = sel.x; sel.w = sel.y; } sel.y = 0; if (g) sel.x = g; selGroup = g;
-      if (g) { nameEl.textContent = LABEL[key]; nameEl.classList.add('on'); } else nameEl.classList.remove('on');
+      showName();
       dirty = true; kick();
     },
     expand(index) { doExpand(index); },

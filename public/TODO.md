@@ -45,10 +45,9 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **3D body: lower back colour hidden (14 Nov, Marcus).** The erector_spinae part sits under lower_lats in the model, so from behind the low back shows the upper-back (lats) colour; only a thin strip shows above the glutes. Tried SHAPE.lowerBack 2.6 (push it out): some colour shows by the spine, but it z-fights (red specks through the traps) and the lumbar area stays lats. Needs a real fix, e.g. draw the erector over the lats below the ribs, or trim lower_lats at the midline. Also checked every model part: hip_rotators were matched as upper back by the /rotator/ test (fixed: glutes). Uncoloured on purpose: hip_flexors, neck, hand and foot muscles. To render the 3D body in a session where jsDelivr is blocked: npm i three@0.170.0 in the scratchpad and route the CDN URL in Playwright to node_modules/three/build/three.module.min.js.
 
 - [x] **Bodyweight, height and sex always open (14 Nov):** done: Settings always shows the form, Trends opens it while height is missing, empty fields glow; a one-time banner asks once. no tap to open; the empty fields glow softly until filled (today height missing still hides the form behind Change).
-- [ ] **Tapped muscle in its view's colour (14 Nov):** list rows done (glow in the muscle's own colour); the 3D figure part is with the Fable 3D session. in Strength the picked muscle and its row light up in its level colour (Intermediate = purple), in Recovery in its recovery colour; the rest of the figure goes see-through as it does now. Check the 3D body too, and the row highlight (still clay today).
+- [x] **Tapped muscle in its view's colour (14 Nov):** done: list rows glow in the muscle's own colour, and the 3D figure keeps the picked muscle's colour while the rest fades (v461). in Strength the picked muscle and its row light up in its level colour (Intermediate = purple), in Recovery in its recovery colour; the rest of the figure goes see-through as it does now. Check the 3D body too, and the row highlight (still clay today).
 
 - [ ] **Adam not on People on Exodia (13 Nov):** check in D1 why (list needs a name, at least one logged day, findable, not in "Friends: private names"). Needs a session with Cloudflare access.
 
@@ -83,6 +82,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+- ✓ 3D body: lower back shows from behind (the lats lying over the erectors below the ribs count as lower back), picked muscle in its own colour, full screen sharper with finer fibres, name line takes a label from the app (v461).
 - ✓ Box never gone: ensureDock every 1.5 s and on return/page/rotate/focusout (missing → render, lifted with no keyboard → --kb 0, leftover clip → cleared), dock on its own layer for iOS; anatomy is never a page swipe and the 3D body takes every touch (touch-action none) (v458)
 - ✓ Cardio with a distance: "swam 500 meters", "bike 90 km", "ran 5k" show the distance on the session and count as cardio (time estimated when not said). 3D body launched for everyone (v456).
 - ✓ Avatars: everyone on screen (friends, requests, People on Exodia, search) spread by golden angle over the full wheel, alternating light/deep; Marcus has Hide on People on Exodia (findable = 0, log stays) (v428)
