@@ -4338,6 +4338,35 @@ for (const type of ['resize', 'scroll']) window.visualViewport?.addEventListener
   resettle();
 }));
 document.addEventListener('focusout', () => setTimeout(fitKeyboard, 60));
+// The box must always be there. It has gone missing now and then (left lifted by a keyboard that's gone, left clipped
+// by a closing animation, or not drawn after a page change), so it's checked often and put right: missing → drawn,
+// lifted with no keyboard open → back down, clipped with nothing animating → clip cleared.
+const ensureDock = () => {
+  if (onboarding() || view.splitAsk || view.linkOffer || (view.route === 'friend' && featureOn('friends'))) return;
+  const dock = document.querySelector('.dock');
+  if (!dock) {
+    render();
+    return;
+  }
+  const typing = document.activeElement?.matches?.('input, textarea, [contenteditable]');
+  const lifted = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb')) || 0;
+  if (!typing && lifted > 0) {
+    setVar('--kb', '0px');
+    document.documentElement.classList.remove('keyboard');
+  }
+  if (!dock.getAnimations().some((animation) => animation.playState === 'running')) {
+    if (getComputedStyle(dock).clipPath !== 'none') dock.getAnimations().forEach((animation) => animation.cancel());
+    dock.style.clipPath = '';
+    const box = dock.getBoundingClientRect();
+    if (box.height < 20 || box.top > window.innerHeight - 20 || box.bottom < 40) {
+      setVar('--kb', '0px');
+      render();
+    }
+  }
+};
+setInterval(() => { if (document.visibilityState === 'visible') ensureDock(); }, 1500);
+for (const type of ['pageshow', 'hashchange', 'orientationchange', 'focusout']) window.addEventListener(type, () => setTimeout(ensureDock, 350));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(ensureDock, 350); });
 
 const onboarding = () => view.route === 'home' && (Boolean(view.onboard?.busy || view.onboard?.status) || (!state.name && !state.started && state.sessions.length === 0));
 
@@ -9270,7 +9299,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // Trends, swipe right back to Home. The page follows the finger and glides out; a short or slow swipe springs back.
 let pageSwipe = null;
 let pageSwipedAt = 0;
-const PAGE_SWIPE_SKIP = '.dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
+// The anatomy (3D body and flat figures) is never a page swipe: a sideways drag there spins the body.
+const PAGE_SWIPE_SKIP = '.body3dSlot, .muscles, .dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
 document.addEventListener('pointerdown', (event) => {
   pageSwipe = null;
   if (event.pointerType !== 'touch' || desktopQuery.matches || turn || view.menu || view.composer || !['home', 'trends'].includes(view.route)) return;

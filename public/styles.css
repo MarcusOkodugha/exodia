@@ -1906,3 +1906,8 @@ button.wnDay { cursor: pointer; }
 .minus::before, .contextX::before { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
 /* The full-screen button: just the corner marks, at the bottom of the figure, right above the level key. */
 .body3dSlot .body3dExpand { top: auto; bottom: -4px; right: -6px; background: none; color: var(--text2); }
+
+/* Phone: a touch on the 3D body only spins it; the page doesn't scroll or move from there. */
+.body3dSlot, .body3dSlot canvas { touch-action: none; }
+/* Its own layer, so iPhone Safari never drops the fixed box after the keyboard closes. */
+.dock { -webkit-transform: translateZ(0); transform: translateZ(0); }
