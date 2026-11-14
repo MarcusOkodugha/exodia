@@ -47,6 +47,13 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Settings redo (14 Nov, Marcus).** Clear sections with space and a soft fade between them, no divider lines (CLAUDE.md). Order: your body; **Add your data** as its own section that pulses and nudges until someone has added data; **Share Exodia** as one section; Friends; **What's new**: a short summary of recent releases, tap to expand detail, scroll back to the very first; at the bottom Download a backup, Restore a backup, Danger zone (Start fresh). Last name field next to the name. Body fields (kg, cm) use the same input as the onboarding "Your name" field; Male/Female smaller; kg, cm and Save the same size on one row, no odd Save button; remove input-looking lines elsewhere.
+- [ ] **Sidebar without Log (14 Nov).** Remove Log from the left sidebar; tapping the prompt box shows a clear button to expand the log, which becomes the Log page.
+- [ ] **Toggles as an orange underline (14 Nov):** send Marcus a picture example only (switches with just a clay line under the picked option); don't change the app until he says.
+- [ ] **Invite by SMS (14 Nov).** In Add friends, after a search: share a link (the phone's share sheet / SMS) that opens Exodia and sends a friend request to the one who shared it. Built with the Web Share API and an `sms:` link from the user's phone (Exodia can't send SMS itself without a paid SMS service).
+- [ ] **Train together flow (14 Nov, proposals for Marcus):** 1) move When (a one-week strip with today) up under the headline so the order is who, when, what; 2) tapping a friend's circle on a planned day adds them to the plan at once, say so ("Romi added" / undo).
+
+
 - [ ] **3D body follow-ups (14 Nov).** Live in v465: the approved look (G + strength on shoulders, arms, chest, quads, back, by level), picking on the Book drawing, a woman's figure for female profiles, colour to each muscle's edge, desktop layout fixed, no page swipe under an opened body. Marcus to check the woman's figure on his phone; the prompt box going missing was not reproduced (new check against the visible screen added in v465), watch for it.
 
 
