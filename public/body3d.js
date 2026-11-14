@@ -261,7 +261,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
-        float tend = smoothstep(0.6, 0.98, vShade.y); float fAmt = (1.0 - 0.85 * tend) * uQ.x; float fG = fibre(normalize(vON));
+        // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
+        if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
+        float tend = smoothstep(0.45, 0.95, vShade.y); float fAmt = (1.0 - 0.85 * tend) * uQ.x; float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
         diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -269,7 +271,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
           normal = normalize(abs(det) * normal - sign(det) * (dH.x * r1 + dH.y * r2)); }`)
       .replace('#include <opaque_fragment>', `
-        outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5, 0.0, 1.0) * uP.z);
+        outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend));
         vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
         #include <opaque_fragment>`); };
@@ -322,8 +324,10 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
   const show = (i) => {
     const r = place(i); if (!r || r.w < 1 || r.h < 1 || r.x > W || r.y > H || r.x + r.w < 0 || r.y + r.h < 0) return;
     const p = people[i], s = slots[i];
-    aim(r); pivot.rotation.y = angle;
+    aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk;
+    // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
+    muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
     // Fibre spacing is fixed on the body (about 2.4 px on a figure in the row), so opening a figure zooms into it.
     // Small figures (a row of seven) get the spacing of a 380 px one: finer than the screen, so it melts to a tone.
     U.uFreq.value = Math.max(s.ppu, 380 / height) / Math.max(2.4, 3.4 / DPR);
@@ -378,7 +382,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
   };
   const pick = (i, x, y) => { // null: beside the body; 0: on the body, not a muscle; else the group number
     const r = place(i); if (!r) return null;
-    aim(r); pivot.rotation.y = angle; scene.updateMatrixWorld(true);
+    aim(r); pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); scene.updateMatrixWorld(true);
     ndc.set((x - r.x) / r.w * 2 - 1, -((y - r.y) / r.h * 2 - 1)); ray.setFromCamera(ndc, cam);
     const hit = ray.intersectObjects([muscle, ctx], false)[0];
     return hit ? (hit.object === muscle ? muscleGeo.userData.grp[hit.face.a] : 0) : null;
@@ -442,8 +446,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
     setPeople(list) {
       people = (list || []).map((p) => {
         const pal = [plainC], bulk = [0];
-        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); bulk.push(bulkOf(m.level)); }
-        return { id: p.id, name: p.name || '', cm: p.heightCm > 0 ? p.heightCm : DEFAULT_CM, pal, bulk };
+        // The belly grows much less than the limbs and chest, so a strong core never reads as a big stomach.
+        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); bulk.push(bulkOf(m.level) * (g === 'abs' ? 0.3 : 1)); }
+        // Build: wider for more weight at the same height (BMI), within a calm range.
+        const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
+        return { id: p.id, name: p.name || '', cm, pal, bulk, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }

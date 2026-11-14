@@ -56,6 +56,7 @@ const PIECES = [
 ];
 
 const ICONS = {
+  expand: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   pencil: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>',
   menu: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>',
   trends: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18l5-6 4 3 7-8"/></svg>',
@@ -1883,7 +1884,7 @@ const loadBody3d = () => {
 // A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
 const body3dPerson = (id, name, cm, colours) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
-  return { id, name, heightCm: Number(cm) || null, muscles: Object.fromEntries(MUSCLES.map(([key]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null }])) };
+  return { id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, muscles: Object.fromEntries(MUSCLES.map(([key]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null }])) };
 };
 const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
 const recoveryColour = (load) => (key) => RECOVERY_HEX[recoveryStep(load, key)] || null;
@@ -1894,14 +1895,14 @@ const body3dSlot = (kind, people, flat) => {
   body3dWant = { people, selected: view.route === 'together' && view.together?.picking ? null : view.musclePick || null };
   // Train together: fewer people stand taller; seven still fit side by side on a phone.
   const tall = kind === 'squad' ? (people.length <= 2 ? 300 : people.length <= 4 ? 260 : 210) : 0;
-  return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${body3dState === 'ready' ? '' : flat}</div>`;
+  return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${body3dState === 'ready' ? '' : flat}${kind === 'one' ? `<button class="iconBtn body3dExpand" data-action="body3d-expand" data-index="0" aria-label="Full screen">${ICONS.expand}</button>` : ''}</div>`;
 };
 const placeBody3d = () => {
   const want = body3dWant;
   body3dWant = null;
   const slot = document.querySelector('[data-body3d]');
   if (!body3d || !want || !slot) return;
-  slot.textContent = '';
+  slot.querySelectorAll('.bodyFig').forEach((figure) => figure.remove());
   body3d.attach(slot);
   const sig = JSON.stringify(want.people);
   if (sig !== body3dSig) {
@@ -5290,8 +5291,9 @@ const renderTogether = () => {
   // The figures turn to fit what you train: Pull shows the back, Push, Legs and Move the front, Full body both.
   const sides = picked === 'Pull' ? ['back'] : picked === 'Full body' ? ['front', 'back'] : ['front'];
   bodyChosen = plan?.muscles?.length ? new Set(plan.muscles) : null;
+  const heightAsk = drawn && body3dOn() && !state.body?.cm ? '<p class="tgWhy">Add your height so you stand right next to your friends. <button class="textBtn clay" data-action="body3d-height">Add height</button></p>' : '';
   const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load))))), '') : null;
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<p class="tgLabel">Squad recovery</p>${squad3d}<div class="tgNames" style="grid-template-columns:repeat(${people.length},1fr)">${people.map((entry) => `<span>${esc(entry.name)}</span>`).join('')}</div>` : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<p class="tgLabel">Squad recovery</p>${squad3d}<div class="tgNames" style="grid-template-columns:repeat(${people.length},1fr)">${people.map((entry, index) => `<button data-action="body3d-expand" data-index="${index}">${esc(entry.name)}${ICONS.expand}</button>`).join('')}</div>${heightAsk}` : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   bodyChosen = null;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
@@ -7559,6 +7561,7 @@ document.addEventListener('mousedown', (event) => {
 // A tapped muscle lights up on the body and in the list, the rest fades back. Tap it again, or anywhere else, to clear.
 function pickMuscle(key) {
   view.musclePick = key;
+  if (body3d && document.querySelector('[data-body3d]') && !(view.route === 'together' && view.together?.picking)) body3d.setSelected(key);
   for (const box of document.querySelectorAll('.muscles')) box.classList.toggle('picking', Boolean(key));
   for (const item of document.querySelectorAll('[data-action="pick-muscle"]')) item.classList.toggle('picked', item.dataset.muscle === key);
 }
@@ -7956,6 +7959,15 @@ document.addEventListener('click', (event) => {
     view.togetherWith = true;
     location.hash = '#/together';
     render();
+    return;
+  }
+  if (action === 'body3d-expand') {
+    body3d?.expand(Number(target.dataset.index) || 0);
+    return;
+  }
+  if (action === 'body3d-height') {
+    view.bodyEdit = true;
+    location.hash = '#/you';
     return;
   }
   if (action === 'dev-3d') {
