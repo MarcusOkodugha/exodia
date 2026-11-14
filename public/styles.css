@@ -1890,6 +1890,9 @@ button.wnDay { cursor: pointer; }
 .muscles.has3d { grid-template-columns: minmax(0, 1.35fr) minmax(118px, 1fr); }
 .body3dSlot { position: relative; display: flex; justify-content: center; gap: 6px; }
 .body3dSlot.one { height: 380px; }
+/* The first time the body arrives in a slot that waited for it, it fades in instead of popping. */
+.body3dSlot.b3dFade .body3dCanvas { animation: b3dIn 0.45s ease both; }
+@keyframes b3dIn { from { opacity: 0; } }
 .body3dSlot .bodyFig { height: 100%; width: auto; }
 .right .muscles.has3d { grid-template-columns: 1fr; }
 /* Computer: the three-column list layout below ('.desk .muscles:not(.right .muscles)') outranks the rule above and

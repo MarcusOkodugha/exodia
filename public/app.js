@@ -1863,6 +1863,7 @@ let body3d = null;
 let body3dState = 'idle';
 let body3dWant = null;
 let body3dSig = '';
+let body3dWaited = false;
 const RECOVERY_HEX = { recov4: '#C96442', recov3: '#E2AF9C', recov2: '#D2DFCE', recov1: '#6F9B6A' };
 const body3dOn = () => featureOn('body3d') && body3dState !== 'failed' && !reducedData();
 const reducedData = () => Boolean(navigator.connection?.saveData);
@@ -1918,7 +1919,9 @@ const body3dSlot = (kind, people, flat) => {
   body3dWant = { people, selected: view.route === 'together' && view.together?.picking ? null : view.musclePick || null };
   // Train together: fewer people stand taller; seven still fit side by side on a phone.
   const tall = kind === 'squad' ? (people.length <= 2 ? 300 : people.length <= 4 ? 260 : 210) : 0;
-  return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${body3dState === 'ready' ? '' : flat}${kind === 'one' ? `<button class="iconBtn body3dExpand" data-action="body3d-expand" data-index="0" aria-label="Full screen">${ICONS.expand}</button>` : ''}</div>`;
+  // Still loading: the slot stays empty at its full size (no flat figure that then swaps), and the body fades in.
+  if (body3dState !== 'ready') body3dWaited = true;
+  return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${kind === 'one' ? `<button class="iconBtn body3dExpand" data-action="body3d-expand" data-index="0" aria-label="Full screen">${ICONS.expand}</button>` : ''}</div>`;
 };
 const placeBody3d = () => {
   const want = body3dWant;
@@ -1926,6 +1929,10 @@ const placeBody3d = () => {
   const slot = document.querySelector('[data-body3d]');
   if (!body3d || !want || !slot) return;
   slot.querySelectorAll('.bodyFig').forEach((figure) => figure.remove());
+  if (body3dWaited) {
+    body3dWaited = false;
+    slot.classList.add('b3dFade');
+  }
   body3d.attach(slot);
   const sig = JSON.stringify(want.people);
   if (sig !== body3dSig) {
@@ -9088,6 +9095,9 @@ const resume = (() => {
 if (resume) Object.assign(view, { open: new Set(resume.open || []), trendOpen: resume.trendOpen ?? view.trendOpen, trendMore: Boolean(resume.trendMore) });
 route();
 if (resume) requestAnimationFrame(() => scrollPage(resume.scroll || 0));
+// The 3D body takes a moment to build (three.js, the model, then the figure), so it starts as soon as the first
+// screen is up, while the phone is idle, and is ready by the time Trends opens instead of appearing late.
+(window.requestIdleCallback || ((run) => setTimeout(run, 400)))(() => { if (body3dOn()) loadBody3d(); }, { timeout: 1500 });
 noteUpdate();
 pointManifest();
 syncNow();

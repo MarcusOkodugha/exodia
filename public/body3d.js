@@ -185,37 +185,43 @@ const merge = (THREE, parts, R = 0) => {
   if (R > 0) for (const K of [1, 3]) {
     const f = (i) => pos[i * 3 + 1] - (K === 3 ? 0.1 : 0.32), ok = (k) => (K === 3 ? k === 3 : k === 1 || k === 2);
     const gOf = (i, inn) => (K === 3 ? (inn ? gQ : 0) : inn ? gLow : kind[i] === 1 ? gUp : 0);
-    const P = [...pos], N = [...nor], AX = [...axis], CO = [...col], AP = [...apex], O = [...ao], E = [...end], G = [...grp], PI = [...pid], KI = [...kind], I = [];
+    // Typed arrays with room for the new corners (a cut adds at most four per triangle it crosses, and few cross).
+    const cap = nv + 24000, grow = (A, n) => { const B = new A.constructor(cap * n); B.set(A); return B; };
+    const P = grow(pos, 3), N = grow(nor, 3), AX = grow(axis, 3), CO = grow(col, 3), AP = grow(apex, 4), O = grow(ao, 1), E = grow(end, 1), G = grow(grp, 1), PI = grow(pid, 1), KI = grow(kind, 1);
+    const I = new Uint32Array(idx.length * 3); let ni2 = 0, nv2 = nv;
     for (let i = 0; i < nv; i++) if (ok(kind[i])) G[i] = gOf(i, f(i) < 0);
     const cache = new Map();
-    const at = (a, b, inn) => { const key = a + ',' + b + ',' + inn; let v = cache.get(key); if (v !== undefined) return v;
-      const t = f(a) / (f(a) - f(b)); v = P.length / 3;
-      const mix = (arr, n) => { for (let k = 0; k < n; k++) arr.push(arr[a * n + k] + (arr[b * n + k] - arr[a * n + k]) * t); };
+    const at = (a, b, inn) => { const key = (a * 2 + (inn ? 1 : 0)) * 4194304 + b; let v = cache.get(key); if (v !== undefined) return v;
+      const t = f(a) / (f(a) - f(b)); v = nv2++;
+      const mix = (arr, n) => { for (let k = 0; k < n; k++) arr[v * n + k] = arr[a * n + k] + (arr[b * n + k] - arr[a * n + k]) * t; };
       mix(P, 3); mix(N, 3); const l = Math.hypot(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]) || 1; for (let k = 0; k < 3; k++) N[v * 3 + k] /= l;
-      mix(AX, 3); mix(CO, 3); mix(AP, 4); mix(O, 1); mix(E, 1); PI.push(PI[a]); KI.push(KI[a]); G.push(gOf(a, inn)); cache.set(key, v); return v; };
-    for (let t = 0; t < idx.length; t += 3) { const v = [idx[t], idx[t + 1], idx[t + 2]];
-      if (!ok(kind[v[0]]) || kind[v[0]] !== kind[v[1]] || kind[v[0]] !== kind[v[2]]) { I.push(...v); continue; }
-      const s3 = v.map((i) => f(i) < 0); if (s3[0] === s3[1] && s3[1] === s3[2]) { I.push(...v); continue; }
+      mix(AX, 3); mix(CO, 3); mix(AP, 4); mix(O, 1); mix(E, 1); PI[v] = PI[a]; KI[v] = KI[a]; G[v] = gOf(a, inn); cache.set(key, v); return v; };
+    const put = (...v) => { for (const x of v) I[ni2++] = x; };
+    for (let t = 0; t < idx.length; t += 3) { const v0 = idx[t], v1 = idx[t + 1], v2 = idx[t + 2];
+      if (!ok(kind[v0]) || kind[v0] !== kind[v1] || kind[v0] !== kind[v2]) { put(v0, v1, v2); continue; }
+      const v = [v0, v1, v2], s3 = [f(v0) < 0, f(v1) < 0, f(v2) < 0]; if (s3[0] === s3[1] && s3[1] === s3[2]) { put(v0, v1, v2); continue; }
       const k = s3[0] === s3[1] ? 2 : s3[0] === s3[2] ? 1 : 0, L = v[k], p = v[(k + 1) % 3], q = v[(k + 2) % 3], li = s3[k]; // the corner alone on its side
-      I.push(L, at(L, p, li), at(L, q, li), at(L, p, !li), p, q, at(L, p, !li), q, at(L, q, !li)); }
-    nv = P.length / 3; pos = new Float32Array(P); nor = new Float32Array(N); axis = new Float32Array(AX); col = new Float32Array(CO); apex = new Float32Array(AP);
-    ao = new Float32Array(O); end = new Float32Array(E); grp = new Float32Array(G); pid = new Float32Array(PI); kind = new Uint8Array(KI); idx = new Uint32Array(I); }
+      put(L, at(L, p, li), at(L, q, li), at(L, p, !li), p, q, at(L, p, !li), q, at(L, q, !li)); }
+    nv = nv2; pos = P.slice(0, nv * 3); nor = N.slice(0, nv * 3); axis = AX.slice(0, nv * 3); col = CO.slice(0, nv * 3); apex = AP.slice(0, nv * 4);
+    ao = O.slice(0, nv); end = E.slice(0, nv); grp = G.slice(0, nv); pid = PI.slice(0, nv); kind = KI.slice(0, nv); idx = I.slice(0, ni2); }
   // Bulk per vertex. A muscle's ends stay near the bone, but where an end lies under or against another muscle's
   // belly (the middle traps under the upper traps at the base of the neck) it rises with that neighbour, so the
   // two meet without a step and no dark pit opens between them.
   const lift = new Float32Array(nv); for (let i = 0; i < nv; i++) { const t = Math.min(1, Math.max(0, (end[i] - 0.5) / 0.5)); lift[i] = 1 - 0.85 * t * t * (3 - 2 * t); }
   if (R > 0) { const L = 0.03, cells = new Map(), cf = (i, k) => Math.floor(pos[i * 3 + k] / L), ck = (x, y, z) => (x + 512) * 1048576 + (y + 512) * 1024 + (z + 512);
-    for (let i = 0; i < nv; i++) { if (!grp[i]) continue; const k = ck(cf(i, 0), cf(i, 1), cf(i, 2)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
+    // Only bellies can lift an end, and every second point is plenty to find them (the result is smooth anyway).
+    for (let i = 0; i < nv; i += 2) { if (!grp[i] || lift[i] < 0.6) continue; const k = ck(cf(i, 0), cf(i, 1), cf(i, 2)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
     const base = lift.slice();
     for (let i = 0; i < nv; i++) { if (!grp[i] || base[i] > 0.99) continue; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], cx = cf(i, 0), cy = cf(i, 1), cz = cf(i, 2); let m = base[i];
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) { const cell = cells.get(ck(cx + a, cy + b, cz + c)); if (!cell) continue;
-        for (const j of cell) { if (pid[j] === pid[i] || base[j] <= m) continue; const d = Math.hypot(pos[j * 3] - x, pos[j * 3 + 1] - y, pos[j * 3 + 2] - z) / L; if (d < 1) m = Math.max(m, base[j] * (1 - d * d * (3 - 2 * d)) + base[i] * d * d * (3 - 2 * d)); } }
+        for (const j of cell) { if (base[j] <= m || pid[j] === pid[i]) continue; const dx = pos[j * 3] - x, dy = pos[j * 3 + 1] - y, dz = pos[j * 3 + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 >= L * L) continue; const d = Math.sqrt(d2) / L; m = Math.max(m, base[j] * (1 - d * d * (3 - 2 * d)) + base[i] * d * d * (3 - 2 * d)); } }
       lift[i] = m; } }
   // Neighbours. For every muscle vertex: the nearest vertex of another muscle group within R, and how near it is.
   // The shader moves the two towards the same bulk where they meet (see V_BODY). A grid keeps the search short.
   const near = new Float32Array(nv * 2);
   if (R > 0) { const cells = new Map(), ck = (x, y, z) => (x + 512) * 1048576 + (y + 512) * 1024 + (z + 512), cf = (i, k) => Math.floor(pos[i * 3 + k] / R);
-    for (let i = 0; i < nv; i++) { if (!grp[i]) continue; const k = ck(cf(i, 0), cf(i, 1), cf(i, 2)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
+    // Every second point: the nearest one is still found to within a few mm.
+    for (let i = 0; i < nv; i += 2) { if (!grp[i]) continue; const k = ck(cf(i, 0), cf(i, 1), cf(i, 2)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
     for (let i = 0; i < nv; i++) { const g = grp[i]; if (!g) continue; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], cx = cf(i, 0), cy = cf(i, 1), cz = cf(i, 2); let best = R * R, bg = 0;
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) { const cell = cells.get(ck(cx + a, cy + b, cz + c)); if (!cell) continue;
         for (const j of cell) { if (grp[j] === g) continue; const dx = pos[j * 3] - x, dy = pos[j * 3 + 1] - y, dz = pos[j * 3 + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 < best) { best = d2; bg = grp[j]; } } }
@@ -294,7 +300,7 @@ const V_BODY = `
 // plane families, each used where it crosses the surface cleanly. As the fan widens new lines fade in between the
 // old ones. Where lines would sit closer than the screen can draw they melt into their own average (no moire).
 const F_PARS = `
-  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook;
+  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook; uniform float uXr;
   ${VARY}
   ${NOISE}
   float fibreFam(float u, float sc, float kf){
@@ -395,16 +401,23 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
 
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
-  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
+  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uXr: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
     uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
-  const muscleMat = new THREE.MeshLambertMaterial({ transparent: true }); muscleMat.forceSinglePass = true;
-  muscleMat.onBeforeCompile = (s) => { Object.assign(s.uniforms, U);
+  // The x-ray copy draws the picked muscle where other muscles cover it, half see-through behind the drawing, so
+  // turning the body you still see it through the front (a back muscle from the front).
+  const mkMuscle = (xray) => { const m = new THREE.MeshLambertMaterial({ transparent: true }); m.forceSinglePass = true;
+    if (xray) { m.defines = { XRAY: '' }; m.depthFunc = THREE.GreaterDepth; m.depthWrite = false; m.side = THREE.DoubleSide; }
+    m.onBeforeCompile = (s) => { Object.assign(s.uniforms, U);
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
-        diffuseColor.a = 1.0 - uBook * vFade; if (diffuseColor.a < 0.01) discard;
+        #ifdef XRAY
+          diffuseColor.a = 0.5 * uXr * step(0.5, vShade.z); if (diffuseColor.a < 0.01) discard;
+        #else
+          diffuseColor.a = 1.0 - uBook * vFade; if (diffuseColor.a < 0.01) discard;
+        #endif
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
         if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
@@ -419,7 +432,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
         vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
         #include <opaque_fragment>`); };
-  muscleMat.customProgramCacheKey = () => 'body3dMuscle';
+    m.customProgramCacheKey = () => 'body3dMuscle' + Boolean(xray); return m; };
+  const muscleMat = mkMuscle(false);
   const ctxMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true }); ctxMat.forceSinglePass = true;
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
   fig.position.copy(center).negate(); pivot.add(fig); scene.add(pivot);
@@ -436,11 +450,16 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   const hullMat = new THREE.ShaderMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 1, uniforms: { uPx: HPX, uFade: LU.uFade, uInk: { value: new THREE.Color('#4F4A45') } },
     vertexShader: 'uniform vec2 uPx; varying float vZ; void main(){ vec4 c = projectionMatrix * modelViewMatrix * vec4(position, 1.0); vec3 nv = normalize(normalMatrix * normal); vZ = nv.z; c.xy += nv.xy * uPx * c.w; gl_Position = c; }',
     fragmentShader: 'uniform vec3 uInk; uniform float uFade; varying float vZ; void main(){ gl_FragColor = vec4(uInk, uFade * mix(1.0, 0.14, smoothstep(0.35, 0.85, -vZ)));\n#include <colorspace_fragment>\n}' });
-  const depthM = new THREE.MeshBasicMaterial({ colorWrite: false }), depthC = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
+  // Depth of every muscle but the picked one, so the picked one can be found behind them (x-ray) and in front.
+  const depthM = new THREE.ShaderMaterial({ colorWrite: false, uniforms: { uSel: U.uSel },
+    vertexShader: 'uniform vec4 uSel; attribute float aGroup; varying float vS; void main(){ vS = max((1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'varying float vS; void main(){ if (vS > 0.5) discard; gl_FragColor = vec4(0.0); }' }), depthC = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
   const dScene = new THREE.Scene(), dPivot = new THREE.Group(), dFig = new THREE.Group(); dFig.position.copy(center).negate(); dPivot.add(dFig); dScene.add(dPivot);
   const dMesh = (isCtx, mat, order) => { const x = new THREE.Mesh(isCtx ? ctxGeo : muscleGeo, mat); x.renderOrder = order; x.userData.ctx = isCtx; dFig.add(x); return x; };
   const ghosts = [dMesh(false, lineMat(1, 1), 1), dMesh(true, lineMat(0, 1), 1)];
-  const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
+  const xrayMat = mkMuscle(true);
+  dScene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); { const sun2 = new THREE.DirectionalLight(0xffffff, 1.1); sun2.position.set(2, 3, 4); dScene.add(sun2); }
+  const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, xrayMat, 1.5), dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
   const useGeo = (p) => { const g = p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem; };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(2, 3, 4); scene.add(sun);
   // The sheet that covers the page while a figure is open.
@@ -500,7 +519,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     U.uFreq.value = Math.max(s.ppu * Math.pow(r.ppu / s.ppu, 0.75), 380 / height) / Math.max(2.4, 3.4 / pr);
     U.uQ.value.x = Math.max(0.45, Math.min(1, (r.ppu * height - 90) / 200));
     const y = H - r.y - r.h; renderer.setViewport(r.x, y, r.w, r.h); renderer.setScissor(r.x, y, r.w, r.h);
-    if (f > 0.002) { LU.uFade.value = f; LU.uFreq.value = U.uFreq.value * 0.78; dPivot.rotation.y = angle; dPivot.scale.copy(pivot.scale);
+    if (f > 0.002) { LU.uFade.value = f; U.uXr.value = f; LU.uFreq.value = U.uFreq.value * 0.78; dPivot.rotation.y = angle; dPivot.scale.copy(pivot.scale);
       const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); HPX.value.set(2 * px / r.w, 2 * px / r.h);
       for (const g of ghosts) g.material.uniforms.uDepth.value.set(cam.position.z, height * 0.11);
       renderer.render(dScene, cam); }
@@ -649,7 +668,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
       if (dead) return; dead = true; clearTimeout(lostTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
       if (hostEl) hostEl.classList.remove('body3dHost'); canvas.remove(); over.remove();
-      muscleMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
+      muscleMat.dispose(); xrayMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
     },
     // For tests and tuning only.
     debug: {
