@@ -1973,3 +1973,16 @@ button.wnDay { cursor: pointer; }
 body:has(.body3dModes) .body3dOver { bottom: calc(env(safe-area-inset-bottom) + 76px); }
 .body3dModes { left: 0; right: 0; bottom: 0; width: auto; transform: none; padding: 12px 16px calc(env(safe-area-inset-bottom) + 16px); background: var(--bg); display: flex; justify-content: center; animation: none; }
 .body3dModes .segment { width: min(360px, 100%); }
+/* While an opened figure has its switch (Train together), the box at the bottom stays out of sight and the band
+   overlaps the figure's edge, so nothing of the page ever peeks between them. */
+body:has(.body3dModes) .dock, body:has(.body3dModes) .backDock { visibility: hidden; }
+.body3dModes { padding-top: 20px; }
+body:has(.body3dModes) .body3dOver { bottom: calc(env(safe-area-inset-bottom) + 68px); }
+body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dModes) .backDock { opacity: 0 !important; pointer-events: none !important; }
+.body3dOver.on { background: var(--bg); }
+/* Aurora avatars: a fine grain and a slow light that drifts across, from the page, no motion permission needed. */
+.favFx { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.3' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"); background-size: 64px 64px; mix-blend-mode: overlay; opacity: 0.55; }
+.favFx::after { content: ''; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.5) 50%, transparent 60%); transform: translateX(-60%); animation: favLight 7s ease-in-out infinite; }
+.fav b { position: relative; z-index: 1; }
+@keyframes favLight { 0%, 55% { transform: translateX(-60%); } 85%, 100% { transform: translateX(60%); } }
+@media (prefers-reduced-motion: reduce) { .favFx::after { animation: none; opacity: 0; } }

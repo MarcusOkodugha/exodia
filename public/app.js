@@ -1557,7 +1557,7 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
   <div class="devMenu" role="menu">
     <button role="menuitem" data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
     <button role="menuitem" data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
-    <button role="menuitem" data-action="dev-3d">Lab looks</button>
+    <button role="menuitem" data-action="dev-3d">Playground</button>
     ${view.devHit ? '<button role="menuitem" data-action="dev-normal">Back to normal colors</button>' : ''}
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
@@ -1567,7 +1567,7 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
 const exodiaRing = (complete) => {
   const { left, runsOut } = exodiaHistory();
   const share = left ? left / EXODIA_DAYS : complete / 5;
-  const label = left ? `${left} ${left === 1 ? 'day' : 'days'} left${runsOut ? `<br>${esc(runsOut)} runs out first` : ''}` : `${complete} of 5 in 10 days`;
+  const label = left ? `Blue ${left} more ${left === 1 ? 'day' : 'days'}${runsOut ? `<br>${esc(runsOut)} runs out first` : ''}` : `${complete} of 5 in 10 days`;
   return `<div class="exoRingBox" title="${left ? `Blue until ${dayLabel(addDays(todayIso(), left - 1))} unless you train again` : 'Pieces in the last 10 days'}"><svg class="exoRing${left ? ' hit' : ''}" viewBox="0 0 36 36" aria-hidden="true"><circle class="exoRingTrack" cx="18" cy="18" r="15"/><circle class="exoRingArc" cx="18" cy="18" r="15" pathLength="100" stroke-dasharray="${(share * 100).toFixed(1)} 100" transform="rotate(-90 18 18)"/><text x="18" y="22.5" text-anchor="middle">${left || complete}</text></svg><span class="exoRingLabel">${label}</span></div>`;
 };
 // Home draws the newest 30 days (fast to open); "Show older sessions" adds 60 at a time, back to the first.
@@ -2440,7 +2440,7 @@ const renderLeft = () => {
       <div class="leftDev">
         <button data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
         <button data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
-        <button data-action="dev-3d">Lab looks</button>
+        <button data-action="dev-3d">Playground</button>
         ${view.devHit ? '<button data-action="dev-normal">Back to normal colors</button>' : ''}
         ${view.sandbox ? '<button data-action="dev-exit">Leave test mode</button>' : '<button data-action="dev-newuser">Simulate new user</button>'}
       </div>
@@ -5168,6 +5168,20 @@ const initials = (name, names) => {
   const words = name.trim().split(/\s+/);
   return (words.length > 1 ? `${first}${words.at(-1)[0]}` : `${first}${name.trim().at(-1)}`).toUpperCase();
 };
+// Aurora (Marcus picked D, 15 Nov): three soft clouds in Exodia's own colours (clay, sand, sage, purple, Exodia
+// blue), always three different ones, placed from the name, so everyone has a fade, grain and light of their own.
+const AURORA = ['#C96442', '#E4B2A0', '#D6A06E', '#A9C4A6', '#6F9B6A', '#A88FB5', '#7CA3DD', '#B98AA0'];
+const auroraOf = (name, spread = 0) => {
+  let seed = (nameHash(String(name)) + spread * 2654435761) >>> 0;
+  const next = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const first = Math.floor(next() * AURORA.length);
+  const second = (first + 2 + Math.floor(next() * 3)) % AURORA.length;
+  let third = (second + 2 + Math.floor(next() * 3)) % AURORA.length;
+  if (third === first) third = (third + 1) % AURORA.length;
+  const x1 = Math.round(next() * 100);
+  const x2 = Math.round(next() * 100);
+  return `radial-gradient(120% 90% at ${x1}% 0%, ${AURORA[first]} 0, transparent 62%), radial-gradient(110% 90% at ${x2}% 100%, ${AURORA[second]} 0, transparent 64%), ${AURORA[third]}`;
+};
 const avatarLook = () => {
   // Everyone who can be on screen (you, friends, requests, People on Exodia, search) gets a colour from their name,
   // and the colours are spread evenly round the wheel so no two people look alike.
@@ -5181,9 +5195,7 @@ const avatarLook = () => {
   const ordered = [...names].sort((one, two) => nameHash(one) - nameHash(two));
   const start = (nameHash(ordered[0] || '') >>> 4) % 360;
   ordered.forEach((name, index) => {
-    const hue = Math.round(start + index * 137.5) % 360;
-    const light = index % 2 ? 56 : 64;
-    map.set(name, { background: `linear-gradient(135deg, hsl(${hue} 34% ${light}%), hsl(${(hue + 26) % 360} 38% ${light + 10}%))`, letters: initials(name, names) });
+    map.set(name, { background: auroraOf(name, index + start), letters: initials(name, names) });
   });
   view.avatarLook = { sig, map };
   return map;
@@ -5191,8 +5203,8 @@ const avatarLook = () => {
 const avatar = (name, exodia = false) => {
   if (exodia) return '<span class="fav exo" aria-hidden="true"><img src="/hamsa-512-blue.png" alt="" draggable="false"></span>';
   const step = (nameHash(String(name)) >>> 4) % 205;
-  const look = avatarLook().get(name) || { background: `linear-gradient(135deg, hsl(${warmHue(step)} 32% 60%), hsl(${warmHue(step + 28)} 36% 71%))`, letters: String(name).trim().slice(0, 1).toUpperCase() };
-  return `<span class="fav" style="background:${look.background}" aria-hidden="true"><b>${esc(look.letters)}</b></span>`;
+  const look = avatarLook().get(name) || { background: auroraOf(name, step), letters: String(name).trim().slice(0, 1).toUpperCase() };
+  return `<span class="fav" style="background:${look.background}" aria-hidden="true"><i class="favFx"></i><b>${esc(look.letters)}</b></span>`;
 };
 
 // What fits whom: muscles per kind of day, and how fresh they are for each person on a day.
@@ -5435,7 +5447,8 @@ const openSwitch = () => {
     const show = view.together.show === 'focus' && !focus ? 'recovery' : view.together.show || 'recovery';
     return `<div class="body3dModes">${squadSwitch(show, focus)}</div>`;
   }
-  return `<div class="body3dModes"><div class="segment full tgWhat tgShow" role="group" aria-label="Anatomy" style="grid-template-columns:repeat(2,1fr)">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}</div></div>`;
+  // Trends and a friend's page: no switch on the opened figure (switch on the page, then open it, as before).
+  return '';
 };
 const renderTogether = () => {
   if (!featureOn('friends')) return renderHome();
