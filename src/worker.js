@@ -521,7 +521,7 @@ const saidDistance = (words) => {
   const meters = Math.round(amount * (unit === 'mil' ? 10000 : /^mi/.test(unit) ? 1609 : /^k/.test(unit) ? 1000 : 1));
   return meters > 0 && meters <= 1000000 ? { name: kind[1], meters, pace: kind[2] } : null;
 };
-const clean = (raw, today) => {
+const clean = (raw, today, said = '') => {
   const exercises = (Array.isArray(raw?.exercises) ? raw.exercises : [])
     .slice(0, 12)
     .map((exercise) => ({
@@ -542,9 +542,9 @@ const clean = (raw, today) => {
   // The AI sometimes drops a distance ("swimming 500 meters" came back empty), so the words themselves are read too:
   // an activity and a distance in the note is cardio with that distance, timed at an easy pace when no time was said.
   let cardioGuess = Boolean(cardioMeters && raw?.cardioGuess === true);
-  const far = !cardioMeters && ![raw?.remove, raw?.replace, raw?.move].some((list) => Array.isArray(list) && list.length) ? saidDistance(transcript) : null;
+  const far = !cardioMeters && ![raw?.remove, raw?.replace, raw?.move].some((list) => Array.isArray(list) && list.length) ? saidDistance(transcript || said) : null;
   if (far) {
-    const timed = /\d\s*(min|minut|h\b|hours?|hrs?|tim)/i.test(transcript);
+    const timed = /\d\s*(min|minut|h\b|hours?|hrs?|tim)/i.test(transcript || said);
     cardioMeters = far.meters;
     if (!cardioMinutes || !timed) { cardioMinutes = timed && cardioMinutes ? cardioMinutes : Math.min(600, Math.max(1, Math.round(far.meters * far.pace))); cardioGuess = !timed; }
     if (!cardioName) cardioName = far.name;
@@ -751,7 +751,7 @@ const parse = async (request, env, ctx) => {
         clearTimeout(timer);
         const output = data?.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? '';
         try {
-          return { result: clean(JSON.parse(output), today), model };
+          return { result: clean(JSON.parse(output), today, text || heard), model };
         } catch {
           lastError = `${model}: answer could not be read`;
         }
