@@ -45,7 +45,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **3D body (14 Nov): only the Fable session touches body3d.js and lab/looks.html.** Marcus: my changes (look I, back-face colour, tendon shading) made every look worse up close; reverted to dd312b6. Open asks for Fable: picking a muscle = rest becomes Book lines, picked muscle solid; the dark oval at the base of the neck (a gap in the model's trapezius); hip flexors in the quads' colour; a Phone size button in the lab; no headless looks.
+- [ ] **3D body (14 Nov), lab first.** Lab now shows three figures: In the app now (F), Recommended (G with strength only on shoulders, arms, chest, quads, back; tap a muscle and the rest becomes the Book drawing, the picked one solid), and G. Also in the lab: neck pit closed, colour to each muscle's edge (groin filled), lower back with a clean edge, wider at the bottom. Waiting for Marcus to say a look is right; then port to `public/body3d.js` with the full rules.
+- [ ] **Women's 3D body (14 Nov).** After Marcus approves the final look: the same look and the same picking, on a woman's shape, shown for women.
 
 
 
