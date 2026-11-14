@@ -45,7 +45,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **3D body, next (14 Nov):** (1) Picking a muscle in the app = J from the lab: the rest of the figure becomes Book (H) lines, the picked muscle solid in its colour with I's detail. (2) The dark oval at the base of the neck is a real gap in the model's trapezius: through it you see the deeper back muscles in shadow (probed: not back faces, not context, not an uncoloured group, not tendon shading). Fix by closing the gap in the model (or a patch mesh in the trap colour). App now uses look I; hip_flexors = quads, neck_extensors = traps.
+- [ ] **3D body (14 Nov): only the Fable session touches body3d.js and lab/looks.html.** Marcus: my changes (look I, back-face colour, tendon shading) made every look worse up close; reverted to dd312b6. Open asks for Fable: picking a muscle = rest becomes Book lines, picked muscle solid; the dark oval at the base of the neck (a gap in the model's trapezius); hip flexors in the quads' colour; a Phone size button in the lab; no headless looks.
 
 
 
