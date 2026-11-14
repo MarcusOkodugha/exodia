@@ -45,6 +45,9 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Bodyweight, height and sex always open (14 Nov):** no tap to open; the empty fields glow softly until filled (today height missing still hides the form behind Change).
+- [ ] **Tapped muscle in its view's colour (14 Nov):** in Strength the picked muscle and its row light up in its level colour (Intermediate = purple), in Recovery in its recovery colour; the rest of the figure goes see-through as it does now. Check the 3D body too, and the row highlight (still clay today).
+
 - [ ] **Adam not on People on Exodia (13 Nov):** check in D1 why (list needs a name, at least one logged day, findable, not in "Friends: private names"). Needs a session with Cloudflare access.
 
 
