@@ -55,13 +55,19 @@ const shots = [
   ['settings', '#/you', null],
   ['admin', '#/admin', null],
   ['red-pill-open', '#/', async (page) => { if (!(await page.locator('.leftPill').count())) return; await page.click('.leftPill'); await page.click('[data-action="left-item"] >> nth=0'); }],
+  // The opened 3D body: nothing of the page may show on top of it or peek around it (needs THREE_DIR, see below).
+  ['trends-3d-open', '#/trends', async (page) => { if (!THREE) return; await page.waitForSelector('.body3dSlot canvas', { timeout: 20000 }); await page.click('.body3dExpand'); await page.waitForTimeout(1500); }, 'all'],
   ['onboarding', '#/', null, 'all', 'fresh'],
   ['link-offer', 'me/' + 'a'.repeat(32), null, 'all', 'fresh']
 ];
+// The 3D body loads three.js from jsDelivr, which cloud sessions can't reach. With THREE_DIR set to a local
+// three@0.170.0 package (npm i --no-save three@0.170.0 in a scratch folder → <folder>/node_modules/three), the sweep
+// serves it from there and also checks the opened body; without it, that shot is skipped.
+const THREE = process.env.THREE_DIR && fs.existsSync(path.join(process.env.THREE_DIR, 'build/three.module.min.js')) ? process.env.THREE_DIR : '';
 const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['desktop', 1440, 900]].filter(([, width]) => !only || width === only);
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(THREE ? { args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] } : {});
   const problems = [];
   for (const [kind, width, height] of sizes) {
     for (const [name, hash, act, where = 'all', data = 'full'] of shots) {
@@ -69,6 +75,7 @@ const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: kind !== 'desktop' });
       await page.route('**/api/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ cursor: 1, sessions: [], meta: null, admin: process.env.ADMIN !== '0', name: 'Romy', days: 212 }) }));
       await page.route('**/me/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8') }));
+      if (THREE) await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(path.join(THREE, route.request().url().split('three@0.170.0/')[1])) }));
       await page.addInitScript((state) => { if (state) localStorage.setItem('exodia.v1', state); }, data === 'full' ? JSON.stringify(full) : '');
       page.on('pageerror', (error) => problems.push(`${kind} ${name}: page error ${error.message}`));
       page.on('console', (message) => { if (message.type() === 'error' && !/favicon|Failed to load resource/.test(message.text())) problems.push(`${kind} ${name}: console ${message.text()}`); });
@@ -81,6 +88,19 @@ const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['
         } catch (error) {
           problems.push(`${kind} ${name}: could not do the step (${error.message.split('\n')[0]})`);
         }
+      }
+      // An opened 3D body owns the whole screen: every point must belong to it (or its own switch band).
+      if (name === 'trends-3d-open' && THREE) {
+        const leaks = await page.evaluate(() => {
+          if (!document.querySelector('.body3dOver.on')) return ['the body did not open'];
+          const found = new Set();
+          for (let y = 4; y < innerHeight; y += 24) for (let x = 4; x < innerWidth; x += 24) {
+            const top = document.elementFromPoint(x, y);
+            if (top && !top.closest('.body3dOver, .body3dModes')) found.add(`${top.tagName.toLowerCase()}.${String(top.className).split(' ')[0]} at ${x},${y}`);
+          }
+          return [...found].slice(0, 5);
+        });
+        for (const leak of leaks) problems.push(`${kind} ${name}: page shows through the opened body (${leak})`);
       }
       const wide = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);
       if (wide > 1) problems.push(`${kind} ${name}: page is ${wide}px wider than the screen`);
