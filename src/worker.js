@@ -1239,7 +1239,7 @@ const demo = async (env) => {
 
 // Beta and launch: bigger features ship behind a name. Until Marcus taps Launch in Admin (a row in features with
 // launched_at), only he and test profiles (a name starting "Test ") get them; everyone else sees nothing new.
-const BETA = [{ name: 'friends', title: 'Friends and Train together' }, { name: 'notifications', title: 'Notifications' }];
+const BETA = [{ name: 'friends', title: 'Friends and Train together' }, { name: 'notifications', title: 'Notifications' }, { name: 'body3d', title: '3D body' }];
 let launchedCache = { at: 0, names: new Set() };
 const launchedFeatures = async (env, fresh = false) => {
   if (!fresh && Date.now() - launchedCache.at < 30000) return launchedCache.names;

@@ -1842,6 +1842,74 @@ const bodySvg = (side, load, levels = null) => `<svg class="bodyFig" viewBox="0 
   const step = key ? recoveryStep(load, key) : '';
   return `<polygon points="${points}" class="${!key ? 'bodyBone' : step ? `bodyRecov ${step}` : 'bodyRest'}${key && (view.musclePick === key || bodyChosen?.has(key)) ? ' picked' : ''}"${key ? ` data-action="pick-muscle" data-muscle="${key}"` : ''}/>`;
 }).join('')}</svg>`;
+// The 3D body (beta "body3d"): Exodia's own figure, every muscle sized by its strength level, lined up by height in
+// Train together. It loads only when a page shows it (nothing at app start); until it's ready, or on a phone without
+// WebGL, the flat figures stay where it will be. One canvas is moved into the page after each redraw, so it never
+// reloads or flashes. Tap a muscle to pick it; tap the person (head, hands) or double tap to open them full screen.
+let body3d = null;
+let body3dState = 'idle';
+let body3dWant = null;
+let body3dSig = '';
+const RECOVERY_HEX = { recov4: '#C96442', recov3: '#E2AF9C', recov2: '#D2DFCE', recov1: '#6F9B6A' };
+const body3dOn = () => featureOn('body3d') && body3dState !== 'failed' && !reducedData();
+const reducedData = () => Boolean(navigator.connection?.saveData);
+const body3dPick = (key) => {
+  if (view.route === 'together' && view.together?.picking && key) {
+    const plan = togetherPlan();
+    if (plan) {
+      plan.muscles = (plan.muscles || []).includes(key) ? plan.muscles.filter((muscle) => muscle !== key) : [...(plan.muscles || []), key];
+      togetherSend({ action: 'muscles', muscles: plan.muscles });
+      render();
+      return;
+    }
+  }
+  pickMuscle(key && view.musclePick !== key ? key : null);
+};
+const loadBody3d = () => {
+  if (body3dState !== 'idle') return;
+  body3dState = 'loading';
+  import('/body3d.js')
+    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, names: Object.fromEntries(MUSCLES) }))
+    .then((made) => {
+      body3d = made;
+      body3dState = 'ready';
+      render();
+    })
+    .catch(() => {
+      body3dState = 'failed';
+      render();
+    });
+};
+// A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
+const body3dPerson = (id, name, cm, colours) => {
+  const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
+  return { id, name, heightCm: Number(cm) || null, muscles: Object.fromEntries(MUSCLES.map(([key]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null }])) };
+};
+const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
+const recoveryColour = (load) => (key) => RECOVERY_HEX[recoveryStep(load, key)] || null;
+// The place in the page: the flat figures stay inside until the 3D body is ready, at the same size, so nothing moves.
+const body3dSlot = (kind, people, flat) => {
+  if (!body3dOn() || body3dWant) return null;
+  loadBody3d();
+  body3dWant = { people, selected: view.route === 'together' && view.together?.picking ? null : view.musclePick || null };
+  // Train together: fewer people stand taller; seven still fit side by side on a phone.
+  const tall = kind === 'squad' ? (people.length <= 2 ? 300 : people.length <= 4 ? 260 : 210) : 0;
+  return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${body3dState === 'ready' ? '' : flat}</div>`;
+};
+const placeBody3d = () => {
+  const want = body3dWant;
+  body3dWant = null;
+  const slot = document.querySelector('[data-body3d]');
+  if (!body3d || !want || !slot) return;
+  slot.textContent = '';
+  body3d.attach(slot);
+  const sig = JSON.stringify(want.people);
+  if (sig !== body3dSig) {
+    body3dSig = sig;
+    body3d.setPeople(want.people);
+  }
+  body3d.setSelected(want.selected);
+};
 const renderMuscles = () => {
   loadAnatomy();
   if (!anatomy || anatomy === 'loading') return '';
@@ -1852,7 +1920,7 @@ const renderMuscles = () => {
   const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `${toggle}
-    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}">${bodySvg('front', load, levels)}${bodySvg('back', load, levels)}
+    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour)], bodySvg('front', load, levels) + bodySvg('back', load, levels)) || bodySvg('front', load, levels) + bodySvg('back', load, levels)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
         return `<div class="muscleRow${tier ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}" data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
@@ -1864,7 +1932,7 @@ const renderMuscles = () => {
     </div>`}`;
   }
   return `${toggle}
-    <div class="muscles${view.musclePick ? ' picking' : ''}">${bodySvg('front', load)}${bodySvg('back', load)}
+    <div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, recoveryColour(load))], bodySvg('front', load) + bodySvg('back', load)) || bodySvg('front', load) + bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const left = daysLeft(load, key);
         const last = lastTrained()[key];
@@ -5211,7 +5279,8 @@ const renderTogether = () => {
   // The figures turn to fit what you train: Pull shows the back, Push, Legs and Move the front, Full body both.
   const sides = picked === 'Pull' ? ['back'] : picked === 'Full body' ? ['front', 'back'] : ['front'];
   bodyChosen = plan?.muscles?.length ? new Set(plan.muscles) : null;
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load))))), '') : null;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<p class="tgLabel">Squad recovery</p>${squad3d}<div class="tgNames" style="grid-template-columns:repeat(${people.length},1fr)">${people.map((entry) => `<span>${esc(entry.name)}</span>`).join('')}</div>` : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   bodyChosen = null;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
@@ -5304,6 +5373,7 @@ const seenHit = (date) => {
 
 const render = () => {
   keepPrivateUrl();
+  body3dWant = null;
   const app = document.getElementById('app');
   const hit = exodiaHit();
   // Each Exodia hit plays its animation once on this device, the next time Home is on screen, so a hit that landed
@@ -5372,6 +5442,7 @@ const render = () => {
   const freshRight = document.querySelector('.right');
   if (freshRight && rightTop) freshRight.scrollTop = rightTop;
   placeWhen();
+  placeBody3d();
   const freshPill = document.querySelector('.updatedPill');
   if (keptPill && freshPill && keptPill !== freshPill && keptPill.dataset.sig === freshPill.dataset.sig && !keptPill.classList.contains('gone')) freshPill.replaceWith(keptPill);
   if (view.toast) view.toast.shown = true;
@@ -7482,7 +7553,7 @@ function pickMuscle(key) {
 }
 
 document.addEventListener('click', (event) => {
-  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"]')) pickMuscle(null);
+  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"], .body3dSlot, .body3dOver')) pickMuscle(null);
   // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
   if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {

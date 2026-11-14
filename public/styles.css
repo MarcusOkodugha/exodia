@@ -1884,3 +1884,15 @@ button.wnDay { cursor: pointer; }
 .body3dName { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 22px); text-align: center; font-size: 15px; font-weight: 600; color: var(--text); opacity: 0; transform: translateY(4px); transition: opacity 0.28s ease, transform 0.28s ease; pointer-events: none; }
 .body3dOver.in .body3dName.on { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .body3dClose, .body3dWho, .body3dName { transition: none; } }
+
+/* 3D body in the app: it takes the place of the two flat figures (front and back), one figure that turns. */
+.muscles.has3d { grid-template-columns: minmax(0, 1.35fr) minmax(118px, 1fr); }
+.body3dSlot { position: relative; display: flex; justify-content: center; gap: 6px; }
+.body3dSlot.one { height: 380px; }
+.body3dSlot .bodyFig { height: 100%; width: auto; }
+.right .muscles.has3d { grid-template-columns: 1fr; }
+.right .body3dSlot.one { height: 440px; }
+.body3dSlot.squad { margin: 0 0 4px; }
+.tgNames { display: grid; margin: 0 0 16px; text-align: center; font-size: 12.5px; color: var(--text2); }
+.tgNames span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (min-width: 900px) { .body3dSlot.one { height: 460px; } }
