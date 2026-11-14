@@ -1961,3 +1961,6 @@ button.wnDay { cursor: pointer; }
 .body3dModes { position: fixed; z-index: 81; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 56px); width: min(360px, calc(100% - 32px)); transform: translateX(-50%); animation: fadeUp 0.3s ease both; }
 .body3dModes .segment { margin: 0; }
 @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, 8px); } }
+/* Exodia never shows a scroll bar, anywhere (also on a Mac set to "always show scroll bars"); scrolling still works. */
+*, *::before, *::after { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
