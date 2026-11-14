@@ -37,6 +37,8 @@ const DEFAULT_CM = 178;
 // (3.6 sits between Intermediate and Advanced). No level: G as it is. A woman's figure starts 20% leaner and grows
 // 60% as much.
 const BASE = 0.0035;
+// The woman's figure: Marcus picked no separate chest form (only the body's shape). true brings the soft form back.
+const WOMAN_CHEST = false;
 const GROW = { shoulders: 2.6, rearDelts: 2.4, biceps: 2.4, triceps: 2.4, chest: 2, quads: 2.2, forearms: 1.5, traps: 1.6, upperBack: 1.5, lowerBack: 1.2, glutes: 1.2 };
 const STEP = [[1, -0.3], [2, 0.25], [3, 0.65], [4, 1], [5, 1.35], [6, 1.5]];
 const stepOf = (lv) => {
@@ -414,8 +416,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
-  // The x-ray copy draws the picked muscle where other muscles cover it, half see-through behind the drawing, so
-  // turning the body you still see it through the front (a back muscle from the front).
+  // The x-ray copy draws the picked muscle where other muscles cover it, clearly, over the drawing, so turning the
+  // body you still see all of it through the front (a back muscle from the front); only a touch lighter than where
+  // it's in plain view, so you can tell which side it's on.
   const mkMuscle = (xray) => { const m = new THREE.MeshLambertMaterial({ transparent: true }); m.forceSinglePass = true;
     if (xray) { m.defines = { XRAY: '' }; m.depthFunc = THREE.GreaterDepth; m.depthWrite = false; m.side = THREE.DoubleSide; }
     m.onBeforeCompile = (s) => { Object.assign(s.uniforms, U);
@@ -423,7 +426,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
         #ifdef XRAY
-          diffuseColor.a = 0.5 * uXr * step(0.5, vShade.z); if (diffuseColor.a < 0.01) discard;
+          diffuseColor.a = 0.82 * uXr * step(0.5, vShade.z); if (diffuseColor.a < 0.01) discard;
         #else
           diffuseColor.a = 1.0 - uBook * vFade; if (diffuseColor.a < 0.01) discard;
         #endif
@@ -470,8 +473,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   const ghosts = [dMesh(false, lineMat(1, 1), 1), dMesh(true, lineMat(0, 1), 1)];
   const xrayMat = mkMuscle(true);
   dScene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); { const sun2 = new THREE.DirectionalLight(0xffffff, 1.1); sun2.position.set(2, 3, 4); dScene.add(sun2); }
-  const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, xrayMat, 1.5), dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
-  const useGeo = (p) => { const g = p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem; };
+  const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, xrayMat, 4), dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
+  const useGeo = (p) => { const g = p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(2, 3, 4); scene.add(sun);
   // The sheet that covers the page while a figure is open.
   const veilMat = new THREE.MeshBasicMaterial({ color: '#FAF9F5', transparent: true, depthTest: false, depthWrite: false });
