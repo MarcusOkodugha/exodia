@@ -58,6 +58,7 @@ Everything a new session needs is in this repo: this file, `public/TODO.md` (ope
 - Lines show what belongs together. Never put a divider line inside one thing (a card, a group like Train together); separate parts of the same thing with space, not lines. No extra horizontal or vertical lines. Marcus has asked for this at least 4 times.
 - Recovery is a helping tool, never a rule: no "Not legs", "avoid", "can't train" wording. Fully red and still training is fine; say what's fresh and what's still recovering, neutrally.
 - Newest first, everywhere: lists, days, years, and the rows inside a year (July–December above January–June). The latest thing is always at the top.
+- Notifications are only for something a friend did that matters to you (added you to a workout, changed or moved it, left it, a friend request, the morning "Push day with Romi today"). Never a confirmation ("notifications are on"), never a reminder or nudge, never the same one twice within 10 minutes. "A friend hit Exodia" is optional and off by default.
 - Strength levels are numbers only: the share of people who log the lift on Strength Level that each level beats. No years trained, no vague descriptions ("keen lifter").
 
 ## Beta and launch
