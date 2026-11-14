@@ -51,6 +51,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] **Sidebar without Log (14 Nov).** Remove Log from the left sidebar; tapping the prompt box shows a clear button to expand the log, which becomes the Log page.
 - [ ] **Toggles as an orange underline (14 Nov):** send Marcus a picture example only (switches with just a clay line under the picked option); don't change the app until he says.
 - [ ] **Invite by SMS (14 Nov).** In Add friends, after a search: share a link (the phone's share sheet / SMS) that opens Exodia and sends a friend request to the one who shared it. Built with the Web Share API and an `sms:` link from the user's phone (Exodia can't send SMS itself without a paid SMS service).
+- [ ] **Train together, picking and title (14 Nov, Marcus).** "Add a note" and "Change muscles" look like buttons (clay). Tapping beside the figures ends picking and goes back to recovery (also after tapping a single muscle). A switch Recovery / What you're training over the figures. The title says the focus: "Pull day tomorrow · upper back, biceps, rear delts".
+- [ ] **Old flat figure on the computer (14 Nov).** The right panel on the computer (Trends side panel next to Train together) still draws the old flat anatomy: only one 3D slot per page is filled (body3dWant takes the first). Give the side panel the 3D body too (second view or move the canvas), so the old drawing never shows.
 - [ ] **Train together flow (14 Nov, proposals for Marcus):** 1) move When (a one-week strip with today) up under the headline so the order is who, when, what; 2) tapping a friend's circle on a planned day adds them to the plan at once, say so ("Romi added" / undo).
 
 
