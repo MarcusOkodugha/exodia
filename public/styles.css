@@ -1911,3 +1911,16 @@ button.wnDay { cursor: pointer; }
 .body3dSlot, .body3dSlot canvas { touch-action: none; }
 /* Its own layer, so iPhone Safari never drops the fixed box after the keyboard closes. */
 .dock { -webkit-transform: translateZ(0); transform: translateZ(0); }
+
+/* Body form: an empty field (or no sex picked) glows softly until it's filled. */
+@keyframes needsGlow { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 50% { box-shadow: 0 0 0 5px rgb(var(--clayRgb) / 0.16), 0 0 14px rgb(var(--clayRgb) / 0.22); } }
+.bodyField.needs, .segment.bodySex.needs { animation: needsGlow 2.4s ease-in-out infinite; }
+.bodyField.needs:focus-within { animation: none; box-shadow: 0 0 0 2px rgb(var(--clayRgb) / 0.35); }
+@media (prefers-reduced-motion: reduce) { .bodyField.needs, .segment.bodySex.needs { animation: none; box-shadow: 0 0 0 2px rgb(var(--clayRgb) / 0.3); } }
+/* The picked muscle's row glows in that muscle's own colour (its level, or how recovered it is). */
+.muscleRow.picked { background: color-mix(in srgb, var(--rowc, var(--clay)) 16%, transparent) !important; box-shadow: 0 0 14px color-mix(in srgb, var(--rowc, var(--clay)) 40%, transparent), 0 0 4px color-mix(in srgb, var(--rowc, var(--clay)) 20%, transparent); }
+/* With one turning figure there's room for a bigger, easier list. */
+.muscles.has3d .muscleList { gap: 2px; font-size: 15px; line-height: 20px; }
+.muscles.has3d .muscleRow { min-height: 26px; align-items: center; }
+/* Full-screen: two arrows, tucked against the figure. */
+.body3dSlot .body3dExpand { right: 10px; }

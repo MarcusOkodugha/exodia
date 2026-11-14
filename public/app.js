@@ -60,7 +60,7 @@ const buzz = (pattern) => {
   try { navigator.vibrate?.(pattern); } catch { /* not allowed here */ }
 };
 const ICONS = {
-  expand: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  expand: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/></svg>',
   pencil: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>',
   menu: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h10"/></svg>',
   trends: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18l5-6 4 3 7-8"/></svg>',
@@ -1894,10 +1894,13 @@ const loadBody3d = () => {
     });
 };
 // A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
-const body3dPerson = (id, name, cm, colours) => {
+const body3dPerson = (id, name, cm, colours, labels = null) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
-  return { id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, muscles: Object.fromEntries(MUSCLES.map(([key]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null }])) };
+  return { id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
+// The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
+const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
+const recoveryLabel = (key, title) => (lastTrained()[key] ? `${title} · ${trainedWhen(lastTrained()[key])}` : title);
 const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
 const recoveryColour = (load) => (key) => RECOVERY_HEX[recoveryStep(load, key)] || null;
 // The place in the page: the flat figures stay inside until the 3D body is ready, at the same size, so nothing moves.
@@ -1933,10 +1936,10 @@ const renderMuscles = () => {
   const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `${toggle}
-    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour)], bodySvg('front', load, levels) + bodySvg('back', load, levels)) || bodySvg('front', load, levels) + bodySvg('back', load, levels)}
+    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour, strengthLabel)], bodySvg('front', load, levels) + bodySvg('back', load, levels)) || bodySvg('front', load, levels) + bodySvg('back', load, levels)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
-        return `<div class="muscleRow${tier ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}" data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
+        return `<div class="muscleRow${tier ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}"${tier ? ` style="--rowc:${TIER_COLOURS[tier[2]]}"` : ''} data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
     <div class="anatomyFoot">${levelKey('body')}</div>`
@@ -1945,12 +1948,12 @@ const renderMuscles = () => {
     </div>`}`;
   }
   return `${toggle}
-    <div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, recoveryColour(load))], bodySvg('front', load) + bodySvg('back', load)) || bodySvg('front', load) + bodySvg('back', load)}
+    <div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, recoveryColour(load), recoveryLabel)], bodySvg('front', load) + bodySvg('back', load)) || bodySvg('front', load) + bodySvg('back', load)}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const left = daysLeft(load, key);
         const last = lastTrained()[key];
         const step = recoveryStep(load, key);
-        return `<div class="muscleRow${last ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}" data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0" title="${left ? `About ${left} ${left === 1 ? 'day' : 'days'} until recovered` : last ? 'Recovered' : 'Not trained yet'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch ${step || 'tierNone'}"></i><span>${label}</span><span class="num">${trainedWhen(last)}</span></div>`;
+        return `<div class="muscleRow${last ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}"${RECOVERY_HEX[step] ? ` style="--rowc:${RECOVERY_HEX[step]}"` : ''} data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0" title="${left ? `About ${left} ${left === 1 ? 'day' : 'days'} until recovered` : last ? 'Recovered' : 'Not trained yet'} · ${Math.round(sets[key])} sets in the last 7 days"><i class="muscleSwatch ${step || 'tierNone'}"></i><span>${label}</span><span class="num">${trainedWhen(last)}</span></div>`;
       }).join('')}</div>
     </div>
     <div class="anatomyFoot"><div class="levelKeyBox"><p class="levelKey recovKey"><span>Just trained</span><i class="muscleSwatch recov4"></i><i class="muscleSwatch recov3"></i><i class="muscleSwatch recov2"></i><i class="muscleSwatch recov1"></i><span>Recovered</span></p></div></div>`;
@@ -2851,7 +2854,7 @@ const renderYou = () => {
     </section>
     ${settingsToggles()}
     <p class="section">Your body</p>
-    ${view.bodyEdit || !(state.body?.kg && state.body?.sex) ? bodyForm(state.body?.kg ? 'Change your bodyweight, height or sex' : 'Add your bodyweight, height and sex') : `<section class="card setLinks"><button class="row setLink" data-action="body-edit"><span>Body</span><span class="muted">${Math.round(state.body.kg)} kg${state.body.cm ? ` · ${state.body.cm} cm` : ''} · ${state.body.sex === 'male' ? 'Male' : 'Female'}</span>${ICONS.chevRight}</button></section>`}
+    ${bodyForm(state.body?.kg && state.body?.cm ? 'Bodyweight, height and sex' : 'Add your bodyweight, height and sex')}
     <p class="section">Share Exodia</p>
     ${shareCard()}
     <p class="section">Add from any AI</p>
@@ -3294,8 +3297,8 @@ const liftStrength = (lift, body) => {
 const bodyForm = (title) => `<div class="bodyForm">
     <p class="bodyTitle">${title}</p>
     <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Height lines you up next to friends. Saved on your account, on all your devices.</p>
-    <div class="segment full bodySex" role="group" aria-label="Sex">${['male', 'female'].map((sex) => `<button class="segmentOption" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}">${sex === 'male' ? 'Male' : 'Female'}</button>`).join('')}<i class="segmentKnob${(view.bodySex || state.body?.sex) === 'female' ? ' on' : ''}" aria-hidden="true"></i></div>
-    <div class="bodyFields"><label class="fxSearch bodyField"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label><button class="fxBtn clay" data-action="body-save">Save</button></div>
+    <div class="segment full bodySex${view.bodySex || state.body?.sex ? '' : ' needs'}" role="group" aria-label="Sex">${['male', 'female'].map((sex) => `<button class="segmentOption" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}">${sex === 'male' ? 'Male' : 'Female'}</button>`).join('')}<i class="segmentKnob${(view.bodySex || state.body?.sex) === 'female' ? ' on' : ''}" aria-hidden="true"></i></div>
+    <div class="bodyFields"><label class="fxSearch bodyField${state.body?.kg ? '' : ' needs'}"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField${state.body?.cm ? '' : ' needs'}"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label><button class="fxBtn clay" data-action="body-save">Save</button></div>
     ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
   </div>`;
 const renderStrength = () => {
@@ -3304,7 +3307,8 @@ const renderStrength = () => {
   // device arrives with the first sync and the form goes away by itself).
   const known = Boolean(state.body?.kg && state.body?.sex);
   const body = known ? state.body : { kg: 80, sex: 'male' };
-  const askBody = !known || view.bodyEdit;
+  // Open straight away while anything is missing (height included); empty fields glow until filled.
+  const askBody = !known || view.bodyEdit || !state.body?.cm;
   const lifts = known ? WEB_LIFTS.map((lift) => liftStrength(lift, body)).filter((lift) => lift.marks) : WEB_LIFTS.map((lift) => ({ ...lift, value: 0, ever: 0, score: 0, everScore: 0, marks: [1] }));
   if (lifts.length < 3) return '';
   const top = Math.max(5, ...lifts.map((lift) => lift.everScore));
@@ -5352,7 +5356,7 @@ const renderTogether = () => {
   const sides = picked === 'Pull' ? ['back'] : picked === 'Full body' ? ['front', 'back'] : ['front'];
   bodyChosen = plan?.muscles?.length ? new Set(plan.muscles) : null;
   const heightAsk = drawn && body3dOn() && !state.body?.cm ? '<p class="tgWhy">Add your height so you stand right next to your friends. <button class="textBtn clay" data-action="body3d-height">Add height</button></p>' : '';
-  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load))))), '') : null;
+  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load), recoveryLabel) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load), recoveryLabel)))), '') : null;
   const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<p class="tgLabel">Squad recovery</p>${squad3d}<div class="tgNames" style="grid-template-columns:repeat(${people.length},1fr)">${people.map((entry, index) => `<button data-action="body3d-expand" data-index="${index}">${esc(entry.name)}${ICONS.expand}</button>`).join('')}</div>${heightAsk}` : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   bodyChosen = null;
   const conflict = together.conflict;
@@ -5444,6 +5448,17 @@ const seenHit = (date) => {
   return hitSeen;
 };
 
+// Once, on Home, for anyone who hasn't given their height, weight and sex yet: a calm banner that opens Settings.
+const askBodyOnce = () => {
+  if (view.bodyAsked || view.toast || view.route !== 'home' || state.demo || view.sandbox || onboarding() || !state.sessions.length) return;
+  view.bodyAsked = true;
+  if (state.body?.kg && state.body?.sex && state.body?.cm) return;
+  try {
+    if (localStorage.getItem('exodia.bodyAsked')) return;
+    localStorage.setItem('exodia.bodyAsked', '1');
+  } catch { return; }
+  view.toast = { kind: 'info', title: 'Add your height, weight and sex', text: featureOn('friends') ? 'Your body and strength levels then fit you. Friends is new too: train together.' : 'Your body and strength levels then fit you.', link: '#/you' };
+};
 const render = () => {
   keepPrivateUrl();
   body3dWant = null;
@@ -5459,6 +5474,7 @@ const render = () => {
   } else if (view.wasHit === false && hit && view.devHit && !view.celebrating) celebrate();
   view.wasHit = hit;
   view.blue = hit && view.celebrating !== 'orange';
+  askBodyOnce();
   document.documentElement.classList.toggle('demo', Boolean(state.demo && !view.preview));
   if (view.splitAsk) {
     app.innerHTML = renderSplit();
@@ -5512,7 +5528,7 @@ const render = () => {
   app.innerHTML = `
     ${layout}
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
-      <div class="toastMain"><button class="toastBody" data-action="${view.toast.go ? 'toast-go' : view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
+      <div class="toastMain"><button class="toastBody" data-action="${view.toast.link ? 'toast-link' : view.toast.go ? 'toast-go' : view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
     </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
   const freshRight = document.querySelector('.right');
@@ -8012,6 +8028,13 @@ document.addEventListener('click', (event) => {
     const together = view.together;
     together.kind = together.conflict?.plan.kind || together.kind;
     together.conflict = null;
+    render();
+    return;
+  }
+  if (action === 'toast-link') {
+    const link = view.toast?.link;
+    view.toast = null;
+    if (link) location.hash = link;
     render();
     return;
   }
