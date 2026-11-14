@@ -6,13 +6,15 @@ html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-sys
 main{max-width:1100px;margin:0 auto;padding:14px 12px 24px}
 nav{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:15px}nav a{color:var(--clay);text-decoration:none}
 #wrap{margin-top:8px}.host{width:100%}.keys{display:flex;justify-content:space-around;font-size:13px;color:var(--text2);text-align:center}
+#wrap.row{display:flex}#wrap.row .col{flex:1;min-width:0}.col p{margin:4px 0 0;text-align:center}.col button{border:0;background:none;padding:8px 4px;font:inherit;font-size:13px;color:var(--clay)}
+#lv{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--text2);margin-top:8px}#lv b{font-weight:600;color:var(--text)}
 #log{font-size:13px;color:var(--text2);min-height:18px;margin-top:6px}
 </style></head><body><main>
-<nav><a href="?t=one">One</a><a href="?t=seven">Seven</a><a href="?t=levels">Levels</a><a href="?t=attach">Re-attach</a><a href="?t=expand">Expand</a><a href="/">Exodia</a></nav>
-<div id="wrap"></div><div id="log"></div>
+<nav><a href="?t=me">Me</a><a href="?t=looks">Looks</a><a href="?t=one">One</a><a href="?t=seven">Seven</a><a href="?t=levels">Levels</a><a href="?t=attach">Re-attach</a><a href="?t=expand">Expand</a><a href="/">Exodia</a></nav>
+<div id="wrap"></div><div id="lv"></div><div id="log"></div>
 </main>
 <script type="module">
-// Test page for /body3d.js. ?t=one | seven | levels | attach | expand
+// Test page for /body3d.js. ?t=me | looks | one | seven | levels | attach | expand
 const C = ['#BDB7AA', '#A9C4A6', '#A88FB5', '#C96442', '#7CA3DD'];
 const KEYS = ['chest', 'traps', 'upperBack', 'lowerBack', 'quads', 'hamstrings', 'shoulders', 'rearDelts', 'biceps', 'triceps', 'glutes', 'abs', 'calves', 'forearms', 'adductors'];
 const col = (lv) => C[Math.max(0, Math.min(4, Math.floor(lv) - 1))];
@@ -30,18 +32,36 @@ const sets = {
   levels: { h: 'min(60svh, 330px)', keys: ['Beginner', 'Advanced', 'Elite'], people: [{ id: 'a', name: 'Beginner', heightCm: 178, muscles: all(1) }, { id: 'b', name: 'Advanced', heightCm: 178, muscles: all(4) }, { id: 'c', name: 'Elite', heightCm: 178, muscles: all(5.5) }] },
 };
 sets.attach = sets.one; sets.expand = sets.one;
+// Your own levels, colours, height and weight: asked from the app itself (it runs hidden in a frame on this
+// device), so nothing personal is in this page. Without a log here, a made-up lifter stands in.
+const mine = () => new Promise((done) => {
+  const sample = { id: 'a', name: 'Example', heightCm: 180, kg: 85, muscles: spread(4.6, 3.2) };
+  const f = document.createElement('iframe'); f.src = '/'; f.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden'; document.body.append(f);
+  const t0 = Date.now(); const ask = () => { let p = null;
+    try { p = f.contentWindow.eval("typeof body3dPerson === 'function' && state && state.body && state.body.kg ? JSON.stringify(body3dPerson('me', state.name || 'Me', state.body.cm, strengthColour)) : null"); } catch {}
+    const got = p && JSON.parse(p);
+    if (got && Object.values(got.muscles).some((m) => m.level)) { f.remove(); done(got); } else if (Date.now() - t0 > 6000) { f.remove(); log.textContent = 'No log with levels in this browser, so this is an example. Open the page where you use Exodia.'; done(sample); } else setTimeout(ask, 200); };
+  f.addEventListener('load', ask);
+});
+if (t === 'me' || t === 'looks') { const me = await mine();
+  sets.me = { h: 'min(72svh, 620px)', people: [me] };
+  sets.looks = { h: 'min(70svh, calc((min(100vw, 1100px) - 24px) / 3 * 2.5))', people: [me], looks: [['F', 'F (now)'], ['G', 'G'], ['D', 'D, no lines']] };
+  document.getElementById('lv').innerHTML = KEYS.filter((k) => me.muscles[k]?.level).sort((a, b) => me.muscles[b].level - me.muscles[a].level).map((k) => `<span>${k} <b>${me.muscles[k].level.toFixed(1)}</b></span>`).join(''); }
 const set = sets[t] || sets.one;
 const host = () => { const el = document.createElement('div'); el.className = 'host'; el.style.height = set.h; return el; };
-let el = host(); wrap.append(el);
-if (set.keys) wrap.insertAdjacentHTML('beforeend', `<div class="keys">${set.keys.map((k) => `<span>${k}</span>`).join('')}</div>`);
 const { createBodyView } = await import('/body3d.js');
-let selected = null;
-const view = await createBodyView({
-  onPick: (key, i) => { selected = key && key !== selected ? key : null; view.setSelected(selected); log.textContent = `pick ${key} (person ${i})`; },
-  onExpand: (i) => { log.textContent = `expand ${i}`; },
-  onCollapse: () => { selected = null; view.setSelected(null); log.textContent = 'collapse'; },
-});
-view.setPeople(set.people); view.attach(el);
+const make = async (look, into) => { let selected = null;
+  const v = await createBodyView({ look,
+    onPick: (key, i) => { selected = key && key !== selected ? key : null; v.setSelected(selected); log.textContent = `pick ${key} (person ${i})`; },
+    onExpand: (i) => { log.textContent = `expand ${i}`; },
+    onCollapse: () => { selected = null; v.setSelected(null); log.textContent = 'collapse'; } });
+  v.setPeople(set.people); v.attach(into); return v; };
+let el = host(), view; window.__views = [];
+if (set.looks) { wrap.className = 'row';
+  for (const [look, label] of set.looks) { const col = document.createElement('div'); col.className = 'col'; const h = host(); col.append(h); col.insertAdjacentHTML('beforeend', `<p><button>${label}</button></p>`); wrap.append(col); const v = view = await make(look, h); window.__views.push(v); col.querySelector('button').onclick = () => v.expand(0); }
+} else { wrap.append(el);
+  if (set.keys) wrap.insertAdjacentHTML('beforeend', `<div class="keys">${set.keys.map((k) => `<span>${k}</span>`).join('')}</div>`);
+  view = await make(undefined, el); window.__views.push(view); }
 window.__view = view; window.__flash = 0; window.__attaches = 0;
 if (t === 'attach') setInterval(() => { // what the app does on every render: new HTML, then attach() again
   const next = host(); el.replaceWith(next); el = next; view.attach(el); window.__attaches++;

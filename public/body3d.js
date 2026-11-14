@@ -28,10 +28,23 @@ const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest
 const PLAIN = '#E9E5DC', SKIN = '#F1EEE7', CLAY = '#C96442';
 const DEFAULT_CM = 178;
 
-// Bulk: how far a muscle's belly is pushed out along its normals, in model units, by strength level. Level 4
-// (Advanced) is look F from the lab. Below 1 the belly is drawn in a little, so a Beginner is slimmer than the
-// plain model. In between it is a straight line from one level to the next. No level: 0, the plain model.
-const BULK = [[1, -0.0045], [2, 0.005], [3, 0.009], [4, 0.0125], [5, 0.0175], [6, 0.021]];
+// Bulk: how far a muscle's belly is pushed out along its normals, in model units, by strength level. Elite (5)
+// is look F from the lab, the build that looked best; nothing grows far past it. Below 1 the belly is drawn in a
+// little, so a Beginner is slimmer than the plain model. In between it is a straight line from one level to the
+// next. No level: 0, the plain model.
+const BULK = [[1, -0.004], [2, 0.003], [3, 0.007], [4, 0.01], [5, 0.0125], [6, 0.014]];
+// Where the size goes. Shoulders, chest, back and arms carry it; glutes, calves, inner thighs and the waist grow
+// much less, so every level up reads as a better shape (wider on top, tight in the middle), not just bigger.
+const SHAPE = { glutes: 0.4, calves: 0.5, adductors: 0.5, abs: 0.3, lowerBack: 0.6, hamstrings: 0.75, quads: 0.9, forearms: 0.8, traps: 0.8, shoulders: 1.1, upperBack: 1.05 };
+// Definition: how deep the fibres and the creases between muscles are drawn. It rises with the level, so a strong
+// muscle shows more detail, not only more size. No level: 1, as drawn before.
+const defOf = (lv) => (lv == null || !isFinite(lv) ? 1 : 0.75 + 0.45 * (Math.max(1, Math.min(5, lv)) - 1) / 4);
+// Looks. F: fibres you can see. G: smoother and warmer, deep creases, more sheen ("looks real"). D: no fibre lines.
+const LOOKS = {
+  F: { groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 },
+  G: { groove: 0.05, bump: 0.55, crease: 0.8, sheen: 0.13, warm: 0.75, tendon: 0.2 },
+  D: { groove: 0, bump: 0, crease: 0, sheen: 0, warm: 0, tendon: 0 },
+};
 const bulkOf = (lv) => {
   if (lv == null || !isFinite(lv)) return 0;
   const l = Math.max(1, Math.min(6, lv));
@@ -194,10 +207,10 @@ float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * 
 float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
-const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade;';
+const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
+  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform float uDef[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
   ${VARY}`;
 // Bulk. A muscle moves out along its normals by its own level's amount. Where it meets or lies over a muscle of
 // another group, both move by the average of the two, so neighbours with different levels meet without a step
@@ -208,6 +221,8 @@ const V_BODY = `
   float sel = max(sa, sb), anySel = max(uSel.y, uSel.w); int gi = int(aGroup + 0.5);
   vCol = mix(mix(uPal[gi], uPlain, 0.55 * anySel), uClay, sel);
   vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel);
+  // x: definition by level. y: how much the ends pale to tendon; not the chest, which read as a white patch on the breastbone.
+  vDef = vec2(uDef[gi], step(0.5, abs(aGroup - 1.0)));
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
   float bulk = mix(uBulk[gi], uBulk[int(aNear.x + 0.5)], aNear.y); if (bulk < 0.0) bulk *= smoothstep(0.4, 0.72, aO);
   transformed += normal * bulk * (1.0 - 0.85 * smoothstep(0.5, 1.0, aEnd)) * step(0.5, aGroup);`;
@@ -228,15 +243,14 @@ const F_PARS = `
     float a1 = dot(on, normalize(cross(q, vE2))), a2 = dot(on, normalize(cross(q, vE1)));
     a1 = 1.0 - a1 * a1; a2 = 1.0 - a2 * a2; a1 *= a1; a2 *= a2; a1 *= a1; a2 *= a2;
     return (a1 * fibreFam(dot(q, vE1) / ra + wob, sc, k - k0) + a2 * fibreFam(dot(q, vE2) / ra + wob, sc, k - k0)) / (a1 + a2 + 1e-5); }`;
-const LOOK = { groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 };
 
 // ---------- the view ----------
 
-export async function createBodyView({ onPick, onExpand, onCollapse, names } = {}) {
+export async function createBodyView({ onPick, onExpand, onCollapse, names, look } = {}) {
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
   const { THREE, muscleGeo, ctxGeo, center, height } = await loadAssets();
-  const LABEL = { ...NAMES, ...(names || {}) };
+  const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.F;
 
   const canvas = document.createElement('canvas'); canvas.className = 'body3dCanvas'; canvas.setAttribute('aria-hidden', 'true');
   const ua = navigator.userAgent || '';
@@ -253,7 +267,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
 
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
-  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
+  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uDef: { value: new Array(16).fill(1) }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
     uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   const muscleMat = new THREE.MeshLambertMaterial();
@@ -263,7 +277,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
         if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
-        float tend = smoothstep(0.45, 0.95, vShade.y); float fAmt = (1.0 - 0.85 * tend) * uQ.x; float fG = fibre(normalize(vON));
+        float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x; float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
         diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -271,7 +285,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
           normal = normalize(abs(det) * normal - sign(det) * (dH.x * r1 + dH.y * r2)); }`)
       .replace('#include <opaque_fragment>', `
-        outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend));
+        outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5 * vDef.x, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend));
         vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
         #include <opaque_fragment>`); };
@@ -325,7 +339,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
     const r = place(i); if (!r || r.w < 1 || r.h < 1 || r.x > W || r.y > H || r.x + r.w < 0 || r.y + r.h < 0) return;
     const p = people[i], s = slots[i];
     aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx);
-    U.uPal.value = p.pal; U.uBulk.value = p.bulk;
+    U.uPal.value = p.pal; U.uBulk.value = p.bulk; U.uDef.value = p.def;
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
     // Fibre spacing is fixed on the body (about 2.4 px on a figure in the row), so opening a figure zooms into it.
@@ -445,12 +459,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names } = {
     },
     setPeople(list) {
       people = (list || []).map((p) => {
-        const pal = [plainC], bulk = [0];
-        // The belly grows much less than the limbs and chest, so a strong core never reads as a big stomach.
-        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); bulk.push(bulkOf(m.level) * (g === 'abs' ? 0.3 : 1)); }
+        const pal = [plainC], bulk = [0], def = [1];
+        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}, b = bulkOf(m.level); pal.push(m.color ? new THREE.Color(m.color) : plainC); bulk.push(b > 0 ? b * (SHAPE[g] || 1) : b); def.push(defOf(m.level)); }
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
-        return { id: p.id, name: p.name || '', cm, pal, bulk, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', cm, pal, bulk, def, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
