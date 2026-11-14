@@ -1402,6 +1402,8 @@ const notify = async (env, profiles, notice) => {
   for (const profile of new Set(profiles)) {
     const { results } = await env.DB.prepare('SELECT endpoint FROM push_subs WHERE profile = ?').bind(profile).all();
     if (!results.length) continue;
+    // Never twice the same thing within 10 minutes (a note edited three times is one notice).
+    if (await env.DB.prepare('SELECT 1 FROM notices WHERE profile = ? AND title = ? AND created > ?').bind(profile, notice.title.slice(0, 120), now - 600000).first()) continue;
     await env.DB.prepare('INSERT INTO notices (profile, title, body, url, created) VALUES (?, ?, ?, ?, ?)').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now).run();
     for (const { endpoint } of results) {
       const response = await pushTo(env, endpoint).catch(() => null);
