@@ -1,4 +1,9 @@
 {
+  "468": [
+    "3D body full screen: your name top left, the picked muscle top right with its colour and level",
+    "A picked muscle's row always glows orange",
+    "Train together: a clearer Notify box, and the advice no longer argues with your plan"
+  ],
   "467": [
     "Train together opens on your next workout, with \"Pull day on Sunday\" at the top and a way back to it from any day",
     "Tapping another day opens it; a plan only moves when you tap Move here",

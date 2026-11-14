@@ -1764,8 +1764,12 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 .tgDay.plan { font-size: 19px; color: var(--clayText); }
 .tgNext { display: inline-flex; align-items: center; gap: 2px; flex: none; min-height: 32px; font-size: 14px; white-space: nowrap; }
 .tgNext svg { width: 14px; height: 14px; }
-.tgTell { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 14px; color: var(--text2); cursor: pointer; }
-.tgTell input { width: 16px; height: 16px; margin: 0; accent-color: var(--clay); }
+.tgTell { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; margin-left: auto; font-size: 14px; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+/* A calm rounded box in the app's colours: an outline when off, clay with a white tick when on. */
+.tgTell input { appearance: none; -webkit-appearance: none; flex: none; width: 20px; height: 20px; margin: 0; border-radius: 6px; border: 1.5px solid var(--sep); background: var(--card); display: grid; place-items: center; transition: background-color 0.18s ease, border-color 0.18s ease; cursor: pointer; }
+.tgTell input::after { content: ''; width: 9px; height: 5px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg) scale(0.6); opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; }
+.tgTell input:checked { background: var(--clay); border-color: var(--clay); }
+.tgTell input:checked::after { opacity: 1; transform: translateY(-1px) rotate(-45deg) scale(1); }
 .textBtn.clay { color: var(--clayText); font-weight: 600; }
 .tgPlan { margin: -6px 0 14px; font-size: 14px; line-height: 20px; color: var(--text); }
 .tgPlan .textBtn { margin-left: 6px; }
@@ -1893,6 +1897,12 @@ button.wnDay { cursor: pointer; }
 .body3dOver.in .body3dClose, .body3dOver.in .body3dWho { opacity: 1; }
 .body3dName { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 22px); text-align: center; font-size: 15px; font-weight: 600; color: var(--text); opacity: 0; transform: translateY(4px); transition: opacity 0.28s ease, transform 0.28s ease; pointer-events: none; }
 .body3dOver.in .body3dName.on { opacity: 1; transform: none; }
+/* Opened: the person's name top left, the picked muscle top right (its colour square, "Upper back · Intermediate 3.6"),
+   next to the cross, on one line over the figure's shoulder. */
+.body3dWho { left: 16px; right: auto; max-width: 90px; text-align: left; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--text); top: calc(env(safe-area-inset-top) + 20px); }
+.body3dName { left: auto; right: 54px; bottom: auto; top: calc(env(safe-area-inset-top) + 20px); max-width: calc(100% - 160px); display: flex; align-items: center; gap: 7px; font-size: 14px; line-height: 20px; white-space: nowrap; transform: translateY(-3px); }
+.body3dName span { overflow: hidden; text-overflow: ellipsis; }
+.body3dName i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
 @media (prefers-reduced-motion: reduce) { .body3dClose, .body3dWho, .body3dName { transition: none; } }
 
 /* 3D body in the app: it takes the place of the two flat figures (front and back), one figure that turns. */
@@ -1933,8 +1943,7 @@ button.wnDay { cursor: pointer; }
 .bodyField.needs, .segment.bodySex.needs { animation: needsGlow 2.4s ease-in-out infinite; }
 .bodyField.needs:focus-within { animation: none; box-shadow: 0 0 0 2px rgb(var(--clayRgb) / 0.35); }
 @media (prefers-reduced-motion: reduce) { .bodyField.needs, .segment.bodySex.needs { animation: none; box-shadow: 0 0 0 2px rgb(var(--clayRgb) / 0.3); } }
-/* The picked muscle's row glows in that muscle's own colour (its level, or how recovered it is). */
-.muscleRow.picked { background: color-mix(in srgb, var(--rowc, var(--clay)) 16%, transparent) !important; box-shadow: 0 0 14px color-mix(in srgb, var(--rowc, var(--clay)) 40%, transparent), 0 0 4px color-mix(in srgb, var(--rowc, var(--clay)) 20%, transparent); }
+/* The picked muscle's row always glows in clay, Exodia's colour (the rule further up), never its level colour. */
 /* With one turning figure there's room for a bigger, easier list. */
 .muscles.has3d .muscleList { gap: 2px; font-size: 15px; line-height: 20px; }
 .muscles.has3d .muscleRow { min-height: 26px; align-items: center; }

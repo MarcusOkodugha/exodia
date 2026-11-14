@@ -420,7 +420,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   // body you still see all of it through the front (a back muscle from the front); only a touch lighter than where
   // it's in plain view, so you can tell which side it's on.
   const mkMuscle = (xray) => { const m = new THREE.MeshLambertMaterial({ transparent: true }); m.forceSinglePass = true;
-    if (xray) { m.defines = { XRAY: '' }; m.depthFunc = THREE.GreaterDepth; m.depthWrite = false; m.side = THREE.DoubleSide; }
+    if (xray) { m.defines = { XRAY: '' }; m.depthFunc = THREE.GreaterDepth; m.depthWrite = false; m.side = THREE.FrontSide; } // only the side facing you: both sides broke into grey and colour patches
     m.onBeforeCompile = (s) => { Object.assign(s.uniforms, U);
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
@@ -431,7 +431,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
           diffuseColor.a = 1.0 - uBook * vFade; if (diffuseColor.a < 0.01) discard;
         #endif
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
-        if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
+        #ifndef XRAY
+          if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
+        #endif
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
         diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;`)
@@ -603,7 +605,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   // The line under the open figure: the picked muscle with what the app says about it ("Traps · Elite 5.4",
   // "Quads · 2 days ago") when it passes a label, else just its name.
   const showName = () => { const key = GROUPS[selGroup - 1];
-    if (key) { nameEl.textContent = people[open >= 0 ? open : 0]?.labels[key] || LABEL[key]; nameEl.classList.add('on'); } else nameEl.classList.remove('on'); };
+    if (key) { const p = people[open >= 0 ? open : 0], c = p?.pal[selGroup], hex = c && c !== plainC ? '#' + c.getHexString() : CLAY;
+      const sw = document.createElement('i'), text = document.createElement('span'); sw.style.background = hex; text.textContent = p?.labels[key] || LABEL[key];
+      nameEl.replaceChildren(sw, text); nameEl.classList.add('on'); } else nameEl.classList.remove('on'); };
   const doExpand = (i) => {
     if (dead || i === open || !people[i]) return false;
     open = i; whoEl.textContent = people[i].name || ''; showName();
