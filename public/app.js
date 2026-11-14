@@ -1926,7 +1926,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -5397,6 +5397,22 @@ const planExtras = (plan) => {
   const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
+// The switch over the squad (and in an opened figure): Recovery, Strength, and Focus once the plan has muscles.
+const squadSwitch = (show, focus) => {
+  const options = [['recovery', 'Recovery'], ['strength', 'Strength'], ...(focus ? [['focus', 'Focus']] : [])];
+  return `<div class="segment full tgWhat tgShow" role="group" aria-label="Show" style="grid-template-columns:repeat(${options.length},1fr)">${options.map(([key, label]) => `<button class="segmentOption" data-action="together-show" data-show="${key}" aria-pressed="${show === key}">${label}</button>`).join('')}</div>`;
+};
+// An opened (full-screen) figure keeps the same switch at the bottom: Strength / Recovery on Trends and a friend's
+// page, Recovery / Strength / Focus in Train together.
+const openSwitch = () => {
+  if (!view.body3dOpen || !body3d) return '';
+  if (view.route === 'together' && view.together) {
+    const plan = togetherPlan();
+    const show = view.together.show === 'focus' && !plan?.muscles?.length ? 'recovery' : view.together.show || 'recovery';
+    return `<div class="body3dModes">${squadSwitch(show, Boolean(plan?.muscles?.length))}</div>`;
+  }
+  return `<div class="body3dModes"><div class="segment full tgWhat tgShow" role="group" aria-label="Anatomy" style="grid-template-columns:repeat(2,1fr)">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}</div></div>`;
+};
 const renderTogether = () => {
   if (!featureOn('friends')) return renderHome();
   if (!view.together) startTogether();
@@ -5432,9 +5448,15 @@ const renderTogether = () => {
   // turned to the side the day trains (the back for Pull).
   const picking = Boolean(together.picking && plan);
   const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (plan?.muscles || []).filter((key) => !(member?.skip || []).includes(key)); };
-  const extra = (entry) => (picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : {});
-  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load), recoveryLabel, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load), recoveryLabel, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : null) : null;
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<button data-action="body3d-expand" data-index="${index}">${esc(entry.name)}${ICONS.expand}</button>`).join('')}</div>${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  // What the figures show: Recovery (who's fresh), Strength (everyone's levels) or Focus (the plan's muscles, the rest
+  // see-through, the same view as picking but nothing changes when you tap).
+  const show = together.show === 'focus' && !plan?.muscles?.length ? 'recovery' : together.show || 'recovery';
+  const focusView = show === 'focus' && !picking;
+  const colourOf = (entry) => (focusView ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
+  const labelOf = show === 'strength' ? strengthLabel : recoveryLabel;
+  const extra = (entry) => (picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {});
+  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking || focusView ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : null) : null;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${picking ? '' : squadSwitch(show, Boolean(plan?.muscles?.length))}${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   bodyChosen = null;
   // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
   const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -5612,7 +5634,7 @@ const render = () => {
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.link ? 'toast-link' : view.toast.go ? 'toast-go' : view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
+    </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}${openSwitch()}`;
   const freshRight = document.querySelector('.right');
   if (freshRight && rightTop) freshRight.scrollTop = rightTop;
   document.querySelectorAll('.calScroll').forEach((strip, index) => {
@@ -8165,6 +8187,13 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'body3d-expand') {
     body3d?.expand(Number(target.dataset.index) || 0);
+    view.body3dOpen = true;
+    render();
+    return;
+  }
+  if (action === 'together-show') {
+    view.together.show = target.dataset.show;
+    render();
     return;
   }
   if (action === 'body3d-height') {
