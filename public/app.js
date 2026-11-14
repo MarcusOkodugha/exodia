@@ -4870,6 +4870,7 @@ const turnPush = async (on) => {
     const subscription = (await registration.pushManager.getSubscription()) || (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw }));
     const response = await pushPost({ action: 'subscribe', endpoint: subscription.endpoint });
     if (!response.ok) throw new Error('subscribe');
+    if (pushHits()) pushPost({ action: 'prefs', endpoint: subscription.endpoint, hits: true }).catch(() => {});
     view.push = 'on';
     pushPost({ action: 'test', endpoint: subscription.endpoint }).catch(() => {});
   } catch {
@@ -4884,7 +4885,25 @@ const pushRow = () => {
   if (!pushSupported()) return '';
   const state = pushState();
   const note = state === 'blocked' ? "Off in your phone's settings. Without them you won't hear when a friend adds you to a workout. Exodia never sends reminders or ads." : state === 'failed' ? "Couldn't turn them on. Try again." : state === 'on' ? 'When a friend adds you to a workout, changes it or asks to be your friend. Nothing else.' : "Off: you won't hear when a friend adds you to a workout or changes it. Exodia never sends reminders or ads.";
-  return `<button class="fxSet" role="switch" aria-checked="${state === 'on' || state === 'asking'}" data-action="push-toggle"${state === 'blocked' ? ' disabled' : ''}><span class="fxSetText"><b>Notifications</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`;
+  const hits = state === 'on' ? `<button class="fxSet" role="switch" aria-checked="${pushHits()}" data-action="push-hits"><span class="fxSetText"><b>When a friend hits Exodia</b><small>Optional. At most once a day per friend.</small></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
+  return `<button class="fxSet" role="switch" aria-checked="${state === 'on' || state === 'asking'}" data-action="push-toggle"${state === 'blocked' ? ' disabled' : ''}><span class="fxSetText"><b>Notifications</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>${hits}`;
+};
+// The optional one (a friend hit Exodia) is off until you turn it on; kept on this device and on the server.
+const pushHits = () => { try { return localStorage.getItem('exodia.pushHits') === '1'; } catch { return false; } };
+const setPushHits = async (on) => {
+  try { localStorage.setItem('exodia.pushHits', on ? '1' : '0'); } catch { /* private mode */ }
+  render();
+  const subscription = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+  if (subscription) pushPost({ action: 'prefs', endpoint: subscription.endpoint, hits: on }).catch(() => {});
+};
+// Your own hit, once per hit: friends who asked get told (the server sends at most one a day).
+const tellHit = (date) => {
+  if (!featureOn('notifications') || !syncState?.profile || view.sandbox || state.demo) return;
+  try {
+    if (localStorage.getItem('exodia.hitTold') === date) return;
+    localStorage.setItem('exodia.hitTold', date);
+  } catch { /* private mode */ }
+  pushPost({ action: 'hit' }).catch(() => {});
 };
 const loadFeatures = () => fetch('/api/features', { headers: syncState?.profile ? { 'x-exodia-key': syncState.profile } : {} })
   .then((response) => (response.ok ? response.json() : null))
@@ -5222,6 +5241,7 @@ const renderFriends = () => {
     ${search.q.trim().length < 2 && view.everyone?.length ? `<p class="section">People on Exodia</p><div class="fxList">${view.everyone.filter((row) => row.status !== 'friends').map((row) => person(row, statusButton(row))).join('')}</div>` : ''}
     ${search.q.trim().length >= 2 ? `<div class="fxList">${search.people.length ? search.people.map((row) => person(row, statusButton(row))).join('') : `<p class="fxEmpty">${search.loading ? 'Looking…' : 'Nobody with that name yet.'}</p>`}</div>` : ''}
     ${social?.requests?.length ? `<p class="section">Wants to be your friend</p><div class="fxList">${social.requests.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-decline" data-handle="${row.handle}">No</button><button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>`)).join('')}</div>` : ''}
+    ${social?.friends?.length && featureOn('notifications') && pushSupported() && pushState() === 'off' && !view.pushOfferGone ? `<p class="tgWhy tgPush">Get a notice when a friend adds you to a workout. Only plans and friend requests, never reminders. <button class="textBtn clay" data-action="push-toggle">Turn on notifications</button></p>` : ''}
     ${social?.friends?.length ? `<p class="section">Your friends</p><div class="fxList">${social.friends.map((friend) => `<div class="fxLine"><a class="fxLink" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span></span></a><button class="fxBtn quiet" data-action="friend-remove" data-handle="${friend.handle}">Remove</button></div>`).join('')}</div>` : ''}
     ${social?.asked?.length ? `<p class="section">Waiting for them</p><div class="fxList">${social.asked.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-cancel" data-handle="${row.handle}">Cancel</button>`)).join('')}</div>` : ''}
     ${!social ? `<p class="fxEmpty">${navigator.onLine ? 'Loading…' : "You're offline. Friends show up when you're back."}</p>` : ''}
@@ -5394,6 +5414,7 @@ const render = () => {
   const lastHit = hit && !view.devHit && !state.demo && !view.sandbox ? exodiaHistory().last : null;
   if (lastHit && view.route === 'home' && !view.celebrating && !document.hidden && seenHit() !== lastHit) {
     seenHit(lastHit);
+    tellHit(lastHit);
     celebrate();
   } else if (view.wasHit === false && hit && view.devHit && !view.celebrating) celebrate();
   view.wasHit = hit;
@@ -7972,6 +7993,10 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'dev-3d') {
     location.href = '/lab/looks.html';
+    return;
+  }
+  if (action === 'push-hits') {
+    setPushHits(!pushHits());
     return;
   }
   if (action === 'push-toggle') {

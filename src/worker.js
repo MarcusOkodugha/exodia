@@ -1397,13 +1397,14 @@ const pushTo = async (env, endpoint) => {
   return fetch(endpoint, { method: 'POST', headers: { authorization: `vapid t=${unsigned}.${b64url(signature)}, k=${publicKey}`, ttl: '86400', urgency: 'high', 'content-length': '0' } });
 };
 // Tell these people (profile keys). Only people with notifications on get a row and a push.
-const notify = async (env, profiles, notice) => {
+// optional: only devices that asked for this kind (a friend hit Exodia). window: never the same notice twice within it.
+const notify = async (env, profiles, notice, { optional = false, window = 600000 } = {}) => {
   const now = Date.now();
   for (const profile of new Set(profiles)) {
-    const { results } = await env.DB.prepare('SELECT endpoint FROM push_subs WHERE profile = ?').bind(profile).all();
+    const { results } = await env.DB.prepare(`SELECT endpoint FROM push_subs WHERE profile = ?${optional ? ' AND hits = 1' : ''}`).bind(profile).all();
     if (!results.length) continue;
     // Never twice the same thing within 10 minutes (a note edited three times is one notice).
-    if (await env.DB.prepare('SELECT 1 FROM notices WHERE profile = ? AND title = ? AND created > ?').bind(profile, notice.title.slice(0, 120), now - 600000).first()) continue;
+    if (await env.DB.prepare('SELECT 1 FROM notices WHERE profile = ? AND title = ? AND created > ?').bind(profile, notice.title.slice(0, 120), now - window).first()) continue;
     await env.DB.prepare('INSERT INTO notices (profile, title, body, url, created) VALUES (?, ?, ?, ?, ?)').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now).run();
     for (const { endpoint } of results) {
       const response = await pushTo(env, endpoint).catch(() => null);
@@ -1416,6 +1417,18 @@ const pushRoute = async (request, env) => {
   if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
   const body = (await request.json().catch(() => null)) || {};
   if (body.action === 'key') return json({ key: (await vapidKeys(env)).public });
+  // You hit Exodia: friends who asked for it get one notice (at most one a day from you).
+  if (body.action === 'hit') {
+    const key = request.headers.get('x-exodia-key') ?? '';
+    if (!PROFILE_KEY.test(key)) return json({ error: 'Missing key.' }, 400);
+    const me = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(key).first();
+    const name = metaName(me?.meta);
+    if (!me || !name || !(await notificationsOn(env, key, name))) return json({ ok: true });
+    const share = await env.DB.prepare('SELECT handle FROM sharing WHERE profile = ?').bind(key).first();
+    const friends = [...(await friendKeys(env, key))];
+    if (friends.length) await notify(env, friends, { title: `${name} hit Exodia`, body: 'All five pieces in the last 10 days.', url: share?.handle ? `/#/friend/${share.handle}` : '/#/friends' }, { optional: true, window: 20 * 3600000 });
+    return json({ ok: true });
+  }
   const endpoint = typeof body.endpoint === 'string' && body.endpoint.length < 1000 && PUSH_HOSTS.test(body.endpoint) ? body.endpoint : '';
   if (!endpoint) return json({ error: 'Missing endpoint.' }, 400);
   // The device's service worker, woken by a push: what to show. Newer than what this device showed, else the newest.
@@ -1435,6 +1448,8 @@ const pushRoute = async (request, env) => {
     await env.DB.prepare('INSERT INTO push_subs (endpoint, profile, last, created) VALUES (?1, ?2, (SELECT COALESCE(MAX(id), 0) FROM notices), ?3) ON CONFLICT(endpoint) DO UPDATE SET profile = excluded.profile').bind(endpoint, key, Date.now()).run();
   } else if (body.action === 'unsubscribe') {
     await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ? AND profile = ?').bind(endpoint, key).run();
+  } else if (body.action === 'prefs') {
+    await env.DB.prepare('UPDATE push_subs SET hits = ? WHERE endpoint = ? AND profile = ?').bind(body.hits ? 1 : 0, endpoint, key).run();
   } else if (body.action === 'test') {
     const sub = await env.DB.prepare('SELECT 1 FROM push_subs WHERE endpoint = ? AND profile = ?').bind(endpoint, key).first();
     if (sub) await notify(env, [key], { title: 'Notifications are on', body: 'You get one when a friend adds you to a workout or changes it.', url: '/#/together' });
@@ -1683,7 +1698,27 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
   return json({ error: 'Unknown action.' }, 400);
 };
 
+// Every morning (07:00 in Stockholm in winter, 08:00 in summer): one notice to everyone with a plan today.
+const morningPlans = async (env) => {
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
+  const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date = ?').bind(today).all();
+  for (const plan of results) {
+    const members = JSON.parse(plan.members || '[]');
+    const names = new Map();
+    for (const member of members) names.set(member, metaName((await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(member).first())?.meta));
+    for (const member of members) {
+      const others = members.filter((other) => other !== member).map((other) => names.get(other)).filter(Boolean);
+      if (!others.length) continue;
+      const withWho = others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`;
+      await notify(env, [member], { title: `${plan.kind} day with ${withWho} today`, body: plan.note || "Tap to see what's fresh for everyone.", url: `/#/together/${today}` }, { window: 12 * 3600000 });
+    }
+  }
+};
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(morningPlans(env).catch(() => {}));
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/features') return features(request, env);

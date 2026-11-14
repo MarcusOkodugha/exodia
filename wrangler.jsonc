@@ -13,6 +13,8 @@
   "vars": { "CLAUDE_TASK_URL_2": "https://api.anthropic.com/v1/claude_code/routines/trig_01YTmBu1zKvXCvCHAwZvnYxG/fire" },
   // Keep variables set in the Cloudflare dashboard (CLAUDE_MODEL, GEMINI_MODELS) on every deploy.
   "keep_vars": true,
+  // Free cron: the morning notice for workouts planned together today (06:00 UTC).
+  "triggers": { "crons": ["0 6 * * *"] },
   "d1_databases": [
     { "binding": "DB", "database_name": "exodia", "database_id": "28c10402-5308-4cfb-8c4e-ac405919fafb" }
   ],
