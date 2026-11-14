@@ -1904,3 +1904,5 @@ button.wnDay { cursor: pointer; }
 /* Bigger tap areas, same look: the edit delete dot and the prompt's ✕ answer a finger, not just their tiny circle. */
 .minus, .contextX { position: relative; }
 .minus::before, .contextX::before { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+/* The full-screen button: just the corner marks, at the bottom of the figure, right above the level key. */
+.body3dSlot .body3dExpand { top: auto; bottom: -4px; right: -6px; background: none; color: var(--text2); }
