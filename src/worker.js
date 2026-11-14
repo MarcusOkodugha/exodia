@@ -1375,17 +1375,25 @@ const friendView = async (env, profile, share, isAdmin, today) => {
   }
   return out;
 };
+// The muscles of a plan: a list everyone trains, and per person the ones they leave out (an injury). Stored in the
+// plan's muscles column as { all, skip: { profile: [...] } }; older rows hold just the list.
+const planMuscles = (plan) => {
+  let value = [];
+  try { value = JSON.parse(plan?.muscles || '[]'); } catch { /* old row */ }
+  return Array.isArray(value) ? { all: value, skip: {} } : { all: Array.isArray(value?.all) ? value.all : [], skip: value?.skip && typeof value.skip === 'object' ? value.skip : {} };
+};
+const muscleList = (list) => (Array.isArray(list) ? [...new Set(list.filter((muscle) => typeof muscle === 'string' && /^[a-zA-Z]{2,24}$/.test(muscle)))].slice(0, 20) : []);
 const planOut = async (env, plan, key) => {
   const members = JSON.parse(plan.members || '[]');
+  const { all, skip } = planMuscles(plan);
   const people = [];
   for (const member of members) {
     const row = await env.DB.prepare('SELECT s.handle, p.meta FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE p.id = ?').bind(member).first();
-    if (row) people.push({ handle: row.handle || '', name: metaName(row.meta), ...(member === key ? { me: true } : {}) });
+    if (row) people.push({ handle: row.handle || '', name: metaName(row.meta), ...(member === key ? { me: true } : {}), ...(skip[member]?.length ? { skip: skip[member] } : {}) });
   }
   const by = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.by).first();
   const noteBy = plan.note && plan.note_by ? (plan.note_by === key ? 'me' : metaName((await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.note_by).first())?.meta)) : '';
-  let muscles = [];
-  try { muscles = JSON.parse(plan.muscles || '[]'); } catch { /* old row */ }
+  const muscles = all;
   return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated, note: plan.note || '', noteBy, muscles };
 };
 const myPlan = (env, date, key) => env.DB.prepare('SELECT * FROM plans WHERE date = ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) ORDER BY updated DESC LIMIT 1').bind(date, key).first();
@@ -1701,8 +1709,17 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
   }
   if (action === 'muscles') {
     if (!plan) return answer();
-    const muscles = Array.isArray(body.muscles) ? [...new Set(body.muscles.filter((muscle) => typeof muscle === 'string' && /^[a-zA-Z]{2,24}$/.test(muscle)))].slice(0, 20) : [];
-    await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify(muscles), now, plan.id).run();
+    const { skip } = planMuscles(plan);
+    await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify({ all: muscleList(body.muscles), skip }), now, plan.id).run();
+    return answer();
+  }
+  // Leave muscles out for yourself only (an injury): the others still train them.
+  if (action === 'skip') {
+    if (!plan) return answer();
+    const { all, skip } = planMuscles(plan);
+    const mine = muscleList(body.muscles);
+    if (mine.length) skip[key] = mine; else delete skip[key];
+    await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify({ all, skip }), now, plan.id).run();
     return answer();
   }
   if (action === 'kind') {
@@ -1713,7 +1730,8 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     // Someone else picked it, or it changed since you looked: ask first.
     if (version !== plan.version || (plan.by !== key && body.confirm !== true)) return answer(409, { conflict: true });
     if (await write(plan, JSON.parse(plan.members), kind)) {
-      tell(membersOf(plan), { title: `${myName} changed it to ${kind.toLowerCase()} day`, body: planDay(date), url });
+      // The others hear about it only when the one who changed it ticked "Tell …" (older apps don't send it: told).
+      if (body.notify !== false) tell(membersOf(plan), { title: `${myName} changed it to ${kind.toLowerCase()} day`, body: planDay(date), url });
       return answer();
     }
     return answer(409, { conflict: true });

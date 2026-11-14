@@ -1867,13 +1867,11 @@ let body3dWaited = false;
 const RECOVERY_HEX = { recov4: '#C96442', recov3: '#E2AF9C', recov2: '#D2DFCE', recov1: '#6F9B6A' };
 const body3dOn = () => featureOn('body3d') && body3dState !== 'failed' && !reducedData();
 const reducedData = () => Boolean(navigator.connection?.saveData);
-const body3dPick = (key) => {
+const body3dPick = (key, index = 0) => {
   if (view.route === 'together' && view.together?.picking && key) {
     const plan = togetherPlan();
     if (plan) {
-      plan.muscles = (plan.muscles || []).includes(key) ? plan.muscles.filter((muscle) => muscle !== key) : [...(plan.muscles || []), key];
-      togetherSend({ action: 'muscles', muscles: plan.muscles });
-      render();
+      togetherMuscle(plan, key, index === 0);
       return;
     }
   }
@@ -1885,6 +1883,26 @@ const body3dLost = () => {
   body3d = null;
   body3dState = 'idle';
   body3dSig = '';
+  render();
+};
+// Picking muscles for a plan. On yourself: a muscle nobody has yet is added for everyone; one you have is left out
+// just for you while others still train it (an injury), or taken off when you were the only one; tapping a muscle
+// you left out brings it back. On a friend's figure: added or taken off for everyone.
+const togetherMuscle = (plan, key, mine) => {
+  const all = plan.muscles || [];
+  const me = plan.members.find((member) => member.me) || {};
+  const skip = me.skip || [];
+  const othersHave = plan.members.some((member) => !member.me && !(member.skip || []).includes(key));
+  if (mine && skip.includes(key)) {
+    me.skip = skip.filter((muscle) => muscle !== key);
+    togetherSend({ action: 'skip', muscles: me.skip });
+  } else if (mine && all.includes(key) && othersHave) {
+    me.skip = [...skip, key];
+    togetherSend({ action: 'skip', muscles: me.skip });
+  } else {
+    plan.muscles = all.includes(key) ? all.filter((muscle) => muscle !== key) : [...all, key];
+    togetherSend({ action: 'muscles', muscles: plan.muscles });
+  }
   render();
 };
 const loadBody3d = () => {
@@ -1903,9 +1921,9 @@ const loadBody3d = () => {
     });
 };
 // A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
-const body3dPerson = (id, name, cm, colours, labels = null) => {
+const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
-  return { id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
+  return { ...extra, id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
@@ -1913,12 +1931,13 @@ const recoveryLabel = (key, title) => (lastTrained()[key] ? `${title} · ${train
 const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
 const recoveryColour = (load) => (key) => RECOVERY_HEX[recoveryStep(load, key)] || null;
 // The place in the page: the flat figures stay inside until the 3D body is ready, at the same size, so nothing moves.
-const body3dSlot = (kind, people, flat) => {
+const body3dSlot = (kind, people, flat, mode = null) => {
   if (!body3dOn() || body3dWant) return null;
   loadBody3d();
-  body3dWant = { people, selected: view.route === 'together' && view.together?.picking ? null : view.musclePick || null };
-  // Train together: fewer people stand taller; seven still fit side by side on a phone.
-  const tall = kind === 'squad' ? (people.length <= 2 ? 300 : people.length <= 4 ? 260 : 210) : 0;
+  body3dWant = { people, mode, selected: view.route === 'together' && view.together?.picking ? null : view.musclePick || null };
+  // Train together: fewer people stand taller; seven still fit side by side on a phone. Picking muscles, the figures
+  // get more room (you the most), so a muscle is easy to hit.
+  const tall = kind === 'squad' ? (mode?.pick ? 380 : people.length <= 2 ? 272 : people.length <= 4 ? 248 : 210) : 0;
   // Still loading: the slot stays empty at its full size (no flat figure that then swaps), and the body fades in.
   if (body3dState !== 'ready') body3dWaited = true;
   return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${kind === 'one' ? `<button class="iconBtn body3dExpand" data-action="body3d-expand" data-index="0" aria-label="Full screen">${ICONS.expand}</button>` : ''}</div>`;
@@ -1939,6 +1958,7 @@ const placeBody3d = () => {
     body3dSig = sig;
     body3d.setPeople(want.people);
   }
+  body3d.setMode(want.mode || {});
   body3d.setSelected(want.selected);
 };
 const renderMuscles = () => {
@@ -5231,8 +5251,12 @@ const syncTogether = () => {
     view.together.saved = false;
   }
 };
+// The next workout you have planned (today or later): Train together opens on it.
+const nextPlan = () => (view.social?.plans || []).filter((plan) => plan.date >= todayIso()).sort((one, two) => one.date.localeCompare(two.date))[0] || null;
+// "today", "tomorrow", "on Sunday" within the week, else "on Sun 30 Nov".
+const planWhen = (iso) => { const days = daysBetween(todayIso(), iso); return days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `on ${parseIso(iso).toLocaleDateString('en-GB', days < 7 ? { weekday: 'long' } : { weekday: 'short', day: 'numeric', month: 'short' })}`; };
 const startTogether = (handle) => {
-  view.together = { date: todayIso(), people: new Set(handle ? [handle] : []), kind: null, conflict: null, pending: 0, note: '' };
+  view.together = { date: todayIso(), people: new Set(handle ? [handle] : []), kind: null, conflict: null, pending: 0, note: '', chosen: Boolean(handle) };
   syncTogether();
   if (handle && !togetherPlan()?.members.some((member) => member.handle === handle)) togetherSend({ action: 'add', handle });
 };
@@ -5343,12 +5367,14 @@ const planExtras = (plan) => {
   const together = view.together;
   const label = (key) => MUSCLES.find(([muscle]) => muscle === key)?.[1] || key;
   const chosen = plan.muscles || [];
+  // Who leaves what out: "Romi leaves out biceps."
+  const skips = plan.members.filter((member) => member.skip?.length).map((member) => ` ${member.me ? 'You leave' : `${esc(member.name)} leaves`} out ${member.skip.map((key) => esc(label(key).toLowerCase())).join(', ')}.`).join('');
   const note = together.noteOpen
     ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
     : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
   const muscles = together.picking
-    ? `<p class="tgWhy">Tap muscles on the figures to add or remove them.${chosen.length ? ` <b>${chosen.map((key) => esc(label(key))).join(', ')}</b>.` : ''}</p>`
-    : chosen.length ? `<p class="tgWhy">Focus: <b>${chosen.map((key) => esc(label(key))).join(', ')}</b></p>` : '';
+    ? `<p class="tgWhy">Tap a muscle on yourself to add it for everyone; tap it again to leave it out just for you.${chosen.length ? ` <b>${chosen.map((key) => esc(label(key))).join(', ')}</b>.` : ''}${skips}</p>`
+    : chosen.length ? `<p class="tgWhy">Focus: <b>${chosen.map((key) => esc(label(key))).join(', ')}</b>.${skips}</p>` : '';
   const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
@@ -5358,6 +5384,13 @@ const renderTogether = () => {
   const together = view.together;
   const today = todayIso();
   if (together.date < today) together.date = today;
+  // Until you pick a day yourself, the page shows your next planned workout.
+  const next = nextPlan();
+  if (!together.chosen && !together.pending && next && together.date !== next.date) {
+    together.date = next.date;
+    together.kind = null;
+    syncTogether();
+  }
   const plan = togetherPlan();
   const people = togetherPeople(together.date);
   const fit = bestFit(people, together.date);
@@ -5376,20 +5409,30 @@ const renderTogether = () => {
   const sides = picked === 'Pull' ? ['back'] : picked === 'Full body' ? ['front', 'back'] : ['front'];
   bodyChosen = plan?.muscles?.length ? new Set(plan.muscles) : null;
   const heightAsk = drawn && body3dOn() && !state.body?.cm ? '<p class="tgWhy">Add your height so you stand right next to your friends. <button class="textBtn clay" data-action="body3d-height">Add height</button></p>' : '';
-  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load), recoveryLabel) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load), recoveryLabel)))), '') : null;
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<p class="tgLabel">Squad recovery</p>${squad3d}<div class="tgNames" style="grid-template-columns:repeat(${people.length},1fr)">${people.map((entry, index) => `<button data-action="body3d-expand" data-index="${index}">${esc(entry.name)}${ICONS.expand}</button>`).join('')}</div>${heightAsk}` : `<p class="tgLabel">Squad recovery</p><div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  // Picking muscles: each person's own muscles (the plan's, minus the ones they leave out), you bigger, all still and
+  // turned to the side the day trains (the back for Pull).
+  const picking = Boolean(together.picking && plan);
+  const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (plan?.muscles || []).filter((key) => !(member?.skip || []).includes(key)); };
+  const extra = (entry) => (picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : {});
+  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, recoveryColour(entry.load), recoveryLabel, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, recoveryColour(entry.load), recoveryLabel, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : null) : null;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<button data-action="body3d-expand" data-index="${index}">${esc(entry.name)}${ICONS.expand}</button>`).join('')}</div>${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   bodyChosen = null;
+  // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
+  const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  const back = next && next.date !== together.date ? `<button class="textBtn clay tgNext" data-action="together-next">Next: ${esc(next.kind)} ${next.date === today ? 'today' : planWhen(next.date).replace(/^on /, '')}${ICONS.chevRight}</button>` : !next && together.date !== today ? `<button class="textBtn clay tgNext" data-action="together-next">Today${ICONS.chevRight}</button>` : '';
+  const head = `<div class="tgHead"><p class="tgDay${plan ? ' plan' : ''}">${headline}</p>${back}</div>`;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
-    ${conflict ? `<p class="tgWhy">${esc(conflict.plan.by === 'me' ? 'You' : conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b> for ${short(conflict.plan.date)}.<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`
-      : `<p class="tgWhy">${picked === fit.best || people.length === 1 ? fit.why : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}</p>`}`;
-  const planLine = plan ? `<div class="tgPlanRow"><p class="tgPlan"><b class="tgPlanDay">${esc(plan.kind)} day ${together.date === today ? 'today' : `on ${parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}`}</b><br>${(() => { const names = (list) => esc(list.map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1')); const others = plan.members.filter((member) => !member.me); if (plan.by === 'me') return `With ${names(others)}.`; const rest = others.filter((member) => member.name !== plan.by); return `${esc(plan.by)} picked it${rest.length ? `, with ${names(rest)}` : ''}.`; })()}</p><button class="fxBtn quiet" data-action="together-leave">Leave plan</button></div>` : '';
+    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button>${others.length ? `<label class="tgTell"><input type="checkbox" data-action="together-notify"${together.notify ? ' checked' : ''}>Tell ${esc(others.length === 1 ? others[0] : 'the others')}</label>` : ''}</span></p>`; })()
+      : `<p class="tgWhy">${picked === fit.best || people.length === 1 ? fit.why : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}${!plan && next && next.by === 'me' ? ` <button class="textBtn clay" data-action="together-move" data-from="${next.date}">Move your ${esc(next.kind)} day here</button>` : ''}</p>`}`;
+  const planLine = plan ? `<div class="tgPlanRow"><p class="tgPlan">${(() => { const names = (list) => esc(list.map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1')); const others = plan.members.filter((member) => !member.me); if (plan.by === 'me') return others.length ? `With ${names(others)}.` : 'Just you so far.'; const rest = others.filter((member) => member.name !== plan.by); return `${esc(plan.by)} picked it${rest.length ? `, with ${names(rest)}` : ''}.`; })()}</p><button class="fxBtn quiet" data-action="together-leave">Leave plan</button></div>` : '';
   return `<main class="page togetherPage">
     <div class="titleRow"><h1 class="title">Train together</h1></div>
     ${row}
     ${friends.length ? '' : '<p class="tgWhy">Add a friend to train together. Their recovery shows next to yours.</p>'}
+    ${head}
     ${bodies}
     ${what}
     ${planLine}
@@ -5438,13 +5481,13 @@ const placeWhen = () => {
   if (view.whenScroll !== undefined && view.whenScroll !== null) box.scrollTop = view.whenScroll;
   else {
     const now = box.querySelector('.wnWeek.now');
-    if (now) box.scrollTop = now.offsetTop - box.clientHeight / 3;
+    if (now) box.scrollTop = now.offsetTop - 22; // this week first, just under the soft top edge
   }
-  // When names the month of the week a third of the way down, the same place this week opens at.
+  // When names the month of the top week in view, the place this week opens at.
   const label = document.querySelector('.wnNow');
   const weeks = [...box.querySelectorAll('.wnWeek')];
   const name = () => {
-    const line = box.scrollTop + box.clientHeight / 3;
+    const line = box.scrollTop + 30;
     const week = weeks.find((row) => row.offsetTop + row.offsetHeight > line) || weeks[weeks.length - 1];
     if (label && week && label.textContent !== week.dataset.month) label.textContent = week.dataset.month;
   };
@@ -8027,8 +8070,8 @@ document.addEventListener('click', (event) => {
     const plan = togetherPlan();
     together.conflict = null;
     if (plan && plan.kind !== kind) {
-      // Someone else picked it: ask first. Your own plan just changes.
-      if (plan.by !== 'me') together.conflict = { plan, wanted: kind };
+      // A plan with others: ask first (and whether to tell them). Your plan on your own just changes.
+      if (plan.by !== 'me' || plan.members.some((member) => !member.me)) together.conflict = { plan, wanted: kind };
       else {
         together.kind = kind;
         togetherSend({ action: 'kind', kind, version: plan.version });
@@ -8043,7 +8086,36 @@ document.addEventListener('click', (event) => {
     together.kind = target.dataset.kind;
     together.conflict = null;
     render();
-    if (plan) togetherSend({ action: 'kind', kind: target.dataset.kind, version: plan.version, confirm: true });
+    if (plan) togetherSend({ action: 'kind', kind: target.dataset.kind, version: plan.version, confirm: true, notify: Boolean(together.notify) });
+    return;
+  }
+  if (action === 'together-notify') {
+    view.together.notify = !view.together.notify;
+    return;
+  }
+  if (action === 'together-next') {
+    const together = view.together;
+    together.chosen = false;
+    together.conflict = null;
+    together.note = '';
+    view.visitOpen = null;
+    view.whenScroll = null;
+    if (!nextPlan()) {
+      together.date = todayIso();
+      together.people = new Set();
+      together.kind = null;
+    }
+    render();
+    return;
+  }
+  if (action === 'together-move') {
+    const together = view.together;
+    const from = togetherPlan(target.dataset.from);
+    if (!from) return;
+    together.kind = from.kind;
+    together.chosen = true;
+    render();
+    togetherSend({ action: 'move', date: from.date, to: together.date });
     return;
   }
   if (action === 'together-keep') {
@@ -8105,32 +8177,22 @@ document.addEventListener('click', (event) => {
   if (action === 'together-date') {
     const together = view.together;
     if (together.date === target.dataset.date) return;
-    const plan = togetherPlan();
+    // Another day just opens that day: a plan never moves by itself (that's "Move your … day here").
     together.date = target.dataset.date;
+    together.chosen = true;
     together.conflict = null;
     together.note = '';
     view.visitOpen = null;
-    const there = togetherPlan();
-    // Your plan moves with the day you pick; a day that already has a plan just opens it.
-    if (plan && !there) {
-      together.kind = plan.kind;
-      togetherSend({ action: 'move', date: plan.date, to: together.date });
-    } else {
-      together.people = new Set();
-      together.kind = null;
-      syncTogether();
-    }
+    together.people = new Set();
+    together.kind = null;
+    syncTogether();
     render();
     return;
   }
   if (action === 'pick-muscle' && view.route === 'together' && view.together?.picking) {
     const plan = togetherPlan();
     if (!plan) return;
-    const key = target.dataset.muscle;
-    const muscles = (plan.muscles || []).includes(key) ? plan.muscles.filter((muscle) => muscle !== key) : [...(plan.muscles || []), key];
-    plan.muscles = muscles;
-    render();
-    togetherSend({ action: 'muscles', muscles });
+    togetherMuscle(plan, target.dataset.muscle, true);
     return;
   }
   if (action === 'together-muscles') {

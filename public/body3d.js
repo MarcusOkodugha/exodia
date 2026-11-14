@@ -286,7 +286,7 @@ float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
 const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; attribute float aLift;
+  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift;
   ${VARY}`;
 // Bulk. A muscle moves out along its normals by its own amount. Where it meets or lies over a muscle of another
 // group, both move by the average of the two, so neighbours of different sizes meet without a step. The belly
@@ -294,7 +294,7 @@ const V_PARS = `
 // the detail stays. The ends stay near the bone unless they lie under another muscle's belly (aLift).
 const V_BODY = `
   float sa = (1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, sb = (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w;
-  float sel = max(sa, sb), anySel = max(uSel.y, uSel.w); int gi = int(aGroup + 0.5);
+  int gi = int(aGroup + 0.5); float sel = max(max(sa, sb), uPick[gi] * uPickOn), anySel = max(max(uSel.y, uSel.w), uPickOn);
   // The picked muscle keeps the colour it has (its level, its recovery). With the drawing on (uBook) the rest of
   // the body fades out and the drawing shows instead; without it (a row of many) the rest fades towards plain.
   // A muscle with no colour is picked in clay.
@@ -330,11 +330,11 @@ const F_PARS = `
 const L_VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec4 vTint; varying vec3 vShade;';
 const L_V = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uHas[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
+  uniform vec3 uPal[16]; uniform float uHas[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uPick[16]; uniform float uPickOn;
   ${L_VARY} varying vec3 vN; varying float vZ;
   void main(){
     float sa = (1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, sb = (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w;
-    float sel = max(sa, sb), anySel = max(uSel.y, uSel.w); int gi = int(aGroup + 0.5);
+    int gi = int(aGroup + 0.5); float sel = max(max(sa, sb), uPick[gi] * uPickOn), anySel = max(max(uSel.y, uSel.w), uPickOn);
     vec3 own = uPal[gi], picked = uHas[gi] > 0.5 ? own : uClay;
     vTint = vec4(mix(own, picked, sel), mix(uHas[gi] * (1.0 - 0.6 * anySel), 1.0, sel));
     vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd * step(0.5, abs(aGroup - 1.0)), sel);
@@ -410,7 +410,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
 
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
-  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uXr: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
+  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uXr: { value: 0 }, uPick: { value: new Array(16).fill(0) }, uPickOn: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
     uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
@@ -454,7 +454,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   const bGeo = breastGeo(THREE), breasts = [1, -1].map((x) => { const b = new THREE.Mesh(bGeo, breastMat); b.scale.set(0.072, 0.066, 0.066); b.position.set(x * 0.076, 0.372, 0.1); b.rotation.set(0.35, x * 0.45, 0); b.renderOrder = 1; fig.add(b); return b; });
   // The Book drawing: its own scene, drawn first while a muscle is picked; the solid scene (now only the picked
   // muscle) goes on top. Depth of the nearest surface, the faint layers behind, contours, then the near surface.
-  const LU = { uPal: U.uPal, uHas: { value: new Array(16).fill(0) }, uSel: U.uSel, uClay: U.uClay, uPlain: U.uPlain, uFreq: { value: 300 }, uFade: { value: 0 }, uInk: { value: new THREE.Color('#3A3633') } };
+  const LU = { uPal: U.uPal, uHas: { value: new Array(16).fill(0) }, uSel: U.uSel, uPick: U.uPick, uPickOn: U.uPickOn, uClay: U.uClay, uPlain: U.uPlain, uFreq: { value: 300 }, uFade: { value: 0 }, uInk: { value: new THREE.Color('#3A3633') } };
   const lineMat = (fibre, ghost) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: !ghost, side: fibre ? THREE.FrontSide : THREE.DoubleSide,
     uniforms: { ...LU, uFibre: { value: fibre }, uGhost: { value: ghost }, uDepth: { value: new THREE.Vector2(6, 0.2) } }, vertexShader: L_V, fragmentShader: L_F });
   const HPX = { value: new THREE.Vector2() };
@@ -462,8 +462,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     vertexShader: 'uniform vec2 uPx; varying float vZ; void main(){ vec4 c = projectionMatrix * modelViewMatrix * vec4(position, 1.0); vec3 nv = normalize(normalMatrix * normal); vZ = nv.z; c.xy += nv.xy * uPx * c.w; gl_Position = c; }',
     fragmentShader: 'uniform vec3 uInk; uniform float uFade; varying float vZ; void main(){ gl_FragColor = vec4(uInk, uFade * mix(1.0, 0.14, smoothstep(0.35, 0.85, -vZ)));\n#include <colorspace_fragment>\n}' });
   // Depth of every muscle but the picked one, so the picked one can be found behind them (x-ray) and in front.
-  const depthM = new THREE.ShaderMaterial({ colorWrite: false, uniforms: { uSel: U.uSel },
-    vertexShader: 'uniform vec4 uSel; attribute float aGroup; varying float vS; void main(){ vS = max((1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  const depthM = new THREE.ShaderMaterial({ colorWrite: false, uniforms: { uSel: U.uSel, uPick: U.uPick, uPickOn: U.uPickOn },
+    vertexShader: 'uniform vec4 uSel; uniform float uPick[16]; uniform float uPickOn; attribute float aGroup; varying float vS; void main(){ vS = max(max((1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w), uPick[int(aGroup + 0.5)] * uPickOn); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: 'varying float vS; void main(){ if (vS > 0.5) discard; gl_FragColor = vec4(0.0); }' }), depthC = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
   const dScene = new THREE.Scene(), dPivot = new THREE.Group(), dFig = new THREE.Group(); dFig.position.copy(center).negate(); dPivot.add(dFig); dScene.add(dPivot);
   const dMesh = (isCtx, mat, order) => { const x = new THREE.Mesh(isCtx ? ctxGeo : muscleGeo, mat); x.renderOrder = order; x.userData.ctx = isCtx; dFig.add(x); return x; };
@@ -486,16 +486,20 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   let people = [], slots = [], ts = [];
   let angle = 0.5, speed = reduced.matches ? 0 : 0.05, hold = false, drag = null, open = -1;
   let selGroup = 0; const sel = U.uSel.value;
+  // Picking muscles for a plan (Train together): pickOn eases to pickTo; face turns everyone to one side and holds.
+  let pickOn = 0, pickTo = 0, face = null;
   let raf = 0, lastT = 0, lastDraw = 0, dirty = true, onScreen = false, dead = false, lastTap = null;
 
   // Where each person stands in the host: one row, feet on one line, the tallest as big as the host allows.
   const layout = () => {
     const n = people.length; slots = [];
     if (!n || hostW < 2 || hostH < 2) return;
-    const maxCm = Math.max(...people.map((p) => p.cm)), colW = hostW / n;
-    const ppuMax = Math.min(hostH / (height * 1.04), colW / (height * WIDE * (n > 1 ? 1 : 1.04)));
-    const foot = (hostH - height * ppuMax) / 2; // px from the bottom of the host to the soles
-    slots = people.map((p, i) => { const ppu = ppuMax * p.cm / maxCm; return { x: i * colW, y: 0, w: colW, h: hostH, ppu, cy: -height / 2 + (hostH / 2 - foot) / ppu }; });
+    // Columns by weight: everyone 1, except someone set bigger (you, while picking muscles).
+    const maxCm = Math.max(...people.map((p) => p.cm)), total = people.reduce((sum, p) => sum + (p.zoom || 1), 0);
+    let x = 0;
+    slots = people.map((p) => { const colW = hostW * (p.zoom || 1) / total;
+      const ppuMax = Math.min(hostH / (height * 1.04), colW / (height * WIDE * (n > 1 ? 1 : 1.04))), foot = (hostH - height * ppuMax) / 2; // px from the bottom to the soles
+      const ppu = ppuMax * p.cm / maxCm, slot = { x, y: 0, w: colW, h: hostH, ppu, cy: -height / 2 + (hostH / 2 - foot) / ppu }; x += colW; return slot; });
   };
   const size = () => {
     if (hostEl) { const w = hostEl.clientWidth, h = hostEl.clientHeight; if (w !== hostW || h !== hostH) { hostW = w; hostH = h; layout(); dirty = true; } }
@@ -519,7 +523,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
     // The drawing replaces the rest of the body only for one or two people; a row of many fades to plain instead.
-    const book = people.length <= 2 ? 1 : 0, f = book * Math.max(sel.y, sel.w); U.uBook.value = book;
+    // Picking muscles for a plan: each person shows the muscles they'll train, solid, the rest as the drawing.
+    U.uPick.value = p.pick; U.uPickOn.value = pickOn;
+    const book = people.length <= (pickOn > 0 ? 4 : 2) ? 1 : 0, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
     ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.85 * (1 - f);
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
@@ -563,6 +569,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     else moving = true;
     let anim = false;
     for (let i = 0; i < people.length; i++) { const to = open === i ? 1 : 0, t = ts[i] || 0; if (t !== to) { ts[i] = Math.max(0, Math.min(1, t + Math.sign(to - t) * ms / (reduced.matches ? 1 : 480))); anim = true; } }
+    if (Math.abs(pickTo - pickOn) > 0.002) { pickOn += (pickTo - pickOn) * Math.min(1, 0.2 * dt); anim = true; } else pickOn = pickTo;
+    if (face !== null && !drag) { const d = Math.atan2(Math.sin(face - angle), Math.cos(face - angle)); if (Math.abs(d) > 0.002) { angle += d * Math.min(1, 0.15 * dt); speed = 0; anim = true; } }
     const sy = selGroup === sel.x ? 1 : 0;
     if (Math.abs(sy - sel.y) > 0.002 || sel.w > 0.002) { sel.y += (sy - sel.y) * Math.min(1, 0.2 * dt); sel.w += (0 - sel.w) * Math.min(1, 0.2 * dt); anim = true; } else { sel.y = sy; sel.w = 0; }
     if (inOver && open < 0 && !anim && ts.every((t) => !t)) { settle(); moving = false; }
@@ -623,9 +631,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   };
   // Drag sideways to spin (with a little throw); a touch that moved less than 6 px is a tap. Up and down is left
   // to the page (touch-action: pan-y), which then cancels the pointer.
-  const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = false; try { canvas.setPointerCapture(e.pointerId); } catch {} kick(); };
+  const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0; try { canvas.setPointerCapture(e.pointerId); } catch {} kick(); };
   const move = (e) => { if (!drag || drag.id !== e.pointerId) return; drag.far = Math.max(drag.far, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
-    if (drag.far < 6) return; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
+    if (drag.far < 6) return; face = null; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
     angle = drag.a + (e.clientX - drag.x) * k; speed = Math.max(-0.3, Math.min(0.3, (e.clientX - drag.last) * k / Math.max(1, e.timeStamp - drag.lt) * 16.7)); drag.last = e.clientX; drag.lt = e.timeStamp; kick(); };
   const up = (e) => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null;
     if (d.far < 6) { speed = 0.0001 * Math.sign(d.a - angle || 1); tap(e); } else if (e.timeStamp - d.lt > 80 || reduced.matches) speed = 0; kick(); };
@@ -659,13 +667,20 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
         for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push(bulkOf(g, m.level, fem)); }
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
-        return { id: p.id, name: p.name || '', cm, pal, bulk, has, fem, labels, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
+        return { id: p.id, name: p.name || '', cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
       if (open >= 0) whoEl.textContent = people[open].name;
       showName();
       layout(); dirty = true; kick();
+    },
+    // { pick: true, face: 0 | Math.PI }: picking muscles; everyone stands still facing that side. { pick: false }: back to normal.
+    setMode({ pick = false, face: to = null } = {}) {
+      const next = pick ? 1 : 0; if (next === pickTo && to === face) return;
+      pickTo = next; face = pick ? to : null; hold = Boolean(pick); if (!pick) speed = reduced.matches ? 0 : 0.0001;
+      dirty = true; kick();
     },
     setSelected(key) {
       const g = GROUPS.indexOf(key) + 1; if (g === selGroup) return;

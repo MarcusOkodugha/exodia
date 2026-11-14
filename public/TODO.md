@@ -14,6 +14,8 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
 
 Not urgent and not in the red pill. Marcus decides these when he wants; nothing is blocked on them.
 
+- [ ] **Decide: a Strength switch in Train together's squad view?** (14 Nov) Next to recovery, show everyone's strength levels on the figures. Marcus wasn't sure.
+
 - [ ] **Decide: turn on paid Google AI?** The free tier runs out on the strong models (3.8/3.5/3.7 Flash all answer "429 too many requests"), so notes fall to Flash-Lite, which lost "Football" for Isabella. Paid costs about $0.001 per note.
   1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), find the key Exodia uses, tap **Set up billing** on its project
 - [ ] **Admin builds on your second Claude account.** Builder 1's builds haven't landed since 4 Nov; Builder 2 works and is already the default. It only needs its token, all from the phone.
