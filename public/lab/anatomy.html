@@ -44,7 +44,7 @@ const size = () => { W = stage.clientWidth; cellW = W / cols; cellH = cellW * 2.
   document.getElementById('names').innerHTML = people.map(([n], i) => `<span style="left:${(i % cols + 0.5) * cellW}px;top:${(Math.floor(i / cols) + 1) * cellH - 20}px">${n}</span>`).join(''); };
 size(); addEventListener('resize', size);
 renderer.setScissorTest(true);
-const gltf = await new GLTFLoader().loadAsync('./anatomy.glb');
+const gltf = await new GLTFLoader().loadAsync('/models/anatomy.glb');
 const loaded = performance.now();
 // One shared geometry per muscle; each person only gets their own coloured materials.
 const mats = {}; const mat = (hex) => (mats[hex] ||= new THREE.MeshLambertMaterial({ color: hex }));

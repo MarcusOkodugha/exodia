@@ -61,7 +61,7 @@ let W = 0, H = 0;
 const size = () => { W = innerWidth; H = innerHeight; renderer.setSize(W, H, false); canvas.style.width = W + 'px'; canvas.style.height = H + 'px'; };
 size(); addEventListener('resize', size);
 
-const gltf = await new GLTFLoader().loadAsync('./anatomy.glb');
+const gltf = await new GLTFLoader().loadAsync('/models/anatomy.glb');
 gltf.scene.updateMatrixWorld(true);
 const box = new THREE.Box3().setFromObject(gltf.scene); const center = box.getCenter(new THREE.Vector3()); const height = box.getSize(new THREE.Vector3()).y;
 

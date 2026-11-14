@@ -1869,3 +1869,18 @@ button.wnDay { cursor: pointer; }
 .bodyFields .bodyField input { width: 100%; font-size: 17px; text-align: left; }
 .bodyFields .bodyField span { font-size: 15px; color: var(--text2); }
 .bodyFields .fxBtn { height: 46px; padding: 0 18px; font-size: 15px; }
+/* ===== 3D body (public/body3d.js) =====
+   The module puts one canvas inside the element given to attach() (which needs a size of its own) and, for the
+   open view, moves it into a full-screen overlay on <body>. Everything the 3D body needs is in this block. */
+.body3dHost { position: relative; }
+.body3dCanvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; cursor: grab; }
+.body3dOver { position: fixed; inset: 0; z-index: 80; display: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+.body3dOver.on { display: block; }
+.body3dOver .body3dCanvas { touch-action: none; }
+.body3dClose { position: absolute; top: calc(env(safe-area-inset-top) + 6px); right: 6px; width: 48px; height: 48px; padding: 0; border: 0; background: none; color: var(--text2); opacity: 0; transition: opacity 0.3s ease; cursor: pointer; }
+.body3dClose svg { display: block; margin: auto; }
+.body3dWho { position: absolute; top: calc(env(safe-area-inset-top) + 20px); left: 60px; right: 60px; text-align: center; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+.body3dOver.in .body3dClose, .body3dOver.in .body3dWho { opacity: 1; }
+.body3dName { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 22px); text-align: center; font-size: 15px; font-weight: 600; color: var(--text); opacity: 0; transform: translateY(4px); transition: opacity 0.28s ease, transform 0.28s ease; pointer-events: none; }
+.body3dOver.in .body3dName.on { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .body3dClose, .body3dWho, .body3dName { transition: none; } }

@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>3D body test</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:14px 12px 24px}
+nav{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:15px}nav a{color:var(--clay);text-decoration:none}
+#wrap{margin-top:8px}.host{width:100%}.keys{display:flex;justify-content:space-around;font-size:13px;color:var(--text2);text-align:center}
+#log{font-size:13px;color:var(--text2);min-height:18px;margin-top:6px}
+</style></head><body><main>
+<nav><a href="?t=one">One</a><a href="?t=seven">Seven</a><a href="?t=levels">Levels</a><a href="?t=attach">Re-attach</a><a href="?t=expand">Expand</a><a href="/">Exodia</a></nav>
+<div id="wrap"></div><div id="log"></div>
+</main>
+<script type="module">
+// Test page for /body3d.js. ?t=one | seven | levels | attach | expand
+const C = ['#BDB7AA', '#A9C4A6', '#A88FB5', '#C96442', '#7CA3DD'];
+const KEYS = ['chest', 'traps', 'upperBack', 'lowerBack', 'quads', 'hamstrings', 'shoulders', 'rearDelts', 'biceps', 'triceps', 'glutes', 'abs', 'calves', 'forearms', 'adductors'];
+const col = (lv) => C[Math.max(0, Math.min(4, Math.floor(lv) - 1))];
+const all = (lv) => Object.fromEntries(KEYS.map((k) => [k, { color: col(lv), level: lv }]));
+const spread = (from, to) => Object.fromEntries(KEYS.map((k, i) => { const lv = +(from + (to - from) * i / (KEYS.length - 1)).toFixed(1); return [k, { color: col(lv), level: lv }]; }));
+const t = new URLSearchParams(location.search).get('t') || 'one';
+const wrap = document.getElementById('wrap'), log = document.getElementById('log');
+const sets = {
+  // chest Elite next to Beginner shoulders, quads Elite next to Beginner adductors: the hardest borders
+  one: { h: 'min(72svh, 620px)', people: [{ id: 'a', name: 'Test One', heightCm: 180, muscles: { ...spread(1, 5), chest: { color: C[4], level: 5 }, shoulders: { color: C[0], level: 1 }, quads: { color: C[4], level: 5.2 }, adductors: { color: C[0], level: 1 }, abs: { color: null, level: null } } }] },
+  seven: { h: '300px', people: [
+    { id: 'a', name: 'Beginner 160', heightCm: 160, muscles: all(1) }, { id: 'b', name: 'Novice 168', heightCm: 168, muscles: spread(1.5, 2.8) },
+    { id: 'c', name: 'Mixed 172', heightCm: 172, muscles: spread(1, 5) }, { id: 'd', name: 'No height', heightCm: null, muscles: spread(4.4, 2.2) },
+    { id: 'e', name: 'Advanced 183', heightCm: 183, muscles: all(4) }, { id: 'f', name: 'No data 188', heightCm: 188, muscles: {} }, { id: 'g', name: 'Elite 195', heightCm: 195, muscles: all(5.4) }] },
+  levels: { h: 'min(60svh, 330px)', keys: ['Beginner', 'Advanced', 'Elite'], people: [{ id: 'a', name: 'Beginner', heightCm: 178, muscles: all(1) }, { id: 'b', name: 'Advanced', heightCm: 178, muscles: all(4) }, { id: 'c', name: 'Elite', heightCm: 178, muscles: all(5.5) }] },
+};
+sets.attach = sets.one; sets.expand = sets.one;
+const set = sets[t] || sets.one;
+const host = () => { const el = document.createElement('div'); el.className = 'host'; el.style.height = set.h; return el; };
+let el = host(); wrap.append(el);
+if (set.keys) wrap.insertAdjacentHTML('beforeend', `<div class="keys">${set.keys.map((k) => `<span>${k}</span>`).join('')}</div>`);
+const { createBodyView } = await import('/body3d.js');
+let selected = null;
+const view = await createBodyView({
+  onPick: (key, i) => { selected = key && key !== selected ? key : null; view.setSelected(selected); log.textContent = `pick ${key} (person ${i})`; },
+  onExpand: (i) => { log.textContent = `expand ${i}`; },
+  onCollapse: () => { selected = null; view.setSelected(null); log.textContent = 'collapse'; },
+});
+view.setPeople(set.people); view.attach(el);
+window.__view = view; window.__flash = 0; window.__attaches = 0;
+if (t === 'attach') setInterval(() => { // what the app does on every render: new HTML, then attach() again
+  const next = host(); el.replaceWith(next); el = next; view.attach(el); window.__attaches++;
+  const c = view.debug.state().canvas, probe = document.createElement('canvas'); probe.width = 40; probe.height = 60;
+  const g = probe.getContext('2d'); g.drawImage(c, 0, 0, 40, 60); const d = g.getImageData(0, 0, 40, 60).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 20) n++;
+  if (n < 40) window.__flash++; log.textContent = `attach ${window.__attaches}, empty after attach: ${window.__flash}, angle ${view.debug.state().angle.toFixed(2)}`;
+}, 1000);
+window.__ready = true;
+</script></body></html>
