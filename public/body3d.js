@@ -181,11 +181,12 @@ const merge = (THREE, parts, R = 0) => {
   // The low back. In the model the erectors lie under the lower lats, so from behind the lumbar area showed lat
   // colour. What covers them there is the lats' flat tendon sheet, so the whole lower lats count as lower back, up
   // to their natural seam with the upper lats just under the ribs, and out to their own edge; the erectors above
-  // that line (they run on up to the skull) are not the low back and stay plain. The hip flexors are cut the same
-  // way at the hip bone: the part on the thigh shows with the quads, the part inside the belly (psoas) does not.
+  // that line (they run on up to the skull) are not the low back and stay plain. The hip flexors are not cut: they
+  // show with the quads all the way up to the spine, where the muscle really goes (a straight cut at the hip bone
+  // showed as a flat top on the quads in the see-through view). The K === 3 branch below is kept for that cut.
   // Every triangle a line crosses is cut along it, so colour ends on a clean edge, not a fade across a triangle.
   const gLow = GROUPS.indexOf('lowerBack') + 1, gUp = GROUPS.indexOf('upperBack') + 1, gQ = GROUPS.indexOf('quads') + 1;
-  if (R > 0) for (const K of [1, 3]) {
+  if (R > 0) for (const K of [1]) {
     const f = (i) => pos[i * 3 + 1] - (K === 3 ? 0.1 : 0.32), ok = (k) => (K === 3 ? k === 3 : k === 1 || k === 2);
     const gOf = (i, inn) => (K === 3 ? (inn ? gQ : 0) : inn ? gLow : kind[i] === 1 ? gUp : 0);
     // Typed arrays with room for the new corners (a cut adds at most four per triangle it crosses, and few cross).
