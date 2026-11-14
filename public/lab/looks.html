@@ -7,10 +7,7 @@ main{max-width:1100px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px
 .back{color:var(--clay);font-size:15px;text-decoration:none}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 4px;margin-top:4px}
 .col{min-width:0}
-.hero{grid-column:1/-1}
-.hero .cell{aspect-ratio:1/2.14;max-height:calc(100svh - 104px);width:100%}
-.small .cell{aspect-ratio:1/2.14}
-@media (min-width:900px){.grid{grid-template-columns:repeat(6,minmax(0,calc((100svh - 150px) / 2.5)));justify-content:center}.hero{grid-column:auto}.hero .cell{aspect-ratio:1/2.5}}
+@media (min-width:900px){.grid{grid-template-columns:repeat(6,minmax(0,calc((100svh - 150px) / 2.5)));justify-content:center}}
 .cell{aspect-ratio:1/2.5;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:pointer}
 .tag{text-align:center;font-size:15px;font-weight:600;margin-top:2px}
 .tag small{display:block;font-weight:400;font-size:12.5px;color:var(--text2)}
@@ -23,17 +20,24 @@ main{max-width:1100px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px
 #close svg{display:block;margin:auto}
 #name{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 22px);text-align:center;font-size:15px;font-weight:600;opacity:0;transform:translateY(4px);transition:opacity .28s ease,transform .28s ease;pointer-events:none}
 #name.on{opacity:1;transform:none}
+.top{display:flex;align-items:center;justify-content:space-between}
+.sizeBtn{border:0;background:none;font:inherit;font-size:15px;color:var(--text2);padding:8px 0;cursor:pointer}
+.sizeBtn[aria-pressed="true"]{color:var(--clay);font-weight:600}
+/* Phone size: every figure exactly as big as the 3D body next to the muscle list on Trends on a phone (198 x 380). */
+body.phone .grid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px 10px}
+body.phone .col{width:198px}
+body.phone .cell{width:198px;height:380px;aspect-ratio:auto}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head><body><main>
-<a class="back" href="/">Back to Exodia</a>
+<div class="top"><a class="back" href="/">Back to Exodia</a><span><button id="recov" class="sizeBtn" aria-pressed="false">Recovery</button> &nbsp; <button id="phoneSize" class="sizeBtn" aria-pressed="false">Phone size</button></span></div>
 <div class="grid">
-  <div class="col hero"><div class="cell"></div><div class="tag">D2<small>No head</small></div></div>
-  <div class="col small"><div class="cell"></div><div class="tag">D2<small>In app</small></div></div>
-  <div class="col"><div class="cell"></div><div class="tag">D<small>Now</small></div></div>
-  <div class="col"><div class="cell"></div><div class="tag">F<small>Strong</small></div></div>
+  <div class="col"><div class="cell"></div><div class="tag">D<small>Plain</small></div></div>
+  <div class="col"><div class="cell"></div><div class="tag">F<small>Strong · in the app now</small></div></div>
   <div class="col"><div class="cell"></div><div class="tag">G<small>Real</small></div></div>
   <div class="col"><div class="cell"></div><div class="tag">H<small>Book</small></div></div>
+  <div class="col"><div class="cell"></div><div class="tag">I<small>Strong + real</small></div></div>
+  <div class="col"><div class="cell"></div><div class="tag">J<small>Picked on Book</small></div></div>
 </div>
 <p class="credit">Model: Z-Anatomy (Gauthier Kervyn), BodyParts3D (DBCLS), CC BY-SA 4.0.</p>
 </main>
@@ -48,8 +52,10 @@ const C = { beg: '#BDB7AA', nov: '#A9C4A6', int: '#A88FB5', adv: '#C96442', eli:
 const COLORS = { chest: 'adv', shoulders: 'adv', triceps: 'int', quads: 'int', glutes: 'int', lowerBack: 'int', upperBack: 'nov', traps: 'nov', biceps: 'nov', calves: 'beg', forearms: 'beg', hamstrings: 'eli' };
 const NAMES = { chest: 'Chest', shoulders: 'Shoulders', rearDelts: 'Rear delts', traps: 'Traps', upperBack: 'Upper back', lowerBack: 'Lower back', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', abs: 'Abs', glutes: 'Glutes', quads: 'Quads', hamstrings: 'Hamstrings', adductors: 'Adductors', calves: 'Calves' };
 const GROUPS = Object.keys(NAMES);
-// Muscle group from the model's own part name (anterior_delt, vastus_group, ...).
-const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
+// Muscle group from the model's own part name (anterior_delt, vastus_group, ...). Hip flexors show at the groin
+// between the quads and take their colour; the neck extensors lie under the traps and take theirs. The neck
+// flexors (front of the neck), hands and feet are not trained as a group and stay plain like the skin.
+const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap|neck_ext/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus|hip_flex/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
 const BG = '#FAF9F5', PLAIN = '#E9E5DC', SKIN = '#F1EEE7', CLAY = '#C96442';
 
 const canvas = document.getElementById('c'), over = document.getElementById('over'), nameEl = document.getElementById('name');
@@ -72,19 +78,19 @@ const geoInfo = { fans: {} }; window.__info = geoInfo;
 const merge = (meshes) => {
   let nv = 0, ni = 0; for (const o of meshes) { nv += o.geometry.attributes.position.count; ni += o.geometry.index.count; }
   const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
-  const ao = new Float32Array(nv), end = new Float32Array(nv), grp = new Float32Array(nv), idx = new Uint32Array(ni);
+  const ao = new Float32Array(nv), end = new Float32Array(nv), grp = new Float32Array(nv), pid = new Float32Array(nv), idx = new Uint32Array(ni); let np = 0; const lats = new Uint8Array(nv);
   const v = new THREE.Vector3(), nm = new THREE.Matrix3(), plain = new THREE.Color(PLAIN), skinC = new THREE.Color(SKIN);
   let vo = 0, io = 0, headI = null;
   for (const o of meshes) {
     const g = o.geometry, p = g.attributes.position, n = g.attributes.normal, c = g.attributes.color, cnt = p.count;
     let top = o; while (top.parent && top.parent !== gltf.scene) top = top.parent;
     const ctx = /context/.test(top.name), skin = /skin/.test(top.name), head = /body_context/.test(top.name);
-    const gi = ctx ? 0 : GROUPS.indexOf(GROUP(top.name)) + 1;
+    const gi = ctx ? 0 : GROUPS.indexOf(GROUP(top.name)) + 1; if (/lower_lats/.test(top.name)) lats.fill(1, vo, vo + cnt);
     nm.getNormalMatrix(o.matrixWorld);
     for (let i = 0; i < cnt; i++) {
       v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); pos.set([v.x, v.y, v.z], (vo + i) * 3);
       v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); nor.set([v.x, v.y, v.z], (vo + i) * 3);
-      ao[vo + i] = c && !skin && !head ? c.getX(i) : 1; grp[vo + i] = gi;
+      ao[vo + i] = c && !skin && !head ? c.getX(i) : 1; grp[vo + i] = gi; pid[vo + i] = np;
       const cc = skin ? skinC : plain; col.set([cc.r, cc.g, cc.b], (vo + i) * 3);
     }
     // Fibre direction. Real fibres fan: a pec runs from the sternum and collarbone to one spot on the upper arm,
@@ -118,7 +124,7 @@ const merge = (meshes) => {
     } else for (let i = 0; i < cnt; i++) { axis.set([0, 1, 0], (vo + i) * 3); apex.set([0, -100, 0, 100], (vo + i) * 4); }
     const ix = g.index; for (let i = 0; i < ix.count; i++) idx[io + i] = ix.getX(i) + vo;
     if (head) headI = [io, io + ix.count, vo, vo + cnt];
-    vo += cnt; io += ix.count;
+    vo += cnt; io += ix.count; np++;
   }
   // Some parts (the head above all) have triangles wound the wrong way, which is why the head showed as a hollow
   // mask. Turn every triangle to face the way its normals point.
@@ -151,7 +157,29 @@ const merge = (meshes) => {
       for (let k = 0; k < 3; k++) { const w = weld[idx[j + k] - v0] * 3; wn[w] += fn.x; wn[w + 1] += fn.y; wn[w + 2] += fn.z; } }
     for (let i = v0; i < v1; i++) { const w = weld[i - v0] * 3; fn.set(wn[w], wn[w + 1], wn[w + 2]).normalize(); nor.set([fn.x, fn.y, fn.z], i * 3); }
     geoInfo.head = { parts, vol: [...vol].map((x) => +x.toExponential(1)) }; }
-  const geo = new THREE.BufferGeometry();
+  // The low back. In the model the erectors lie under the lower lats, so from behind the lumbar area showed lat
+  // colour and the lower back only peeked out at the edges. What covers the erectors there is the flat tendon
+  // sheet of the lats, not muscle, so every bit of the lower lats lying over the erectors, up to where the low
+  // back ends (just under the ribs), counts as lower back: its colour, its pick. The erectors' outline from behind,
+  // band by band, widened a little so the area ends on the lats' own edge, not in a jagged line.
+  const gLow = GROUPS.indexOf('lowerBack') + 1;
+  if (gLow) { let y0 = Infinity, y1 = -Infinity; for (let i = 0; i < nv; i++) if (grp[i] === gLow) { y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); }
+    const top = y0 + (y1 - y0) * 0.45, B = 0.01, band = new Map(); // per band: widest |x| of the erectors
+    for (let i = 0; i < nv; i++) if (grp[i] === gLow && pos[i * 3 + 1] < top + B) { const k = Math.floor(pos[i * 3 + 1] / B); band.set(k, Math.max(band.get(k) || 0, Math.abs(pos[i * 3]))); }
+    for (let i = 0; i < nv; i++) { if (!lats[i] || pos[i * 3 + 1] > top) continue; const k = Math.floor(pos[i * 3 + 1] / B);
+      const w = Math.max(band.get(k - 1) || 0, band.get(k) || 0, band.get(k + 1) || 0); if (Math.abs(pos[i * 3]) < w + 0.012) grp[i] = gLow; } }
+  // Bulk per vertex. A muscle's ends stay near the bone, but where an end lies under or against another muscle's
+  // belly (the middle traps under the upper traps at the base of the neck) it rises with that neighbour, so the
+  // two meet without a step and no dark pit opens between them.
+  const lift = new Float32Array(nv); for (let i = 0; i < nv; i++) lift[i] = 1 - 0.85 * Math.min(1, Math.max(0, (end[i] - 0.5) / 0.5)) ** 2 * (3 - 2 * Math.min(1, Math.max(0, (end[i] - 0.5) / 0.5)));
+  { const R = 0.03, cells = new Map(), cf = (i, k) => Math.floor(pos[i * 3 + k] / R), ck = (x, y, z) => (x + 512) * 1048576 + (y + 512) * 1024 + (z + 512);
+    for (let i = 0; i < nv; i++) { if (!grp[i]) continue; const k = ck(cf(i, 0), cf(i, 1), cf(i, 2)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
+    const base = lift.slice();
+    for (let i = 0; i < nv; i++) { if (!grp[i] || base[i] > 0.99) continue; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], cx = cf(i, 0), cy = cf(i, 1), cz = cf(i, 2); let m = base[i];
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) { const cell = cells.get(ck(cx + a, cy + b, cz + c)); if (!cell) continue;
+        for (const j of cell) { if (pid[j] === pid[i] || base[j] <= m) continue; const d = Math.hypot(pos[j * 3] - x, pos[j * 3 + 1] - y, pos[j * 3 + 2] - z) / R; if (d < 1) m = Math.max(m, base[j] * (1 - d * d * (3 - 2 * d)) + base[i] * d * d * (3 - 2 * d)); } }
+      lift[i] = m; } }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('aLift', new THREE.BufferAttribute(lift, 1));
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aAxis', new THREE.BufferAttribute(axis, 3)); geo.setAttribute('aApex', new THREE.BufferAttribute(apex, 4));
   geo.setAttribute('aO', new THREE.BufferAttribute(ao, 1)); geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1)); geo.setAttribute('aGroup', new THREE.BufferAttribute(grp, 1));
@@ -165,6 +193,10 @@ const muscleGeo = merge(all.filter((o) => !isCtx(o))), ctxGeo = merge(all.filter
 // Colours per group, and the selection: two slots (the one fading in, the one fading out) so changing muscle is smooth.
 const pal = [new THREE.Color(PLAIN), ...GROUPS.map((g) => new THREE.Color(COLORS[g] ? C[COLORS[g]] : PLAIN))];
 const has = [0, ...GROUPS.map((g) => (COLORS[g] ? 1 : 0))];
+// Recovery colours, same as the app: clay (just trained), light clay, light sage, sage (recovered).
+const RC = { 4: '#C96442', 3: '#E2AF9C', 2: '#D2DECE', 1: '#6F9B6A' };
+const RECOV = { chest: 4, shoulders: 4, triceps: 4, rearDelts: 3, quads: 3, glutes: 3, hamstrings: 2, adductors: 2, calves: 1, lowerBack: 2, upperBack: 1, traps: 1, biceps: 1, forearms: 1, abs: 1 };
+const paint = (recov) => GROUPS.forEach((g, i) => { pal[i + 1].set(recov ? RC[RECOV[g]] : COLORS[g] ? C[COLORS[g]] : PLAIN); has[i + 1] = recov || COLORS[g] ? 1 : 0; });
 const U = { uPal: { value: pal }, uHas: { value: has }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) }, uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: new THREE.Color(PLAIN) } };
 const SEL = `
   float sa = (1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, sb = (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w;
@@ -178,13 +210,14 @@ float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
 // What every figure's vertex shader hands on: colour (with the selection), shade, and the muscle's fibre fan.
 const V_PARS = `
-  attribute vec4 aApex; attribute vec3 aAxis; attribute float aGroup; attribute float aO; attribute float aEnd;
+  attribute vec4 aApex; attribute vec3 aAxis; attribute float aGroup; attribute float aO; attribute float aEnd; attribute float aLift;
   uniform vec3 uPal[16]; uniform float uHas[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
-  varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec4 vTint; varying vec3 vCol; varying vec3 vShade;`;
+  varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec4 vTint; varying vec3 vCol; varying vec3 vShade; varying float vAny;`;
 const V_BODY = `${SEL}
-  vTint = vec4(mix(uPal[gi], uClay, sel), mix(uHas[gi] * (1.0 - 0.6 * anySel), 1.0, sel));
-  vCol = mix(mix(uPal[gi], uPlain, 0.55 * anySel), uClay, sel);
-  vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel);
+  vec3 own = uPal[gi], picked = uHas[gi] > 0.5 ? own : uClay; vAny = anySel;
+  vTint = vec4(mix(own, picked, sel), mix(uHas[gi] * (1.0 - 0.6 * anySel), 1.0, sel));
+  vCol = mix(mix(own, uPlain, 0.55 * anySel), picked, sel);
+  vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd * step(0.5, abs(aGroup - 1.0)), sel); // no tendon pallor on the chest (a white patch on the breastbone), as in the app
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);`;
 // Fibre lines. They are where planes through the muscle's fan point cut its surface, so they run towards that
 // point; two plane families, each used where it crosses the surface cleanly. As the fan widens new lines fade in
@@ -192,7 +225,7 @@ const V_BODY = `${SEL}
 // can draw they melt into their own average (no moire). Returns x: soft groove (1 in the groove), y: crisp line.
 const F_PARS = `
   uniform float uFreq;
-  varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec4 vTint; varying vec3 vCol; varying vec3 vShade;
+  varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec4 vTint; varying vec3 vCol; varying vec3 vShade; varying float vAny;
   ${NOISE}
   vec2 fibreFam(float u, float sc, float kf, float w){
     float x = u * sc; float aa = fwidth(u) * sc + 1e-4; float melt = smoothstep(0.3, 0.62, aa);
@@ -211,16 +244,19 @@ const F_PARS = `
 // D, D2, F, G: smooth Lambert in the level colours. D is plain. F and G add, in different amounts: bulk (the muscle
 // bellies pushed out along their normals), fibre grooves that darken the colour a little and catch the light like
 // a bump map, deeper shade in the creases between muscles, a soft sheen and paler tendon ends.
-const solidMat = (o) => { const m = new THREE.MeshLambertMaterial(); const fib = Boolean(o);
-  if (fib) m.defines = { FIBRE: '' };
+const solidMat = (o, book) => { const m = new THREE.MeshLambertMaterial(); const fib = Boolean(o);
+  m.defines = {}; if (fib) m.defines.FIBRE = ''; if (book) { m.defines.BOOK = ''; m.transparent = true; }
   m.onBeforeCompile = (s) => { Object.assign(s.uniforms, U, { uFreq: UFREQ });
-    if (fib) Object.assign(s.uniforms, { uP: { value: new THREE.Vector4(o.groove, o.bump, o.crease, o.sheen) }, uQ: { value: new THREE.Vector4(o.bulk, o.warm, o.tendon, 0) } });
+    if (fib) Object.assign(s.uniforms, { uP: { value: new THREE.Vector4(o.groove, o.bump, o.crease, o.sheen) }, uQ: { value: new THREE.Vector4(o.bulk, o.warm, o.tendon, o.keep || 0) } });
     s.vertexShader = V_PARS + '\nuniform vec4 uQ;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n${V_BODY}
       #ifdef FIBRE
-        transformed += normal * uQ.x * (1.0 - 0.85 * smoothstep(0.5, 1.0, aEnd)) * step(0.5, aGroup);
+        transformed += normal * uQ.x * aLift * step(0.5, aGroup) * mix(1.0, mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)), uQ.w); // keep: the bellies grow, the creases between muscles stay deep
       #endif`);
     s.fragmentShader = F_PARS + '\nuniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain;\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
+        #ifdef BOOK
+          diffuseColor.a = 1.0 - vAny * (1.0 - vShade.z); if (diffuseColor.a < 0.01) discard;
+        #endif
         #ifdef FIBRE
           float tend = smoothstep(0.6, 0.98, vShade.y); float fAmt = 1.0 - 0.85 * tend; float fG = fibre(normalize(vON), 0.1).x;
           diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
@@ -239,19 +275,19 @@ const solidMat = (o) => { const m = new THREE.MeshLambertMaterial(); const fib =
           outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
         #endif
         #include <opaque_fragment>`); };
-  m.customProgramCacheKey = () => 'solid' + fib; return m; };
+  m.customProgramCacheKey = () => 'solid' + fib + Boolean(book); return m; };
 const ctxMat = () => new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
 
 // H: the anatomy-book plate. Nothing is filled in: every muscle is only fine ink lines along its fibres, thicker
 // in the shade, plus a contour, so you look through the body. The nearest surface is drawn at full strength; the
 // surfaces behind it show through between the lines, fainter the further back they are. Muscles with a level
 // take its colour as line colour and a light wash.
-const lineMat = (fibre, ghost) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: !ghost,
-  uniforms: { ...U, uFreq: UFREQ_H, uFibre: { value: fibre }, uGhost: { value: ghost }, uDepth: { value: new THREE.Vector2(6, 0.2) }, uInk: { value: new THREE.Color('#3A3633') } },
+const lineMat = (fibre, ghost, fade) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: !ghost, defines: fade ? { BOOK: '' } : {},
+  uniforms: { ...U, uFreq: UFREQ_H, uFibre: { value: fibre }, uGhost: { value: ghost }, uFade: fade || { value: 1 }, uDepth: { value: new THREE.Vector2(6, 0.2) }, uInk: { value: new THREE.Color('#3A3633') } },
   vertexShader: `${V_PARS} varying vec3 vN; varying float vZ;
     void main(){ ${V_BODY}
       vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vZ = -mv.z; gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `${F_PARS} uniform float uFibre; uniform float uGhost; uniform vec2 uDepth; uniform vec3 uInk; varying vec3 vN; varying float vZ;
+  fragmentShader: `${F_PARS} uniform float uFade; uniform float uFibre; uniform float uGhost; uniform vec2 uDepth; uniform vec3 uInk; varying vec3 vN; varying float vZ;
     void main(){
       vec3 n = normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0);
       float lit = dot(n, normalize(vec3(-0.42, 0.55, 0.72))) * 0.5 + 0.5;
@@ -271,25 +307,34 @@ const lineMat = (fibre, ghost) => new THREE.ShaderMaterial({ transparent: true, 
         float la = l * (0.42 + 0.22 * tint + 0.3 * dark);
         a = la + wash * (1.0 - la); col = mix(mix(uInk, vTint.rgb, min(1.0, tint * 3.0 + uFibre)), ink, la / max(a, 1e-4));
       }
+      #ifdef BOOK
+        a *= uFade * (1.0 - vShade.z);
+      #endif
       gl_FragColor = vec4(col, a);
       #include <colorspace_fragment>
     }` });
 // Ink contour: the same shape again, back faces only, pushed out a fixed number of screen pixels.
-const hullMat = new THREE.ShaderMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 1, uniforms: { uPx: { value: new THREE.Vector2() }, uInk: { value: new THREE.Color('#4F4A45') } },
+const HPX = { value: new THREE.Vector2() };
+const hullOf = (fade) => new THREE.ShaderMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 1, uniforms: { uPx: HPX, uFade: fade || { value: 1 }, uInk: { value: new THREE.Color('#4F4A45') } },
   vertexShader: `uniform vec2 uPx; varying float vZ; void main(){ vec4 c = projectionMatrix * modelViewMatrix * vec4(position, 1.0); vec3 nv = normalize(normalMatrix * normal); vZ = nv.z; c.xy += nv.xy * uPx * c.w; gl_Position = c; }`,
   // Ink at the rim; where you look straight into a gap between muscles it is a faint shade, not a blot.
-  fragmentShader: `uniform vec3 uInk; varying float vZ; void main(){ gl_FragColor = vec4(uInk, mix(1.0, 0.14, smoothstep(0.35, 0.85, -vZ)));\n#include <colorspace_fragment>\n}` });
+  fragmentShader: `uniform vec3 uInk; uniform float uFade; varying float vZ; void main(){ gl_FragColor = vec4(uInk, uFade * mix(1.0, 0.14, smoothstep(0.35, 0.85, -vZ)));\n#include <colorspace_fragment>\n}` });
+const hullMat = hullOf();
+// J's depth of the nearest surface, leaving out the picked muscle so it shows through the drawing in front of it.
+const depthSel = new THREE.ShaderMaterial({ transparent: true, colorWrite: false, depthWrite: true, uniforms: U,
+  vertexShader: `uniform vec4 uSel; attribute float aGroup; varying float vS; void main(){ vS = max((1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `varying float vS; void main(){ if (vS > 0.5) discard; gl_FragColor = vec4(0.0); }` });
 const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false }), depthMat2 = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
 
 // D2 is D cut clean through the neck, just under the chin, so the body can fill its frame.
 const NECK = 0.664;
 const LOOKS = [
-  { name: 'D2', cut: NECK },
-  { name: 'D2', cut: NECK },
   { name: 'D' },
   { name: 'F', solid: { bulk: 0.0125, groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 } },
   { name: 'G', solid: { bulk: 0.0035, groove: 0.05, bump: 0.55, crease: 0.8, sheen: 0.13, warm: 0.75, tendon: 0.2 } },
   { name: 'H', lines: true },
+  { name: 'I', solid: { keep: 1, bulk: 0.0125, groove: 0.05, bump: 0.55, crease: 1.1, sheen: 0.2, warm: 0.75, tendon: 0.2, ...Object.fromEntries([...new URLSearchParams(location.search)].filter(([k]) => /^i_/.test(k)).map(([k, v]) => [k.slice(2), +v])) } },
+  { name: 'J', book: true, solid: { bulk: 0.0125, groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 } },
 ];
 const views = LOOKS.map((look, i) => {
   const scene = new THREE.Scene(); const pivot = new THREE.Group(); const f = new THREE.Group(); f.position.copy(center).negate(); pivot.add(f); scene.add(pivot);
@@ -300,6 +345,15 @@ const views = LOOKS.map((look, i) => {
     look.ghost = [mesh(muscleGeo, lineMat(1, 1), 1), mesh(ctxGeo, lineMat(0, 1), 1)];
     mesh(muscleGeo, hullMat, 2); mesh(ctxGeo, hullMat, 2);
     muscle = mesh(muscleGeo, lineMat(1, 0), 3); ctx = mesh(ctxGeo, lineMat(0, 0), 3); ctx.material.side = THREE.DoubleSide;
+  } else if (look.book) { // J: solid until a muscle is picked, then the rest turns into the drawing. Order: faint layers
+    // behind, the picked muscle solid, the depth of everything else, contours, then the near drawing over it all.
+    const fade = { value: 0 }; look.fade = fade;
+    look.ghost = [mesh(muscleGeo, lineMat(1, 1, fade), 1), mesh(ctxGeo, lineMat(0, 1, fade), 1)];
+    muscle = mesh(muscleGeo, solidMat(look.solid, true), 2); ctx = mesh(ctxGeo, ctxMat(), 2); ctx.material.transparent = true;
+    const ds = mesh(muscleGeo, depthSel, 3), ds2 = mesh(ctxGeo, depthMat2.clone(), 3); ds2.material.transparent = true;
+    look.book = [...look.ghost, ds, ds2, mesh(muscleGeo, hullOf(fade), 4), mesh(ctxGeo, hullOf(fade), 4), mesh(muscleGeo, lineMat(1, 0, fade), 5), mesh(ctxGeo, lineMat(0, 0, fade), 5)];
+    look.book[7].material.side = THREE.DoubleSide;
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(2, 3, 4); scene.add(dir);
   } else { muscle = mesh(muscleGeo, solidMat(look.solid)); ctx = mesh(ctxGeo, ctxMat());
     if (look.cut) muscle.material.clippingPlanes = ctx.material.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, -1, 0), look.cut - center.y)];
     scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(2, 3, 4); scene.add(dir); }
@@ -328,7 +382,9 @@ const aim = (r, v) => { // camera that fits the figure (whole, or neck to feet) 
 const show = (v) => {
   const r = v.rect; if (v.t === 0 && (r.y > H || r.y + r.h < 0)) return;
   const d = aim(r, v); v.pivot.rotation.y = angle;
-  if (v.look.lines) { const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); hullMat.uniforms.uPx.value.set(2 * px / r.w, 2 * px / r.h);
+  if (v.look.book) { const f = Math.max(sel.y, sel.w); v.look.fade.value = f; for (const m of v.look.book) m.visible = f > 0.002;
+    v.ctx.material.opacity = 1 - f; v.ctx.visible = f < 0.998; }
+  if (v.look.lines || v.look.book) { const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); HPX.value.set(2 * px / r.w, 2 * px / r.h);
     for (const g of v.look.ghost) g.material.uniforms.uDepth.value.set(d, height * 0.11); }
   const y = H - r.y - r.h; renderer.setViewport(r.x, y, r.w, r.h); renderer.setScissor(r.x, y, r.w, r.h); renderer.render(v.scene, cam);
 };
@@ -338,7 +394,7 @@ const draw = () => {
   for (const v of views) { const to = open === views.indexOf(v) ? 1 : 0; v.t = Math.max(0, Math.min(1, v.t + Math.sign(to - v.t) * ms / 480)); v.rect = frame(v); }
   sel.y += ((selGroup === sel.x ? 1 : 0) - sel.y) * Math.min(1, 0.2 * dt); sel.w += (0 - sel.w) * Math.min(1, 0.2 * dt);
   // Fibre spacing is fixed on the body (about 2.4 px in a small cell), so opening a figure zooms into it.
-  const cr = cells[2].getBoundingClientRect(), d0 = Math.max(height * 0.52 / TAN, height * 0.211 / (TAN * cr.width / cr.height));
+  const cr = cells[0].getBoundingClientRect(), d0 = Math.max(height * 0.52 / TAN, height * 0.211 / (TAN * cr.width / cr.height));
   UFREQ.value = cr.height / (2 * d0 * TAN) / Math.max(2.4, 3.4 / DPR); UFREQ_H.value = UFREQ.value * 0.78;
   renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H); renderer.setClearColor(0x000000, 0); renderer.clear();
   const top = views.filter((v) => v.t > 0).sort((a, b) => a.t - b.t).pop();
@@ -375,5 +431,10 @@ document.getElementById('close').addEventListener('click', collapse);
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && open >= 0) collapse(); });
 
 window.__look = (a) => { angle = a; speed = 0; hold = true; };
+window.__open = (i) => expand(i); window.__t = () => (open >= 0 ? views[open].t : 0); window.__s = () => sel.y;
+window.__sel = (name) => select(name ? GROUPS.indexOf(name) + 1 : 0);
+document.getElementById('recov').addEventListener('click', (e) => { const on = e.currentTarget.getAttribute('aria-pressed') !== 'true'; e.currentTarget.setAttribute('aria-pressed', String(on)); paint(on); });
+window.__recov = (on) => paint(on);
+document.getElementById('phoneSize').addEventListener('click', (e) => { const on = document.body.classList.toggle('phone'); e.currentTarget.setAttribute('aria-pressed', String(on)); });
 draw();
 </script></body></html>
