@@ -492,7 +492,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   let angle = 0.5, speed = reduced.matches ? 0 : 0.05, hold = false, drag = null, open = -1;
   let selGroup = 0; const sel = U.uSel.value;
   // Picking muscles for a plan (Train together): pickOn eases to pickTo; face turns everyone to one side and holds.
-  let pickOn = 0, pickTo = 0, face = null;
+  let pickOn = 0, pickTo = 0, face = null, pickSpin = false; // pickSpin: the see-through view keeps turning (Focus)
   let raf = 0, lastT = 0, lastDraw = 0, dirty = true, onScreen = false, dead = false, lastTap = null;
 
   // Where each person stands in the host: one row, feet on one line, the tallest as big as the host allows.
@@ -635,10 +635,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     lastTap = twice ? null : { i, t: e.timeStamp, x, y };
     const g = twice ? 0 : pick(i, x, y);
     if (g) { if (onPick) onPick(GROUPS[g - 1], i); } else if (g === 0) { if (doExpand(i) && onExpand) onExpand(i); }
+    else if (g === null && !(pickTo > 0 && !pickSpin)) { hold = true; speed = 0; kick(); } // beside the body: stop turning; a drag turns it again
   };
   // Drag sideways to spin (with a little throw); a touch that moved less than 6 px is a tap. Up and down is left
   // to the page (touch-action: pan-y), which then cancels the pointer.
-  const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0; try { canvas.setPointerCapture(e.pointerId); } catch {} kick(); };
+  const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { canvas.setPointerCapture(e.pointerId); } catch {} kick(); };
   const move = (e) => { if (!drag || drag.id !== e.pointerId) return; drag.far = Math.max(drag.far, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
     if (drag.far < 6) return; face = null; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
     angle = drag.a + (e.clientX - drag.x) * k; speed = Math.max(-0.3, Math.min(0.3, (e.clientX - drag.last) * k / Math.max(1, e.timeStamp - drag.lt) * 16.7)); drag.last = e.clientX; drag.lt = e.timeStamp; kick(); };
@@ -684,9 +685,10 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
       layout(); dirty = true; kick();
     },
     // { pick: true, face: 0 | Math.PI }: picking muscles; everyone stands still facing that side. { pick: false }: back to normal.
-    setMode({ pick = false, face: to = null } = {}) {
-      const next = pick ? 1 : 0; if (next === pickTo && to === face) return;
-      pickTo = next; face = pick ? to : null; hold = Boolean(pick); if (!pick) speed = reduced.matches ? 0 : 0.0001;
+    // { pick: true, spin: true }: the same see-through view, still turning (Focus in Train together).
+    setMode({ pick = false, face: to = null, spin = false } = {}) {
+      const next = pick ? 1 : 0, turning = Boolean(pick && spin); if (next === pickTo && to === face && turning === pickSpin) return;
+      pickTo = next; pickSpin = turning; face = pick && !turning ? to : null; hold = Boolean(pick) && !turning; if (!pick || turning) speed = reduced.matches ? 0 : 0.0001;
       dirty = true; kick();
     },
     setSelected(key) {

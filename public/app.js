@@ -1926,7 +1926,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -1944,7 +1944,8 @@ const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
-const recoveryLabel = (key, title) => (lastTrained()[key] ? `${title} · ${trainedWhen(lastTrained()[key])}` : title);
+const plainWhen = (date) => { const ago = daysBetween(date, todayIso()); return ago === 0 ? 'today' : ago === 1 ? 'yesterday' : `${ago} days ago`; };
+const recoveryLabel = (key, title) => (lastTrained()[key] ? `${title} · ${plainWhen(lastTrained()[key])}` : title);
 const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
 const recoveryColour = (load) => (key) => RECOVERY_HEX[recoveryStep(load, key)] || null;
 // The place in the page: the flat figures stay inside until the 3D body is ready, at the same size, so nothing moves.
@@ -5391,9 +5392,10 @@ const planExtras = (plan) => {
   const note = together.noteOpen
     ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
     : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
+  const list = chosen.length ? `<p class="tgFocusList"><span>Planned</span><b>${chosen.map((key) => esc(label(key))).join(', ')}</b></p>` : '';
   const muscles = together.picking
-    ? `<p class="tgWhy">Tap a muscle on yourself to add it for everyone; tap it again to leave it out just for you.${chosen.length ? ` <b>${chosen.map((key) => esc(label(key))).join(', ')}</b>.` : ''}${skips}</p>`
-    : chosen.length ? `<p class="tgWhy">Focus: <b>${chosen.map((key) => esc(label(key))).join(', ')}</b>.${skips}</p>` : '';
+    ? `<p class="tgWhy">Tap a muscle to add it to the workout.</p>${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`
+    : `${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`;
   const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
@@ -5408,8 +5410,10 @@ const openSwitch = () => {
   if (!view.body3dOpen || !body3d) return '';
   if (view.route === 'together' && view.together) {
     const plan = togetherPlan();
-    const show = view.together.show === 'focus' && !plan?.muscles?.length ? 'recovery' : view.together.show || 'recovery';
-    return `<div class="body3dModes">${squadSwitch(show, Boolean(plan?.muscles?.length))}</div>`;
+    const kind = view.together.kind || view.together.fit;
+    const focus = Boolean(plan?.muscles?.length || (KIND_MUSCLES[plan?.kind || kind] || []).length);
+    const show = view.together.show === 'focus' && !focus ? 'recovery' : view.together.show || 'recovery';
+    return `<div class="body3dModes">${squadSwitch(show, focus)}</div>`;
   }
   return `<div class="body3dModes"><div class="segment full tgWhat tgShow" role="group" aria-label="Anatomy" style="grid-template-columns:repeat(2,1fr)">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}</div></div>`;
 };
@@ -5447,21 +5451,28 @@ const renderTogether = () => {
   // Picking muscles: each person's own muscles (the plan's, minus the ones they leave out), you bigger, all still and
   // turned to the side the day trains (the back for Pull).
   const picking = Boolean(together.picking && plan);
-  const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (plan?.muscles || []).filter((key) => !(member?.skip || []).includes(key)); };
+  // What the day trains: the muscles picked for the plan, else what Push / Pull / Legs / Full body work.
+  const dayMuscles = plan?.muscles?.length ? plan.muscles : KIND_MUSCLES[picked] || [];
+  const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (picking ? plan?.muscles || [] : dayMuscles).filter((key) => !(member?.skip || []).includes(key)); };
   // What the figures show: Recovery (who's fresh), Strength (everyone's levels) or Focus (the plan's muscles, the rest
   // see-through, the same view as picking but nothing changes when you tap).
-  const show = together.show === 'focus' && !plan?.muscles?.length ? 'recovery' : together.show || 'recovery';
+  if (!view.body3dOpen && together.show === 'strength') together.show = 'recovery'; // Strength only in an opened figure
+  const show = together.show === 'focus' && !dayMuscles.length ? 'recovery' : together.show || 'recovery';
   const focusView = show === 'focus' && !picking;
   const colourOf = (entry) => (focusView ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
   const labelOf = show === 'strength' ? strengthLabel : recoveryLabel;
   const extra = (entry) => (picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {});
-  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking || focusView ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : null) : null;
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${picking ? '' : squadSwitch(show, Boolean(plan?.muscles?.length))}${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
+  // One switch under the squad: show what the day trains (the rest see-through), off = recovery again.
+  const focusSwitch = squad3d && !picking && dayMuscles.length ? `<button class="fxSet tgFocus" role="switch" aria-checked="${show === 'focus'}" data-action="together-focus"><span class="fxSetText"><b>Show what you'll train</b></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${focusSwitch}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
   bodyChosen = null;
   // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
   const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
   const back = next && next.date !== together.date ? `<button class="textBtn clay tgNext" data-action="together-next">Next: ${esc(next.kind)} ${next.date === today ? 'today' : planWhen(next.date).replace(/^on /, '')}${ICONS.chevRight}</button>` : !next && together.date !== today ? `<button class="textBtn clay tgNext" data-action="together-next">Today${ICONS.chevRight}</button>` : '';
-  const head = `<div class="tgHead"><p class="tgDay${plan ? ' plan' : ''}">${headline}</p>${back}</div>`;
+  // Top right says where you are when there's no way back to show: planned or not, and with whom.
+  const status = back || `<span class="tgStatus">${plan ? `With ${esc(plan.members.filter((member) => !member.me).map((member) => member.name).slice(0, 2).join(' and ') || 'friends')}` : `${esc(picked)} · not planned yet`}</span>`;
+  const head = `<div class="tgHead"><p class="tgDay${plan ? ' plan' : ''}">${headline}</p>${status}</div>`;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
@@ -8191,6 +8202,11 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
+  if (action === 'together-focus') {
+    view.together.show = view.together.show === 'focus' ? 'recovery' : 'focus';
+    render();
+    return;
+  }
   if (action === 'together-show') {
     view.together.show = target.dataset.show;
     render();
@@ -8245,6 +8261,11 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'together-muscles') {
     view.together.picking = !view.together.picking;
+    const plan = togetherPlan();
+    if (view.together.picking && plan && !plan.muscles?.length && KIND_MUSCLES[plan.kind]) {
+      plan.muscles = [...KIND_MUSCLES[plan.kind]];
+      togetherSend({ action: 'muscles', muscles: plan.muscles });
+    }
     render();
     return;
   }
