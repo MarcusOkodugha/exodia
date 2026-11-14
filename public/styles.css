@@ -1986,3 +1986,19 @@ body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dMo
 .fav b { position: relative; z-index: 1; }
 @keyframes favLight { 0%, 55% { transform: translateX(-60%); } 85%, 100% { transform: translateX(60%); } }
 @media (prefers-reduced-motion: reduce) { .favFx::after { animation: none; opacity: 0; } }
+
+/* New first screen (preview): two equal choices side by side, the name on one line, example data far below. */
+.onboardNames { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.onboardNames .onboardField { width: 100%; min-width: 0; }
+.onboardChoices.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+.onboardChoices.two .onboardChoice.main { min-height: 104px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; text-align: left; }
+.onboardChoices.two .onboardChoice.main b { font-size: 17px; }
+.onboardChoices.two .onboardChoice.main.on { box-shadow: inset 0 0 0 2px var(--clay); }
+.onboardLook { display: block; margin: 40px auto 0; font-size: 14px; font-weight: 500; color: var(--text2); }
+/* After the first choice: one calm card at the top of Settings, Done to go home. */
+.setupNote { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; padding: 14px 16px; border-radius: 14px; background: rgb(var(--clayRgb) / 0.08); }
+.setupNote p { margin: 0; flex: 1; font-size: 15px; line-height: 21px; color: var(--text); }
+.setupNote b { font-weight: 600; }
+.onboardChoices.two .onboardChoice.main { padding: 16px; border: 0; border-radius: 16px; background: var(--card); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.08), 0 0 0 1px rgb(0 0 0 / 0.04); }
+.onboardChoices.two .onboardChoice.main span { font-size: 13.5px; line-height: 18px; color: var(--text2); }
+.onboardChoices.two .onboardChoice.main.on { box-shadow: inset 0 0 0 2px var(--clay), 0 1px 3px rgba(20, 20, 19, 0.08); }

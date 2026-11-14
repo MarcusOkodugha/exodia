@@ -1582,7 +1582,7 @@ const renderHome = () => {
   const sessions = sortedSessions().filter((session) => session.exercises.length > 0 || session.cardio > 0);
   return `<main class="page homePage">
     <p class="eyebrow">${todayLine()}</p>
-    <h1 class="title${view.reveal ? ' reveal' : ''}">${exodiaHit() && !view.celebrating ? `${esc(state.name || 'You')} hit Exodia` : state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name)}${mark}`) : greeting}</h1>
+    <h1 class="title${view.reveal ? ' reveal' : ''}">${exodiaHit() && !view.celebrating ? `${esc(state.name || 'You')} hit Exodia` : state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name.split(' ')[0])}${mark}`) : greeting}</h1>
     <section class="card exodiaCard${view.exodiaOpen ? ' open' : ''}${view.reveal ? ' reveal' : ''}${view.blue ? ' hit' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
         <span class="headName">Exodia</span>
@@ -2911,7 +2911,11 @@ const loadChanges = () => {
 const settingsToggles = () => {
   const push = pushRow();
   const me = featureOn('friends') ? view.social?.me : null;
-  if (featureOn('friends') && !view.social) setTimeout(loadSocial, 0);
+  // Ask once per visit: a failed answer (offline, new account) must not redraw Settings over and over.
+  if (featureOn('friends') && !view.social && !view.socialAsked) {
+    view.socialAsked = true;
+    setTimeout(loadSocial, 0);
+  }
   if (!push && !me) return '';
   return `<p class="section">${me ? 'Notifications and friends' : 'Notifications'}</p><div class="fxSettings setToggles">${push}${me ? SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('') + '<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div>' : ''}</div>`;
 };
@@ -2920,14 +2924,15 @@ const renderYou = () => {
   return `<main class="page youPage">
     <p class="eyebrow">Settings</p>
     <h1 class="title nameTitle"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="Your name" data-name-input><label for="name" class="nameEdit" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg></label></h1>
+    ${setupNote()}
     <section class="card setLinks">
       ${featureOn('friends') ? `<a class="row setLink" href="#/friends"><span>Friends</span><span class="muted">Add friends, what they see</span>${ICONS.chevRight}</a>` : ''}
       <a class="row setLink" href="#/feedback"><span>Help &amp; feedback</span><span class="muted">How it works, ideas, bugs</span>${ICONS.chevRight}</a>
       <a class="row setLink" href="#/import"><span>Add your data</span><span class="muted">Files from other apps</span>${ICONS.chevRight}</a>
     </section>
     ${settingsToggles()}
-    <p class="section">Your body</p>
-    ${bodyForm(state.body?.kg && state.body?.cm ? 'Bodyweight, height and sex' : 'Add your bodyweight, height and sex')}
+    ${view.setupNote ? '' : `<p class="section">Your body</p>
+    ${bodyForm(state.body?.kg && state.body?.cm ? 'Bodyweight, height and sex' : 'Add your bodyweight, height and sex')}`}
     <p class="section">Share Exodia</p>
     ${shareCard()}
     <p class="section">Add from any AI</p>
@@ -4834,8 +4839,45 @@ const startFresh = () => {
   render();
 };
 
+// New first screen (preview until Marcus says yes): open /join?onboard2 once and this phone keeps it.
+const onboardV2 = () => {
+  try {
+    if (/[?&]onboard2\b/.test(location.search)) localStorage.setItem('exodia.onboard2', '1');
+    return localStorage.getItem('exodia.onboard2') === '1';
+  } catch { return false; }
+};
+// Two clear choices, a name, and example data as a quiet link far below. Bringing data opens the box.
+const renderOnboardTwo = () => {
+  const { busy, status, recording: listening, hearing, file, bring } = view.onboard;
+  const filled = view.onboard.data.trim().length > 0 || Boolean(file);
+  const locked = busy || listening || hearing;
+  return `<main class="page onboard onboardTwo">
+    <span class="logo onboardLogo" aria-hidden="true"></span>
+    <h1 class="title">Welcome to Exodia</h1>
+    <p class="onboardLead">Your training log. Say or type a workout, Exodia does the rest.</p>
+    <div class="onboardNames"><label class="sr" for="onboardName">First name</label><input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="First name" value="${esc(view.onboard.first || '')}" ${busy ? 'disabled' : ''}><label class="sr" for="onboardLast">Last name</label><input id="onboardLast" class="onboardField" autocomplete="family-name" placeholder="Last name" value="${esc(view.onboard.last || '')}" ${busy ? 'disabled' : ''}></div>
+    ${busy ? `<p class="onboardStatus" role="status">${writingLine(status)}</p>` : status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
+    <div class="onboardChoices two">
+      <button class="onboardChoice main" data-action="onboard-blank" ${locked ? 'disabled' : ''}><b>Start blank</b><span>Log as you go</span></button>
+      <button class="onboardChoice main${bring ? ' on' : ''}" data-action="onboard-bring" ${locked ? 'disabled' : ''}><b>Bring my training</b><span>From another app, a file or notes</span></button>
+    </div>
+    ${bring ? `<p class="onboardMove">Paste or drop it in the box below, in any format, or tap + for a file.</p>${exportHelp(false)}` : ''}
+    <button class="textBtn onboardLook" data-action="onboard-demo" ${locked ? 'disabled' : ''}>Just look around with example data</button>
+  </main>
+  ${bring ? `<div class="dock onboardDock">
+    <div class="prompt onboardPrompt${filled ? ' hasText' : ''}${listening ? ' listening' : ''}${file ? ' hasChip' : ''}">
+      ${file ? `<div class="contextChip"><span class="contextKind">File</span><span class="contextLabel">${esc(file.name)}</span><button class="contextX" data-action="onboard-unfile" aria-label="Remove file">${ICONS.close}</button></div>` : ''}
+      <label for="onboardData" class="sr">Your training so far</label>
+      <textarea id="onboardData" class="promptInput onboardData" rows="3" placeholder="Paste your training here" ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
+      <div class="promptBar"><button class="roundBtn soft onboardFile" data-action="pick-file" aria-label="Add a file" ${locked ? 'disabled' : ''}>${ICONS.plus}</button><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><button class="roundBtn send" data-action="onboard-start" aria-label="Add it" ${locked || !filled ? 'disabled' : ''}>${ICONS.up}</button></div>
+    </div>
+  </div>` : ''}`;
+};
+// After the name and the first choice: one calm stop in Settings for body and notifications, always skippable.
+const setupNote = () => (view.setupNote ? `<section class="setupNote" role="status"><p><b>You're in.</b> Two quick things make Exodia yours: your body and notifications. Or skip for now.</p><button class="fxBtn clay" data-action="setup-done">Done</button></section>${bodyForm('Add your bodyweight, height and sex')}${pushRow() ? `<div class="fxSettings">${pushRow()}</div>` : ''}` : '');
 const renderOnboard = () => {
   view.onboard ??= { name: '', data: '' };
+  if (onboardV2()) return renderOnboardTwo();
   const { busy, status, recording: listening, hearing, file } = view.onboard;
   const filled = view.onboard.data.trim().length > 0 || Boolean(file);
   const locked = busy || listening || hearing;
@@ -7988,6 +8030,18 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'onboard-demo') return startDemo();
+  if (action === 'onboard-bring' && view.onboard) {
+    view.onboard.bring = !view.onboard.bring;
+    render();
+    if (view.onboard.bring) document.getElementById('onboardData')?.focus();
+    return;
+  }
+  if (action === 'setup-done') {
+    view.setupNote = false;
+    location.hash = '#/';
+    render();
+    return;
+  }
   // Two taps, so a tap that lands on the pill by mistake never throws the example away.
   if (action === 'end-demo') {
     if (!view.endDemoAsk) {
@@ -8040,6 +8094,10 @@ document.addEventListener('click', (event) => {
     const parts = action === 'onboard-blank' ? [] : [view.onboard.file?.text, view.onboard.data.trim()].filter((part) => part?.trim());
     if (!parts.length) {
       view.onboard = null;
+      if (onboardV2()) {
+        view.setupNote = true;
+        location.hash = '#/you';
+      }
       render();
       return;
     }
@@ -8052,6 +8110,10 @@ document.addEventListener('click', (event) => {
     })), Promise.resolve())
       .then(() => {
         view.onboard = null;
+        if (onboardV2()) {
+          view.setupNote = true;
+          location.hash = '#/you';
+        }
       })
       .catch((error) => {
         view.onboard.busy = false;
@@ -8819,7 +8881,19 @@ document.addEventListener('input', (event) => {
     if (qr) qr.outerHTML = qrSvg(inviteLink(view.shareName));
     return;
   }
+  if (target.id === 'onboardLast' && view.onboard) {
+    view.onboard.last = target.value;
+    view.onboard.name = `${view.onboard.first || ''} ${view.onboard.last}`.trim();
+    view.onboard.nameChecked = false;
+    return;
+  }
   if (target.id === 'onboardName' || target.id === 'onboardData') {
+    if (target.id === 'onboardName' && onboardV2()) {
+      view.onboard.first = target.value;
+      view.onboard.name = `${view.onboard.first} ${view.onboard.last || ''}`.trim();
+      view.onboard.nameChecked = false;
+      return;
+    }
     view.onboard[target.id === 'onboardName' ? 'name' : 'data'] = target.value;
     if (target.id === 'onboardName') {
       view.onboard.nameChecked = false;
@@ -9149,6 +9223,7 @@ const route = () => {
   const wasRoute = view.route;
   view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together'].includes(name) ? name : 'home';
   view.friendHandle = friendPage ? friendPage[1] : null;
+  if (view.route !== 'you') view.setupNote = false;
   if (['friends', 'together', 'friend'].includes(view.route)) loadSocial();
   if (view.route === 'friends') loadEveryone();
   if (view.route === 'together' && wasRoute !== 'together') {

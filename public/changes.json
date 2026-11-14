@@ -1,4 +1,8 @@
 {
+  "476": [
+    "Settings no longer redraws itself over and over when the friends list can't load",
+    "Behind the scenes: a new first screen to try, not shown to new people yet"
+  ],
   "475": [
     "Opened 3D body on Trends: no switch under it again; switch Strength or Recovery on the page first",
     "Train together: nothing of the page shows behind an opened figure",
