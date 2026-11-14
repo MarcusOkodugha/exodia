@@ -1859,3 +1859,13 @@ button.wnDay { cursor: pointer; }
 /* Muscles picked for a plan: the same look as picking one on Trends, the rest of each figure softer. */
 .tgBodies.chosen .bodyFig polygon[data-action]:not(.picked) { opacity: 0.4; }
 .tgBodies.chosen .bodyFig polygon.picked.bodyRest { fill: rgb(var(--clayRgb) / 0.55); }
+
+/* Bodyweight, height and sex: the same parts as elsewhere. Male/Female is the Strength/Recovery switch, the numbers
+   are the Friends search field, Save is the clay Add button. No lines inside the card. */
+.webCard .bodyForm { border-bottom: 0; margin-bottom: 4px; }
+.bodyForm .segment.bodySex { margin: 4px 0 10px; }
+.bodyFields { display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 10px; }
+.bodyFields .bodyField { margin: 0; height: 46px; }
+.bodyFields .bodyField input { width: 100%; font-size: 17px; text-align: left; }
+.bodyFields .bodyField span { font-size: 15px; color: var(--text2); }
+.bodyFields .fxBtn { height: 46px; padding: 0 18px; font-size: 15px; }

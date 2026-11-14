@@ -3202,10 +3202,8 @@ const liftStrength = (lift, body) => {
 const bodyForm = (title) => `<div class="bodyForm">
     <p class="bodyTitle">${title}</p>
     <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Height lines you up next to friends. Saved on your account, on all your devices.</p>
-    <div class="bodyRow"><label class="bodyKgWrap"><input class="pill num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="bodyKgWrap"><input class="pill num bodyKg bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label></div>
-    <div class="bodyRow">
-      ${['male', 'female'].map((sex) => `<button class="chip" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}"><span class="chipFace">${sex === 'male' ? 'Male' : 'Female'}</span></button>`).join('')}
-      <button class="chip saveBody" data-action="body-save"><span class="chipFace">Save</span></button></div>
+    <div class="segment full bodySex" role="group" aria-label="Sex">${['male', 'female'].map((sex) => `<button class="segmentOption" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}">${sex === 'male' ? 'Male' : 'Female'}</button>`).join('')}<i class="segmentKnob${(view.bodySex || state.body?.sex) === 'female' ? ' on' : ''}" aria-hidden="true"></i></div>
+    <div class="bodyFields"><label class="fxSearch bodyField"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label><button class="fxBtn clay" data-action="body-save">Save</button></div>
     ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
   </div>`;
 const renderStrength = () => {
@@ -7965,6 +7963,7 @@ document.addEventListener('click', (event) => {
   if (action === 'body-sex') {
     view.bodySex = target.dataset.sex;
     document.querySelectorAll('[data-action="body-sex"]').forEach((chip) => chip.setAttribute('aria-pressed', String(chip.dataset.sex === target.dataset.sex)));
+    target.closest('.segment')?.querySelector('.segmentKnob')?.classList.toggle('on', target.dataset.sex === 'female');
     return;
   }
   if (action === 'body-edit') {
