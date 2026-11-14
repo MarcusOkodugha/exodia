@@ -6,6 +6,14 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
+- [ ] **Decide: easier logging at the gym?** (15 Nov) Last time's sets greyed under each lift (tap to log), tap "3×" to get − 3 +, tap a grouped row to open it and swipe a group away whole, Done always within reach. The plus already adds only your warm-up ladder (v469).
+  1. Yes = the next session builds all four, tests them at the gym sizes, and sends you before/after pictures first.
+- [ ] **Decide: the 5 speed fixes?** (15 Nov) Every button reacts the moment you press it; adding a set pops the count; the mic answers at once; % and PR update while you type; opening and closing a day and deleting a row slide instead of jump.
+  1. Yes = built in that order, with before/after pictures for the ones that look different.
+- [ ] **Decide: launch notifications for everyone?** (15 Nov) Only you and Test profiles have them. Friends get one tap, "Turn on notifications", on the Friends page and under a planned workout. Only friend requests and workout changes, plus the morning "Push day with Romi today".
+  1. Yes = launched (no update needed, it shows on their next open).
+- [ ] **Pick an avatar style (A–E).** (15 Nov) The picture is in the chat: A Mesh, B Swirl, C Grain, D Aurora, E Sunset, F today.
+  1. Say the letter in the chat or in Admin → Change the app.
 - [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
   1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
   2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
