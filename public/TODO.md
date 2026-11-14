@@ -45,6 +45,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **3D look (14 Nov, Marcus):** lab/looks.html has I (F's bulk + G's detail: groove 0.08, bump 0.8, crease 1.0, sheen 0.13, warm 0.75, tendon 0.25) and J (Book with only the picked muscle solid). Marcus picks; then the app gets that look, and picking a muscle turns the rest of the figure into Book (H) lines with the picked muscle solid in its colour. F lost detail from bulk filling the creases plus lower crease/sheen, not from any speed shortcut.
+
 
 - [x] **Bodyweight, height and sex always open (14 Nov):** done: Settings always shows the form, Trends opens it while height is missing, empty fields glow; a one-time banner asks once. no tap to open; the empty fields glow softly until filled (today height missing still hides the form behind Change).
 - [x] **Tapped muscle in its view's colour (14 Nov):** done: list rows glow in the muscle's own colour, and the 3D figure keeps the picked muscle's colour while the rest fades (v461). in Strength the picked muscle and its row light up in its level colour (Intermediate = purple), in Recovery in its recovery colour; the rest of the figure goes see-through as it does now. Check the 3D body too, and the row highlight (still clay today).
