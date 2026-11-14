@@ -2817,6 +2817,15 @@ const loadChanges = () => {
     view.changesLoading = false;
   });
 };
+// Settings holds every setting, even ones that also sit where they're used: notifications and what friends see
+// together, the same switches as on the Friends page.
+const settingsToggles = () => {
+  const push = pushRow();
+  const me = featureOn('friends') ? view.social?.me : null;
+  if (featureOn('friends') && !view.social) setTimeout(loadSocial, 0);
+  if (!push && !me) return '';
+  return `<p class="section">${me ? 'Notifications and friends' : 'Notifications'}</p><div class="fxSettings setToggles">${push}${me ? SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('') + '<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div>' : ''}</div>`;
+};
 const renderYou = () => {
   loadChanges();
   return `<main class="page youPage">
@@ -2827,7 +2836,9 @@ const renderYou = () => {
       <a class="row setLink" href="#/feedback"><span>Help &amp; feedback</span><span class="muted">How it works, ideas, bugs</span>${ICONS.chevRight}</a>
       <a class="row setLink" href="#/import"><span>Add your data</span><span class="muted">Files from other apps</span>${ICONS.chevRight}</a>
     </section>
-    ${pushRow() ? `<div class="fxSettings setPush">${pushRow()}</div>` : ''}
+    ${settingsToggles()}
+    <p class="section">Your body</p>
+    ${view.bodyEdit || !(state.body?.kg && state.body?.sex) ? bodyForm(state.body?.kg ? 'Change your bodyweight, height or sex' : 'Add your bodyweight, height and sex') : `<section class="card setLinks"><button class="row setLink" data-action="body-edit"><span>Body</span><span class="muted">${Math.round(state.body.kg)} kg${state.body.cm ? ` · ${state.body.cm} cm` : ''} · ${state.body.sex === 'male' ? 'Male' : 'Female'}</span>${ICONS.chevRight}</button></section>`}
     <p class="section">Share Exodia</p>
     ${shareCard()}
     <p class="section">Add from any AI</p>
