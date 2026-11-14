@@ -2,9 +2,9 @@
 // colours the app passes in, each muscle as bulky as its strength level, drag to spin, tap a muscle, open one
 // person full screen. Nothing here runs until createBodyView() is called; three.js and the model load then.
 //
-//   const view = await createBodyView({ onPick, onExpand, onCollapse, names })   // rejects without WebGL
+//   const view = await createBodyView({ onPick, onExpand, onCollapse, onLost, names })   // rejects without WebGL
 //   view.attach(hostEl)        the host needs a size of its own; call again with the new element after every render
-//   view.setPeople([{ id, name, heightCm, muscles: { chest: { color: '#C96442', level: 3.6 }, ... } }])
+//   view.setPeople([{ id, name, heightCm, sex, muscles: { chest: { color: '#C96442', level: 3.6 }, ... } }])
 //   view.setSelected('chest' | null)
 //   view.expand(index) / view.collapse()
 //   view.destroy()
@@ -23,33 +23,34 @@ const MODEL_URL = '/models/anatomy.glb';
 
 const NAMES = { chest: 'Chest', shoulders: 'Shoulders', rearDelts: 'Rear delts', traps: 'Traps', upperBack: 'Upper back', lowerBack: 'Lower back', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', abs: 'Abs', glutes: 'Glutes', quads: 'Quads', hamstrings: 'Hamstrings', adductors: 'Adductors', calves: 'Calves' };
 const GROUPS = Object.keys(NAMES);
-// Muscle group from the model's own part name (anterior_delt, vastus_group, ...).
-const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /hip_rotator/.test(n) ? 'glutes' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
+// Muscle group from the model's own part name (anterior_delt, vastus_group, ...). The hip flexors show at the
+// groin between the quads and take their colour; the neck extensors lie under the traps. Neck flexors, hands and
+// feet are not trained as a group and stay plain.
+const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap|neck_ext/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /hip_rotator/.test(n) ? 'glutes' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus|hip_flex/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
 const PLAIN = '#E9E5DC', SKIN = '#F1EEE7', CLAY = '#C96442';
 const DEFAULT_CM = 178;
 
-// Bulk: how far a muscle's belly is pushed out along its normals, in model units, by strength level. Elite (5)
-// is look F from the lab, the build that looked best; nothing grows far past it. Below 1 the belly is drawn in a
-// little, so a Beginner is slimmer than the plain model. In between it is a straight line from one level to the
-// next. No level: 0, the plain model.
-const BULK = [[1, -0.004], [2, 0.003], [3, 0.007], [4, 0.01], [5, 0.0125], [6, 0.014]];
-// Where the size goes. Shoulders, chest, back and arms carry it; glutes, calves, inner thighs and the waist grow
-// much less, so every level up reads as a better shape (wider on top, tight in the middle), not just bigger.
-const SHAPE = { glutes: 0.4, calves: 0.5, adductors: 0.5, abs: 0.3, lowerBack: 0.6, hamstrings: 0.75, quads: 0.9, forearms: 0.8, traps: 0.8, shoulders: 1.1, upperBack: 1.05 };
-// Definition: how deep the fibres and the creases between muscles are drawn. It rises with the level, so a strong
-// muscle shows more detail, not only more size. No level: 1, as drawn before.
-const defOf = (lv) => (lv == null || !isFinite(lv) ? 1 : 0.75 + 0.45 * (Math.max(1, Math.min(5, lv)) - 1) / 4);
-// Looks. F: fibres you can see. G: smoother and warmer, deep creases, more sheen ("looks real"). D: no fibre lines.
-const LOOKS = {
-  F: { groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 },
-  G: { groove: 0.05, bump: 0.55, crease: 0.8, sheen: 0.13, warm: 0.75, tendon: 0.2 },
-  D: { groove: 0, bump: 0, crease: 0, sheen: 0, warm: 0, tendon: 0 },
-};
-const bulkOf = (lv) => {
+// Size by strength (look R, "Recommended" in the lab). Every muscle starts from G's build (BASE, pushed out along
+// its normals). Strength adds size only where it shows: shoulders, arms, chest, quads and back grow by up to GROW
+// times BASE; calves, abs, adductors and hamstrings stay as they are. STEP is how much of that growth each level
+// gets: Beginner is a little slimmer than G, Novice about G, Elite the most. Between levels it's a straight line
+// (3.6 sits between Intermediate and Advanced). No level: G as it is. A woman's figure grows 60% as much.
+const BASE = 0.0035;
+const GROW = { shoulders: 2.6, rearDelts: 2.4, biceps: 2.4, triceps: 2.4, chest: 2, quads: 2.2, forearms: 1.5, traps: 1.6, upperBack: 1.5, lowerBack: 1.2, glutes: 1.2 };
+const STEP = [[1, -0.3], [2, 0.25], [3, 0.65], [4, 1], [5, 1.35], [6, 1.5]];
+const stepOf = (lv) => {
   if (lv == null || !isFinite(lv)) return 0;
   const l = Math.max(1, Math.min(6, lv));
-  for (let i = 1; i < BULK.length; i++) if (l <= BULK[i][0]) { const [a, x] = BULK[i - 1], [b, y] = BULK[i]; return x + (y - x) * (l - a) / (b - a); }
-  return BULK[BULK.length - 1][1];
+  for (let i = 1; i < STEP.length; i++) if (l <= STEP[i][0]) { const [a, x] = STEP[i - 1], [b, y] = STEP[i]; return x + (y - x) * (l - a) / (b - a); }
+  return STEP[STEP.length - 1][1];
+};
+const bulkOf = (g, lv, fem) => BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
+// Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
+// look with fibre lines you can see. D: no fibre lines.
+const LOOKS = {
+  R: { groove: 0.05, bump: 0.55, crease: 0.8, sheen: 0.13, warm: 0.75, tendon: 0 },
+  F: { groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 },
+  D: { groove: 0, bump: 0, crease: 0, sheen: 0, warm: 0, tendon: 0 },
 };
 
 // ---------- loading (once per page, shared by every view) ----------
@@ -98,14 +99,18 @@ const parseGlb = (THREE, buf) => {
 // ends, so one shader can colour, bulk, draw the fibres and pale the tendon ends.
 const merge = (THREE, parts, R = 0) => {
   let nv = 0, ni = 0; for (const o of parts) { nv += o.count; ni += o.idx.length; }
-  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
-  const ao = new Float32Array(nv), end = new Float32Array(nv), grp = new Float32Array(nv), idx = new Uint32Array(ni);
+  let pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
+  let ao = new Float32Array(nv), end = new Float32Array(nv), grp = new Float32Array(nv), pid = new Float32Array(nv), kind = new Uint8Array(nv), idx = new Uint32Array(ni);
   const plain = new THREE.Color(PLAIN), skinC = new THREE.Color(SKIN);
-  let vo = 0, io = 0, headI = null; const lats = new Uint8Array(nv);
+  let vo = 0, io = 0, headI = null, np = 0;
   for (const o of parts) {
     const cnt = o.count, ctx = /context/.test(o.name), skin = /skin/.test(o.name), head = /body_context/.test(o.name);
     const gi = ctx ? 0 : GROUPS.indexOf(GROUP(o.name)) + 1;
-    pos.set(o.pos, vo * 3); nor.set(o.nor, vo * 3); if (/lats/.test(o.name)) lats.fill(1, vo, vo + cnt);
+    pos.set(o.pos, vo * 3); nor.set(o.nor, vo * 3); pid.fill(np++, vo, vo + cnt);
+    if (/lower_lats/.test(o.name)) kind.fill(1, vo, vo + cnt); if (/erector/.test(o.name)) kind.fill(2, vo, vo + cnt); if (/hip_flex/.test(o.name)) kind.fill(3, vo, vo + cnt);
+    // The deep belly muscle sits a millimetre or two under the obliques; tucked a little further in, the two never
+    // fight for the same pixel (a flicker beside the abs while the body turns).
+    if (/transverse_abdominis/.test(o.name)) for (let i = vo * 3; i < (vo + cnt) * 3; i++) pos[i] -= nor[i] * 0.004;
     const cc = skin ? skinC : plain;
     for (let i = 0; i < cnt; i++) { ao[vo + i] = o.ao && !skin && !head ? o.ao[i] : 1; grp[vo + i] = gi; col.set([cc.r, cc.g, cc.b], (vo + i) * 3); }
     // Fibre direction. Real fibres fan: a pec runs from the sternum and collarbone to one spot on the upper arm,
@@ -170,18 +175,42 @@ const merge = (THREE, parts, R = 0) => {
       A.fromArray(pos, idx[j] * 3); B.fromArray(pos, idx[j + 1] * 3); Cc.fromArray(pos, idx[j + 2] * 3); fn.crossVectors(B.sub(A), Cc.sub(A));
       for (let k = 0; k < 3; k++) { const w = weld[idx[j + k] - v0] * 3; wn[w] += fn.x; wn[w + 1] += fn.y; wn[w + 2] += fn.z; } }
     for (let i = v0; i < v1; i++) { const w = weld[i - v0] * 3; fn.set(wn[w], wn[w + 1], wn[w + 2]).normalize(); nor.set([fn.x, fn.y, fn.z], i * 3); } }
-  // The low back. In the model the erectors lie under the lower lats, so from behind the lumbar area took the
-  // upper-back colour and the lower back never showed. What covers the erectors there is a flat tendon sheet, not
-  // lat muscle, so the part of the lats lying right over an erector counts as lower back: colour, size and tap.
-  const gLow = GROUPS.indexOf('lowerBack') + 1;
-  if (R > 0 && gLow) { let y0 = Infinity, y1 = -Infinity; for (let i = 0; i < nv; i++) if (grp[i] === gLow) { y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); }
-    const top = y0 + (y1 - y0) * 0.4; // the erectors run up to the neck; the low back is their lower part, below the ribs
-    const r = R * 0.45, cells = new Map(), ck = (x, y) => Math.floor(x / r) * 8192 + Math.floor(y / r);
-    for (let i = 0; i < nv; i++) if (grp[i] === gLow) { const k = ck(pos[i * 3], pos[i * 3 + 1]); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
-    for (let i = 0; i < nv; i++) { if (!lats[i] || pos[i * 3 + 1] > top) continue; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2]; let over = false;
-      for (let a = -1; a <= 1 && !over; a++) for (let b = -1; b <= 1 && !over; b++) { const cell = cells.get(ck(x + a * r, y + b * r)); if (!cell) continue;
-        for (const j of cell) { const dx = pos[j * 3] - x, dy = pos[j * 3 + 1] - y; if (dx * dx + dy * dy < r * r && Math.abs(pos[j * 3 + 2] - z) < R * 3) { over = true; break; } } }
-      if (over) grp[i] = gLow; } }
+  // The low back. In the model the erectors lie under the lower lats, so from behind the lumbar area showed lat
+  // colour. What covers them there is the lats' flat tendon sheet, so the whole lower lats count as lower back, up
+  // to their natural seam with the upper lats just under the ribs, and out to their own edge; the erectors above
+  // that line (they run on up to the skull) are not the low back and stay plain. The hip flexors are cut the same
+  // way at the hip bone: the part on the thigh shows with the quads, the part inside the belly (psoas) does not.
+  // Every triangle a line crosses is cut along it, so colour ends on a clean edge, not a fade across a triangle.
+  const gLow = GROUPS.indexOf('lowerBack') + 1, gUp = GROUPS.indexOf('upperBack') + 1, gQ = GROUPS.indexOf('quads') + 1;
+  if (R > 0) for (const K of [1, 3]) {
+    const f = (i) => pos[i * 3 + 1] - (K === 3 ? 0.1 : 0.32), ok = (k) => (K === 3 ? k === 3 : k === 1 || k === 2);
+    const gOf = (i, inn) => (K === 3 ? (inn ? gQ : 0) : inn ? gLow : kind[i] === 1 ? gUp : 0);
+    const P = [...pos], N = [...nor], AX = [...axis], CO = [...col], AP = [...apex], O = [...ao], E = [...end], G = [...grp], PI = [...pid], KI = [...kind], I = [];
+    for (let i = 0; i < nv; i++) if (ok(kind[i])) G[i] = gOf(i, f(i) < 0);
+    const cache = new Map();
+    const at = (a, b, inn) => { const key = a + ',' + b + ',' + inn; let v = cache.get(key); if (v !== undefined) return v;
+      const t = f(a) / (f(a) - f(b)); v = P.length / 3;
+      const mix = (arr, n) => { for (let k = 0; k < n; k++) arr.push(arr[a * n + k] + (arr[b * n + k] - arr[a * n + k]) * t); };
+      mix(P, 3); mix(N, 3); const l = Math.hypot(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]) || 1; for (let k = 0; k < 3; k++) N[v * 3 + k] /= l;
+      mix(AX, 3); mix(CO, 3); mix(AP, 4); mix(O, 1); mix(E, 1); PI.push(PI[a]); KI.push(KI[a]); G.push(gOf(a, inn)); cache.set(key, v); return v; };
+    for (let t = 0; t < idx.length; t += 3) { const v = [idx[t], idx[t + 1], idx[t + 2]];
+      if (!ok(kind[v[0]]) || kind[v[0]] !== kind[v[1]] || kind[v[0]] !== kind[v[2]]) { I.push(...v); continue; }
+      const s3 = v.map((i) => f(i) < 0); if (s3[0] === s3[1] && s3[1] === s3[2]) { I.push(...v); continue; }
+      const k = s3[0] === s3[1] ? 2 : s3[0] === s3[2] ? 1 : 0, L = v[k], p = v[(k + 1) % 3], q = v[(k + 2) % 3], li = s3[k]; // the corner alone on its side
+      I.push(L, at(L, p, li), at(L, q, li), at(L, p, !li), p, q, at(L, p, !li), q, at(L, q, !li)); }
+    nv = P.length / 3; pos = new Float32Array(P); nor = new Float32Array(N); axis = new Float32Array(AX); col = new Float32Array(CO); apex = new Float32Array(AP);
+    ao = new Float32Array(O); end = new Float32Array(E); grp = new Float32Array(G); pid = new Float32Array(PI); kind = new Uint8Array(KI); idx = new Uint32Array(I); }
+  // Bulk per vertex. A muscle's ends stay near the bone, but where an end lies under or against another muscle's
+  // belly (the middle traps under the upper traps at the base of the neck) it rises with that neighbour, so the
+  // two meet without a step and no dark pit opens between them.
+  const lift = new Float32Array(nv); for (let i = 0; i < nv; i++) { const t = Math.min(1, Math.max(0, (end[i] - 0.5) / 0.5)); lift[i] = 1 - 0.85 * t * t * (3 - 2 * t); }
+  if (R > 0) { const L = 0.03, cells = new Map(), cf = (i, k) => Math.floor(pos[i * 3 + k] / L), ck = (x, y, z) => (x + 512) * 1048576 + (y + 512) * 1024 + (z + 512);
+    for (let i = 0; i < nv; i++) { if (!grp[i]) continue; const k = ck(cf(i, 0), cf(i, 1), cf(i, 2)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(i); }
+    const base = lift.slice();
+    for (let i = 0; i < nv; i++) { if (!grp[i] || base[i] > 0.99) continue; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], cx = cf(i, 0), cy = cf(i, 1), cz = cf(i, 2); let m = base[i];
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) { const cell = cells.get(ck(cx + a, cy + b, cz + c)); if (!cell) continue;
+        for (const j of cell) { if (pid[j] === pid[i] || base[j] <= m) continue; const d = Math.hypot(pos[j * 3] - x, pos[j * 3 + 1] - y, pos[j * 3 + 2] - z) / L; if (d < 1) m = Math.max(m, base[j] * (1 - d * d * (3 - 2 * d)) + base[i] * d * d * (3 - 2 * d)); } }
+      lift[i] = m; } }
   // Neighbours. For every muscle vertex: the nearest vertex of another muscle group within R, and how near it is.
   // The shader moves the two towards the same bulk where they meet (see V_BODY). A grid keeps the search short.
   const near = new Float32Array(nv * 2);
@@ -191,13 +220,30 @@ const merge = (THREE, parts, R = 0) => {
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) { const cell = cells.get(ck(cx + a, cy + b, cz + c)); if (!cell) continue;
         for (const j of cell) { if (grp[j] === g) continue; const dx = pos[j * 3] - x, dy = pos[j * 3 + 1] - y, dz = pos[j * 3 + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 < best) { best = d2; bg = grp[j]; } } }
       if (bg) { const d = Math.sqrt(best) / R; near[i * 2] = bg; near[i * 2 + 1] = 0.5 * (1 - d * d * (3 - 2 * d)); } } }
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('aNear', new THREE.BufferAttribute(near, 2));
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('aNear', new THREE.BufferAttribute(near, 2)); geo.setAttribute('aLift', new THREE.BufferAttribute(lift, 1));
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aAxis', new THREE.BufferAttribute(axis, 3)); geo.setAttribute('aApex', new THREE.BufferAttribute(apex, 4));
   geo.setAttribute('aO', new THREE.BufferAttribute(ao, 1)); geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1)); geo.setAttribute('aGroup', new THREE.BufferAttribute(grp, 1));
   geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingBox(); geo.computeBoundingSphere(); geo.userData.grp = grp;
   return geo;
 };
+
+// A woman's shape from the same model: narrower shoulders, ribcage and waist, wider hips, fuller glutes, arms moved
+// in with the shoulders. The pec keeps its own flat fan shape; the breast lies on it as a separate soft form (see
+// the view). Normals follow the same bend (inverse transpose of the local stretch), so light sits right.
+const SX = [[0.8, 0.96], [0.68, 0.9], [0.56, 0.86], [0.42, 0.88], [0.3, 0.88], [0.2, 0.86], [0.1, 0.97], [0.0, 1.07], [-0.12, 1.06], [-0.32, 1.02], [-0.55, 1.0]];
+const sxAt = (y) => { if (y >= SX[0][0]) return SX[0][1]; for (let i = 1; i < SX.length; i++) if (y >= SX[i][0]) { const [a, x] = SX[i - 1], [b, w] = SX[i], t = (y - b) / (a - b); return w + (x - w) * t * t * (3 - 2 * t); } return SX[SX.length - 1][1]; };
+const female = (x, y, z) => {
+  const arm = Math.min(1, Math.max(0, (Math.abs(x) - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
+  const torsoX = x * sxAt(y), armX = x - Math.sign(x) * 0.026 * Math.min(1, Math.max(0, (y + 0.25) / 0.2));
+  return [torsoX + (armX - torsoX) * sm, y, z < 0 ? z * (1 + 0.08 * Math.exp(-(((y + 0.02) / 0.09) ** 2)) * (1 - sm)) : z]; };
+const femalePart = (THREE, o) => {
+  const pos = new Float32Array(o.pos.length), nor = new Float32Array(o.nor.length), m = new THREE.Matrix3(), n = new THREE.Vector3(), e = 0.002;
+  for (let q = 0; q < o.pos.length; q += 3) { const x = o.pos[q], y = o.pos[q + 1], z = o.pos[q + 2];
+    const d = (k) => { const a = [x, y, z], b = [x, y, z]; a[k] += e; b[k] -= e; const fa = female(...a), fb = female(...b); return [(fa[0] - fb[0]) / (2 * e), (fa[1] - fb[1]) / (2 * e), (fa[2] - fb[2]) / (2 * e)]; };
+    const J = [d(0), d(1), d(2)]; m.set(J[0][0], J[1][0], J[2][0], J[0][1], J[1][1], J[2][1], J[0][2], J[1][2], J[2][2]).invert().transpose();
+    pos.set(female(x, y, z), q); n.set(o.nor[q], o.nor[q + 1], o.nor[q + 2]).applyMatrix3(m).normalize(); nor.set([n.x, n.y, n.z], q); }
+  return { ...o, pos, nor }; };
 
 let assets = null;
 const loadAssets = () => assets || (assets = (async () => {
@@ -209,7 +255,10 @@ const loadAssets = () => assets || (assets = (async () => {
   const ctxGeo = merge(THREE, parts.filter((o) => /context/.test(o.name))), tall = ctxGeo.boundingBox.max.y - ctxGeo.boundingBox.min.y; // the skin runs head to feet
   const muscleGeo = merge(THREE, parts.filter((o) => !/context/.test(o.name)), tall * 0.022);
   const box = muscleGeo.boundingBox.clone().union(ctxGeo.boundingBox);
-  return { THREE, muscleGeo, ctxGeo, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
+  // The woman's figure is built the first time someone female is shown, not before.
+  let fem = null; const femaleGeo = () => fem || (fem = (() => { const fp = parts.map((o) => femalePart(THREE, o));
+    return { muscleGeo: merge(THREE, fp.filter((o) => !/context/.test(o.name)), tall * 0.022), ctxGeo: merge(THREE, fp.filter((o) => /context/.test(o.name))) }; })());
+  return { THREE, muscleGeo, ctxGeo, femaleGeo, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
 })().catch((e) => { assets = null; throw e; }));
 
 // ---------- shaders (look F from the lab, bulk per muscle group) ----------
@@ -222,30 +271,30 @@ float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
 const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform float uDef[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
+  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; attribute float aLift;
   ${VARY}`;
-// Bulk. A muscle moves out along its normals by its own level's amount. Where it meets or lies over a muscle of
-// another group, both move by the average of the two, so neighbours with different levels meet without a step
-// and a thin muscle never sinks through the one under it. A muscle drawn in (below Novice) only gives at its
-// belly, not in the creases (dark in the baked shade), so no gaps open. The ends stay near the bone.
+// Bulk. A muscle moves out along its normals by its own amount. Where it meets or lies over a muscle of another
+// group, both move by the average of the two, so neighbours of different sizes meet without a step. The belly
+// moves most and the creases between muscles (dark in the baked shade) least, so growing never fills them in and
+// the detail stays. The ends stay near the bone unless they lie under another muscle's belly (aLift).
 const V_BODY = `
   float sa = (1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, sb = (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w;
   float sel = max(sa, sb), anySel = max(uSel.y, uSel.w); int gi = int(aGroup + 0.5);
-  // The picked muscle keeps the colour it has (its level, its recovery) and the rest of the body fades towards
-  // plain, so it stands out by being the only one left in colour. A muscle with no colour is picked in clay.
+  // The picked muscle keeps the colour it has (its level, its recovery). With the drawing on (uBook) the rest of
+  // the body fades out and the drawing shows instead; without it (a row of many) the rest fades towards plain.
+  // A muscle with no colour is picked in clay.
   vec3 own = uPal[gi]; vec3 picked = distance(own, uPlain) < 0.02 ? uClay : own;
-  vCol = mix(mix(own, uPlain, 0.82 * anySel), picked, sel);
+  vCol = mix(mix(own, uPlain, 0.82 * anySel * (1.0 - uBook)), picked, sel);
   vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel); vFade = anySel * (1.0 - sel);
-  // x: definition by level. y: how much the ends pale to tendon; not the chest, which read as a white patch on the breastbone.
-  vDef = vec2(uDef[gi], step(0.5, abs(aGroup - 1.0)));
+  vDef = vec2(1.0, step(0.5, abs(aGroup - 1.0)));
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
-  float bulk = mix(uBulk[gi], uBulk[int(aNear.x + 0.5)], aNear.y); if (bulk < 0.0) bulk *= smoothstep(0.4, 0.72, aO);
-  transformed += normal * bulk * (1.0 - 0.85 * smoothstep(0.5, 1.0, aEnd)) * step(0.5, aGroup);`;
+  float bulk = mix(uBulk[gi], uBulk[int(aNear.x + 0.5)], aNear.y);
+  transformed += normal * bulk * aLift * mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)) * step(0.5, aGroup);`;
 // Fibre lines: where planes through the muscle's fan point cut its surface, so they run towards that point; two
 // plane families, each used where it crosses the surface cleanly. As the fan widens new lines fade in between the
 // old ones. Where lines would sit closer than the screen can draw they melt into their own average (no moire).
 const F_PARS = `
-  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain;
+  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook;
   ${VARY}
   ${NOISE}
   float fibreFam(float u, float sc, float kf){
@@ -259,13 +308,75 @@ const F_PARS = `
     a1 = 1.0 - a1 * a1; a2 = 1.0 - a2 * a2; a1 *= a1; a2 *= a2; a1 *= a1; a2 *= a2;
     return (a1 * fibreFam(dot(q, vE1) / ra + wob, sc, k - k0) + a2 * fibreFam(dot(q, vE2) / ra + wob, sc, k - k0)) / (a1 + a2 + 1e-5); }`;
 
+// The Book drawing (lab look H), shown while a muscle is picked: nothing filled in, every muscle only fine ink lines
+// along its fibres, thicker in the shade, plus a contour, so you look through the body. The nearest surface is
+// drawn at full strength; the surfaces behind show through between the lines, fainter the further back. Muscles
+// with a colour take it as line colour and a light wash. The picked muscle is left out (it is drawn solid on top).
+const L_VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec4 vTint; varying vec3 vShade;';
+const L_V = `
+  attribute vec4 aApex; attribute vec3 aAxis; attribute float aGroup; attribute float aO; attribute float aEnd;
+  uniform vec3 uPal[16]; uniform float uHas[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain;
+  ${L_VARY} varying vec3 vN; varying float vZ;
+  void main(){
+    float sa = (1.0 - step(0.5, abs(aGroup - uSel.x))) * uSel.y, sb = (1.0 - step(0.5, abs(aGroup - uSel.z))) * uSel.w;
+    float sel = max(sa, sb), anySel = max(uSel.y, uSel.w); int gi = int(aGroup + 0.5);
+    vec3 own = uPal[gi], picked = uHas[gi] > 0.5 ? own : uClay;
+    vTint = vec4(mix(own, picked, sel), mix(uHas[gi] * (1.0 - 0.6 * anySel), 1.0, sel));
+    vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd * step(0.5, abs(aGroup - 1.0)), sel);
+    vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
+    vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vZ = -mv.z; gl_Position = projectionMatrix * mv; }`;
+const L_F = `
+  uniform float uFreq; uniform float uFade; uniform float uFibre; uniform float uGhost; uniform vec2 uDepth; uniform vec3 uInk;
+  ${L_VARY} varying vec3 vN; varying float vZ;
+  ${NOISE}
+  vec2 fibreFam(float u, float sc, float kf, float w){
+    float x = u * sc; float aa = fwidth(u) * sc + 1e-4; float melt = smoothstep(0.3, 0.62, aa);
+    float soft = mix(cos(6.2832 * x), cos(12.5664 * x), kf) * 0.5 + 0.5;
+    float t0 = abs(fract(x + 0.5) - 0.5), t1 = abs(fract(x) - 0.5), w1 = w * kf;
+    float crisp = max(1.0 - smoothstep(w - aa, w + aa, t0), (1.0 - smoothstep(w1 - aa, w1 + aa, t1)) * smoothstep(0.0, 0.2, kf));
+    return vec2(mix(soft, 0.5, melt), mix(crisp, min(1.0, 2.0 * w * (1.0 + kf)), melt)); }
+  vec2 fibre(vec3 on, float w){
+    vec3 q = vP - vApex.xyz; float ra = max(dot(q, vA), 1e-4);
+    float k = log2(ra / vApex.w), k0 = floor(k), sc = uFreq * vApex.w * exp2(k0);
+    float wob = ((n3(vP * 30.0) - 0.5) * 0.5 + (n3(vP * 7.0) - 0.5) * 1.1) / (uFreq * vApex.w);
+    float a1 = dot(on, normalize(cross(q, vE2))), a2 = dot(on, normalize(cross(q, vE1)));
+    a1 = 1.0 - a1 * a1; a2 = 1.0 - a2 * a2; a1 *= a1; a2 *= a2; a1 *= a1; a2 *= a2;
+    return (a1 * fibreFam(dot(q, vE1) / ra + wob, sc, k - k0, w) + a2 * fibreFam(dot(q, vE2) / ra + wob, sc, k - k0, w)) / (a1 + a2 + 1e-5); }
+  void main(){
+    vec3 n = normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0);
+    float lit = dot(n, normalize(vec3(-0.42, 0.55, 0.72))) * 0.5 + 0.5;
+    float dark = 1.0 - clamp(lit * mix(1.0, vShade.x, 0.85) * 1.12 - pow(1.0 - clamp(n.z, 0.0, 1.0), 2.6) * 0.3, 0.0, 1.0);
+    float tend = smoothstep(0.62, 0.98, vShade.y) * uFibre; float tint = vTint.a * (1.0 - 0.6 * tend);
+    vec3 ink = mix(uInk, vTint.rgb * mix(0.62, 0.8, vShade.z), tint);
+    float l = 0.0;
+    if (uFibre > 0.0) { float wid = (0.045 + 0.13 * smoothstep(0.15, 0.95, dark)) * (0.6 + 0.8 * n3(vP * vec3(90.0, 26.0, 90.0)));
+      l = fibre(normalize(vON), wid).y * (1.0 - 0.75 * tend); }
+    vec3 col; float a;
+    if (uGhost > 0.0) {
+      float edge = 1.0 - smoothstep(0.6, 1.6, n.z / (fwidth(n.z) + 1e-4));
+      float far = clamp((vZ - uDepth.x + uDepth.y) / (2.0 * uDepth.y), 0.0, 1.0);
+      col = ink; a = (l * 0.6 + edge * 0.8 * (1.0 - l * 0.6)) * mix(0.17, 0.035, far);
+    } else {
+      float wash = tint * (0.2 + 0.2 * dark + 0.3 * vShade.z) + (1.0 - uFibre) * 0.1 * smoothstep(0.25, 0.9, dark);
+      float la = l * (0.42 + 0.22 * tint + 0.3 * dark);
+      a = la + wash * (1.0 - la); col = mix(mix(uInk, vTint.rgb, min(1.0, tint * 3.0 + uFibre)), ink, la / max(a, 1e-4));
+    }
+    gl_FragColor = vec4(col, a * uFade * (1.0 - vShade.z));
+    #include <colorspace_fragment>
+  }`;
+// The breast lies on the pec as a separate soft form in skin colour (the pec keeps its own shape), see-through
+// in the middle and a little clearer at its edge, so the chest's colour still shows, as anatomy books draw it.
+const breastGeo = (THREE) => { const g = new THREE.SphereGeometry(1, 40, 28), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y > 0) { p.setZ(i, p.getZ(i) * (1 - 0.55 * y)); p.setY(i, y * 1.35); } } // teardrop: the top slopes into the chest
+  g.computeVertexNormals(); return g; };
+
 // ---------- the view ----------
 
-export async function createBodyView({ onPick, onExpand, onCollapse, names, look } = {}) {
+export async function createBodyView({ onPick, onExpand, onCollapse, onLost, names, look } = {}) {
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
-  const { THREE, muscleGeo, ctxGeo, center, height } = await loadAssets();
-  const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.F;
+  const { THREE, muscleGeo, ctxGeo, femaleGeo, center, height } = await loadAssets();
+  const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.R;
 
   const canvas = document.createElement('canvas'); canvas.className = 'body3dCanvas'; canvas.setAttribute('aria-hidden', 'true');
   const ua = navigator.userAgent || '';
@@ -284,14 +395,16 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
 
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
-  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uDef: { value: new Array(16).fill(1) }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
+  const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
     uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
-  const muscleMat = new THREE.MeshLambertMaterial();
+  // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
+  const muscleMat = new THREE.MeshLambertMaterial({ transparent: true }); muscleMat.forceSinglePass = true;
   muscleMat.onBeforeCompile = (s) => { Object.assign(s.uniforms, U);
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
+        diffuseColor.a = 1.0 - uBook * vFade; if (diffuseColor.a < 0.01) discard;
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
         if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
@@ -307,10 +420,28 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
         #include <opaque_fragment>`); };
   muscleMat.customProgramCacheKey = () => 'body3dMuscle';
-  const ctxMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const ctxMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true }); ctxMat.forceSinglePass = true;
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
   fig.position.copy(center).negate(); pivot.add(fig); scene.add(pivot);
   const muscle = new THREE.Mesh(muscleGeo, muscleMat), ctx = new THREE.Mesh(ctxGeo, ctxMat); fig.add(muscle, ctx);
+  const breastMat = new THREE.MeshLambertMaterial({ color: '#F1E7DD', transparent: true, opacity: 0.6, depthWrite: false });
+  breastMat.onBeforeCompile = (s) => { s.fragmentShader = s.fragmentShader.replace('#include <opaque_fragment>', 'float rim = 1.0 - abs(dot(normal, normalize(vViewPosition))); diffuseColor.a *= 0.22 + 0.78 * rim * rim;\n#include <opaque_fragment>'); };
+  const bGeo = breastGeo(THREE), breasts = [1, -1].map((x) => { const b = new THREE.Mesh(bGeo, breastMat); b.scale.set(0.06, 0.05, 0.048); b.position.set(x * 0.08, 0.385, 0.108); b.rotation.set(0.3, x * 0.4, 0); b.renderOrder = 1; fig.add(b); return b; });
+  // The Book drawing: its own scene, drawn first while a muscle is picked; the solid scene (now only the picked
+  // muscle) goes on top. Depth of the nearest surface, the faint layers behind, contours, then the near surface.
+  const LU = { uPal: U.uPal, uHas: { value: new Array(16).fill(0) }, uSel: U.uSel, uClay: U.uClay, uPlain: U.uPlain, uFreq: { value: 300 }, uFade: { value: 0 }, uInk: { value: new THREE.Color('#3A3633') } };
+  const lineMat = (fibre, ghost) => new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: !ghost, side: fibre ? THREE.FrontSide : THREE.DoubleSide,
+    uniforms: { ...LU, uFibre: { value: fibre }, uGhost: { value: ghost }, uDepth: { value: new THREE.Vector2(6, 0.2) } }, vertexShader: L_V, fragmentShader: L_F });
+  const HPX = { value: new THREE.Vector2() };
+  const hullMat = new THREE.ShaderMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: 0.5, polygonOffsetUnits: 1, uniforms: { uPx: HPX, uFade: LU.uFade, uInk: { value: new THREE.Color('#4F4A45') } },
+    vertexShader: 'uniform vec2 uPx; varying float vZ; void main(){ vec4 c = projectionMatrix * modelViewMatrix * vec4(position, 1.0); vec3 nv = normalize(normalMatrix * normal); vZ = nv.z; c.xy += nv.xy * uPx * c.w; gl_Position = c; }',
+    fragmentShader: 'uniform vec3 uInk; uniform float uFade; varying float vZ; void main(){ gl_FragColor = vec4(uInk, uFade * mix(1.0, 0.14, smoothstep(0.35, 0.85, -vZ)));\n#include <colorspace_fragment>\n}' });
+  const depthM = new THREE.MeshBasicMaterial({ colorWrite: false }), depthC = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
+  const dScene = new THREE.Scene(), dPivot = new THREE.Group(), dFig = new THREE.Group(); dFig.position.copy(center).negate(); dPivot.add(dFig); dScene.add(dPivot);
+  const dMesh = (isCtx, mat, order) => { const x = new THREE.Mesh(isCtx ? ctxGeo : muscleGeo, mat); x.renderOrder = order; x.userData.ctx = isCtx; dFig.add(x); return x; };
+  const ghosts = [dMesh(false, lineMat(1, 1), 1), dMesh(true, lineMat(0, 1), 1)];
+  const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
+  const useGeo = (p) => { const g = p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem; };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(2, 3, 4); scene.add(sun);
   // The sheet that covers the page while a figure is open.
   const veilMat = new THREE.MeshBasicMaterial({ color: '#FAF9F5', transparent: true, depthTest: false, depthWrite: false });
@@ -355,8 +486,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
   const show = (i) => {
     const r = place(i); if (!r || r.w < 1 || r.h < 1 || r.x > W || r.y > H || r.x + r.w < 0 || r.y + r.h < 0) return;
     const p = people[i], s = slots[i];
-    aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx);
-    U.uPal.value = p.pal; U.uBulk.value = p.bulk; U.uDef.value = p.def;
+    aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
+    U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
+    // The drawing replaces the rest of the body only for one or two people; a row of many fades to plain instead.
+    const book = people.length <= 2 ? 1 : 0, f = book * Math.max(sel.y, sel.w); U.uBook.value = book;
+    ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.6 * (1 - f);
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
     // Fibre spacing is fixed on the body (about 2.4 px on a figure in the row), so opening a figure zooms into it.
@@ -365,7 +499,12 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     // as many fibres as in the row instead of the same ones drawn thicker.
     U.uFreq.value = Math.max(s.ppu * Math.pow(r.ppu / s.ppu, 0.75), 380 / height) / Math.max(2.4, 3.4 / pr);
     U.uQ.value.x = Math.max(0.45, Math.min(1, (r.ppu * height - 90) / 200));
-    const y = H - r.y - r.h; renderer.setViewport(r.x, y, r.w, r.h); renderer.setScissor(r.x, y, r.w, r.h); renderer.render(scene, cam);
+    const y = H - r.y - r.h; renderer.setViewport(r.x, y, r.w, r.h); renderer.setScissor(r.x, y, r.w, r.h);
+    if (f > 0.002) { LU.uFade.value = f; LU.uFreq.value = U.uFreq.value * 0.78; dPivot.rotation.y = angle; dPivot.scale.copy(pivot.scale);
+      const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); HPX.value.set(2 * px / r.w, 2 * px / r.h);
+      for (const g of ghosts) g.material.uniforms.uDepth.value.set(cam.position.z, height * 0.11);
+      renderer.render(dScene, cam); }
+    renderer.render(scene, cam);
   };
   const render = () => {
     if (W < 1 || H < 1) return;
@@ -415,10 +554,10 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
   };
   const pick = (i, x, y) => { // null: beside the body; 0: on the body, not a muscle; else the group number
     const r = place(i); if (!r) return null;
-    aim(r); pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); scene.updateMatrixWorld(true);
+    aim(r); pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); if (people[i]) useGeo(people[i]); scene.updateMatrixWorld(true);
     ndc.set((x - r.x) / r.w * 2 - 1, -((y - r.y) / r.h * 2 - 1)); ray.setFromCamera(ndc, cam);
     const hit = ray.intersectObjects([muscle, ctx], false)[0];
-    return hit ? (hit.object === muscle ? muscleGeo.userData.grp[hit.face.a] : 0) : null;
+    return hit ? (hit.object === muscle ? muscle.geometry.userData.grp[hit.face.a] : 0) : null;
   };
   // The line under the open figure: the picked muscle with what the app says about it ("Traps · Elite 5.4",
   // "Quads · 2 days ago") when it passes a label, else just its name.
@@ -462,7 +601,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     if (d.far < 6) { speed = 0.0001 * Math.sign(d.a - angle || 1); tap(e); } else if (e.timeStamp - d.lt > 80 || reduced.matches) speed = 0; kick(); };
   const cancel = () => { drag = null; kick(); };
   canvas.addEventListener('pointerdown', down); canvas.addEventListener('pointermove', move); canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', cancel);
-  canvas.addEventListener('webglcontextlost', (e) => e.preventDefault()); canvas.addEventListener('webglcontextrestored', () => { dirty = true; kick(); });
+  // A lost GPU context usually comes back; if it hasn't after 3 s (iOS after the app was in the background), the app
+  // is told so it can build a new view instead of leaving an empty frame.
+  let lostTimer = 0;
+  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); clearTimeout(lostTimer); lostTimer = setTimeout(() => { if (!dead && onLost) onLost(); }, 3000); });
+  canvas.addEventListener('webglcontextrestored', () => { clearTimeout(lostTimer); dirty = true; kick(); });
   closeEl.addEventListener('click', userCollapse);
 
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((en) => { onScreen = en[en.length - 1].isIntersecting; if (onScreen) { dirty = true; kick(); } }) : null;
@@ -482,11 +625,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     },
     setPeople(list) {
       people = (list || []).map((p) => {
-        const pal = [plainC], bulk = [0], def = [1], labels = {};
-        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}, b = bulkOf(m.level); pal.push(m.color ? new THREE.Color(m.color) : plainC); if (m.label) labels[g] = String(m.label); bulk.push(b > 0 ? b * (SHAPE[g] || 1) : b); def.push(defOf(m.level)); }
+        const pal = [plainC], bulk = [0], has = [0], labels = {}, fem = p.sex === 'female';
+        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push(bulkOf(g, m.level, fem)); }
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
-        return { id: p.id, name: p.name || '', cm, pal, bulk, def, labels, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', cm, pal, bulk, has, fem, labels, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
@@ -503,10 +646,10 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
     destroy() {
-      if (dead) return; dead = true; cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
+      if (dead) return; dead = true; clearTimeout(lostTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
       if (hostEl) hostEl.classList.remove('body3dHost'); canvas.remove(); over.remove();
-      muscleMat.dispose(); ctxMat.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
+      muscleMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
     },
     // For tests and tuning only.
     debug: {

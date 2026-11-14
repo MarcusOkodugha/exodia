@@ -45,8 +45,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **3D body (14 Nov), lab first.** Lab now shows three figures: In the app now (F), Recommended (G with strength only on shoulders, arms, chest, quads, back; tap a muscle and the rest becomes the Book drawing, the picked one solid), and G. Also in the lab: neck pit closed, colour to each muscle's edge (groin filled), lower back with a clean edge, wider at the bottom. Waiting for Marcus to say a look is right; then port to `public/body3d.js` with the full rules.
-- [ ] **Women's 3D body (14 Nov).** After Marcus approves the final look: the same look and the same picking, on a woman's shape, shown for women.
+- [ ] **3D body follow-ups (14 Nov).** Live in v465: the approved look (G + strength on shoulders, arms, chest, quads, back, by level), picking on the Book drawing, a woman's figure for female profiles, colour to each muscle's edge, desktop layout fixed, no page swipe under an opened body. Marcus to check the woman's figure on his phone; the prompt box going missing was not reproduced (new check against the visible screen added in v465), watch for it.
 
 
 

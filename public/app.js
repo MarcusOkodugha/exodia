@@ -1520,7 +1520,7 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
   <div class="devMenu" role="menu">
     <button role="menuitem" data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
     <button role="menuitem" data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
-    <button role="menuitem" data-action="dev-3d">3D body: four looks</button>
+    <button role="menuitem" data-action="dev-3d">Lab looks</button>
     ${view.devHit ? '<button role="menuitem" data-action="dev-normal">Back to normal colors</button>' : ''}
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
   </div>` : ''}${view.sandbox ? '<div class="testPill" role="status">Test mode · nothing is saved<button data-action="dev-exit">Exit</button></div>' : ''}`;
@@ -1878,11 +1878,19 @@ const body3dPick = (key) => {
   }
   pickMuscle(key && view.musclePick !== key ? key : null);
 };
+// The GPU dropped the figure and never gave it back: start over (the flat figures show while it loads again).
+const body3dLost = () => {
+  body3d?.destroy();
+  body3d = null;
+  body3dState = 'idle';
+  body3dSig = '';
+  render();
+};
 const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -1896,7 +1904,7 @@ const loadBody3d = () => {
 // A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
 const body3dPerson = (id, name, cm, colours, labels = null) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
-  return { id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
+  return { id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
@@ -2367,7 +2375,7 @@ const renderLeft = () => {
       <div class="leftDev">
         <button data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
         <button data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
-        <button data-action="dev-3d">3D body: four looks</button>
+        <button data-action="dev-3d">Lab looks</button>
         ${view.devHit ? '<button data-action="dev-normal">Back to normal colors</button>' : ''}
         ${view.sandbox ? '<button data-action="dev-exit">Leave test mode</button>' : '<button data-action="dev-newuser">Simulate new user</button>'}
       </div>
@@ -2779,7 +2787,7 @@ const renderAdmin = () => {
   const tabs = `<div class="segment full adminTabs" role="tablist" aria-label="Admin">${[['chat', 'Chat'], ['dash', 'Dashboard']].map(([value, label]) => `<button class="segmentOption" role="tab" data-action="admin-tab" data-tab="${value}" aria-selected="${tab === value}" aria-pressed="${tab === value}">${label}</button>`).join('')}</div>`;
   return `<main class="page adminPage">
     <p class="eyebrow">Only visible to you</p>
-    <div class="titleRow"><h1 class="title">Admin</h1>${(() => { const waiting = leftItems().length + newFeedback().length; return `<button class="adminLeftBtn" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot${waiting ? '' : ' calm'}" aria-hidden="true"></span>${waiting ? `${waiting} waiting` : 'Nothing waiting'} · Developer</button>`; })()}</div>
+    <div class="titleRow"><h1 class="title">Admin</h1>${(() => { const waiting = leftItems().length + newFeedback().length; return `<span class="adminBtns"><button class="adminLeftBtn" data-action="toggle-left" aria-expanded="${Boolean(view.leftOpen)}"><span class="leftDot${waiting ? '' : ' calm'}" aria-hidden="true"></span>${waiting ? `${waiting} waiting` : 'Nothing waiting'}</button><button class="adminLeftBtn" data-action="toggle-left" data-dev="1" aria-expanded="${Boolean(view.leftOpen)}">Dev</button></span>`; })()}</div>
     ${tabs}
     ${tab === 'chat' ? `
     ${buildingNow() || (state.claudeRuns || [])[0]?.status === 'sending' ? `<p class="adminWorking" role="status">${exoSpin}<span class="ghostText thinkLine">Exodia is on it…</span></p>` : ''}
@@ -4361,8 +4369,13 @@ const ensureDock = () => {
   if (!dock.getAnimations().some((animation) => animation.playState === 'running')) {
     if (getComputedStyle(dock).clipPath !== 'none') dock.getAnimations().forEach((animation) => animation.cancel());
     dock.style.clipPath = '';
+    // iOS can leave the visible screen shifted after the keyboard closes; the box is then drawn below what you see
+    // while still inside the window, so measure against what is visible and settle the shift.
+    const vv = window.visualViewport;
+    if (!typing && vv && vv.offsetTop > 1) window.scrollTo(window.scrollX, window.scrollY);
+    const floor = vv ? vv.offsetTop + vv.height : window.innerHeight;
     const box = dock.getBoundingClientRect();
-    if (box.height < 20 || box.top > window.innerHeight - 20 || box.bottom < 40) {
+    if (box.height < 20 || box.top > Math.min(window.innerHeight, floor) - 20 || box.bottom < 40) {
       setVar('--kb', '0px');
       render();
     }
@@ -7794,6 +7807,8 @@ document.addEventListener('click', (event) => {
   if (action === 'toggle-left') {
     view.leftOpen = !view.leftOpen;
     render();
+    // Admin's Dev button opens the same panel at its Developer part (Lab looks and the test buttons).
+    if (view.leftOpen && target.dataset.dev) document.querySelector('.leftDev')?.previousElementSibling?.scrollIntoView({ block: 'start' });
     return;
   }
   if (action === 'left-item') {
@@ -8934,6 +8949,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 const route = () => {
+  // A body opened full screen belongs to the page it was opened on; leaving the page closes it.
+  body3d?.collapse();
   const name = location.hash.replace(/^#\/?/, '');
   const profile = name.match(/^me\/([a-f0-9]{32})$/);
   if (profile) {
@@ -9323,11 +9340,12 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 let pageSwipe = null;
 let pageSwipedAt = 0;
 // The anatomy (3D body and flat figures) is never a page swipe: a sideways drag there spins the body.
-const PAGE_SWIPE_SKIP = '.body3dSlot, .muscles, .dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
+const PAGE_SWIPE_SKIP = '.body3dSlot, .body3dOver, .muscles, .dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
 document.addEventListener('pointerdown', (event) => {
   pageSwipe = null;
   if (event.pointerType !== 'touch' || desktopQuery.matches || turn || view.menu || view.composer || !['home', 'trends'].includes(view.route)) return;
-  if (event.target.closest(PAGE_SWIPE_SKIP)) return;
+  // A body opened full screen is spun sideways; the page under it never moves (it used to slide away to Home).
+  if (event.target.closest(PAGE_SWIPE_SKIP) || document.querySelector('.body3dOver.on')) return;
   const page = document.querySelector('main.page');
   if (page) pageSwipe = { page, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, active: false };
 });

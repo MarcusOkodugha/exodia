@@ -1524,6 +1524,7 @@ html body .chip[aria-pressed="true"] .chipFace::after { transform: none; }
 .adminLeftBtn { display: inline-flex; align-items: center; gap: 7px; height: 32px; margin-bottom: 4px; padding: 0 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
 .adminLeftBtn .leftDot { width: 8px; height: 8px; border-radius: 50%; background: #D94A2B; }
 .adminLeftBtn .leftDot.calm { background: var(--sep); }
+.adminBtns { display: inline-flex; gap: 8px; }
 @media (max-width: 1023px) { .leftPill { top: calc(var(--top) + 4px); } }
 
 /* While typing a name: tap the name to write it in the box, + adds the lift at once. Same look as a pick. */
@@ -1891,6 +1892,9 @@ button.wnDay { cursor: pointer; }
 .body3dSlot.one { height: 380px; }
 .body3dSlot .bodyFig { height: 100%; width: auto; }
 .right .muscles.has3d { grid-template-columns: 1fr; }
+/* Computer: the three-column list layout below ('.desk .muscles:not(.right .muscles)') outranks the rule above and
+   squeezed the 3D body and the list to nothing; with the 3D body it's two columns again. */
+.desk .muscles.has3d:not(.right .muscles) { grid-template-columns: minmax(0, 1.35fr) minmax(200px, 1fr); }
 .right .body3dSlot.one { height: 440px; }
 .body3dSlot.squad { margin: 0 0 4px; }
 .tgNames { display: grid; margin: 0 0 16px; text-align: center; font-size: 12.5px; color: var(--text2); }
