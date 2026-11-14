@@ -23,15 +23,19 @@ main{max-width:1100px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px
 #close svg{display:block;margin:auto}
 #name{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 22px);text-align:center;font-size:15px;font-weight:600;opacity:0;transform:translateY(4px);transition:opacity .28s ease,transform .28s ease;pointer-events:none}
 #name.on{opacity:1;transform:none}
+.top{display:flex;align-items:center;justify-content:space-between}
+.sizeBtn{border:0;background:none;font:inherit;font-size:15px;color:var(--text2);padding:8px 0;cursor:pointer}
+.sizeBtn[aria-pressed="true"]{color:var(--clay);font-weight:600}
+/* Phone size: every figure exactly as big as the 3D body next to the muscle list on a phone (198 × 380). */
+body.phone .grid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px 10px}
+body.phone .col{width:198px}
+body.phone .cell{width:198px;height:380px;aspect-ratio:auto;max-height:none}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head><body><main>
-<a class="back" href="/">Back to Exodia</a>
+<div class="top"><a class="back" href="/">Back to Exodia</a><button id="phoneSize" class="sizeBtn" aria-pressed="false">Phone size</button></div>
 <div class="grid">
-  <div class="col hero"><div class="cell"></div><div class="tag">D2<small>No head</small></div></div>
-  <div class="col small"><div class="cell"></div><div class="tag">D2<small>In app</small></div></div>
-  <div class="col"><div class="cell"></div><div class="tag">D<small>Now</small></div></div>
-  <div class="col"><div class="cell"></div><div class="tag">F<small>Strong</small></div></div>
+  <div class="col"><div class="cell"></div><div class="tag">F<small>Strong · in the app now</small></div></div>
   <div class="col"><div class="cell"></div><div class="tag">G<small>Real</small></div></div>
   <div class="col"><div class="cell"></div><div class="tag">H<small>Book</small></div></div>
   <div class="col"><div class="cell"></div><div class="tag">I<small>Strong + real</small></div></div>
@@ -51,7 +55,7 @@ const COLORS = { chest: 'adv', shoulders: 'adv', triceps: 'int', quads: 'int', g
 const NAMES = { chest: 'Chest', shoulders: 'Shoulders', rearDelts: 'Rear delts', traps: 'Traps', upperBack: 'Upper back', lowerBack: 'Lower back', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', abs: 'Abs', glutes: 'Glutes', quads: 'Quads', hamstrings: 'Hamstrings', adductors: 'Adductors', calves: 'Calves' };
 const GROUPS = Object.keys(NAMES);
 // Muscle group from the model's own part name (anterior_delt, vastus_group, ...).
-const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
+const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap|neck_ext/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus|hip_flex/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
 const BG = '#FAF9F5', PLAIN = '#E9E5DC', SKIN = '#F1EEE7', CLAY = '#C96442';
 
 const canvas = document.getElementById('c'), over = document.getElementById('over'), nameEl = document.getElementById('name');
@@ -227,6 +231,8 @@ const solidMat = (o, only = 0) => { const m = new THREE.MeshLambertMaterial(); c
       #endif`);
     s.fragmentShader = F_PARS + '\nuniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; varying float vKeep;\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
+        // Where the model has a gap (the tendon diamond between the traps) you look into the muscle: pale tendon, like the app.
+        if (!gl_FrontFacing) diffuseColor.rgb = vCol * 0.9;
         #ifdef ONLY
           if (vKeep < 0.5) discard;
         #endif
@@ -243,10 +249,13 @@ const solidMat = (o, only = 0) => { const m = new THREE.MeshLambertMaterial(); c
         #endif`)
       .replace('#include <opaque_fragment>', `
         #ifdef FIBRE
-          outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5, 0.0, 1.0) * uP.z);
+          outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend)); // tendon (the diamond at the base of the neck) never goes dark like a hole
           vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
           outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
         #endif
+        // The inside of a muscle (seen through the tendon gap between the traps) is its own colour, flat, a touch deeper,
+        // so the gap reads as muscle, not a hole.
+        if (!gl_FrontFacing) outgoingLight = vCol * 0.86;
         #include <opaque_fragment>`); };
   m.customProgramCacheKey = () => 'solid' + fib + only; return m; };
 const ctxMat = () => new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
@@ -293,9 +302,6 @@ const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false }), depthMat2 =
 // D2 is D cut clean through the neck, just under the chin, so the body can fill its frame.
 const NECK = 0.664;
 const LOOKS = [
-  { name: 'D2', cut: NECK },
-  { name: 'D2', cut: NECK },
-  { name: 'D' },
   { name: 'F', solid: { bulk: 0.0125, groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 } },
   { name: 'G', solid: { bulk: 0.0035, groove: 0.05, bump: 0.55, crease: 0.8, sheen: 0.13, warm: 0.75, tendon: 0.2 } },
   { name: 'H', lines: true },
@@ -316,7 +322,7 @@ const views = LOOKS.map((look, i) => {
     if (look.pick) { // the picked muscle drawn solid over the lines, lit like the solid looks
       mesh(muscleGeo, solidMat(look.solid, GROUPS.indexOf(look.pick) + 1), 4);
       scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(2, 3, 4); scene.add(dir); }
-  } else { muscle = mesh(muscleGeo, solidMat(look.solid)); ctx = mesh(ctxGeo, ctxMat());
+  } else { muscle = mesh(muscleGeo, solidMat(look.solid)); muscle.material.side = THREE.DoubleSide; ctx = mesh(ctxGeo, ctxMat());
     if (look.cut) muscle.material.clippingPlanes = ctx.material.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, -1, 0), look.cut - center.y)];
     scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(2, 3, 4); scene.add(dir); }
   return { scene, pivot, muscle, ctx, look, cell: cells[i], t: 0, rect: null };
@@ -393,5 +399,6 @@ document.getElementById('close').addEventListener('click', collapse);
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && open >= 0) collapse(); });
 
 window.__look = (a) => { angle = a; speed = 0; hold = true; };
+document.getElementById('phoneSize').addEventListener('click', (e) => { const on = document.body.classList.toggle('phone'); e.currentTarget.setAttribute('aria-pressed', String(on)); dispatchEvent(new Event('resize')); });
 draw();
 </script></body></html>

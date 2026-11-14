@@ -24,7 +24,7 @@ const MODEL_URL = '/models/anatomy.glb';
 const NAMES = { chest: 'Chest', shoulders: 'Shoulders', rearDelts: 'Rear delts', traps: 'Traps', upperBack: 'Upper back', lowerBack: 'Lower back', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', abs: 'Abs', glutes: 'Glutes', quads: 'Quads', hamstrings: 'Hamstrings', adductors: 'Adductors', calves: 'Calves' };
 const GROUPS = Object.keys(NAMES);
 // Muscle group from the model's own part name (anterior_delt, vastus_group, ...).
-const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /hip_rotator/.test(n) ? 'glutes' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
+const GROUP = (n) => /hamstring/.test(n) ? 'hamstrings' : /pec/.test(n) ? 'chest' : /posterior_delt/.test(n) ? 'rearDelts' : /delt/.test(n) ? 'shoulders' : /trap|neck_ext/.test(n) ? 'traps' : /triceps/.test(n) ? 'triceps' : /biceps|brachialis/.test(n) ? 'biceps' : /forearm|brachiorad/.test(n) ? 'forearms' : /hip_rotator/.test(n) ? 'glutes' : /lats|rhomboid|teres|rotator|serratus/.test(n) ? 'upperBack' : /erector/.test(n) ? 'lowerBack' : /abdom|oblique/.test(n) ? 'abs' : /glute/.test(n) ? 'glutes' : /rectus_femoris|vastus|hip_flex/.test(n) ? 'quads' : /adductor/.test(n) ? 'adductors' : /gastro|soleus|fibularis|tibialis/.test(n) ? 'calves' : null;
 const PLAIN = '#E9E5DC', SKIN = '#F1EEE7', CLAY = '#C96442';
 const DEFAULT_CM = 178;
 
@@ -43,6 +43,9 @@ const defOf = (lv) => (lv == null || !isFinite(lv) ? 1 : 0.75 + 0.45 * (Math.max
 const LOOKS = {
   F: { groove: 0.2, bump: 1, crease: 0.6, sheen: 0.05, warm: 0.35, tendon: 0.45 },
   G: { groove: 0.05, bump: 0.55, crease: 0.8, sheen: 0.13, warm: 0.75, tendon: 0.2 },
+  // I: F's build with G's detail (lighter fibre lines, deeper creases, more sheen), so strong muscles still read as
+  // separate muscles. The look the app uses.
+  I: { groove: 0.08, bump: 0.8, crease: 1.0, sheen: 0.13, warm: 0.75, tendon: 0.25 },
   D: { groove: 0, bump: 0, crease: 0, sheen: 0, warm: 0, tendon: 0 },
 };
 const bulkOf = (lv) => {
@@ -265,7 +268,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, names, look
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
   const { THREE, muscleGeo, ctxGeo, center, height } = await loadAssets();
-  const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.F;
+  const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.I;
 
   const canvas = document.createElement('canvas'); canvas.className = 'body3dCanvas'; canvas.setAttribute('aria-hidden', 'true');
   const ua = navigator.userAgent || '';

@@ -45,7 +45,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- [ ] **3D look (14 Nov, Marcus):** lab/looks.html has I (F's bulk + G's detail: groove 0.08, bump 0.8, crease 1.0, sheen 0.13, warm 0.75, tendon 0.25) and J (Book with only the picked muscle solid). Marcus picks; then the app gets that look, and picking a muscle turns the rest of the figure into Book (H) lines with the picked muscle solid in its colour. F lost detail from bulk filling the creases plus lower crease/sheen, not from any speed shortcut.
+- [ ] **3D body, next (14 Nov):** (1) Picking a muscle in the app = J from the lab: the rest of the figure becomes Book (H) lines, the picked muscle solid in its colour with I's detail. (2) The dark oval at the base of the neck is a real gap in the model's trapezius: through it you see the deeper back muscles in shadow (probed: not back faces, not context, not an uncoloured group, not tendon shading). Fix by closing the gap in the model (or a patch mesh in the trap colour). App now uses look I; hip_flexors = quads, neck_extensors = traps.
+
 
 
 - [x] **Bodyweight, height and sex always open (14 Nov):** done: Settings always shows the form, Trends opens it while height is missing, empty fields glow; a one-time banner asks once. no tap to open; the empty fields glow softly until filled (today height missing still hides the form behind Change).
