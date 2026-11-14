@@ -510,6 +510,17 @@ const saidDates = (text) => {
   for (const match of lower.matchAll(new RegExp(`\\b${MONTH_WORD}\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b`, 'g'))) add(+match[3], monthOf(match[1]), +match[2]);
   return [...found];
 };
+// Cardio said with a distance, in English or Swedish: what it was, how far in metres, and an easy pace in minutes
+// per metre for when no time was said. "mil" is the Swedish 10 km; "mi" and "miles" are English miles.
+const FAR_KINDS = [[/\b(swim\w*|swam|sim|simma\w*|simning)\b/i, 'Swimming', 0.025], [/\b(run|runs|running|ran|jog\w*|sprang|springa|springer|löp\w*)\b/i, 'Running', 0.006], [/\b(bik\w*|cycl\w*|cykl\w*|cykel)\b/i, 'Cycling', 0.0024], [/\b(row|rowed|rowing|rower|rodd|rodde|roddmaskin)\b/i, 'Rowing', 0.005], [/\b(ski|skis|skied|skiing|skidor|skidåk\w*|längdskid\w*)\b/i, 'Skiing', 0.005], [/\b(hik\w*|vandr\w*)\b/i, 'Hiking', 0.015], [/\b(walk\w*|promen\w*|gick)\b/i, 'Walk', 0.012]];
+const saidDistance = (words) => {
+  const kind = FAR_KINDS.find(([test]) => test.test(words));
+  const said = kind && (words.match(/(\d+(?:[.,]\d+)?)\s*(kilometers?|kilometres?|km|k|meters?|metres?|m|miles?|mi|mil)(?![\p{L}\d])/iu) || words.match(/\b(en|ett)\s+(mil)(?![\p{L}\d])/iu));
+  if (!said) return null;
+  const amount = /^e/i.test(said[1]) ? 1 : Number(said[1].replace(',', '.')), unit = said[2].toLowerCase();
+  const meters = Math.round(amount * (unit === 'mil' ? 10000 : /^mi/.test(unit) ? 1609 : /^k/.test(unit) ? 1000 : 1));
+  return meters > 0 && meters <= 1000000 ? { name: kind[1], meters, pace: kind[2] } : null;
+};
 const clean = (raw, today) => {
   const exercises = (Array.isArray(raw?.exercises) ? raw.exercises : [])
     .slice(0, 12)
@@ -521,13 +532,23 @@ const clean = (raw, today) => {
         .filter((set) => set.reps > 0)
     }))
     .filter((exercise) => exercise.name && exercise.sets.length > 0);
-  const cardioMinutes = Math.min(600, Math.max(0, Math.round(Number(raw?.cardioMinutes) || 0)));
-  const cardioName = cardioMinutes && typeof raw?.cardioName === 'string' && !/^cardio$/i.test(raw.cardioName.trim()) ? raw.cardioName.trim().replace(/\s+/g, ' ').slice(0, 30) : '';
-  const cardioMeters = cardioMinutes ? Math.min(1000000, Math.max(0, Math.round(Number(raw?.cardioMeters) || 0))) : 0;
+  let cardioMinutes = Math.min(600, Math.max(0, Math.round(Number(raw?.cardioMinutes) || 0)));
+  let cardioName = cardioMinutes && typeof raw?.cardioName === 'string' && !/^cardio$/i.test(raw.cardioName.trim()) ? raw.cardioName.trim().replace(/\s+/g, ' ').slice(0, 30) : '';
+  let cardioMeters = cardioMinutes ? Math.min(1000000, Math.max(0, Math.round(Number(raw?.cardioMeters) || 0))) : 0;
   const date = typeof raw?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null;
   // Any past day the user names counts (old training added later), but nothing in the future or before 1980.
   const valid = date && today && date <= today && date >= '1980-01-01';
   const transcript = typeof raw?.transcript === 'string' ? raw.transcript.slice(0, MAX_TEXT).trim() : '';
+  // The AI sometimes drops a distance ("swimming 500 meters" came back empty), so the words themselves are read too:
+  // an activity and a distance in the note is cardio with that distance, timed at an easy pace when no time was said.
+  let cardioGuess = Boolean(cardioMeters && raw?.cardioGuess === true);
+  const far = !cardioMeters && ![raw?.remove, raw?.replace, raw?.move].some((list) => Array.isArray(list) && list.length) ? saidDistance(transcript) : null;
+  if (far) {
+    const timed = /\d\s*(min|minut|h\b|hours?|hrs?|tim)/i.test(transcript);
+    cardioMeters = far.meters;
+    if (!cardioMinutes || !timed) { cardioMinutes = timed && cardioMinutes ? cardioMinutes : Math.min(600, Math.max(1, Math.round(far.meters * far.pace))); cardioGuess = !timed; }
+    if (!cardioName) cardioName = far.name;
+  }
   const remove = (Array.isArray(raw?.remove) ? raw.remove : [])
     .filter((item) => typeof item?.date === 'string' && DATE.test(item.date))
     .slice(0, 20)
@@ -547,7 +568,7 @@ const clean = (raw, today) => {
   // With a question: the note as far as it was caught, with ___ where a number is missing, and a best full reading.
   const fill = unclear && typeof raw?.fill === 'string' ? raw.fill.trim().slice(0, 300) : '';
   const guess = unclear && typeof raw?.guess === 'string' && /\d/.test(raw.guess) ? raw.guess.trim().slice(0, 300) : '';
-  return { exercises, cardioMinutes, ...(cardioName ? { cardioName } : {}), ...(cardioMeters ? { cardioMeters, ...(raw?.cardioGuess === true ? { cardioGuess: true } : {}) } : {}), transcript, remove, replace, move, ...(cardioMinutes && raw?.cardioTotal === true ? { cardioTotal: true } : {}), ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(fill ? { fill } : {}), ...(guess ? { guess } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
+  return { exercises, cardioMinutes, ...(cardioName ? { cardioName } : {}), ...(cardioMeters ? { cardioMeters, ...(cardioGuess ? { cardioGuess: true } : {}) } : {}), transcript, remove, replace, move, ...(cardioMinutes && raw?.cardioTotal === true ? { cardioTotal: true } : {}), ...(accessoriesMinutes ? { accessoriesMinutes } : {}), ...(unclear ? { unclear } : {}), ...(fill ? { fill } : {}), ...(guess ? { guess } : {}), ...(feedback ? { feedback } : {}), ...(label ? { label } : {}), ...(valid ? { date } : {}) };
 };
 
 // A friend's message that isn't training (nothing to log, AI couldn't read it) goes to Marcus as feedback, so it shows
