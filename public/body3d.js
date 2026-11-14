@@ -34,7 +34,8 @@ const DEFAULT_CM = 178;
 // its normals). Strength adds size only where it shows: shoulders, arms, chest, quads and back grow by up to GROW
 // times BASE; calves, abs, adductors and hamstrings stay as they are. STEP is how much of that growth each level
 // gets: Beginner is a little slimmer than G, Novice about G, Elite the most. Between levels it's a straight line
-// (3.6 sits between Intermediate and Advanced). No level: G as it is. A woman's figure grows 60% as much.
+// (3.6 sits between Intermediate and Advanced). No level: G as it is. A woman's figure starts 20% leaner and grows
+// 60% as much.
 const BASE = 0.0035;
 const GROW = { shoulders: 2.6, rearDelts: 2.4, biceps: 2.4, triceps: 2.4, chest: 2, quads: 2.2, forearms: 1.5, traps: 1.6, upperBack: 1.5, lowerBack: 1.2, glutes: 1.2 };
 const STEP = [[1, -0.3], [2, 0.25], [3, 0.65], [4, 1], [5, 1.35], [6, 1.5]];
@@ -44,7 +45,7 @@ const stepOf = (lv) => {
   for (let i = 1; i < STEP.length; i++) if (l <= STEP[i][0]) { const [a, x] = STEP[i - 1], [b, y] = STEP[i]; return x + (y - x) * (l - a) / (b - a); }
   return STEP[STEP.length - 1][1];
 };
-const bulkOf = (g, lv, fem) => BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
+const bulkOf = (g, lv, fem) => (fem ? 0.8 : 1) * BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
 // Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
 // look with fibre lines you can see. D: no fibre lines.
 const LOOKS = {
@@ -237,12 +238,20 @@ const merge = (THREE, parts, R = 0) => {
 // A woman's shape from the same model: narrower shoulders, ribcage and waist, wider hips, fuller glutes, arms moved
 // in with the shoulders. The pec keeps its own flat fan shape; the breast lies on it as a separate soft form (see
 // the view). Normals follow the same bend (inverse transpose of the local stretch), so light sits right.
-const SX = [[0.8, 0.96], [0.68, 0.9], [0.56, 0.86], [0.42, 0.88], [0.3, 0.88], [0.2, 0.86], [0.1, 0.97], [0.0, 1.07], [-0.12, 1.06], [-0.32, 1.02], [-0.55, 1.0]];
-const sxAt = (y) => { if (y >= SX[0][0]) return SX[0][1]; for (let i = 1; i < SX.length; i++) if (y >= SX[i][0]) { const [a, x] = SX[i - 1], [b, w] = SX[i], t = (y - b) / (a - b); return w + (x - w) * t * t * (3 - 2 * t); } return SX[SX.length - 1][1]; };
+// Width (x) and depth (z) by height: an hourglass. Neck, shoulders and ribcage narrower, waist much narrower,
+// hips and the top of the thighs wider, glutes fuller; arms slimmer and moved in with the shoulders; head a little
+// smaller. Heights are the model's (feet -0.9, crown 0.9). Same shape as the lab's woman.
+const SX = [[0.86, 0.93], [0.74, 0.84], [0.66, 0.83], [0.56, 0.84], [0.45, 0.86], [0.33, 0.84], [0.22, 0.78], [0.12, 0.92], [0.02, 1.1], [-0.08, 1.13], [-0.2, 1.08], [-0.36, 1.03], [-0.55, 1.0]];
+const SZ = [[0.3, 1], [0.2, 0.93], [0.1, 1]];
+const ARM = [[0.55, 0.215], [0.3, 0.24], [0.05, 0.28], [-0.15, 0.3]];
+const keyAt = (keys, y) => { if (y >= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (y >= keys[i][0]) { const [a, x] = keys[i - 1], [b, w] = keys[i], t = (y - b) / (a - b); return w + (x - w) * t * t * (3 - 2 * t); } return keys[keys.length - 1][1]; };
 const female = (x, y, z) => {
-  const arm = Math.min(1, Math.max(0, (Math.abs(x) - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
-  const torsoX = x * sxAt(y), armX = x - Math.sign(x) * 0.026 * Math.min(1, Math.max(0, (y + 0.25) / 0.2));
-  return [torsoX + (armX - torsoX) * sm, y, z < 0 ? z * (1 + 0.08 * Math.exp(-(((y + 0.02) / 0.09) ** 2)) * (1 - sm)) : z]; };
+  const ax = Math.abs(x), sg = Math.sign(x) || 1, arm = Math.min(1, Math.max(0, (ax - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
+  const tX = x * keyAt(SX, y), tZ = z * keyAt(SZ, y) * (z < 0 ? 1 + 0.14 * Math.exp(-(((y + 0.03) / 0.1) ** 2)) : 1);
+  const cx = keyAt(ARM, y), aX = sg * (cx + (ax - cx) * 0.86 - 0.036), aZ = -0.02 + (z + 0.02) * 0.86;
+  let X = tX + (aX - tX) * sm, Y = y, Z = tZ + (aZ - tZ) * sm;
+  if (y > 0.7) { Y = 0.7 + (y - 0.7) * 0.94; Z *= 0.94; } // a smaller head
+  return [X, Y, Z]; };
 const femalePart = (THREE, o) => {
   const pos = new Float32Array(o.pos.length), nor = new Float32Array(o.nor.length), m = new THREE.Matrix3(), n = new THREE.Vector3(), e = 0.002;
   for (let q = 0; q < o.pos.length; q += 3) { const x = o.pos[q], y = o.pos[q + 1], z = o.pos[q + 2];
@@ -438,9 +447,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
   fig.position.copy(center).negate(); pivot.add(fig); scene.add(pivot);
   const muscle = new THREE.Mesh(muscleGeo, muscleMat), ctx = new THREE.Mesh(ctxGeo, ctxMat); fig.add(muscle, ctx);
-  const breastMat = new THREE.MeshLambertMaterial({ color: '#F1E7DD', transparent: true, opacity: 0.6, depthWrite: false });
-  breastMat.onBeforeCompile = (s) => { s.fragmentShader = s.fragmentShader.replace('#include <opaque_fragment>', 'float rim = 1.0 - abs(dot(normal, normalize(vViewPosition))); diffuseColor.a *= 0.22 + 0.78 * rim * rim;\n#include <opaque_fragment>'); };
-  const bGeo = breastGeo(THREE), breasts = [1, -1].map((x) => { const b = new THREE.Mesh(bGeo, breastMat); b.scale.set(0.06, 0.05, 0.048); b.position.set(x * 0.08, 0.385, 0.108); b.rotation.set(0.3, x * 0.4, 0); b.renderOrder = 1; fig.add(b); return b; });
+  const breastMat = new THREE.MeshLambertMaterial({ color: '#EEE3D8', transparent: true, opacity: 0.85, depthWrite: false });
+  // A soft, lit form that fades out at its edge and melts into the chest along its upper slope (no sticker line).
+  breastMat.onBeforeCompile = (s) => { s.vertexShader = 'varying float vUp;\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvUp = position.y;');
+    s.fragmentShader = 'varying float vUp;\n' + s.fragmentShader.replace('#include <opaque_fragment>', 'float rim = 1.0 - abs(dot(normal, normalize(vViewPosition))); diffuseColor.a *= (1.0 - 0.75 * rim * rim) * (1.0 - smoothstep(-0.1, 0.9, vUp));\n#include <opaque_fragment>'); };
+  const bGeo = breastGeo(THREE), breasts = [1, -1].map((x) => { const b = new THREE.Mesh(bGeo, breastMat); b.scale.set(0.072, 0.066, 0.066); b.position.set(x * 0.076, 0.372, 0.1); b.rotation.set(0.35, x * 0.45, 0); b.renderOrder = 1; fig.add(b); return b; });
   // The Book drawing: its own scene, drawn first while a muscle is picked; the solid scene (now only the picked
   // muscle) goes on top. Depth of the nearest surface, the faint layers behind, contours, then the near surface.
   const LU = { uPal: U.uPal, uHas: { value: new Array(16).fill(0) }, uSel: U.uSel, uClay: U.uClay, uPlain: U.uPlain, uFreq: { value: 300 }, uFade: { value: 0 }, uInk: { value: new THREE.Color('#3A3633') } };
@@ -509,7 +520,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
     // The drawing replaces the rest of the body only for one or two people; a row of many fades to plain instead.
     const book = people.length <= 2 ? 1 : 0, f = book * Math.max(sel.y, sel.w); U.uBook.value = book;
-    ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.6 * (1 - f);
+    ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.85 * (1 - f);
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
     // Fibre spacing is fixed on the body (about 2.4 px on a figure in the row), so opening a figure zooms into it.
