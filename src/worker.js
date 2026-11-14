@@ -549,6 +549,8 @@ const clean = (raw, today, said = '') => {
     if (!cardioMinutes || !timed) { cardioMinutes = timed && cardioMinutes ? cardioMinutes : Math.min(600, Math.max(1, Math.round(far.meters * far.pace))); cardioGuess = !timed; }
     if (!cardioName) cardioName = far.name;
   }
+  // A time nobody said is a guess, whatever the AI flagged: the session then shows the distance alone.
+  if (cardioMeters && (transcript || said) && !/\d\s*(min|minut|h\b|hours?|hrs?|tim)/i.test(transcript || said)) cardioGuess = true;
   const remove = (Array.isArray(raw?.remove) ? raw.remove : [])
     .filter((item) => typeof item?.date === 'string' && DATE.test(item.date))
     .slice(0, 20)
