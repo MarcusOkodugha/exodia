@@ -854,13 +854,15 @@ const addEntries = (result, date = todayIso()) => {
     const fixing = result.cardioTotal || (session.cardio && /\b(instead|change|changed|correct|should be|not \d+|was \d+)\b/i.test(`${result.transcript || ''} ${view.lastSaid || ''}`));
     const name = result.cardioName || 'Cardio';
     const parts = cardioParts(session);
-    const same = parts.find((part) => part.name.toLowerCase() === name.toLowerCase());
+    const far = cardioFar({ meters: result.cardioMeters, guess: result.cardioGuess });
+    // A distance adds to a row of the same activity that has a distance; next to a time-only row it gets its own.
+    const same = parts.find((part) => part.name.toLowerCase() === name.toLowerCase() && (fixing || Boolean(part.meters) === Boolean(far.meters)));
     if (fixing && (same || parts.length <= 1)) {
       // A correction changes the activity it names (or the only one there is).
-      if (same) same.minutes = Number(result.cardioMinutes);
-      else parts.splice(0, parts.length, { name: result.cardioName || parts[0]?.name || 'Cardio', minutes: Number(result.cardioMinutes) });
-    } else if (same) same.minutes += Number(result.cardioMinutes);
-    else parts.push({ name, minutes: Number(result.cardioMinutes) });
+      if (same) { same.minutes = Number(result.cardioMinutes); if (far.meters) { same.meters = far.meters; same.guess = far.guess; } }
+      else parts.splice(0, parts.length, { name: result.cardioName || parts[0]?.name || 'Cardio', minutes: Number(result.cardioMinutes), ...far });
+    } else if (same) { same.minutes += Number(result.cardioMinutes); if (far.meters) { same.meters += far.meters; same.guess = Boolean(same.guess && far.guess); } }
+    else parts.push({ name, minutes: Number(result.cardioMinutes), ...far });
     setCardioParts(session, parts);
   }
   view.open.add(date);
@@ -1165,19 +1167,24 @@ const cardioLabel = (session) => session.cardioName || 'Cardio';
 // Each cardio you name keeps its own row (Bike 20 minutes, Football 1 hour) while session.cardio stays the day's
 // total, which is what the Move goal counts. Days from before parts existed, or whose total changed somewhere else,
 // are read back into parts that add up to the total.
+// A distance you said ("swam 500 meters", "bike 90 km") stays on its row as metres. guess: the time was not said,
+// only worked out from the distance, so the row shows the distance alone; the minutes still count as cardio.
+const cardioFar = (part) => (Number(part.meters) > 0 ? { meters: Math.round(Number(part.meters)), ...(part.guess ? { guess: true } : {}) } : {});
+const humanMeters = (meters) => (meters < 1000 ? `${meters} m` : `${Math.round(meters / 100) / 10} km`);
+const cardioAmount = (part) => (Number(part.meters) > 0 ? `${humanMeters(Math.round(Number(part.meters)))}${part.guess ? '' : ` · ${humanMinutes(part.minutes)}`}` : humanMinutes(part.minutes));
 const cardioParts = (session) => {
   const total = Number(session.cardio) || 0;
   if (!total) return [];
-  const parts = (session.cardioParts || []).filter((part) => Number(part.minutes) > 0).map((part) => ({ name: String(part.name || 'Cardio'), minutes: Number(part.minutes) }));
+  const parts = (session.cardioParts || []).filter((part) => Number(part.minutes) > 0).map((part) => ({ name: String(part.name || 'Cardio'), minutes: Number(part.minutes), ...cardioFar(part) }));
   const sum = parts.reduce((all, part) => all + part.minutes, 0);
   if (!parts.length || sum > total) return [{ name: cardioLabel(session), minutes: total }];
   if (sum < total) parts.push({ name: parts.length ? 'Cardio' : cardioLabel(session), minutes: total - sum });
   return parts;
 };
 const setCardioParts = (session, parts) => {
-  const kept = parts.filter((part) => Number(part.minutes) > 0).map((part) => ({ name: part.name || 'Cardio', minutes: Math.round(Number(part.minutes)) }));
+  const kept = parts.filter((part) => Number(part.minutes) > 0).map((part) => ({ name: part.name || 'Cardio', minutes: Math.round(Number(part.minutes)), ...cardioFar(part) }));
   session.cardio = kept.reduce((all, part) => all + part.minutes, 0);
-  if (kept.length > 1) session.cardioParts = kept;
+  if (kept.length > 1 || kept[0]?.meters) session.cardioParts = kept;
   else delete session.cardioParts;
   if (kept[0] && kept[0].name !== 'Cardio') session.cardioName = kept[0].name;
   else delete session.cardioName;
@@ -1203,7 +1210,7 @@ const daySummary = (session) => {
   const second = rest.find(({ name }) => hasPr(session, name)) || rest[0];
   const others = [
     ...rest.filter((item) => item !== second).map(({ name }) => name),
-    ...cardioParts(session).map((part) => `${part.name} ${humanMinutes(part.minutes)}`),
+    ...cardioParts(session).map((part) => `${part.name} ${cardioAmount(part)}`),
     ...(accessoriesOf(session) ? [`Accessories ${humanMinutes(accessoriesOf(session))}`] : [])
   ];
   const row = ({ name, set }) => {
@@ -1267,7 +1274,7 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<span class="cardioEdit"><input class="pill num cardioMin" inputmode="numeric" value="${part.minutes}" placeholder="min" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span class="unit">min</span></span>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${humanMinutes(part.minutes)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
+      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<span class="cardioEdit"><input class="pill num cardioMin" inputmode="numeric" value="${part.minutes}" placeholder="min" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span class="unit">min</span></span>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${cardioAmount(part)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
       ${dayNote(session, editing)}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length && !editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${editing ? `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>` : ''}</span>
@@ -2106,7 +2113,7 @@ const renderDayNow = (date) => {
   const session = sessionFor(date);
   return `<section class="card dayNow">
     <p class="dayNowTitle">${dayLabel(date)} right now</p>
-    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${cardioParts(session).map((part) => `<div class="dayNowRow"><span class="dayNowName">${esc(part.name)}</span><span class="dayNowSets num">${humanMinutes(part.minutes)}</span></div>`).join('')}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${humanMinutes(accessoriesOf(session))}</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
+    ${session ? `${session.exercises.map((exercise) => `<div class="dayNowRow"><span class="dayNowName">${esc(exercise.name)}</span><span class="dayNowSets num">${exercise.sets.map((set) => `${set.kg}×${set.reps}${set.rpe ? ` @${set.rpe}` : ''}${set.warmup ? ' w' : ''}`).join(' · ')}</span></div>`).join('')}${cardioParts(session).map((part) => `<div class="dayNowRow"><span class="dayNowName">${esc(part.name)}</span><span class="dayNowSets num">${cardioAmount(part)}</span></div>`).join('')}${accessoriesOf(session) ? `<div class="dayNowRow"><span class="dayNowName">Accessories</span><span class="dayNowSets num">${humanMinutes(accessoriesOf(session))}</span></div>` : ''}${session.label ? `<div class="dayNowRow"><span class="dayNowName">Name</span><span class="dayNowSets">${esc(session.label)}</span></div>` : ''}` : '<p class="empty" style="margin:6px 0">Nothing logged on this day.</p>'}
     <p class="dayNowHint">Say or type what's wrong. Changes go to this day.</p>
   </section>`;
 };
@@ -5996,7 +6003,7 @@ const addLog = (said, did, extra = {}) => {
   if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
-const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `${result.cardioName || 'Cardio'} is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${humanMinutes(result.cardioMinutes)}`] : [])].join(', ')} to ${dayLabel(day)}`;
+const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `${result.cardioName || 'Cardio'} is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${cardioAmount({ minutes: result.cardioMinutes, meters: result.cardioMeters, guess: result.cardioGuess })}`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 // Your words win over the AI's guess: when the note spells out a more specific lift ("incline dumbbell press") than the
 // one the AI returned ("Incline Bench Press", whose only word in the note is "incline"), use the one you spelled out.
@@ -8677,7 +8684,7 @@ document.addEventListener('change', (event) => {
       const parts = cardioParts(session);
       const part = parts[Number(target.dataset.index)];
       if (part && part.minutes !== minutes) {
-        changeWithUndo(`${part.name} ${humanMinutes(minutes)} on ${dayLabel(session.date)}`, () => setCardioParts(session, parts.map((item) => (item === part ? { ...item, minutes } : item))), 'Change cardio time');
+        changeWithUndo(`${part.name} ${humanMinutes(minutes)} on ${dayLabel(session.date)}`, () => setCardioParts(session, parts.map((item) => (item === part ? { ...item, minutes, guess: false } : item))), 'Change cardio time');
         save();
       }
     }
