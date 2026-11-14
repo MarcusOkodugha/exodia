@@ -4872,7 +4872,6 @@ const turnPush = async (on) => {
     if (!response.ok) throw new Error('subscribe');
     if (pushHits()) pushPost({ action: 'prefs', endpoint: subscription.endpoint, hits: true }).catch(() => {});
     view.push = 'on';
-    pushPost({ action: 'test', endpoint: subscription.endpoint }).catch(() => {});
   } catch {
     view.push = 'failed';
   }

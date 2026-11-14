@@ -1450,9 +1450,6 @@ const pushRoute = async (request, env) => {
     await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ? AND profile = ?').bind(endpoint, key).run();
   } else if (body.action === 'prefs') {
     await env.DB.prepare('UPDATE push_subs SET hits = ? WHERE endpoint = ? AND profile = ?').bind(body.hits ? 1 : 0, endpoint, key).run();
-  } else if (body.action === 'test') {
-    const sub = await env.DB.prepare('SELECT 1 FROM push_subs WHERE endpoint = ? AND profile = ?').bind(endpoint, key).first();
-    if (sub) await notify(env, [key], { title: 'Notifications are on', body: 'You get one when a friend adds you to a workout or changes it.', url: '/#/together' });
   }
   return json({ ok: true });
 };
