@@ -1901,3 +1901,6 @@ button.wnDay { cursor: pointer; }
 .tgNames button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; padding: 4px 0; border: 0; background: none; font: inherit; color: inherit; white-space: nowrap; overflow: hidden; cursor: pointer; }
 .tgNames button svg { flex: none; width: 12px; height: 12px; opacity: 0.6; }
 .friendsPage .tgPush { margin: 8px 0 18px; }
+/* Bigger tap areas, same look: the edit delete dot and the prompt's ✕ answer a finger, not just their tiny circle. */
+.minus, .contextX { position: relative; }
+.minus::before, .contextX::before { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }

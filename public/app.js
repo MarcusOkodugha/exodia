@@ -55,6 +55,10 @@ const PIECES = [
   { id: 'move', name: 'Move', target: 2, rule: 'cardio or a walk, 20 min or more, 2 times' }
 ];
 
+// A short buzz on Android for the moments that matter (iPhone has no web vibration). Never on scrolls or plain taps.
+const buzz = (pattern) => {
+  try { navigator.vibrate?.(pattern); } catch { /* not allowed here */ }
+};
 const ICONS = {
   expand: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   pencil: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>',
@@ -824,6 +828,7 @@ const checkPr = (name, date = todayIso()) => {
     ? { kind: 'max', name, title: `New 1RM PR · ${name}`, text: `${top.kg} kg, +${round(top.kg - singleBefore(name, date))} kg on your best single` }
     : { kind: 'rep', name, title: `New PR · ${name}`, text: `${top.kg} × ${top.reps}, your heaviest for ${top.reps} reps` };
   const shown = view.toast;
+  buzz([12, 60, 12]);
   setTimeout(() => {
     if (view.toast === shown) clearToast();
   }, top.kind === 'max' ? 6000 : 3500);
@@ -5466,6 +5471,8 @@ const render = () => {
   // The computer's right panel scrolls on its own; a redraw builds it new, so its place is carried over (it used to
   // jump to the top whenever anything redrew, like Strength / Recovery or a sync).
   const rightTop = document.querySelector('.right')?.scrollTop || 0;
+  // The session calendar scrolls sideways back through the years; a redraw (tapping a day) keeps it where it was.
+  const calLeft = [...document.querySelectorAll('.calScroll')].map((strip) => strip.scrollLeft);
   app.innerHTML = `
     ${layout}
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
@@ -5474,6 +5481,9 @@ const render = () => {
     </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}`;
   const freshRight = document.querySelector('.right');
   if (freshRight && rightTop) freshRight.scrollTop = rightTop;
+  document.querySelectorAll('.calScroll').forEach((strip, index) => {
+    if (calLeft[index]) strip.scrollLeft = calLeft[index];
+  });
   placeWhen();
   placeBody3d();
   const freshPill = document.querySelector('.updatedPill');
@@ -8393,6 +8403,7 @@ document.addEventListener('click', (event) => {
     session.accessories = accessoriesOf(session) === Number(target.dataset.minutes) ? 0 : Number(target.dataset.minutes);
     addLog(`Accessories ${target.textContent.trim()}`, [session.accessories ? `Accessories ${session.accessories} min on ${dayLabel(date)}` : `No accessories on ${dayLabel(date)}`], { manual: true, merge: `acc:${date}` });
   } else if (action === 'add-set' && session) {
+    buzz(8);
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
     changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: true }), 'Add set');
@@ -9067,6 +9078,7 @@ document.addEventListener('pointerdown', (event) => {
     if (!view.open.has(date)) view.opening = date;
     view.open.add(date);
     view.editDay = date;
+    buzz(15);
     view.menuEnter = true;
     view.fixing = null;
     view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
@@ -9130,6 +9142,7 @@ const endSwipe = () => {
   face.style.transform = '';
   if (!active) return;
   if (dx < -face.offsetWidth * 0.55) {
+    buzz(15);
     face.parentElement.querySelector('.swipeDel').click();
     lastSwipe = Date.now();
     return;
