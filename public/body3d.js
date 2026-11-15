@@ -529,9 +529,10 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
     // The drawing replaces the rest of the body only for one or two people; a row of many fades to plain instead.
+    // An opened figure always gets the drawing, however many stand in the row (r.e rises as it opens).
     // Picking muscles for a plan: each person shows the muscles they'll train, solid, the rest as the drawing.
     U.uPick.value = p.pick; U.uPickOn.value = pickOn;
-    const book = people.length <= (pickOn > 0 ? 4 : 2) ? 1 : 0, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
+    const book = people.length <= (pickOn > 0 ? 4 : 2) ? 1 : r.e, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
     ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.85 * (1 - f);
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
