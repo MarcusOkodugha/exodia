@@ -99,56 +99,83 @@ const playRelief = async (stage) => {
 
 // ---------- fist3d: the fist opens, one finger per piece ----------
 
-// The logo cut into its pieces (/fist/*.png, the same ones the app's flat fist uses), each drawn on the one shared
-// relief of the whole hand. A piece starts tucked into the palm and slides out to its place, where the pieces add
-// up to the logo exactly. [piece, tucked offset x, y (of the hand's width), its word]
-const FIST3D = [['thumb-left', 0.22, -0.15, 'Push'], ['index', 0, -0.27, 'Pull'], ['middle', 0, -0.31, 'Legs'], ['ring', 0, -0.27, 'Arms'], ['thumb-right', -0.22, -0.15, 'Move']];
-const F3_OPEN = [550, 1300, 1900, 2350, 2850], F3_TAKES = [700, 620, 460, 440, 760], F3 = { eye: 3650, wash: 4050, word: 4900 };
-const backOut = (x) => { const c = 1.35; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
-const tipOf = (picture, side) => { // where the word goes: just above a finger, beside a thumb (in the hand's own units)
-  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d', { willReadFrequently: true }); g.drawImage(picture, 0, 0, 128, 128);
-  const d = g.getImageData(0, 0, 128, 128).data; let x0 = 128, x1 = 0, y0 = 128;
-  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) if (d[(y * 128 + x) * 4 + 3] > 128) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); }
-  return side ? [(side < 0 ? x0 : x1) / 128 - 0.5 + side * 0.035, 0.5 - y0 / 128 + 0.05] : [(x0 + x1) / 256 - 0.5, 0.5 - y0 / 128 + 0.055]; };
+// One relief of the whole logo, drawn six times with a different part showing each time: the palm, three fingers
+// and two thumbs. Nothing is cut loose. A finger bends at its knuckle and at a joint halfway up, like a real one:
+// in the fist it points out at you and curls back down over the palm, and it opens by uncurling. A thumb is tucked
+// flat behind the palm (in front it would run into the curled fingers) and swings out sideways. Because every part is the same surface, the open hand is the logo
+// with no seam anywhere. Measures are in the logo's own picture (512 px): fingers meet the palm at y 228, thumbs at
+// x 130.5 and 381.5, a finger's middle joint is at y 135.
+const PX = (x) => x / 512, KNUCKLE = 0.5 - PX(228), JOINT = 0.5 - PX(135), THUMB = 0.5 - PX(130.5);
+// [word, kind (1 finger, 2 thumb), the part of the picture it owns as u0, u1, v0, v1, where its word sits]
+const FIST3D = [
+  ['Push', 2, [0, PX(130.5), 0, 1], [-0.345, 0.15]],
+  ['Pull', 1, [PX(130.5), PX(216.5), 1 - PX(228), 1], [-0.152, 0.475]],
+  ['Legs', 1, [PX(216.5), PX(294.5), 1 - PX(228), 1], [-0.002, 0.537]],
+  ['Arms', 1, [PX(294.5), PX(381.5), 1 - PX(228), 1], [0.15, 0.475]],
+  ['Move', 2, [PX(381.5), 1, 0, 1], [0.345, 0.15]],
+];
+const F3_OPEN = [600, 1400, 2050, 2550, 3100], F3_TAKES = [820, 760, 620, 600, 860], F3 = { wash: 4250, word: 5100 };
+const FIST_VERT = `uniform float uKind; uniform vec4 uH; uniform vec2 uA; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+  void bendX(inout vec3 p, inout vec3 n, float y0, float z0, float a){ float c = cos(a), s = sin(a), dy = p.y - y0, dz = p.z - z0; p = vec3(p.x, y0 + c * dy - s * dz, z0 + s * dy + c * dz); n = vec3(n.x, c * n.y - s * n.z, s * n.y + c * n.z); }
+  void bendY(inout vec3 p, inout vec3 n, float x0, float z0, float a){ float c = cos(a), s = sin(a), dx = p.x - x0, dz = p.z - z0; p = vec3(x0 + c * dx + s * dz, p.y, z0 - s * dx + c * dz); n = vec3(c * n.x + s * n.z, n.y, -s * n.x + c * n.z); }
+  void main(){ vUv = uv; vec3 p = position, n = normal;
+    // Each joint bends over a short stretch, in six small steps from the far end inwards, so a knuckle is round, not a fold.
+    if (uKind > 0.5 && uKind < 1.5) {
+      for (int i = 5; i >= 0; i--) { float y = uH.z + float(i) * 0.011; if (position.y > y) bendX(p, n, y, uH.w, uA.y / 6.0); }
+      for (int i = 5; i >= 0; i--) { float y = uH.x + float(i) * 0.011; if (position.y > y) bendX(p, n, y, uH.y, uA.x / 6.0); } }
+    else if (uKind > 1.5) { for (int i = 5; i >= 0; i--) { float x = uH.x + sign(uH.x) * float(i) * 0.011; if (position.x * sign(uH.x) > abs(x)) bendY(p, n, x, uH.y, uA.x / 6.0); } }
+    vN = normalize(normalMatrix * n); vec4 mv = modelViewMatrix * vec4(p, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`;
+const FIST_FRAG = `uniform sampler2D tClay; uniform sampler2D tBlue; uniform float uWash; uniform float uKind; uniform vec4 uClip; uniform vec4 uRects[5]; uniform vec3 uLight; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+  bool within(vec4 r){ return vUv.x >= r.x && vUv.x < r.y && vUv.y >= r.z && vUv.y < r.w; }
+  void main(){
+    if (uKind > 0.5) { if (!within(uClip)) discard; } else { for (int i = 0; i < 5; i++) if (within(uRects[i])) discard; } // each point of the hand belongs to exactly one part
+    vec4 a = texture2D(tClay, vUv), b = texture2D(tBlue, vUv); float al = smoothstep(0.25, 0.75, a.a); if (al < 0.01) discard;
+    vec3 ca = a.rgb / max(a.a, 0.001), cb = b.rgb / max(b.a, 0.001);
+    float w = smoothstep(uWash + 0.03, uWash - 0.03, vUv.y) * step(0.5, b.a);
+    float band = exp(-pow((vUv.y - uWash) / 0.04, 2.0));
+    vec3 base = mix(ca, cb, w);
+    vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;                         // the back of a curled finger is lit too
+    float d = max(dot(n, uLight), 0.0); vec3 hv = normalize(uLight + vV); float s = pow(max(dot(n, hv), 0.0), 90.0);
+    float rim = pow(1.0 - max(dot(n, vV), 0.0), 4.0);
+    vec3 c = base * (0.86 + 0.2 * d) * (gl_FrontFacing ? 1.0 : 0.93) + vec3(1.0, 0.98, 0.95) * (s * 0.3 + rim * 0.06) + vec3(1.0) * band * 0.4;
+    gl_FragColor = vec4(c, al); }`;
+// A finger eases open and settles with the smallest give past straight, like a hand that has just opened.
+const openEase = (x) => { const e = 1 - Math.pow(1 - x, 3); return e + Math.sin(x * Math.PI) * 0.035 * x; };
 
 const playFist3d = async (stage) => {
-  const names = ['palm', ...FIST3D.map((f) => f[0])];
-  const [THREE, clay, blue, ...layers] = await Promise.all([import(THREE_URL), img('/hamsa-512.png'), img('/hamsa-512-blue.png'), ...names.flatMap((n) => [img(`/fist/${n}-line.png`), img(`/fist/${n}-fill.png`)])]);
-  const geo = handGeo(THREE, heights(clay), 0.05), tBlue = handTex(THREE, blue), light = new THREE.Vector3(-0.5, 0.7, 0.8).normalize();
-  const hand = new THREE.Group(), pieces = [], textures = [tBlue];
-  names.forEach((name, k) => { const offs = [new THREE.Vector3(), new THREE.Vector3()];
-    [0, 1].forEach((fill) => { const t = handTex(THREE, layers[k * 2 + fill]); textures.push(t);
-      const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({ vertexShader: HAND_VERT, fragmentShader: HAND_FRAG, alphaToCoverage: true,
-        uniforms: { tClay: { value: t }, tBlue: { value: tBlue }, uWash: { value: -0.2 }, uEye: { value: 0 }, uPalm: { value: name === 'palm' && fill ? 1 : 0 }, uFill: { value: fill }, uOff: { value: offs[fill] }, uSide: { value: 1 }, uLight: { value: light } } }));
-      hand.add(m); pieces.push(m); });
-    if (k) FIST3D[k - 1].offs = offs; });
+  const [THREE, clay, blue] = await Promise.all([import(THREE_URL), img('/hamsa-512.png'), img('/hamsa-512-blue.png')]);
+  const geo = handGeo(THREE, heights(clay), 0.05), tClay = handTex(THREE, clay), tBlue = handTex(THREE, blue), light = new THREE.Vector3(-0.5, 0.7, 0.8).normalize();
+  const rects = FIST3D.map((f) => new THREE.Vector4(f[2][0], f[2][1], f[2][2], f[2][3])), wash = { value: -0.2 };
+  const part = (kind, clip, hinge) => { const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({ vertexShader: FIST_VERT, fragmentShader: FIST_FRAG, alphaToCoverage: true, side: THREE.DoubleSide,
+    uniforms: { tClay: { value: tClay }, tBlue: { value: tBlue }, uWash: wash, uKind: { value: kind }, uClip: { value: clip || new THREE.Vector4() }, uRects: { value: rects }, uH: { value: hinge || new THREE.Vector4() }, uA: { value: new THREE.Vector2() }, uLight: { value: light } } }));
+    m.frustumCulled = false; return m; };
+  const hand = new THREE.Group(); hand.add(part(0));
+  const parts = FIST3D.map(([, kind], k) => { const m = part(kind, rects[k], kind === 1 ? new THREE.Vector4(KNUCKLE + 0.008, 0.03, JOINT, 0.03) : new THREE.Vector4((k === 0 ? -1 : 1) * (THUMB + 0.012), -0.012, 0, 0)); hand.add(m); return m; }); // each bend starts just inside its part, so the edge stays joined to the palm
   const scene = new THREE.Scene(); scene.add(hand);
   const { cam, canvas, renderer, shade, off } = handStage(THREE, stage);
   // The words, one by each finger, in the page over the canvas so they stay sharp.
-  const words = FIST3D.map(([name, , , word], k) => { const el = document.createElement('span'); el.className = 'hitTag'; el.textContent = word; stage.append(el);
-    return { el, at: new THREE.Vector3(...tipOf(layers[(k + 1) * 2 + 1], 0), 0.05), side: 0 }; });
+  const words = FIST3D.map(([word, , , at]) => { const el = document.createElement('span'); el.className = 'hitTag'; el.textContent = word; stage.append(el); return { el, at: new THREE.Vector3(at[0], at[1], 0.05) }; });
   halo(stage, F3.wash + 750); caption(stage, F3.word);
   shade.animate([{ opacity: 0, transform: 'translate(-50%, 0) scale(0.6)' }, { opacity: 1, transform: 'translate(-50%, 0) scale(1)' }], { duration: 900, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
   let raf = 0, t0 = 0, dead = false; const v = new THREE.Vector3();
   const frame = (now) => { if (dead) return; t0 = t0 || now; const ms = window.__hitT != null ? window.__hitT * 1000 : reduced() ? 9000 : now - t0, t = ms / 1000;
-    const come = outCubic(span(t, 0, 0.9)), settle = inOut(span(t, 0.3, 3.9)), wash = inOut(span(ms, F3.wash, F3.wash + 1000)), eye = inOut(span(ms, F3.eye, F3.eye + 450));
+    const come = outCubic(span(t, 0, 0.9)), settle = inOut(span(t, 0.4, 4.1)), w = inOut(span(ms, F3.wash, F3.wash + 1000));
     canvas.style.opacity = span(t, 0, 0.4);
-    hand.rotation.set(-0.3 * (1 - settle), -0.42 * (1 - settle) + Math.sin(Math.max(0, t - 5) * 0.9) * 0.06, 0);
+    // The fist is seen a little from above and the side, so its depth reads; it turns to face you as it opens.
+    hand.rotation.set(0.42 * (1 - settle), -0.5 * (1 - settle) + Math.sin(Math.max(0, t - 5.2) * 0.9) * 0.06, 0);
     const beat = Math.sin(span(ms, F3.wash + 650, F3.wash + 1350) * Math.PI) * 0.045;
-    hand.scale.setScalar((0.86 + 0.14 * come) * (1 + beat)); hand.position.y = 0.05;
-    light.set(-0.6 + 1.0 * settle, 0.7, 0.8).normalize();
-    FIST3D.forEach(([, dx, dy], k) => { const x = span(ms, F3_OPEN[k], F3_OPEN[k] + F3_TAKES[k]), thumb = k === 0 || k === 4, e = thumb ? outCubic(x) : backOut(x), left = 1 - e;
-      // Every finger comes out from behind the palm (only its knuckle shows over the fist) and settles level with it at the end.
-      const z = -0.03 * (1 - inOut(span(x, 0.55, 1)));
-      k = FIST3D[k].offs; k[0].set(dx * left, dy * left, z - 0.0015); k[1].set(dx * left, dy * left, z); });
-    for (const m of pieces) { m.material.uniforms.uWash.value = -0.2 + 1.35 * wash; m.material.uniforms.uEye.value = eye; }
+    hand.scale.setScalar((0.86 + 0.14 * come) * (1 + beat)); hand.position.y = 0.05 - 0.07 * (1 - settle);
+    light.set(-0.6 + 1.0 * settle, 0.7, 0.8).normalize(); wash.value = -0.2 + 1.35 * w;
+    parts.forEach((m, k) => { const shut = 1 - openEase(span(ms, F3_OPEN[k], F3_OPEN[k] + F3_TAKES[k])), A = m.material.uniforms.uA.value;
+      if (FIST3D[k][1] === 1) A.set(1.72 * shut, 1.4 * Math.min(1, shut * 1.25)); // the knuckle opens all the way; the end joint straightens a little sooner
+      else A.set((k === 0 ? -1 : 1) * 3.09 * shut, 0); }); // a thumb is tucked flat behind the palm and swings out sideways
     hand.updateMatrixWorld(true);
-    words.forEach((w, k) => { v.copy(w.at).applyMatrix4(hand.matrixWorld).project(cam);
-      const on = span(ms, F3_OPEN[k] + F3_TAKES[k] * 0.45, F3_OPEN[k] + F3_TAKES[k]) * (1 - span(ms, F3.wash - 250, F3.wash + 250));
-      w.el.style.opacity = on; w.el.style.transform = `translate(${((v.x + 1) / 2 * stage.clientWidth).toFixed(1)}px, ${((1 - v.y) / 2 * stage.clientHeight - (1 - Math.min(1, on * 1.6)) * -6).toFixed(1)}px) translate(${w.side < 0 ? '-100%' : w.side > 0 ? '0' : '-50%'}, -100%)`; });
+    words.forEach((word, k) => { v.copy(word.at).applyMatrix4(hand.matrixWorld).project(cam);
+      const on = span(ms, F3_OPEN[k] + F3_TAKES[k] * 0.55, F3_OPEN[k] + F3_TAKES[k] + 120) * (1 - span(ms, F3.wash - 250, F3.wash + 250));
+      word.el.style.opacity = on; word.el.style.transform = `translate(${((v.x + 1) / 2 * stage.clientWidth).toFixed(1)}px, ${((1 - v.y) / 2 * stage.clientHeight + (1 - on) * 6).toFixed(1)}px) translate(-50%, -100%)`; });
     renderer.render(scene, cam); raf = requestAnimationFrame(frame); };
   raf = requestAnimationFrame(frame);
-  return () => { dead = true; cancelAnimationFrame(raf); off(); geo.dispose(); textures.forEach((t) => t.dispose()); renderer.dispose(); renderer.forceContextLoss(); };
+  return () => { dead = true; cancelAnimationFrame(raf); off(); geo.dispose(); tClay.dispose(); tBlue.dispose(); renderer.dispose(); renderer.forceContextLoss(); };
 };
 
 // ---------- arcs: flat ----------
