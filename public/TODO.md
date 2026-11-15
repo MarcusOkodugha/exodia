@@ -6,7 +6,12 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Answer the decisions page (7 questions).** Everything you need to decide, with pictures: strength look, abs specks, blue fingers, feet, picking muscles, easier logging, hit animation.
+- [ ] **Put the Aura song in Cloudflare (not GitHub).** You chose to keep it out of the public code; it lives in Cloudflare's free key-value store and is fetched only when Aura is on.
+  1. Terminal on your Mac: `cd ~/code/exodia && npx wrangler kv namespace create AURA` (you'll see an id like `id = "…"`)
+  2. Send that id in the chat (it is not a secret); Claude adds it to the app and pushes
+  3. Then, Terminal on your Mac, with the song in Downloads named aura.mp3: `cd ~/code/exodia && git pull && npx wrangler kv key put song.mp3 --binding AURA --path ~/Downloads/aura.mp3 --remote` (you'll see "Writing the contents of …")
+
+- [ ] **Answer the decisions page (9 questions).** Everything you need to decide, with pictures: strength look, abs specks, blue fingers, feet, picking muscles, easier logging, hit animation, level-up, Aura.
   1. Open [Exodia decisions](https://claude.ai/artifact/Dq7ZjRBojVuwepZt7bn45C)
   2. Try the 3D ones in the [Playground](/lab/playground.html) (sections marked Fable 5.2 T)
   3. Answer in the chat with number and letter, like "1B 2B 3A"
