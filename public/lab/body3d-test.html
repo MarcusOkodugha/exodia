@@ -53,7 +53,7 @@ const set = sets[t] || sets.one;
 const host = () => { const el = document.createElement('div'); el.className = 'host'; el.style.height = set.h; return el; };
 const { createBodyView } = await import('/body3d.js');
 const make = async (look, into) => { let selected = null;
-  const v = await createBodyView({ look,
+  const v = await createBodyView({ look, sizing: new URLSearchParams(location.search).get('sizing') || undefined, // &sizing=strong: the proposed size by strength
     onPick: (key, i) => { selected = key && key !== selected ? key : null; v.setSelected(selected); log.textContent = `pick ${key} (person ${i})`; },
     onExpand: (i) => { log.textContent = `expand ${i}`; },
     onCollapse: () => { selected = null; v.setSelected(null); log.textContent = 'collapse'; } });

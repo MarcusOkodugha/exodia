@@ -51,6 +51,15 @@ const stepOf = (lv) => {
   return STEP[STEP.length - 1][1];
 };
 const bulkOf = (g, lv, fem) => (fem ? 0.8 : 1) * BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
+// Proposed sizing (createBodyView({ sizing: 'strong' }), in the lab until Marcus signs it off): strength shows in
+// the body only for the strong. From 3.5 up (close to Advanced, and Elite) a muscle is exactly as big as above.
+// Below that it loses muscle step by step, every group, down to clearly lean at Beginner; a muscle with no level
+// counts as Novice, since nothing says it is strong. Weight widens the figure half as much, so a heavier friend
+// is not broader than a stronger one.
+const STEP_LEAN = [[1, -2.6], [2, -1.7], [3, -0.5], [3.5, 0.825]];
+const bulkStrong = (g, lv, fem) => { const l = lv == null || !isFinite(lv) ? 2 : Math.max(1, Math.min(6, lv)); if (l >= 3.5) return bulkOf(g, l, fem);
+  let st = STEP_LEAN[0][1]; for (let i = 1; i < STEP_LEAN.length; i++) if (l <= STEP_LEAN[i][0]) { const [a, x] = STEP_LEAN[i - 1], [b, y] = STEP_LEAN[i]; st = x + (y - x) * (l - a) / (b - a); break; }
+  const grow = (GROW[g] || 1) - 1; return Math.max(-0.0062, (fem ? 0.8 : 1) * BASE * (1 + (grow * 0.825 + Math.max(grow, 0.8) * (st - 0.825)) * (fem ? 0.6 : 1))); }; // never drawn in further than a lean Beginner
 // Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
 // look with fibre lines you can see. D: no fibre lines.
 const LOOKS = {
@@ -397,7 +406,8 @@ const breastGeo = (THREE) => { const g = new THREE.SphereGeometry(1, 40, 28), p 
 
 // ---------- the view ----------
 
-export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onWho, names, look } = {}) {
+export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onWho, names, look, sizing } = {}) {
+  const strong = sizing === 'strong';
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
   const { THREE, muscleGeo, ctxGeo, femaleGeo, center, height } = await loadAssets();
@@ -727,12 +737,12 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     setPeople(list) {
       people = (list || []).map((p) => {
         const pal = [plainC], bulk = [0], has = [0], labels = {}, fem = p.sex === 'female';
-        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push(bulkOf(g, m.level, fem)); }
+        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push((strong ? bulkStrong : bulkOf)(g, m.level, fem)); }
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
-        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: strong ? Math.max(0.95, Math.min(1.06, 1 + (Math.sqrt(bmi / 23) - 1) * 0.5)) : Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
