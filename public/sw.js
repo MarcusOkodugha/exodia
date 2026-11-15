@@ -1,4 +1,4 @@
-const CACHE = 'exodia-v481';
+const CACHE = 'exodia-v482';
 const PIECES = ['palm', 'thumb-left', 'index', 'middle', 'ring', 'thumb-right'].flatMap((name) => [`/fist/${name}-line.png`, `/fist/${name}-fill.png`]);
 const SHELL = ['/', '/styles.css', '/app.js', '/manifest.webmanifest', '/anatomy.json', '/changes.json', '/favicon-64.png', '/logo.png', '/logo-blue.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/hamsa-512.png', '/hamsa-512-blue.png', '/hamsa-mask.png', '/hamsa-mask-back.png', ...PIECES];
 
@@ -12,8 +12,10 @@ self.addEventListener('install', (event) => {
 const BIG = 'exodia-3d-1';
 const big = (url) => url.pathname.startsWith('/models/') || url.href.startsWith('https://cdn.jsdelivr.net/npm/three@0.170.0/');
 
+// Takes over at once; old copies are cleared after, so the open app isn't kept waiting for that.
 self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== BIG).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(self.clients.claim());
+  caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== BIG).map((key) => caches.delete(key)))).catch(() => {});
 });
 
 // Everything the app needs opens straight from the phone; the network only refreshes the copy for next time.
@@ -41,6 +43,11 @@ self.addEventListener('fetch', (event) => {
     }
     return fresh.catch(() => cache.match('/'));
   }));
+});
+
+// The open page asks which version it runs, so "What's new" shows the notes for exactly that version.
+self.addEventListener('message', (event) => {
+  if (event.data === 'version') event.source?.postMessage({ version: Number(CACHE.split('-v')[1]) });
 });
 
 // Notifications: the push carries nothing, so ask Exodia what happened and show that. Tapping one opens exactly

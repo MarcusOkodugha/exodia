@@ -4544,7 +4544,7 @@ const updatedLines = () => {
 // show the rest, a tap outside shrinks it back and it goes. If the new version is still waiting to load, the tap loads
 // it and the pill comes back already open.
 const updatedPill = () => {
-  if (state.demo || !(view.updated || view.updateReady)) return '';
+  if (state.demo || view.reloading || !(view.updated || view.updateReady)) return '';
   const open = Boolean(view.updated?.open);
   const still = view.updatedShown ? ' still' : '';
   view.updatedShown = true;
@@ -4606,11 +4606,25 @@ const installedVersion = () => {
     return 0;
   }
 };
+// The version this page runs is the one its own service worker serves. (The newest saved copy can be one still
+// installing while this older page starts; counting that one marked its notes as seen before they ever showed.)
+const runningVersion = () => new Promise((done) => {
+  const worker = navigator.serviceWorker?.controller;
+  if (!worker) return done(0);
+  const heard = (event) => {
+    if (!event.data?.version) return;
+    navigator.serviceWorker.removeEventListener('message', heard);
+    done(Number(event.data.version) || 0);
+  };
+  navigator.serviceWorker.addEventListener('message', heard);
+  worker.postMessage('version');
+  setTimeout(() => done(0), 3000);
+});
 const noteUpdate = async () => {
   if (!window.caches) return;
-  const keys = await caches.keys().catch(() => []);
-  const version = Math.max(0, ...keys.map((key) => Number(key.match(/^exodia-v(\d+)$/)?.[1]) || 0));
-  if (!version) return;
+  const version = await runningVersion();
+  // A newer version took over while this page started: the reloaded page shows its notes.
+  if (!version || view.updateReady || view.reloading) return;
   let seen = 0;
   try {
     seen = Number(localStorage.getItem(VERSION_KEY)) || 0;
@@ -4752,23 +4766,39 @@ for (const type of ['pointerup', 'pointercancel']) document.addEventListener(typ
 // A new version loads by itself as soon as nothing would be lost (no text typed, nothing being sent, recorded or edited).
 // The page, scroll position, open days and the lift on the chart are kept, so you land where you were.
 const RESUME_KEY = 'exodia.resume';
+// On screen it fades out softly and the new version fades in where you were (no logo, no bar popping twice);
+// in the background it just reloads.
 const reloadInPlace = () => {
+  if (view.reloading) return;
+  view.reloading = true;
+  document.querySelector('.updatedPill')?.remove();
   try {
     sessionStorage.setItem(RESUME_KEY, JSON.stringify({ at: Date.now(), scroll: scroller().scrollTop, open: [...view.open], trendOpen: view.trendOpen, trendMore: view.trendMore }));
   } catch {
     // no session storage: reload anyway
   }
-  location.reload();
+  // Wait until the new version is fully ready, so the reload is served at once and the page is never blank between.
+  const worker = navigator.serviceWorker?.controller;
+  new Promise((ready) => {
+    if (!worker || worker.state === 'activated') return ready();
+    worker.addEventListener('statechange', () => { if (worker.state === 'activated') ready(); });
+    setTimeout(ready, 3000);
+  }).then(() => {
+    if (document.hidden || reducedMotion.matches) return location.reload();
+    document.documentElement.classList.add('leaving');
+    setTimeout(() => location.reload(), 170);
+  });
 };
 const updateQuietly = () => {
-  if (!view.updateReady || view.pending.length || recording) return;
+  if (!view.updateReady || view.pending.length || recording) return false;
   // Never while something is being typed anywhere (search, a name, a number) or a change request is on its way.
   const field = document.activeElement;
-  if (field && /^(INPUT|TEXTAREA)$/.test(field.tagName) && field.value) return;
-  if ((state.claudeRuns || []).some((run) => run.status === 'sending')) return;
-  if (view.draft.trim() || view.files?.length || view.editDay || view.onboard?.busy || view.onboard?.file || view.leftOpen || view.menu) return;
-  if (view.composer && !document.hidden && document.activeElement?.id === 'draft') return;
+  if (field && /^(INPUT|TEXTAREA)$/.test(field.tagName) && field.value) return false;
+  if ((state.claudeRuns || []).some((run) => run.status === 'sending')) return false;
+  if (view.draft.trim() || view.files?.length || view.editDay || view.onboard?.busy || view.onboard?.file || view.leftOpen || view.menu) return false;
+  if (view.composer && !document.hidden && document.activeElement?.id === 'draft') return false;
   reloadInPlace();
+  return true;
 };
 setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
@@ -9356,6 +9386,8 @@ const resume = (() => {
 if (resume) Object.assign(view, { open: new Set(resume.open || []), trendOpen: resume.trendOpen ?? view.trendOpen, trendMore: Boolean(resume.trendMore) });
 route();
 if (resume) requestAnimationFrame(() => scrollPage(resume.scroll || 0));
+// Back from loading a new version: fade in once the page is drawn and in place.
+requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('resuming')));
 // The 3D body takes a moment to build (three.js, the model, then the figure), so it starts as soon as the first
 // screen is up, while the phone is idle, and is ready by the time Trends opens instead of appearing late.
 (window.requestIdleCallback || ((run) => setTimeout(run, 400)))(() => { if (body3dOn()) loadBody3d(); }, { timeout: 1500 });
@@ -9545,9 +9577,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   // New versions install quietly in the background and are used from the next open, never by reloading the page.
   // Looks for a new version when the app opens, when you come back to it, and every 2 minutes while it's on screen.
   navigator.serviceWorker.register('/sw.js').then((registration) => {
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) registration.update();
-    });
+    // Also when you leave: a new version then installs (and loads) while Exodia is out of sight, not as you open it.
+    document.addEventListener('visibilitychange', () => registration.update().catch(() => {}));
     setInterval(() => {
       if (!document.hidden) registration.update();
     }, 120000);
@@ -9561,8 +9592,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadVersion || view.updateReady) return;
     view.updateReady = true;
-    render();
-    updateQuietly();
+    // Loads at once when nothing would be lost; only if it has to wait does the "Tap to see" bar show.
+    if (!updateQuietly()) render();
   });
 }
 
