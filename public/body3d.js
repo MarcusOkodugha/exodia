@@ -5,7 +5,8 @@
 //   const view = await createBodyView({ onPick, onExpand, onCollapse, onLost, names })   // rejects without WebGL
 //   view.attach(hostEl)        the host needs a size of its own; call again with the new element after every render
 //   view.setPeople([{ id, name, heightCm, sex, head: 'blue' | 'clay' | null, muscles: { chest: { color: '#C96442', level: 3.6 }, ... } }])
-//                              head: the Exodia mark on the head (blue: has Exodia, clay: all Advanced);
+//                              head: the Exodia mark: the head and the rest of the body outside the muscles in that colour,
+//                              the hand drawn on the head (blue: has Exodia, clay: all Advanced);
 //                              headMark: false keeps the colour but leaves the hand off
 //   view.setSelected('chest' | null)
 //   view.expand(index) / view.collapse()
@@ -459,7 +460,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   // The Exodia mark on the head (person.head: 'blue' with Exodia, 'clay' when all Advanced). The head takes the
   // logo's own colours: its fill all over, and the hand drawn in the logo's lighter line colour, with the eye on
   // the face and the plain hand on the back of the head, as the flat figure had it.
-  const HEADS = { blue: ['#3A6BBB', '#8FB2E6'], clay: ['#C96442', '#F2B594'] };
+  const HEADS = { blue: ['#7CA3DD', '#D3E1F6'], clay: ['#C96442', '#F2B594'] }; // the level colours themselves, so the body is one colour with Elite or Advanced muscles
   const HU = { uHead: { value: 0 }, uHeadFill: { value: new THREE.Color() }, uHeadLine: { value: new THREE.Color() }, uHeadBox: { value: new THREE.Vector4() }, uHeadZ: { value: 0 }, tMark: { value: null }, tMarkBack: { value: null } };
   let marks = null; const loadMarks = () => { if (marks) return; marks = true; const tl = new THREE.TextureLoader(), done = () => { dirty = true; kick(); };
     HU.tMark.value = tl.load('/hamsa-mask.png', done); HU.tMarkBack.value = tl.load('/hamsa-mask-back.png', done); };
@@ -467,12 +468,12 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     sh.vertexShader = 'attribute float aHead; varying float vHead; varying vec3 vHP; varying vec3 vHN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vHead = aHead; vHP = position; vHN = normal;');
     sh.fragmentShader = 'uniform float uHead; uniform vec3 uHeadFill; uniform vec3 uHeadLine; uniform vec4 uHeadBox; uniform float uHeadZ; uniform sampler2D tMark; uniform sampler2D tMarkBack; varying float vHead; varying vec3 vHP; varying vec3 vHN;\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
-        if (uHead > 0.5 && vHead > 0.5) {
+        if (uHead > 0.5) { // the whole body outside the muscles takes the colour (neck, hands, feet); the hand is drawn on the head only
           float front = step(uHeadZ, vHP.z);
           vec2 uv = vec2((vHP.x - uHeadBox.x) / uHeadBox.w * (front * 2.0 - 1.0), (vHP.y - uHeadBox.y) / uHeadBox.w) + 0.5; // the back is seen mirrored
           vec4 m = mix(texture2D(tMarkBack, uv), texture2D(tMark, uv), front);
           float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
-          float line = smoothstep(0.18, 0.34, m.a) * (1.0 - smoothstep(0.62, 0.82, m.a)) * inside * smoothstep(0.25, 0.55, abs(normalize(vHN).z)) * uHeadBox.z; // not round the sides; z: the hand drawn or the colour alone
+          float line = smoothstep(0.18, 0.34, m.a) * (1.0 - smoothstep(0.62, 0.82, m.a)) * inside * smoothstep(0.25, 0.55, abs(normalize(vHN).z)) * uHeadBox.z * step(0.5, vHead); // not round the sides; z: the hand drawn or the colour alone
           diffuseColor.rgb = mix(uHeadFill, uHeadLine, line); }`); };
   ctxMat.customProgramCacheKey = () => 'body3dCtxHead';
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
@@ -707,7 +708,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
-        if (HEADS[p.head]) loadMarks();
+        if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
         return { id: p.id, name: p.name || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);

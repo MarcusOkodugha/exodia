@@ -6,8 +6,8 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Decide: pick the Exodia hit animation and the head mark.** Four animations play side by side in the Playground; the 3D head mark is built but off until you pick.
-  1. Open [Playground](/lab/playground.html) (also Dev button → Playground) and play Fist opens, Bars fly in, 3D hand, Five arcs
+- [ ] **Decide: pick the Exodia hit animation and the head mark.** Five animations play in the Playground (3D fist opens is the likely one); the 3D head mark is built but off until you pick.
+  1. Dev button → Play Exodia: 3D fist opens (new), 3D hand (new), five arcs (new); or open the [Playground](/lab/playground.html)
   2. Tell the 3D session which one should play on a hit
   3. Head on the 3D body: [hand drawn on it](/lab/body3d-test.html?t=one&head=blue), [colour only](/lab/body3d-test.html?t=one&head=blue&mark=0), or neither
 

@@ -1557,6 +1557,9 @@ const devExtras = () => `${view.devMenu ? `<button class="devScrim" data-action=
   <div class="devMenu" role="menu">
     <button role="menuitem" data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
     <button role="menuitem" data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
+    <button role="menuitem" data-action="dev-hit" data-hit="fist3d">Play Exodia: 3D fist opens (new)</button>
+    <button role="menuitem" data-action="dev-hit" data-hit="relief">Play Exodia: 3D hand (new)</button>
+    <button role="menuitem" data-action="dev-hit" data-hit="arcs">Play Exodia: five arcs (new)</button>
     <button role="menuitem" data-action="dev-3d">Playground</button>
     ${view.devHit ? '<button role="menuitem" data-action="dev-normal">Back to normal colors</button>' : ''}
     ${view.sandbox ? '<button role="menuitem" data-action="dev-exit">Leave test mode</button>' : '<button role="menuitem" data-action="dev-newuser">Simulate new user</button>'}
@@ -2440,6 +2443,9 @@ const renderLeft = () => {
       <div class="leftDev">
         <button data-action="dev-exodia" data-style="fist">Play Exodia: fist opens</button>
         <button data-action="dev-exodia" data-style="bars">Play Exodia: bars fly in</button>
+        <button data-action="dev-hit" data-hit="fist3d">Play Exodia: 3D fist opens (new)</button>
+        <button data-action="dev-hit" data-hit="relief">Play Exodia: 3D hand (new)</button>
+        <button data-action="dev-hit" data-hit="arcs">Play Exodia: five arcs (new)</button>
         <button data-action="dev-3d">Playground</button>
         ${view.devHit ? '<button data-action="dev-normal">Back to normal colors</button>' : ''}
         ${view.sandbox ? '<button data-action="dev-exit">Leave test mode</button>' : '<button data-action="dev-newuser">Simulate new user</button>'}
@@ -8324,7 +8330,12 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'dev-3d') {
-    location.href = '/lab/looks.html';
+    location.href = '/lab/playground.html';
+    return;
+  }
+  // The new hit animations live in the Playground until one is picked; these open it playing that one.
+  if (action === 'dev-hit') {
+    location.href = `/lab/playground.html?play=${target.dataset.hit}`;
     return;
   }
   if (action === 'push-hits') {

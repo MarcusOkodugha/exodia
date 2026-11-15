@@ -33,7 +33,7 @@ body.phone .cell{width:198px;height:380px;aspect-ratio:auto}
 /* Exodia hit animations: a row of plays and one stage that covers the screen. */
 .hits{margin:14px 0 18px}.hits h2{margin:0 0 8px;font-size:15px;font-weight:600}
 .hitRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-@media (min-width:700px){.hitRow{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:700px){.hitRow{grid-template-columns:repeat(5,minmax(0,1fr))}}
 .hitRow button{display:block;width:100%;padding:12px 12px;border:0;border-radius:14px;background:#F0EEE6;color:var(--text);font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer}
 .hitRow button small{display:block;margin-top:2px;font-weight:400;font-size:12.5px;color:var(--text2)}
 #hitStage{position:fixed;inset:0;z-index:50;display:none;background:var(--bg);overflow:hidden;cursor:pointer}
@@ -41,6 +41,7 @@ body.phone .cell{width:198px;height:380px;aspect-ratio:auto}
 #hitStage .hitCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #hitStage .hitFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
 #hitStage .hitWord{position:absolute;left:0;right:0;top:calc(50% + min(31vh,62vw));text-align:center;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;font-size:30px;color:var(--text);letter-spacing:0.01em}
+#hitStage .hitTag{position:absolute;left:0;top:0;opacity:0;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;pointer-events:none;will-change:transform,opacity}
 #hitStage .hitHalo{position:absolute;left:50%;top:50%;width:min(56vh,86vw);aspect-ratio:1;border-radius:50%;border:1.5px solid #7CA3DD;opacity:0;pointer-events:none}
 #hitStage .hitShade{position:absolute;left:50%;top:calc(50% + min(25vh,48vw));width:min(30vh,46vw);height:min(3vh,5vw);border-radius:50%;background:radial-gradient(closest-side,rgb(20 20 19 / 0.16),rgb(20 20 19 / 0));pointer-events:none}
 #hitStage .hitArcs{position:absolute;left:50%;top:50%;width:min(62vh,92vw);aspect-ratio:1;transform:translate(-50%,-50%)}
@@ -77,6 +78,8 @@ row.addEventListener('click', async (e) => { const b = e.target.closest('[data-h
 stage.addEventListener('click', close); document.getElementById('hitClose').addEventListener('click', close);
 addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 window.__playHit = (k) => row.querySelector(`[data-hit="${k}"]`).click();
+// /lab/playground.html?play=fist3d starts that one straight away (the Dev menu's links).
+{ const want = new URLSearchParams(location.search).get('play'); if (want && row.querySelector(`[data-hit="${want}"]`)) window.__playHit(want); }
 </script>
 <canvas id="c"></canvas>
 <div id="over"><button id="close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l12 12M15 3L3 15"/></svg></button><div id="name"></div></div>
