@@ -1961,12 +1961,12 @@ const loadBody3d = () => {
     });
 };
 // A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
-// The Exodia mark on your own 3D head (Marcus picked the hand, 15 Nov): blue while you have Exodia, clay when every
-// muscle is Advanced or better.
+// The Exodia mark on your own 3D head (Marcus, 15 Nov): only for strength, never for an Exodia hit. Clay when every
+// muscle is Advanced or better, Exodia blue when every muscle is Elite.
 const headMark = (levels) => {
-  if (exodiaHit()) return 'blue';
   const known = Object.values(levels).filter(Boolean);
-  return known.length >= 8 && known.every((level) => level >= 4) ? 'clay' : null;
+  if (known.length < 8) return null;
+  return known.every((level) => level >= 5) ? 'blue' : known.every((level) => level >= 4) ? 'clay' : null;
 };
 const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
