@@ -847,7 +847,8 @@ const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
     const leaked = JSON.stringify(incoming.bests || {}) === '{"Bench Press":145}';
     for (const [name, value] of Object.entries(leaked ? {} : incoming.bests || {})) bests[name] = Math.max(Number(bests[name]) || 0, Number(value) || 0);
     const name = incomingNewer ? incoming.name : current.name || incoming.name;
-    const bodyNow = incomingNewer ? incoming.body || current.body : current.body || incoming.body;
+    // A phone on an older copy may not know a field (age was added later): what it leaves out is kept, not wiped.
+    const bodyNow = incomingNewer ? (incoming.body ? { ...(current.body || {}), ...incoming.body } : current.body) : current.body || incoming.body;
     // Gym visits are only ever added: a device on an older Exodia (no visits) never wipes them.
     // Same day on both: what each copy knows is kept (place, time, how long, what you did and how hard), the incoming
     // copy winning only where it actually says something, so a phone with an older plain copy can't undo any of it.

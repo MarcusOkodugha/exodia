@@ -96,7 +96,7 @@ const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['
           const found = new Set();
           for (let y = 4; y < innerHeight; y += 24) for (let x = 4; x < innerWidth; x += 24) {
             const top = document.elementFromPoint(x, y);
-            if (top && !top.closest('.body3dOver, .body3dModes')) found.add(`${top.tagName.toLowerCase()}.${String(top.className).split(' ')[0]} at ${x},${y}`);
+            if (top && !top.closest('.body3dOver, .body3dModes, .b3dList')) found.add(`${top.tagName.toLowerCase()}.${String(top.className).split(' ')[0]} at ${x},${y}`);
           }
           return [...found].slice(0, 5);
         });

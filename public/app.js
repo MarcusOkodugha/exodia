@@ -1942,7 +1942,7 @@ const body3dPick = (key, index = 0) => {
   if (view.route === 'together' && view.together?.picking && key) {
     const plan = togetherPlan();
     if (plan) {
-      togetherMuscle(plan, key, index === 0);
+      togetherMuscle(plan, key, index === Math.max(0, view.squadMe ?? 0));
       return;
     }
   }
@@ -1960,7 +1960,8 @@ const body3dLost = () => {
 // just for you while others still train it (an injury), or taken off when you were the only one; tapping a muscle
 // you left out brings it back. On a friend's figure: added or taken off for everyone.
 const togetherMuscle = (plan, key, mine) => {
-  const all = plan.muscles || [];
+  // Nothing picked yet: start from the day's usual muscles (pull: back, rear delts, biceps…), not from nothing.
+  const all = plan.muscles?.length ? plan.muscles : [...(KIND_MUSCLES[plan.kind] || [])];
   const me = plan.members.find((member) => member.me) || {};
   const skip = me.skip || [];
   const othersHave = plan.members.some((member) => !member.me && !(member.skip || []).includes(key));
@@ -1980,7 +1981,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.picking) view.together.picking = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -2042,6 +2043,9 @@ const placeBody3d = () => {
   body3d.setMode(want.mode || {});
   body3d.setSelected(want.selected);
   syncB3dList();
+  // Picking muscles: the opened figure ends right above the muscle list, so the list never covers it.
+  const pickPanel = document.querySelector('.pickPanel');
+  if (pickPanel) document.body.style.setProperty('--pickH', `${pickPanel.offsetHeight}px`);
 };
 // Computer: with a figure opened full screen there's room beside it, so the same muscle list as before opening sits
 // to its right (tap a row to pick that muscle, as on the page). Phone: the figure has the screen to itself.
@@ -5660,6 +5664,12 @@ const openSwitch = () => {
   if (!view.body3dOpen || !body3d) return '';
   if (view.route === 'together' && view.together) {
     const plan = togetherPlan();
+    // Picking muscles: your figure opens and stands still; under it the muscles as a list and Done.
+    if (view.together.picking && plan) {
+      const me = plan.members.find((member) => member.me) || {};
+      const on = new Set((plan.muscles?.length ? plan.muscles : KIND_MUSCLES[plan.kind] || []).filter((key) => !(me.skip || []).includes(key)));
+      return `<div class="body3dModes pickPanel"><p class="pickTitle">Select the muscles you want to train</p><div class="pickChips">${MUSCLES.map(([key, label]) => `<button class="pickChip${on.has(key) ? ' on' : ''}" data-action="pick-muscle" data-muscle="${key}" aria-pressed="${on.has(key)}">${esc(label)}</button>`).join('')}</div><button class="fxBtn clay pickDone" data-action="together-muscles">Done</button></div>`;
+    }
     const kind = view.together.kind || view.together.fit;
     const focus = Boolean(plan?.muscles?.length || (KIND_MUSCLES[plan?.kind || kind] || []).length);
     const show = view.together.show === 'focus' && !focus ? 'recovery' : view.together.show || 'recovery';
@@ -5704,15 +5714,17 @@ const renderTogether = () => {
   const picking = Boolean(together.picking && plan);
   // What the day trains: the muscles picked for the plan, else what Push / Pull / Legs / Full body work.
   const dayMuscles = plan?.muscles?.length ? plan.muscles : KIND_MUSCLES[picked] || [];
-  const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (picking ? plan?.muscles || [] : dayMuscles).filter((key) => !(member?.skip || []).includes(key)); };
+  const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (picking ? (plan?.muscles?.length ? plan.muscles : KIND_MUSCLES[plan?.kind] || []) : dayMuscles).filter((key) => !(member?.skip || []).includes(key)); };
   // What the figures show: Recovery (who's fresh), Strength (everyone's levels) or Focus (the plan's muscles, the rest
   // see-through, the same view as picking but nothing changes when you tap).
   if (!view.body3dOpen && together.show === 'strength') together.show = 'recovery'; // Strength only in an opened figure
   const show = together.show === 'focus' && !dayMuscles.length ? 'recovery' : together.show || 'recovery';
   const focusView = show === 'focus' && !picking;
-  const colourOf = (entry) => (focusView ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
+  // Picking and Focus: the planned muscles in clay, the same colour as the chips under an opened figure.
+  const colourOf = (entry) => (focusView || picking ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
   const labelOf = show === 'strength' ? strengthLabel : recoveryLabel;
   // A friend's opened figure has their name as a link to their page.
+  view.squadMe = people.findIndex((entry) => entry.me);
   const extra = (entry) => ({ ...(entry.me ? {} : { link: `#/friend/${entry.handle}` }), ...(picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {}) });
   const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
   // One switch under the squad: show what the day trains (the rest see-through), off = recovery again.
@@ -8725,6 +8737,19 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'together-muscles') {
     view.together.picking = !view.together.picking;
+    // Picking opens your own figure full screen (it stops turning); Done closes it again.
+    if (view.together.picking) {
+      setTimeout(() => {
+        const mine = Math.max(0, view.squadMe ?? 0);
+        if (!body3d) return;
+        body3d.expand(mine);
+        view.body3dOpen = true;
+        render();
+      }, 60);
+    } else if (view.body3dOpen) {
+      view.body3dOpen = false;
+      body3d?.collapse();
+    }
     const plan = togetherPlan();
     // Start from the day's usual muscles on screen; nothing is saved for everyone until a muscle is tapped.
     if (view.together.picking && plan && !plan.muscles?.length && KIND_MUSCLES[plan.kind]) plan.muscles = [...KIND_MUSCLES[plan.kind]];
