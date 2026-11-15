@@ -6,12 +6,10 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Decide: which Exodia hit animation plays.** Play them in the Playground; when one feels right, say which (the 3D head mark is decided: the hand, 15 Nov).
-  1. Dev button → Play Exodia, or open the [Playground](/lab/playground.html)
-  2. Say the name in the chat
-
-- [ ] **See how easier logging would work.** (15 Nov) Not built: you asked to see it first. Pictures of each step come on the decisions page.
-  1. Open the decisions page link in the chat and answer there.
+- [ ] **Answer the decisions page (7 questions).** Everything you need to decide, with pictures: strength look, abs specks, blue fingers, feet, picking muscles, easier logging, hit animation.
+  1. Open [Exodia decisions](https://claude.ai/artifact/Dq7ZjRBojVuwepZt7bn45C)
+  2. Try the 3D ones in the [Playground](/lab/playground.html) (sections marked Fable 5.2 T)
+  3. Answer in the chat with number and letter, like "1B 2B 3A"
 
 - [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
   1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
