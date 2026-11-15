@@ -2,12 +2,13 @@
 // plus four proposed changes that are off unless asked for, so the Playground can show "In the app now" (the real
 // /body3d.js) next to "Proposed" (this file). Every change is marked LAB. When Marcus signs one off, move that
 // change into /body3d.js.
-//   createBodyView({ ..., lab: { relax, abs, wrist, feet } })
+//   createBodyView({ ..., lab: { relax, abs, wrist, feet, stay } })
 //   relax: strength shows only on the strong. Advanced and Elite as now, lower levels smaller; extra width from
 //          body weight only as far as the strength level backs it.
 //   abs:   the inside of the abs sheets takes the abs colour (the pale specks beside the abs that flicker).
 //   wrist: the forearm muscles end at the wrist; their tendons into the fingers stay plain like the hand.
 //   feet:  the canvas reaches a little below its slot and the picture goes on there, so toes are never cut off.
+//   stay:  while picking muscles in an opened figure, a tap beside the body does not close it (Done does).
 //
 // Exodia 3D body. One WebGL canvas that draws one or several people from the same anatomy model: muscles in the
 // colours the app passes in, each muscle as bulky as its strength level, drag to spin, tap a muscle, open one
@@ -80,6 +81,9 @@ const bulkOfP = (g, lv, fem, avg) => { if (lv >= 4) return bulkOf(g, lv, fem); /
 // LAB relax. How much wider than the model a body may be drawn for its weight, by average strength level: about
 // 2% with no levels or Beginner, 3% at Novice 2.5, 4% Intermediate, 8% Advanced, 12% Elite (the app: 12% for anyone).
 const frameCap = (lv) => (!(lv > 0) ? 1.02 : lv >= 5 ? 1.12 : lv >= 4 ? 1.08 + (lv - 4) * 0.04 : lv >= 3 ? 1.04 + (lv - 3) * 0.04 : lv >= 2 ? 1.02 + (lv - 2) * 0.02 : 1.02);
+// LAB relax. Under Intermediate the whole frame is drawn a little slimmer as well: 4% at Beginner, 2% at Novice 2.0,
+// nothing from Intermediate up. So a tall Beginner never stands there as the broadest one.
+const frameSlim = (lv) => (!(lv > 0) || lv >= 3 ? 1 : 1 - 0.02 * (3 - Math.max(1, lv)));
 // Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
 // look with fibre lines you can see. D: no fibre lines.
 const LOOKS = {
@@ -132,7 +136,7 @@ const parseGlb = (THREE, buf) => {
 // One geometry for all muscles and one for everything else (head, bones, hands, feet): two draw calls a figure.
 // Each vertex carries its group, baked shade, where its muscle's fibres run to and how near it is to the muscle's
 // ends, so one shader can colour, bulk, draw the fibres and pale the tendon ends.
-const WRIST = 0.012; // LAB wrist: the height of the wrist crease in the model
+const WRIST = 0.002; // LAB wrist: the height of the wrist crease in the model
 const merge = (THREE, parts, R = 0, opt = {}) => {
   let nv = 0, ni = 0; for (const o of parts) { nv += o.count; ni += o.idx.length; }
   let pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
@@ -724,7 +728,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     if (open >= 0) {
       if ((ts[open] || 0) < 0.5) return;
       const g = pick(open, x, y);
-      if (g) { if (onPick) onPick(GROUPS[g - 1], open); } else if (g === null) { if (selGroup) { if (onPick) onPick(null, open); } else userCollapse(); }
+      if (g) { if (onPick) onPick(GROUPS[g - 1], open); } else if (g === null) { if (selGroup) { if (onPick) onPick(null, open); } else if (!(LAB.stay && pickTo > 0)) userCollapse(); } // LAB stay
       return;
     }
     const i = personAt(x, y); if (i < 0) return;
@@ -775,7 +779,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
-        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(LAB.relax ? frameCap(avgLevel(p)) : 1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(LAB.relax ? frameCap(avgLevel(p)) : 1.12, Math.sqrt(bmi / 23)) * (LAB.relax ? frameSlim(avgLevel(p)) : 1)) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
