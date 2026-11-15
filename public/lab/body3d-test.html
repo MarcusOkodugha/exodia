@@ -48,6 +48,8 @@ if (t === 'me' || t === 'looks') { const me = await mine();
   sets.looks = { h: 'min(70svh, calc((min(100vw, 1100px) - 24px) / 3 * 2.5))', people: [me], looks: [['F', 'F (now)'], ['G', 'G'], ['D', 'D, no lines']] };
   document.getElementById('lv').innerHTML = KEYS.filter((k) => me.muscles[k]?.level).sort((a, b) => me.muscles[b].level - me.muscles[a].level).map((k) => `<span>${k} <b>${me.muscles[k].level.toFixed(1)}</b></span>`).join(''); }
 const set = sets[t] || sets.one;
+// &head=blue | clay (&mark=0 for the colour alone): the Exodia mark on everyone's head (blue with Exodia, clay when all Advanced).
+{ const head = new URLSearchParams(location.search).get('head'); if (head) for (const p of set.people) { p.head = head; if (new URLSearchParams(location.search).get('mark') === '0') p.headMark = false; } }
 const host = () => { const el = document.createElement('div'); el.className = 'host'; el.style.height = set.h; return el; };
 const { createBodyView } = await import('/body3d.js');
 const make = async (look, into) => { let selected = null;

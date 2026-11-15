@@ -6,6 +6,11 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
+- [ ] **Decide: pick the Exodia hit animation and the head mark.** Four animations play side by side in the Playground; the 3D head mark is built but off until you pick.
+  1. Open [Playground](/lab/playground.html) (also Dev button → Playground) and play Fist opens, Bars fly in, 3D hand, Five arcs
+  2. Tell the 3D session which one should play on a hit
+  3. Head on the 3D body: [hand drawn on it](/lab/body3d-test.html?t=one&head=blue), [colour only](/lab/body3d-test.html?t=one&head=blue&mark=0), or neither
+
 - [ ] **Decide: easier logging at the gym?** (15 Nov) Last time's sets greyed under each lift (tap to log), tap "3×" to get − 3 +, tap a grouped row to open it and swipe a group away whole, Done always within reach. The plus already adds only your warm-up ladder (v469).
   1. Yes = the next session builds all four, tests them at the gym sizes, and sends you before/after pictures first.
 - [ ] **Decide: the 5 speed fixes?** (15 Nov) Every button reacts the moment you press it; adding a set pops the count; the mic answers at once; % and PR update while you type; opening and closing a day and deleting a row slide instead of jump.
