@@ -1984,6 +1984,21 @@ body:has(.body3dModes) .dock, body:has(.body3dModes) .backDock { visibility: hid
 body:has(.body3dModes) .body3dOver { bottom: calc(env(safe-area-inset-bottom) + 68px); }
 body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dModes) .backDock { opacity: 0 !important; pointer-events: none !important; }
 .body3dOver.on { background: var(--bg); }
+/* The slot takes the taps (the canvas reaches a little below it for the feet and lets them through). */
+.body3dHost { cursor: grab; }
+/* Level-up: the notice over the anatomy ("Rear delts just moved to Advanced"); a tap plays it on the 3D body. */
+.lvlUp { display: flex; align-items: center; gap: 10px; width: 100%; margin: 20px 0 -12px; padding: 12px 14px; border-radius: 14px; background: var(--field); color: var(--text); text-align: left; transition: transform 0.15s ease; }
+.lvlUp:active { transform: scale(0.985); }
+.lvlUp .muscleSwatch { flex: none; }
+.lvlUpText { min-width: 0; }
+.lvlUp b { display: block; font-size: 15px; line-height: 20px; font-weight: 600; }
+.lvlUp small { display: block; font-size: 13px; line-height: 18px; color: var(--text2); }
+/* Planned muscles: each with a small cross that takes it off the plan. */
+.tgFocusList b { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.tgFocusList .tgMus { display: inline-flex; align-items: center; white-space: nowrap; font-size: 15px; color: var(--text); }
+.tgMus button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin: -3px -6px -3px -2px; padding: 0; border-radius: 13px; color: var(--text2); }
+.tgMus button svg { width: 11px; height: 11px; }
+
 /* Aurora avatars: a fine grain and a slow light that drifts across, from the page, no motion permission needed. */
 .favFx { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.3' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"); background-size: 64px 64px; mix-blend-mode: overlay; opacity: 0.55; }
 .favFx::after { content: ''; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.5) 50%, transparent 60%); transform: translateX(-60%); animation: favLight 7s ease-in-out infinite; }

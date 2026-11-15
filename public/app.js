@@ -2000,10 +2000,77 @@ const headMark = (levels) => {
   if (known.length < 8) return null;
   return known.every((level) => level >= 5) ? 'blue' : known.every((level) => level >= 4) ? 'clay' : null;
 };
+// Level-up (Marcus, 15 Nov). When a muscle reaches a higher level colour than this phone last saw, a notice sits over
+// the anatomy ("Rear delts just moved to Advanced") until it's tapped; the tap plays that muscle building up in its new
+// colour on the 3D body. Until then the body keeps the old colour, so the change is seen as it happens. Kept per
+// device, like the Exodia hit. The first look only remembers the levels, so nobody opens to fifteen notices; a first
+// level for a muscle (no colour before) is not a level-up. An in-app notice, never a phone notification.
+const TIER_RANK = { tierBeg: 1, tierNov: 2, tierInt: 3, tierAdv: 4, tierElite: 5 };
+let levelUpBusy = false;
+let levelUpsMemo = null; // one answer per render: several parts of the page ask
+const levelUps = () => {
+  if (levelUpsMemo) return levelUpsMemo;
+  queueMicrotask(() => { levelUpsMemo = null; });
+  const levels = state.body?.kg && state.body?.sex ? muscleLevels() : null;
+  if (!levels) return (levelUpsMemo = []);
+  let seen = null;
+  let pending = [];
+  try {
+    seen = JSON.parse(localStorage.getItem('exodia.tiers') || 'null');
+    pending = JSON.parse(localStorage.getItem('exodia.levelUps') || '[]');
+  } catch {}
+  if (!Array.isArray(pending)) pending = [];
+  const now = Object.fromEntries(MUSCLES.map(([key]) => [key, TIER_RANK[tierOf(levels[key] || 0)?.[2]] || 0]));
+  const before = JSON.stringify([seen, pending]);
+  if (seen) for (const [key] of MUSCLES) if (seen[key] > 0 && now[key] > seen[key]) pending = [...pending.filter((one) => one.key !== key), { key, from: seen[key] }];
+  pending = pending.filter((one) => now[one.key] > one.from); // dropped back since: nothing to show
+  if (JSON.stringify([now, pending]) !== before) {
+    try {
+      localStorage.setItem('exodia.tiers', JSON.stringify(now));
+      localStorage.setItem('exodia.levelUps', JSON.stringify(pending));
+    } catch {}
+  }
+  return (levelUpsMemo = pending);
+};
+const levelUpNotice = () => {
+  const pending = levelUps();
+  const one = pending[pending.length - 1];
+  if (!one || !body3dOn()) return '';
+  const tier = tierOf(muscleLevels()?.[one.key] || 0);
+  const title = MUSCLES.find(([key]) => key === one.key)?.[1];
+  if (!tier || !title) return '';
+  return `<button class="lvlUp" data-action="level-up" data-muscle="${one.key}"><i class="muscleSwatch ${tier[2]}"></i><span class="lvlUpText"><b>${title} just moved to ${tier[1]}</b><small>Tap to see it</small></span></button>`;
+};
+const playLevelUp = (key) => {
+  if (levelUpBusy) return;
+  const done = () => {
+    levelUpBusy = false;
+    try { localStorage.setItem('exodia.levelUps', JSON.stringify(levelUps().filter((one) => one.key !== key))); } catch {}
+    levelUpsMemo = null;
+    render();
+  };
+  const tier = tierOf(muscleLevels()?.[key] || 0);
+  if (!tier || body3dState === 'failed') { done(); return; }
+  if (body3dState !== 'ready' || !body3d) return; // still loading: the notice stays for the next tap
+  levelUpBusy = true;
+  if (view.muscleMode !== 'strength' || view.musclePick) {
+    view.muscleMode = 'strength';
+    view.musclePick = null;
+    try { localStorage.setItem('exodia.muscleMode', 'strength'); } catch {}
+    render();
+  }
+  requestAnimationFrame(() => {
+    document.querySelector('[data-body3d="one"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    body3d.levelUp(0, key, TIER_COLOURS[tier[2]], muscleLevels()[key]).then(done, done);
+  });
+};
+const TIER_BY_RANK = Object.fromEntries(Object.entries(TIER_RANK).map(([name, rank]) => [rank, name]));
 const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
+  // Your own Strength figure keeps a muscle in its old colour and size until its level-up has been played.
+  const held = id === 'me' && colours === strengthColour ? Object.fromEntries(levelUps().map((one) => [one.key, one.from + 0.5])) : {};
   // The head mark is about strength, so it shows only on the Strength figure, never on Recovery or Train together.
-  return { ...extra, ...(id === 'me' && colours === strengthColour ? { head: headMark(levels), headMark: 'crest' } : {}), id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
+  return { ...extra, ...(id === 'me' && colours === strengthColour ? { head: headMark(levels), headMark: 'crest' } : {}), id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, held[key] || levels[key]) || null, level: held[key] || levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
@@ -2066,7 +2133,7 @@ const renderMuscles = () => {
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
-  const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
+  const toggle = `${levelUpNotice()}<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `${toggle}
     ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour, strengthLabel)], '') || ''}
@@ -5646,7 +5713,8 @@ const planExtras = (plan) => {
   const note = together.noteOpen
     ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
     : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
-  const list = chosen.length ? `<p class="tgFocusList"><span>Planned</span><b>${chosen.map((key) => esc(label(key))).join(', ')}</b></p>` : '';
+  // Each planned muscle has a small cross: one tap takes it off the plan, without opening the picker.
+  const list = chosen.length ? `<p class="tgFocusList"><span>Planned</span><b>${chosen.map((key) => `<span class="tgMus">${esc(label(key))}<button data-action="together-muscle-off" data-muscle="${key}" aria-label="Remove ${esc(label(key))}">${ICONS.close || '×'}</button></span>`).join('')}</b></p>` : '';
   const muscles = together.picking
     ? `<p class="tgWhy">Tap a muscle to add it to the workout.</p>${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`
     : `${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`;
@@ -8733,6 +8801,15 @@ document.addEventListener('click', (event) => {
     const plan = togetherPlan();
     if (!plan) return;
     togetherMuscle(plan, target.dataset.muscle, true);
+    return;
+  }
+  if (action === 'level-up') {
+    playLevelUp(target.dataset.muscle);
+    return;
+  }
+  if (action === 'together-muscle-off') {
+    const plan = togetherPlan();
+    if (plan) togetherMuscle(plan, target.dataset.muscle, false);
     return;
   }
   if (action === 'together-muscles') {

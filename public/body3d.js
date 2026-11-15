@@ -9,6 +9,8 @@
 //                              the hand drawn on the head (blue: has Exodia, clay: all Advanced);
 //                              headMark: false keeps the colour but leaves the hand off; 'crest' is the newer mark (lab)
 //   view.setSelected('chest' | null)
+//   view.levelUp(index, key, color, level)   the muscle drains away and builds back in the new colour and size from the
+//                              bottom up, slice by slice; resolves when it has settled. The app then sets the same people.
 //   view.expand(index) / view.collapse()
 //   view.destroy()
 //
@@ -25,7 +27,9 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module
 const MODEL_URL = '/models/anatomy.glb';
 
 const NAMES = { chest: 'Chest', shoulders: 'Shoulders', rearDelts: 'Rear delts', traps: 'Traps', upperBack: 'Upper back', lowerBack: 'Lower back', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', abs: 'Abs', glutes: 'Glutes', quads: 'Quads', hamstrings: 'Hamstrings', adductors: 'Adductors', calves: 'Calves' };
-const GROUPS = Object.keys(NAMES);
+const GROUPS = Object.keys(NAMES), G_SHOULDER = GROUPS.indexOf('shoulders') + 1;
+// Seen best from behind (a level-up turns the figure to the side its muscle is on).
+const BACK = new Set(['rearDelts', 'traps', 'upperBack', 'lowerBack', 'triceps', 'glutes', 'hamstrings', 'calves']);
 // Muscle group from the model's own part name (anterior_delt, vastus_group, ...). The hip flexors show at the
 // groin between the quads and take their colour; the neck extensors lie under the traps. Neck flexors, hands and
 // feet are not trained as a group and stay plain.
@@ -248,6 +252,9 @@ const merge = (THREE, parts, R = 0) => {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aAxis', new THREE.BufferAttribute(axis, 3)); geo.setAttribute('aApex', new THREE.BufferAttribute(apex, 4));
   geo.setAttribute('aO', new THREE.BufferAttribute(ao, 1)); geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1)); geo.setAttribute('aGroup', new THREE.BufferAttribute(grp, 1));
   geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingBox(); geo.computeBoundingSphere(); geo.userData.grp = grp;
+  // Each group's lowest and highest point, so a muscle can be built from its own bottom to its own top (level-up).
+  { const lo = new Array(16).fill(Infinity), hi = new Array(16).fill(-Infinity); for (let i = 0; i < nv; i++) { const g = grp[i], y = pos[i * 3 + 1]; if (y < lo[g]) lo[g] = y; if (y > hi[g]) hi[g] = y; }
+    for (let g = 0; g < 16; g++) if (lo[g] > hi[g]) { lo[g] = 0; hi[g] = 1; } geo.userData.lo = lo; geo.userData.hi = hi; }
   // The head, for the Exodia mark: which points are the head, and the box the mark is laid over (seen from the front).
   if (headI && !R) { const [, , v0, v1] = headI, hd = new Float32Array(nv); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity, zs = 0;
     for (let i = v0; i < v1; i++) { hd[i] = 1; x0 = Math.min(x0, pos[i * 3]); x1 = Math.max(x1, pos[i * 3]); y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); z0 = Math.min(z0, pos[i * 3 + 2]); z1 = Math.max(z1, pos[i * 3 + 2]); zs += pos[i * 3 + 2]; }
@@ -303,10 +310,10 @@ float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * 
 float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
-const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade;';
+const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying vec2 vGrow;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift;
+  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift; uniform float uGrowOn[16]; uniform float uGrowLo[16]; uniform float uGrowHi[16]; uniform float uGrowT; uniform float uGrowK;
   ${VARY}`;
 // Bulk. A muscle moves out along its normals by its own amount. Where it meets or lies over a muscle of another
 // group, both move by the average of the two, so neighbours of different sizes meet without a step. The belly
@@ -322,14 +329,18 @@ const V_BODY = `
   vCol = mix(mix(own, uPlain, 0.82 * anySel * (1.0 - uBook)), picked, sel);
   vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel); vFade = anySel * (1.0 - sel);
   vDef = vec2(1.0, step(0.5, abs(aGroup - 1.0)));
+  // Building a muscle up (level-up). x: this muscle is being built, y: how far up the muscle this point is (0 its
+  // lowest point, 1 its top).
+  vGrow = vec2(uGrowOn[gi], clamp((position.y - uGrowLo[gi]) / max(1e-4, uGrowHi[gi] - uGrowLo[gi]), 0.0, 0.999));
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
   float bulk = mix(uBulk[gi], uBulk[int(aNear.x + 0.5)], aNear.y);
-  transformed += normal * bulk * aLift * mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)) * step(0.5, aGroup);`;
+  transformed += normal * bulk * aLift * mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)) * step(0.5, aGroup);
+  transformed += normal * uGrowK * 0.005 * vGrow.x * exp(-pow((vGrow.y - uGrowT) / 0.16, 2.0)) * aLift; // a soft swell travels with the edge`;
 // Fibre lines: where planes through the muscle's fan point cut its surface, so they run towards that point; two
 // plane families, each used where it crosses the surface cleanly. As the fan widens new lines fade in between the
 // old ones. Where lines would sit closer than the screen can draw they melt into their own average (no moire).
 const F_PARS = `
-  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook; uniform float uXr;
+  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook; uniform float uXr; uniform float uGrowT; uniform float uGrowN; uniform float uGrowS;
   ${VARY}
   ${NOISE}
   float fibreFam(float u, float sc, float kf){
@@ -432,7 +443,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
   const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uXr: { value: 0 }, uPick: { value: new Array(16).fill(0) }, uPickOn: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
-    uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 },
+    uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 }, uGrowOn: { value: new Array(16).fill(0) }, uGrowLo: { value: new Array(16).fill(0) }, uGrowHi: { value: new Array(16).fill(1) }, uGrowT: { value: 2 }, uGrowN: { value: 24 }, uGrowS: { value: -1 }, uGrowK: { value: 0 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
   // The x-ray copy draws the picked muscle where other muscles cover it, clearly, over the drawing, so turning the
@@ -444,6 +455,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
+        // Building up: only the slices under the edge exist yet; the newest ones are lit and their seams show.
+        float growGlow = 0.0, growSeam = 0.0;
+        if (vGrow.x > 0.5) { if (floor(vGrow.y * uGrowN) / uGrowN >= uGrowT) discard;
+          float gd = uGrowT - vGrow.y; growGlow = (1.0 - smoothstep(0.0, 0.09, gd)) * smoothstep(0.0, 0.12, 1.0 - uGrowT);
+          growSeam = smoothstep(0.36, 0.5, abs(fract(vGrow.y * uGrowN) - 0.5)) * (1.0 - smoothstep(0.05, 0.4, gd)); }
         #ifdef XRAY
           diffuseColor.a = 0.82 * uXr * step(0.5, vShade.z); if (diffuseColor.a < 0.01) discard;
         #else
@@ -455,7 +471,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         #endif
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
-        diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;`)
+        diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;
+        diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - 0.16 * growSeam), vec3(1.0, 0.98, 0.94), 0.5 * growGlow);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         { float hgt = -fG * fAmt * uP.y * 0.0007; vec2 dH = vec2(dFdx(hgt), dFdy(hgt));
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
@@ -464,6 +481,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5 * vDef.x, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend));
         vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
+        outgoingLight += vec3(1.0, 0.97, 0.93) * (0.3 * exp(-pow((vGrow.y - uGrowS) / 0.07, 2.0)) + 0.25 * growGlow) * vGrow.x; // the shimmer that runs over it once
         #include <opaque_fragment>`); };
     m.customProgramCacheKey = () => 'body3dMuscle' + Boolean(xray); return m; };
   const muscleMat = mkMuscle(false);
@@ -545,12 +563,22 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const reduced = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   let hostEl = null, hostW = 0, hostH = 0, W = 0, H = 0, inOver = false;
+  // Feet. Toes that point at you are nearer the eye and land a few pixels under the slot, where they were cut flat.
+  // So in its slot the canvas is taller than the slot by BLEED of its height and the picture simply goes on down
+  // there (same figure, same size, same place), on top of what lies under it. Taps still belong to the slot only:
+  // the canvas lets them through and the slot listens, so whatever lies under the feet stays tappable.
+  const BLEED = 0.08; let bleedPx = 0;
+  const fit = () => { const inHost = !inOver; canvas.style.bottom = inHost ? 'auto' : ''; canvas.style.height = inHost ? `calc(100% + ${bleedPx}px)` : ''; canvas.style.pointerEvents = inHost ? 'none' : ''; canvas.style.zIndex = inHost ? '1' : ''; };
+  const bleedAt = (r) => Math.round(bleedPx * (1 - r.e));
   let people = [], slots = [], ts = [];
   let angle = 0.5, speed = reduced.matches ? 0 : 0.05, hold = false, drag = null, open = -1;
   let selGroup = 0; const sel = U.uSel.value;
   // Picking muscles for a plan (Train together): pickOn eases to pickTo; face turns everyone to one side and holds.
   let pickOn = 0, pickTo = 0, face = null, pickSpin = false; // pickSpin: the see-through view keeps turning (Focus)
   let raf = 0, lastT = 0, lastDraw = 0, dirty = true, onScreen = false, dead = false, lastTap = null;
+  // Small timed animations (a muscle building up), stepped in tick() with everything else.
+  const NO_GROW = new Array(16).fill(0), anims = [], sm = (u) => u * u * (3 - 2 * u);
+  const run = (ms, step, done) => { anims.push({ t0: null, ms: reduced.matches ? 1 : ms, step, done }); kick(); };
 
   // Where each person stands in the host: one row, feet on one line, the tallest as big as the host allows.
   const layout = () => {
@@ -564,8 +592,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       const ppu = ppuMax * p.cm / maxCm, slot = { x, y: 0, w: colW, h: hostH, ppu, cy: -height / 2 + (hostH / 2 - foot) / ppu }; x += colW; return slot; });
   };
   const size = () => {
-    if (hostEl) { const w = hostEl.clientWidth, h = hostEl.clientHeight; if (w !== hostW || h !== hostH) { hostW = w; hostH = h; layout(); dirty = true; } }
-    const w = inOver ? over.clientWidth : hostW, h = inOver ? over.clientHeight : hostH;
+    if (hostEl) { const w = hostEl.clientWidth, h = hostEl.clientHeight; if (w !== hostW || h !== hostH) { hostW = w; hostH = h; bleedPx = Math.round(h * BLEED); fit(); layout(); dirty = true; } }
+    const w = inOver ? over.clientWidth : hostW, h = inOver ? over.clientHeight : hostH + bleedPx;
     if (w > 0 && h > 0 && (w !== W || h !== H)) { W = w; H = h; renderer.setSize(W, H, false); dirty = true; }
   };
   // The rectangle, zoom and camera height of person i right now, between their place in the row and the whole screen.
@@ -582,8 +610,10 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const show = (i) => {
     const r = place(i); if (!r || r.w < 1 || r.h < 1 || r.x > W || r.y > H || r.x + r.w < 0 || r.y + r.h < 0) return;
     const p = people[i], s = slots[i];
-    aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
+    aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
+    pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
+    { const fx = p.fx, ud = muscle.geometry.userData; U.uGrowLo.value = ud.lo; U.uGrowHi.value = ud.hi; U.uGrowOn.value = fx ? fx.on : NO_GROW; U.uGrowT.value = fx ? fx.t : 2; U.uGrowS.value = fx ? fx.s : -1; U.uGrowK.value = fx ? fx.k : 0; }
     { const hb = ctx.geometry.userData.head, hc = HEADS[p.head]; HU.uHead.value = hb && hc && HU.tMark.value ? 1 : 0;
       if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4];
         HU.uHeadLook.value = p.headLook && HU.tCrest.value ? 1 : 0; HU.uHeadC.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, (hb[5] + hb[6]) / 2); } }
@@ -601,9 +631,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     // as many fibres as in the row instead of the same ones drawn thicker.
     U.uFreq.value = Math.max(s.ppu * Math.pow(r.ppu / s.ppu, 0.75), 380 / height) / Math.max(2.4, 3.4 / pr);
     U.uQ.value.x = Math.max(0.45, Math.min(1, (r.ppu * height - 90) / 200));
-    const y = H - r.y - r.h; renderer.setViewport(r.x, y, r.w, r.h); renderer.setScissor(r.x, y, r.w, r.h);
+    const y = H - r.y - r.h - bl; renderer.setViewport(r.x, y, r.w, r.h + bl); renderer.setScissor(r.x, y, r.w, r.h + bl);
     if (f > 0.002) { LU.uFade.value = f; U.uXr.value = f; LU.uFreq.value = U.uFreq.value * 0.78; dPivot.rotation.y = angle; dPivot.scale.copy(pivot.scale);
-      const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); HPX.value.set(2 * px / r.w, 2 * px / r.h);
+      const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); HPX.value.set(2 * px / r.w, 2 * px / (r.h + bl));
       for (const g of ghosts) g.material.uniforms.uDepth.value.set(cam.position.z, height * 0.11);
       renderer.render(dScene, cam); }
     renderer.render(scene, cam);
@@ -625,7 +655,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   let spunSincePick = false;
   const idleSpeed = () => (reduced.matches || hold || (selGroup && !spunSincePick) ? 0 : 0.006 * Math.sign(speed || 1));
   const settle = () => { // back in the row after closing
-    inOver = false; pr = DPR; renderer.setPixelRatio(pr); W = H = 0; over.classList.remove('on', 'in'); document.removeEventListener('keydown', onKey);
+    inOver = false; fit(); pr = DPR; renderer.setPixelRatio(pr); W = H = 0; over.classList.remove('on', 'in'); document.removeEventListener('keydown', onKey);
     if (hostEl) hostEl.appendChild(canvas);
     size(); render();
   };
@@ -639,6 +669,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     for (let i = 0; i < people.length; i++) { const to = open === i ? 1 : 0, t = ts[i] || 0; if (t !== to) { ts[i] = Math.max(0, Math.min(1, t + Math.sign(to - t) * ms / (reduced.matches ? 1 : 480))); anim = true; } }
     if (Math.abs(pickTo - pickOn) > 0.002) { pickOn += (pickTo - pickOn) * Math.min(1, 0.2 * dt); anim = true; } else pickOn = pickTo;
     if (face !== null && !drag) { const d = Math.atan2(Math.sin(face - angle), Math.cos(face - angle)); if (Math.abs(d) > 0.002) { angle += d * Math.min(1, 0.15 * dt); speed = 0; anim = true; } }
+    if (anims.length) { anim = true; for (const a of anims.slice()) { if (a.t0 === null) a.t0 = now; const u = Math.min(1, (now - a.t0) / a.ms); a.step(u); if (u >= 1) { anims.splice(anims.indexOf(a), 1); if (a.done) a.done(); } } }
     const sy = selGroup === sel.x ? 1 : 0;
     if (Math.abs(sy - sel.y) > 0.002 || sel.w > 0.002) { sel.y += (sy - sel.y) * Math.min(1, 0.2 * dt); sel.w += (0 - sel.w) * Math.min(1, 0.2 * dt); anim = true; } else { sel.y = sy; sel.w = 0; }
     if (inOver && open < 0 && !anim && ts.every((t) => !t)) { settle(); moving = false; }
@@ -660,10 +691,20 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   };
   const pick = (i, x, y) => { // null: beside the body; 0: on the body, not a muscle; else the group number
     const r = place(i); if (!r) return null;
-    aim(r); pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); if (people[i]) useGeo(people[i]); scene.updateMatrixWorld(true);
-    ndc.set((x - r.x) / r.w * 2 - 1, -((y - r.y) / r.h * 2 - 1)); ray.setFromCamera(ndc, cam);
-    const hit = ray.intersectObjects([muscle, ctx], false)[0];
-    return hit ? (hit.object === muscle ? muscle.geometry.userData.grp[hit.face.a] : 0) : null;
+    aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
+    pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); if (people[i]) useGeo(people[i]); scene.updateMatrixWorld(true);
+    const cast = (px, py) => { ndc.set((px - r.x) / r.w * 2 - 1, -((py - r.y) / (r.h + bl) * 2 - 1)); ray.setFromCamera(ndc, cam);
+      const hit = ray.intersectObjects([muscle, ctx], false)[0];
+      return hit ? (hit.object === muscle ? muscle.geometry.userData.grp[hit.face.a] : 0) : null; };
+    const g = cast(x, y); if (g) return g;
+    // A fingertip is wider than a muscle's edge. A tap that just misses (beside the outline at the shoulder, on the
+    // skin between two muscles) goes to the muscle most of the ring around it lands on: first 7 px out, then 14.
+    // The shoulders are a thin strip from most sides, so their hits count double.
+    for (const rad of [7, 14]) { const votes = new Map(); let best = 0;
+      for (let k = 0; k < 8; k++) { const h = cast(x + rad * Math.cos(k * Math.PI / 4), y + rad * Math.sin(k * Math.PI / 4)); if (!h) continue;
+        const v = (votes.get(h) || 0) + (h === G_SHOULDER ? 2 : 1); votes.set(h, v); if (!best || v > votes.get(best)) best = h; }
+      if (best) return best; }
+    return g;
   };
   // The line under the open figure: the picked muscle with what the app says about it ("Traps · Elite 5.4",
   // "Quads · 2 days ago") when it passes a label, else just its name.
@@ -676,7 +717,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     open = i; setWho(people[i]); showName();
     if (!inOver) {
       const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); if (/^#[0-9a-f]{6}$/i.test(bg)) veilMat.color.set(bg);
-      inOver = true; pr = DPR_OPEN; renderer.setPixelRatio(pr); W = H = 0; if (!over.parentNode) document.body.appendChild(over);
+      inOver = true; fit(); pr = DPR_OPEN; renderer.setPixelRatio(pr); W = H = 0; if (!over.parentNode) document.body.appendChild(over);
       over.insertBefore(canvas, over.firstChild); over.classList.add('on'); document.addEventListener('keydown', onKey);
       size(); render(); requestAnimationFrame(() => { if (open >= 0) over.classList.add('in'); });
     }
@@ -705,14 +746,15 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   };
   // Drag sideways to spin (with a little throw); a touch that moved less than 6 px is a tap. Up and down is left
   // to the page (touch-action: pan-y), which then cancels the pointer.
-  const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { canvas.setPointerCapture(e.pointerId); } catch {} kick(); };
+  const down = (e) => { if (e.button || (e.target !== canvas && e.target !== hostEl)) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} kick(); };
   const move = (e) => { if (!drag || drag.id !== e.pointerId) return; drag.far = Math.max(drag.far, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
     if (drag.far < 6) return; face = null; spunSincePick = true; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
     angle = drag.a + (e.clientX - drag.x) * k; speed = Math.max(-0.3, Math.min(0.3, (e.clientX - drag.last) * k / Math.max(1, e.timeStamp - drag.lt) * 16.7)); drag.last = e.clientX; drag.lt = e.timeStamp; kick(); };
   const up = (e) => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null;
     if (d.far < 6) { speed = 0.0001 * Math.sign(d.a - angle || 1); tap(e); } else if (e.timeStamp - d.lt > 80 || reduced.matches) speed = 0; kick(); };
   const cancel = () => { drag = null; kick(); };
-  canvas.addEventListener('pointerdown', down); canvas.addEventListener('pointermove', move); canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', cancel);
+  const listen = (el, on) => { for (const [n, f] of [['pointerdown', down], ['pointermove', move], ['pointerup', up], ['pointercancel', cancel]]) el[on ? 'addEventListener' : 'removeEventListener'](n, f); };
+  listen(canvas, true); // the opened figure; in its slot the slot itself listens (see attach)
   // A lost GPU context usually comes back; if it hasn't after 3 s (iOS after the app was in the background), the app
   // is told so it can build a new view instead of leaving an empty frame.
   let lostTimer = 0;
@@ -730,8 +772,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const handle = {
     attach(host) {
       if (dead || !host) return;
-      if (host !== hostEl) { if (hostEl) hostEl.classList.remove('body3dHost'); if (ro) { ro.disconnect(); ro.observe(host); } hostEl = host; host.classList.add('body3dHost'); hostW = hostH = 0; }
-      if (!inOver && canvas.parentNode !== host) host.appendChild(canvas);
+      if (host !== hostEl) { if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } listen(host, true); if (ro) { ro.disconnect(); ro.observe(host); } hostEl = host; host.classList.add('body3dHost'); hostW = hostH = 0; }
+      if (!inOver && canvas.parentNode !== host) host.appendChild(canvas); fit();
       // Draw before the browser paints, so a moved or resized canvas never shows empty.
       size(); render(); kick();
     },
@@ -764,12 +806,22 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       showName();
       dirty = true; kick();
     },
+    // Level-up. The figure turns to the side the muscle is on; the muscle drains from the top down, takes the new
+    // colour and size, builds up from the bottom slice by slice with a lit edge, then one shimmer runs over it.
+    levelUp(index, key, color, level) { const p = people[index], g = GROUPS.indexOf(key) + 1; if (!p || !g || dead) return Promise.resolve();
+      return new Promise((res) => { const fx = p.fx = { on: new Array(16).fill(0), t: 1.001, s: -1, k: 0 }; fx.on[g] = 1;
+        const was = { face, hold }; face = BACK.has(key) ? Math.PI : 0; hold = true; speed = 0;
+        const end = () => { if (p.fx === fx) p.fx = null; face = was.face; hold = was.hold; if (!hold) speed = reduced.matches ? 0 : 0.0001; dirty = true; kick(); res(); };
+        run(560, (u) => { fx.t = 1.001 * (1 - sm(u)); }, () => {
+          p.pal = p.pal.slice(); p.pal[g] = new THREE.Color(color); p.has = p.has.slice(); p.has[g] = 1; p.bulk = p.bulk.slice(); p.bulk[g] = bulkOf(key, level, p.fem);
+          run(1800, (u) => { fx.t = 1.001 * (0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
+            run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, end); }); }); }); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
     destroy() {
       if (dead) return; dead = true; clearTimeout(lostTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
-      if (hostEl) hostEl.classList.remove('body3dHost'); canvas.remove(); over.remove();
+      if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } canvas.remove(); over.remove();
       muscleMat.dispose(); xrayMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
     },
     // For tests and tuning only.
