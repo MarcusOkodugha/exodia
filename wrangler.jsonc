@@ -15,6 +15,8 @@
   "keep_vars": true,
   // Free cron: the morning notice for workouts planned together today (06:00 UTC).
   "triggers": { "crons": ["0 6 * * *"] },
+  // Aura mode's song (kept out of the public repo): Workers KV, key "song.mp3". Free tier.
+  "kv_namespaces": [{ "binding": "AURA", "id": "2e8d4387a94b47bd84c88799f30ac390" }],
   "d1_databases": [
     { "binding": "DB", "database_name": "exodia", "database_id": "28c10402-5308-4cfb-8c4e-ac405919fafb" }
   ],

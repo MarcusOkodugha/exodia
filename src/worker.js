@@ -1772,7 +1772,10 @@ export default {
     if (url.pathname === '/api/aura-song') {
       const song = env.AURA ? await env.AURA.get('song.mp3', { type: 'arrayBuffer' }) : null;
       if (!song) return new Response('Not here yet', { status: 404 });
-      return new Response(song, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable' } });
+      // Whatever the file was (mp3, m4a, wav), say what it really is so every browser plays it.
+      const head = new Uint8Array(song.slice(0, 12)), text = (from, to) => String.fromCharCode(...head.slice(from, to));
+      const type = text(4, 8) === 'ftyp' ? 'audio/mp4' : text(0, 4) === 'RIFF' ? 'audio/wav' : text(0, 4) === 'OggS' ? 'audio/ogg' : 'audio/mpeg';
+      return new Response(song, { headers: { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable' } });
     }
     if (url.pathname === '/api/features') return features(request, env);
     if (url.pathname === '/api/friends') return social(request, env, 'friends', ctx);
