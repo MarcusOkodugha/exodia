@@ -2030,3 +2030,8 @@ html.resuming .boot { display: none; }
 /* First screen: the two choices breathe apart and their words sit centred in the wide buttons. */
 .onboardChoices.two { gap: 16px; }
 .onboardChoices.two .onboardChoice.main { align-items: center; text-align: center; padding: 16px 18px; }
+/* A day opening or closing glides between its two heights (app.js glideDay); closing, a still copy of the open day
+   stays inside it and fades while the day folds up over it. Its head is the real one's. */
+.session.gliding { position: relative; overflow: hidden; }
+.dayGhost { position: absolute; top: 0; left: 0; right: 0; padding: inherit; pointer-events: none; }
+.dayGhost > .headRow { visibility: hidden; }

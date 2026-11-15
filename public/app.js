@@ -958,14 +958,39 @@ const e1rmCell = (value) => (value ? `<span class="e1rm">${Math.round(value)}</s
 const COLUMN_HEAD = '<span class="colHead">e1RM</span>';
 const sameSet = (first, second) => first.kg !== '' && first.reps !== '' && ['kg', 'reps', 'rpe'].every((key) => String(first[key] ?? '') === String(second[key] ?? '')) && Boolean(first.warmup) === Boolean(second.warmup);
 
-const renderExercise = (session, exercise, exerciseIndex) => {
-  const editing = view.editDay === session.date;
+// The right end of a set row: the PR pill, the % of your best and the e1RM. Drawn with the day, and again in place
+// while you type a number, so they follow every key without redrawing the row.
+const setCells = (session, exercise) => {
   const best = bestBefore(exercise.name, session.date) || bestOverall(exercise.name);
   // The % is of your heaviest real single (not an estimate, RPE ignored): 290 × 1 against a 300 single is 97%,
   // 290 × 3 counts as 307 (Brzycki), so 102%. Lifts never done for a single fall back to your best estimate.
   const single = singleBefore(exercise.name, session.date) || singleBefore(exercise.name, '9999-12-31');
   const actualMax = single > 0 ? bodyLoad(exercise.name, single) : 0;
   const ofMax = (set) => (set.kg === '' || !(Number(set.reps) > 0) ? 0 : actualMax ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps)) / actualMax : best ? setValue(exercise.name, set) / best : 0);
+  return (set) => {
+    const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : 0;
+    const pr = prKind(exercise.name, session.date, set);
+    return `${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${ofMax(set) ? `${Math.round(ofMax(set) * 100)}%` : ''}</span>${e1rmCell(value)}`;
+  };
+};
+// Typing in a set's kg or reps: every row of that lift gets its PR, % and e1RM again (a heavier set can take the PR
+// from a later one, and later sets follow a new weight), with the box you're in left alone.
+const refreshSetCells = (session, exerciseIndex) => {
+  const exercise = session.exercises[exerciseIndex];
+  if (!exercise) return;
+  const cells = setCells(session, exercise);
+  for (const box of document.querySelectorAll(`input[data-field="kg"][data-date="${session.date}"][data-exercise="${exerciseIndex}"]`)) {
+    const set = exercise.sets[Number(box.dataset.set)];
+    const cell = box.closest('.setRow')?.querySelector('.pct');
+    if (!set || !cell) continue;
+    const html = cells(set);
+    if (cell.innerHTML !== html) cell.innerHTML = html;
+  }
+};
+
+const renderExercise = (session, exercise, exerciseIndex) => {
+  const editing = view.editDay === session.date;
+  const cells = setCells(session, exercise);
   const groups = [];
   exercise.sets.forEach((set, index) => {
     const last = groups.at(-1);
@@ -975,8 +1000,6 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   const rows = groups.map(({ start, count }, groupIndex) => {
     const set = exercise.sets[start];
     const lastRow = groupIndex === groups.length - 1;
-    const value = set.kg !== '' && set.reps !== '' && Number(set.reps) > 0 ? estimate(bodyLoad(exercise.name, set.kg), Number(set.reps) + repsInTank(set)) : 0;
-    const pr = prKind(exercise.name, session.date, set);
     // Only repeated sets carry a count ("3×"); a single set has none, so a lone number never reads as a count.
     const numbers = count > 1 ? `${count}×` : '';
     const label = `${esc(exercise.name)}, ${count > 1 ? `sets ${start + 1} to ${start + count}` : `set ${start + 1}`}`;
@@ -987,7 +1010,7 @@ const renderExercise = (session, exercise, exerciseIndex) => {
       <span class="unit">${isBodyweightLift(exercise.name) ? '+kg' : 'kg'}</span><span class="unit" aria-hidden="true" style="text-align:center">×</span>
       <input class="pill num" inputmode="numeric" aria-label="${label}, reps" value="${!Number(set.reps) ? '' : esc(set.reps)}" placeholder="${!Number(set.reps) && set.kg !== '' ? '?' : 'reps'}" ${where} data-field="reps">
       ${editing ? `<input class="pill num rpe" inputmode="decimal" aria-label="${label}, RPE" value="${esc(set.rpe ?? '')}" placeholder="@" ${where} data-field="rpe">` : `<span class="rpeTag num"><span class="rpeText">${set.warmup ? 'W' : set.rpe ? `@${set.rpe}` : ''}</span>${lastRow ? `<button class="rowPlus" data-action="add-set" data-date="${session.date}" data-exercise="${exerciseIndex}" aria-label="Add a ${esc(exercise.name)} set">${ICONS.plusThin}</button>` : ''}</span>`}
-      <span class="pct num">${pr ? `<span class="prPill${pr === 'est' ? ' est' : ''}">PR</span>` : ''}<span class="setPct">${ofMax(set) ? `${Math.round(ofMax(set) * 100)}%` : ''}</span>${e1rmCell(value)}</span>
+      <span class="pct num">${cells(set)}</span>
       <button class="rowX" data-action="delete-set" ${where} aria-label="Delete ${label}">×</button>
     </div></div>`;
   }).join('');
@@ -4805,7 +4828,7 @@ const reloadInPlace = () => {
   });
 };
 const updateQuietly = () => {
-  if (!view.updateReady || view.pending.length || recording) return false;
+  if (!view.updateReady || view.pending.length || recording || view.listening) return false;
   // Never while something is being typed anywhere (search, a name, a number) or a change request is on its way.
   const field = document.activeElement;
   if (field && /^(INPUT|TEXTAREA)$/.test(field.tagName) && field.value) return false;
@@ -4967,9 +4990,18 @@ setInterval(() => {
 
 let onboardRecorder = null;
 
+// The mic answers the moment it is tapped: the recording look shows at once, while the phone is still asking for
+// the microphone; a refusal (or a Stop before it was ready) puts it back.
 const startOnboardMic = async () => {
+  view.onboard.recording = true;
+  view.onboard.status = '';
+  render();
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!view.onboard?.recording || onboardRecorder) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
     const recorder = new MediaRecorder(stream);
     const chunks = [];
     recorder.ondataavailable = (event) => {
@@ -4980,13 +5012,20 @@ const startOnboardMic = async () => {
     view.onboard.recording = true;
     view.onboard.status = '';
   } catch {
+    view.onboard.recording = false;
     view.onboard.status = 'Allow the microphone to talk to Exodia.';
   }
   render();
 };
 
 const stopOnboardMic = () => {
-  if (!onboardRecorder) return;
+  if (!onboardRecorder) {
+    if (view.onboard?.recording) {
+      view.onboard.recording = false;
+      render();
+    }
+    return;
+  }
   const { recorder, chunks, stream } = onboardRecorder;
   onboardRecorder = null;
   recorder.onstop = async () => {
@@ -5892,7 +5931,13 @@ const liveLine = () => view.live || (view.speaking ? 'Hearing you…' : 'Listeni
 const startLiveText = () => {};
 
 const stopRecording = async () => {
-  if (!recording) return null;
+  if (!recording) {
+    // Stopped while the phone was still handing over the microphone: nothing was recorded.
+    view.micAttempt = null;
+    view.listening = false;
+    view.speaking = false;
+    return null;
+  }
   const { recorder, context, frame, timer, done, chunks, recognizer } = recording;
   recording = null;
   try {
@@ -5946,15 +5991,33 @@ const startListening = async () => {
     return;
   }
   const context = new AudioContext();
+  // The mic answers the moment it is tapped: the listening look is on screen before the phone has handed over the
+  // microphone (the first time it asks for it). A refusal puts it back; Stop or ✕ before it was ready ends it.
+  const attempt = {};
+  view.micAttempt = attempt;
+  view.live = '';
+  view.listening = true;
+  view.status = '';
+  openChat();
+  render();
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
     context.close();
+    if (view.micAttempt !== attempt) return;
+    view.micAttempt = null;
+    view.listening = false;
     view.status = 'Allow the microphone to talk to Exodia.';
     render();
     return;
   }
+  if (view.micAttempt !== attempt || !view.listening || recording) {
+    stream.getTracks().forEach((track) => track.stop());
+    context.close().catch(() => null);
+    return;
+  }
+  view.micAttempt = null;
   const recorder = new MediaRecorder(stream);
   const chunks = [];
   recorder.ondataavailable = (event) => {
@@ -5969,12 +6032,7 @@ const startListening = async () => {
   recorder.start();
   recording = { recorder, context, done, chunks, frame: 0, timer: setTimeout(send, 360000) };
   watchLevel(stream, context);
-  view.live = '';
   startLiveText();
-  view.listening = true;
-  view.status = '';
-  openChat();
-  render();
 };
 
 const wavBase64 = async (blob) => {
@@ -7531,6 +7589,8 @@ const nameOwner = (name) => timedFetch('/api/name', { method: 'POST', headers: {
 let sentContext = null;
 const send = async () => {
   view.askGuess = null;
+  // ↑ before the phone handed over the microphone: there is no recording, so the listening look just ends.
+  if (!recording && view.listening) stopRecording();
   // /admin from any box, and anything in the Admin page's box, goes to the builder before anything is awaited: the
   // request is on screen at once, and a recording that is still finishing goes along as a promise.
   const typed = view.draft.trim();
@@ -7874,13 +7934,143 @@ const focusLanded = (date, selector = '.exercise.glow', again = true) => {
 const centreDay = (date) => {
   const card = document.getElementById(`session-${date}`);
   if (!card) return;
-  const box = card.getBoundingClientRect();
+  const rect = card.getBoundingClientRect();
+  const box = { top: rect.top, height: dayHeights.get(card) || rect.height };
   const top = desktopQuery.matches ? 24 : 72;
   const room = window.innerHeight - top - 120;
   const shift = box.height < room ? box.top + box.height / 2 - (top + room / 2) : box.top - top;
   const scroller = scrollerOf(card);
   if (scroller) scroller.scrollBy({ top: shift, behavior: 'smooth' });
   else window.scrollBy({ top: shift, behavior: 'smooth' });
+};
+
+// Days and rows glide instead of jumping. A day that opens or closes goes from its old height to its new one, so the
+// days under it slide along; closing, what it showed stays inside and fades while the day folds up over it. Its final
+// height is kept for centreDay, which runs while it is still growing.
+const dayHeights = new WeakMap();
+const GLIDE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+const dayBefore = (date) => {
+  const card = document.getElementById(`session-${date}`);
+  if (!card || !card.animate || reducedMotion.matches) return null;
+  return { date, height: card.offsetHeight, closing: view.open.has(date) ? card.cloneNode(true) : null };
+};
+const glideDay = (before) => {
+  const card = document.getElementById(`session-${before.date}`);
+  if (!card) return;
+  const height = card.offsetHeight;
+  if (Math.abs(height - before.height) < 2) return;
+  dayHeights.set(card, height);
+  card.classList.add('gliding');
+  let ghost = null;
+  if (before.closing) {
+    // A still copy of the open day, nothing in it tappable or findable, under the day's own head.
+    ghost = document.createElement('div');
+    ghost.className = 'dayGhost';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.append(...before.closing.childNodes);
+    for (const element of ghost.querySelectorAll('*')) {
+      for (const name of [...element.getAttributeNames()]) if (name === 'id' || name === 'for' || name === 'name' || name.startsWith('data-') || name.startsWith('aria-')) element.removeAttribute(name);
+      if (element.matches('input, textarea, button, a')) element.setAttribute('tabindex', '-1');
+      // Copies would play their arrival animations again.
+      element.classList.remove('landing', 'glow', 'enter');
+    }
+    ghost.querySelector('.editHint')?.remove();
+    card.append(ghost);
+    // The copy is gone before the closed day's one-line summary fades in, so the two never sit on top of each other.
+    ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 130, easing: 'ease-out', fill: 'forwards' });
+    card.querySelector(':scope > .daySummary')?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 110, easing: 'ease-out', fill: 'backwards' });
+  }
+  const animation = card.animate([{ height: `${before.height}px` }, { height: `${height}px` }], { duration: 260, easing: GLIDE });
+  const done = () => {
+    card.classList.remove('gliding');
+    ghost?.remove();
+    dayHeights.delete(card);
+  };
+  animation.finished.then(done, done);
+};
+// Something new in a day grows in from nothing, so the rows under it slide down instead of jumping.
+const growIn = (element) => {
+  if (!element?.animate || reducedMotion.matches) return;
+  const height = element.offsetHeight;
+  element.animate([{ height: '0px', opacity: 0 }, { height: `${height}px`, opacity: 1 }], { duration: 240, easing: GLIDE });
+};
+// A short pop on what just changed: the new set's numbers, or the count that went up ("2×" to "3×").
+const popOnce = (elements) => {
+  if (reducedMotion.matches) return;
+  for (const element of elements) element?.animate?.([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+};
+const setRowsOf = (root, exercise) => (root ? [...root.querySelectorAll(`input[data-field="kg"][data-exercise="${exercise}"]`)] : []);
+const popAddedSet = ({ date, exercise, rows }) => {
+  const boxes = setRowsOf(document.getElementById(`session-${date}`), exercise);
+  const row = boxes.at(-1)?.closest('.swipe');
+  const face = row?.querySelector('.setRow');
+  if (!face) return;
+  if (boxes.length > rows) {
+    growIn(row);
+    popOnce(face.querySelectorAll('.pill'));
+  } else popOnce([face.querySelector('.setNo')]);
+};
+// A deleted set, lift or cardio row slides off to the left and closes up before it goes, so what was under it glides
+// up into its place; the last thing in a lift takes the lift with it, the last thing in a day the whole day.
+let rowLeaving = false;
+const leavingRow = (action, target) => {
+  const session = sessionFor(target.dataset.date);
+  if (!session) return null;
+  const card = target.closest('.session');
+  const onlyThing = (exercises, cardio) => exercises === 0 && cardio === 0;
+  if (action === 'delete-set') {
+    const exercise = session.exercises[Number(target.dataset.exercise)];
+    if (!exercise) return null;
+    const emptied = exercise.sets.length <= (Number(target.dataset.count) || 1);
+    if (!emptied) return target.closest('.swipe');
+    return onlyThing(session.exercises.length - 1, Number(session.cardio) || 0) ? card : target.closest('.exercise');
+  }
+  if (action === 'delete-exercise') return onlyThing(session.exercises.length - 1, Number(session.cardio) || 0) ? card : target.closest('.exercise');
+  return !session.exercises.length && cardioParts(session).length <= 1 ? card : target.closest('.swipe');
+};
+const slideAway = (element, done) => {
+  rowLeaving = true;
+  const finish = () => {
+    if (!rowLeaving) return;
+    rowLeaving = false;
+    done();
+  };
+  const face = element.matches('.swipe') ? element.querySelector(':scope > .swipeFace') : null;
+  const style = getComputedStyle(element);
+  element.style.pointerEvents = 'none';
+  element.style.overflow = 'hidden';
+  if (face) face.animate([{ transform: getComputedStyle(face).transform }, { transform: 'translateX(-60%)' }], { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+  else element.animate([{ transform: 'none' }, { transform: 'translateX(-24px)' }], { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+  const full = { height: `${element.offsetHeight}px`, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, marginTop: style.marginTop, marginBottom: style.marginBottom, borderTopWidth: style.borderTopWidth, borderBottomWidth: style.borderBottomWidth };
+  const none = { height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px' };
+  element.animate([{ ...full, opacity: 1 }, { ...full, opacity: 0, offset: 0.4 }, { ...none, opacity: 0 }], { duration: 300, easing: 'ease-in-out', fill: 'forwards' });
+  // Timed rather than waiting on the animation, so a redraw in the middle (a sync) can never hold the delete back.
+  setTimeout(finish, 300);
+};
+const deleteRow = (action, target) => {
+  const date = target.dataset.date;
+  const session = sessionFor(date);
+  if (!session) return;
+  if (action === 'delete-set') {
+    const exercise = session.exercises[Number(target.dataset.exercise)];
+    const set = exercise?.sets[Number(target.dataset.set)];
+    if (!set) return;
+    // A row can stand for several identical sets ("3× 30 × 10"); deleting the row deletes all of them.
+    const count = Number(target.dataset.count) || 1;
+    changeWithUndo(`Deleted ${exercise.name} ${count > 1 ? `${count}× ` : ''}${set.kg} × ${set.reps} on ${dayLabel(date)}`, () => {
+      exercise.sets.splice(Number(target.dataset.set), count);
+      if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
+    }, 'Delete set');
+  } else if (action === 'delete-exercise') {
+    const exercise = session.exercises[Number(target.dataset.exercise)];
+    if (!exercise) return;
+    changeWithUndo(`Deleted ${exercise.name} on ${dayLabel(date)}`, () => session.exercises.splice(Number(target.dataset.exercise), 1), 'Delete exercise');
+  } else if (action === 'remove-cardio') {
+    const parts = cardioParts(session);
+    const index = target.dataset.index === undefined ? -1 : Number(target.dataset.index);
+    const gone = parts[index]?.name || 'cardio';
+    changeWithUndo(`Removed ${gone === 'Cardio' ? 'cardio' : gone} on ${dayLabel(date)}`, () => setCardioParts(session, index >= 0 ? parts.filter((part, at) => at !== index) : []), 'Remove cardio');
+  }
 };
 
 // Tapping a lift's name while typing keeps the keyboard up (the name goes into the box).
@@ -7966,6 +8156,22 @@ document.addEventListener('click', (event) => {
   const session = date ? sessionFor(date) : null;
   const anchor = KEEP_STILL.has(action) ? stillPoint(action, target) : null;
   if (action === 'import') return;
+  if ((action === 'delete-set' || action === 'delete-exercise' || action === 'remove-cardio') && session) {
+    if (rowLeaving) return;
+    const row = reducedMotion.matches ? null : leavingRow(action, target);
+    if (!row?.animate) deleteRow(action, target);
+    else {
+      slideAway(row, () => {
+        deleteRow(action, target);
+        render();
+      });
+      return;
+    }
+    render();
+    return;
+  }
+  const dayGlide = action === 'toggle-session' && date ? dayBefore(date) : null;
+  const setsBefore = action === 'add-set' && session ? setRowsOf(target.closest('.session'), target.dataset.exercise).length : null;
   // A day in the calendar opens right under it: a logged day as its full card (sets, edit), a gym visit as a small
   // card with the gym, time and how long. Tap it again (or the ×) to close it.
   if (action === 'visit-day') {
@@ -8528,17 +8734,6 @@ document.addEventListener('click', (event) => {
   } else if (action === 'redo-change') {
     view.menu = false;
     redoStep();
-  } else if (action === 'delete-set' && session) {
-    const exercise = session.exercises[Number(target.dataset.exercise)];
-    const set = exercise.sets[Number(target.dataset.set)];
-    // A row can stand for several identical sets ("3× 30 × 10"); deleting the row deletes all of them.
-    const count = Number(target.dataset.count) || 1;
-    changeWithUndo(`Deleted ${exercise.name} ${count > 1 ? `${count}× ` : ''}${set.kg} × ${set.reps} on ${dayLabel(date)}`, () => {
-      exercise.sets.splice(Number(target.dataset.set), count);
-      if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
-    }, 'Delete set');
-  } else if (action === 'delete-exercise' && session) {
-    changeWithUndo(`Deleted ${session.exercises[Number(target.dataset.exercise)].name} on ${dayLabel(date)}`, () => session.exercises.splice(Number(target.dataset.exercise), 1), 'Delete exercise');
   } else if (action === 'delete-day' && session) {
     view.editDay = null;
     changeWithUndo(`Deleted ${dayLabel(date)}`, () => {
@@ -8791,11 +8986,6 @@ document.addEventListener('click', (event) => {
     const last = exercise.sets.at(-1) || { kg: '', reps: '' };
     changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: true }), 'Add set');
     if (last.kg === '') view.focusSet = { date, name: exercise.name };
-  } else if (action === 'remove-cardio' && session) {
-    const parts = cardioParts(session);
-    const index = target.dataset.index === undefined ? -1 : Number(target.dataset.index);
-    const gone = parts[index]?.name || 'cardio';
-    changeWithUndo(`Removed ${gone === 'Cardio' ? 'cardio' : gone} on ${dayLabel(date)}`, () => setCardioParts(session, index >= 0 ? parts.filter((part, at) => at !== index) : []), 'Remove cardio');
   } else if (action === 'quick-all') {
     view.quickAll = !view.quickAll;
     const body = document.querySelector('.sheetBody');
@@ -8918,6 +9108,8 @@ document.addEventListener('click', (event) => {
   }
   render();
   if (anchor) keepAnchor(anchor);
+  if (dayGlide) glideDay(dayGlide);
+  if (setsBefore !== null) popAddedSet({ date, exercise: target.dataset.exercise, rows: setsBefore });
   if (action === 'toggle-session' && view.open.has(date)) requestAnimationFrame(() => centreDay(date));
 });
 
@@ -9025,6 +9217,7 @@ document.addEventListener('input', (event) => {
         else delete set.rpe;
       }
       save();
+      refreshSetCells(session, Number(target.dataset.exercise));
       return;
     }
     const previous = exercise.sets[index][field];
@@ -9033,6 +9226,7 @@ document.addEventListener('input', (event) => {
     // while the box is empty mid-typing, and never sets you added or typed yourself.
     if (field === 'kg' && target.value.trim() === '') {
       save();
+      refreshSetCells(session, Number(target.dataset.exercise));
       return;
     }
     if (field === 'kg') {
@@ -9046,6 +9240,7 @@ document.addEventListener('input', (event) => {
       }
     }
     save();
+    refreshSetCells(session, Number(target.dataset.exercise));
   }
 });
 
@@ -9622,6 +9817,41 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     if (!updateQuietly()) render();
   });
 }
+
+// Every button gives a little the moment a finger lands on it, before the tap is even finished: small controls sink to
+// 96 %, wide rows (a day, a setting) dim a touch instead, since a whole row shrinking reads as the page moving. It
+// eases back when the finger lifts, and lets go at once if the finger starts to scroll or swipe. With reduced motion
+// everything dims instead. Web Animations on `scale` and `opacity`, so it never fights an element's own transform or
+// transitions. Things you drag (swipe rows' Delete, the box's grabber, the 3D body) and controls with their own press
+// look are left alone.
+const PRESSABLE = 'button, a[href], label.chip, [role="button"], .daySummary, .muscleRow[data-action]';
+const NO_PRESS = ':disabled, [aria-disabled="true"], .swipeDel, .grabber, .body3dSlot *, .body3dOver, .body3dOver *, .updatedPill, .updatedPill *, .calDay, .onboardChoice.main, .bubbleIn, .repTable button, .devMenu button, .leftDev button';
+const canScale = Boolean(window.CSS?.supports?.('scale', '0.5'));
+let pressing = null;
+const pressOff = () => {
+  if (!pressing) return;
+  const { animation, at } = pressing;
+  pressing = null;
+  // A quick tap still shows its press for a moment before it eases back.
+  setTimeout(() => {
+    animation.reverse();
+    animation.finished.then(() => animation.cancel(), () => {});
+  }, Math.max(0, 90 - (performance.now() - at)));
+};
+document.addEventListener('pointerdown', (event) => {
+  pressOff();
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  const element = event.target.closest?.(PRESSABLE);
+  if (!element || !element.animate || element.matches(NO_PRESS)) return;
+  const wide = element.offsetWidth > Math.min(260, window.innerWidth * 0.6);
+  const frames = !wide && canScale && !reducedMotion.matches ? [{ scale: 1 }, { scale: 0.96 }] : [{ opacity: getComputedStyle(element).opacity }, { opacity: 0.6 }];
+  pressing = { element, x: event.clientX, y: event.clientY, at: performance.now(), animation: element.animate(frames, { duration: 90, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' }) };
+}, { capture: true, passive: true });
+document.addEventListener('pointermove', (event) => {
+  if (pressing && Math.hypot(event.clientX - pressing.x, event.clientY - pressing.y) > 10) pressOff();
+}, { capture: true, passive: true });
+for (const type of ['pointerup', 'pointercancel', 'dragstart']) document.addEventListener(type, pressOff, { capture: true, passive: true });
+document.addEventListener('scroll', pressOff, { capture: true, passive: true });
 
 // A warm, quiet sign of life: a soft clay bloom where a finger lands, and a faint glow along the edge the page is
 // being scrolled toward, fading as it slows. Nothing to tap, never in the way; off with reduced motion.
