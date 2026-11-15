@@ -28,13 +28,13 @@ const widthNew = (w) => Math.max(0.9, Math.min(cap(avgOf(w)), Math.sqrt(w.kg / (
 const pct = (x) => { const p = Math.round((x - 1) * 100); return `${p < 0 ? '−' : '+'}${Math.abs(p)}%`; };
 
 const root = document.getElementById('fable');
-const seg = (name, options, picked) => `<div class="fxSeg" role="group" data-seg="${name}" style="grid-template-columns:repeat(${options.length},minmax(0,1fr))">${options.map(([key, label]) => `<button type="button" data-key="${key}" aria-pressed="${key === picked}">${label}</button>`).join('')}</div>`;
+const seg = (name, options, picked, cols = options.length) => `<div class="fxSeg" role="group" data-seg="${name}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${options.map(([key, label]) => `<button type="button" data-key="${key}" aria-pressed="${key === picked}">${label}</button>`).join('')}</div>`;
 const head = (n, title, lead) => `<p class="fxBy">Fable 5.2 T</p><h2>${n}. ${title}</h2><p class="fxLead">${lead}</p><p class="fxLead fxSign">Not in the app. It goes in only when you sign it off.</p>`;
 const pair = (a = 'In the app now', b = 'Proposed', extra = '') => `<div class="fxPair${extra}"><div class="fxCol"><div class="fxCell" data-host="now"></div><p class="fxCap">${a}</p></div><div class="fxCol"><div class="fxCell" data-host="new"></div><p class="fxCap">${b}</p></div></div>`;
 const VIEWS = [['0', 'Front'], ['3.1416', 'Back'], ['turn', 'Turning']];
 
 root.innerHTML = `
-<p class="fxIntro"><b>Fable 5.2 T</b>: five proposals for the 3D body. Every figure can be dragged round and tapped open, as in the app.</p>
+<p class="fxIntro"><b>Fable 5.2 T</b>: seven proposals for the 3D body. Every figure can be dragged round and tapped open, as in the app.</p>
 
 <section class="fx" id="fx-strength">${head(1, 'Strength shows only on the strong', 'Today a weak body is drawn almost as big as a strong one, and width comes from body weight alone, so Benjamin (110 kg, Novice) is the broadest of all. Proposed: Advanced and Elite muscles exactly as now; below that a muscle is let down (a Novice’s shoulders and arms lie flat instead of pushed out, a Beginner’s a little more); extra width from weight only as far as the strength level backs it; a weak frame a little slimmer.')}
   <div class="fxStage" data-stage="row">
@@ -97,6 +97,29 @@ root.innerHTML = `
     ${seg('custom', [['day', 'Whole day'], ['custom', 'Custom']], 'day')}
     <p class="fxPlanned"><span>Planned</span><b data-planned></b></p>
   </div>
+</section>
+
+<section class="fx" id="fx-levelup">${head(6, 'Level-up: a muscle moves up a colour', 'When a muscle reaches a new level colour you get a notice, like “Rear delts just moved to Advanced”. Tap it and that muscle drains away, then builds back bigger in the new colour from the bottom up, slice by slice, with a lit edge and one shimmer that settles. Today the colour just changes the next time you look.')}
+  <div class="fxStage" data-stage="levelup">
+    ${seg('luMuscle', GROUPS.map((g) => [g, NAMES[g]]), 'rearDelts', 3)}
+    ${seg('luLevel', [['2', 'Novice'], ['3', 'Intermediate'], ['4', 'Advanced'], ['5', 'Elite']], '4')}
+    <button type="button" class="fxNotice" data-play><i></i><span><b data-text></b><small>Tap to see it</small></span></button>
+    ${pair('In the app now', 'Proposed')}
+  </div>
+</section>
+
+<section class="fx" id="fx-aura">${head(7, 'Aura mode (Train together)', 'One button under the squad. It starts a song and the figures loop through scenes: a spin, see-through, the muscles you’ll train building in, recovery colours, the trained muscles, everyone’s strength colours, and round again. Tap again to stop.')}
+  <div class="fxStage fxPhone" data-stage="aura">
+    <p class="fxCap top">In the app now</p>
+    <div class="fxSquad" data-host="now"></div>
+    <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
+    <p class="fxCap top">Proposed</p>
+    <div class="fxSquad" data-host="new"></div>
+    <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
+    <p class="fxScene" data-scene>Pull day</p>
+    <button type="button" class="fxAura" data-aura aria-pressed="false">Aura</button>
+  </div>
+  <p class="fxNote">The song here is a placeholder made in the page (a soft beat and four chords), until you send the real one. To keep the app light: one small file (a 60 to 90 second loop, AAC or Opus at about 64 kbit/s, roughly 0.5 MB), served by the Worker like any other file, left out of the offline cache, and fetched only when Aura is tapped. It plays from that tap, so the phone never asks for permission; on silent mode the scenes run without sound.</p>
 </section>`;
 
 // ---------- the two renderers, loaded once ----------
@@ -135,13 +158,13 @@ const makePair = async (stage, { people, lab, viewSeg, selected = null, zoom = n
     v.attach(host); });
   const setPeople = (list) => views.forEach((v, i) => v.setPeople(list(i === 0 ? 'in the app now' : 'proposed')));
   place(); setPeople(people); for (const v of views) v.setSelected(sel);
-  const turn = turner(views, segKey(stage, viewSeg));
-  const offs = [onSeg(stage, viewSeg, (key) => turn.set(key))];
+  const turn = turner(views, viewSeg ? segKey(stage, viewSeg) : '0');
+  const offs = viewSeg ? [onSeg(stage, viewSeg, (key) => turn.set(key))] : [];
   if (zoom) offs.push(onSeg(stage, zoom.seg, () => { place(); turn.set(segKey(stage, viewSeg) || '0', true); }));
   // Dragging a figure yourself takes over from the switch.
-  const grab = () => { turn.pause(); unpress(stage, viewSeg); };
+  const grab = () => { turn.pause(); if (viewSeg) unpress(stage, viewSeg); };
   hosts.forEach((h) => h.addEventListener('pointerdown', grab));
-  return { setPeople, destroy: () => { turn.stop(); offs.forEach((f) => f()); hosts.forEach((h) => h.removeEventListener('pointerdown', grab)); views.forEach((v) => v.destroy()); } };
+  return { setPeople, views, turn, destroy: () => { turn.stop(); offs.forEach((f) => f()); hosts.forEach((h) => h.removeEventListener('pointerdown', grab)); views.forEach((v) => v.destroy()); } };
 };
 
 // ---------- 5: picking muscles ----------
@@ -207,6 +230,62 @@ const makePickNew = async (stage) => {
   return { destroy: () => { offs.forEach((f) => f()); back.remove(); ui.remove(); document.body.classList.remove('fxPicking'); view.destroy(); } };
 };
 
+// ---------- 6: level-up ----------
+const makeLevelUp = async (stage) => {
+  const p = await makePair(stage, { people: () => [], lab: {}, viewSeg: null }); const [app, lab] = p.views;
+  const btn = stage.querySelector('[data-play]'), text = btn.querySelector('[data-text]'), dot = btn.querySelector('i'); let busy = false, played = false;
+  const key = () => segKey(stage, 'luMuscle'), to = () => Number(segKey(stage, 'luLevel'));
+  const marcus = (level) => { const w = WHO[0]; return [person(w.key, w.cm, w.kg, w.sex, { ...w.levels, [key()]: level })]; };
+  // Before: the muscle one colour lower, turned so it faces you.
+  const reset = () => { played = false; app.setPeople(marcus(to() - 0.4)); lab.setPeople(marcus(to() - 0.4)); p.turn.set(BACK.has(key()) ? '3.1416' : '0');
+    text.textContent = `${NAMES[key()]} just moved to ${tier(to())[0]}`; dot.style.background = tier(to())[1]; };
+  const play = async () => { if (busy) return; busy = true; btn.classList.add('busy'); if (played) { reset(); await new Promise((r) => setTimeout(r, 700)); }
+    played = true; setTimeout(() => app.setPeople(marcus(to())), 560); // the app: the colour simply changes
+    await lab.levelUp(0, key(), tier(to())[1], to()); busy = false; btn.classList.remove('busy'); };
+  btn.addEventListener('click', play);
+  const offs = [onSeg(stage, 'luMuscle', () => { if (!busy) reset(); }), onSeg(stage, 'luLevel', () => { if (!busy) reset(); })];
+  reset();
+  return { destroy: () => { btn.removeEventListener('click', play); offs.forEach((f) => f()); p.destroy(); } };
+};
+
+// ---------- 7: Aura ----------
+// Placeholder song: a soft beat and four chords made with Web Audio, started from the tap. 100 beats a minute.
+const BEAT = 0.6;
+const startSong = () => { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return () => {};
+  const ac = new AC(), out = ac.createGain(); out.gain.value = 0.0001; out.connect(ac.destination); out.gain.exponentialRampToValueAtTime(0.4, ac.currentTime + 1.5);
+  const chords = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]]; let n = 0, next = ac.currentTime + 0.08;
+  const note = (type, f0, f1, at, len, vol, attack) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, at); if (f1) o.frequency.exponentialRampToValueAtTime(f1, at + len * 0.6);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + attack); g.gain.exponentialRampToValueAtTime(0.0001, at + len); o.connect(g).connect(out); o.start(at); o.stop(at + len + 0.05); };
+  const fill = () => { while (next < ac.currentTime + 0.4) { note('sine', 105, 44, next, 0.34, 0.6, 0.01);
+    if (n % 2 === 1) note('triangle', chords[Math.floor(n / 8) % 4][2] * 2, 0, next, 0.5, 0.05, 0.02);
+    if (n % 8 === 0) for (const f of chords[(n / 8) % 4]) note('triangle', f, 0, next, BEAT * 8, 0.11, 0.5);
+    n++; next += BEAT; } };
+  const id = setInterval(fill, 120); fill();
+  return () => { clearInterval(id); out.gain.cancelScheduledValues(ac.currentTime); out.gain.setTargetAtTime(0.0001, ac.currentTime, 0.12); setTimeout(() => ac.close(), 800); };
+};
+const makeAura = async (stage) => {
+  const m = await load(); const day = KIND.Pull, btn = stage.querySelector('[data-aura]'), label = stage.querySelector('[data-scene]'); let on = false, stopSong = null, timer = 0, at = 0;
+  const now = await m.app({}), view = await m.lab({ lab: { fade: 700 } });
+  const recov = (n) => (g) => RC[RECOV[n][g]] || null, strength = (n) => (g) => { const l = WHO.find((w) => w.key === n).levels[g]; return l ? tier(l)[1] : null; }, trained = () => (g) => (day.includes(g) ? '#C96442' : null);
+  const people = (colour, picks) => ['Marcus', 'Benjamin', 'Romi'].map((n) => { const w = WHO.find((x) => x.key === n);
+    return { id: n, name: n, heightCm: w.cm, kg: w.kg, sex: w.sex, picks: picks || [], muscles: Object.fromEntries(GROUPS.map((g) => [g, { color: colour(n)(g), level: w.levels[g] || null, label: NAMES[g] }])) }; });
+  const SCENES = [
+    ['Spin', () => { view.setMode({}); view.setPeople(people(recov)); view.throwSpin(0.11); }],
+    ['See-through', () => { view.setPeople(people(recov, [])); view.setMode({ pick: true, spin: true }); }],
+    ['What you’ll train', () => { view.setPeople(people(recov, day)); view.buildIn(day); }],
+    ['Recovery', () => { view.setMode({}); }],
+    ['Trained', () => { view.setPeople(people(trained, day)); view.setMode({ pick: true, spin: true }); }],
+    ['Strength', () => { view.setMode({}); view.setPeople(people(strength)); }],
+  ];
+  const say = (t) => { label.classList.add('out'); setTimeout(() => { label.textContent = t; label.classList.remove('out'); }, 180); };
+  const next = () => { const [name, go] = SCENES[at % SCENES.length]; at++; say(name); go(); timer = setTimeout(next, BEAT * 8 * 1000); };
+  const stop = () => { on = false; clearTimeout(timer); if (stopSong) stopSong(); stopSong = null; btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Aura'; say('Pull day'); view.setMode({}); view.setPeople(people(recov)); };
+  const toggle = () => { if (on) return stop(); on = true; at = 0; btn.setAttribute('aria-pressed', 'true'); btn.textContent = 'Stop'; try { stopSong = startSong(); } catch { stopSong = null; } next(); };
+  btn.addEventListener('click', toggle);
+  now.attach(stage.querySelector('[data-host="now"]')); now.setPeople(people(recov)); view.attach(stage.querySelector('[data-host="new"]')); view.setPeople(people(recov));
+  return { destroy: () => { if (on) stop(); btn.removeEventListener('click', toggle); now.destroy(); view.destroy(); } };
+};
+
 // ---------- stages: built when near the screen, taken down when far away ----------
 const MAKE = {
   row: (s) => makePair(s, { people: (tag) => WHO.map((w) => who(w.key, tag)), lab: { relax: true }, viewSeg: 'rowView' }),
@@ -215,7 +294,7 @@ const MAKE = {
   abs: (s) => makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { abs: true }, viewSeg: 'absView', selected: 'abs', zoom: { seg: 'absZoom', x: 297, y: 440 } }),
   fingers: (s) => makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { wrist: true }, viewSeg: 'fingersView', zoom: { seg: 'fingersZoom', x: 128, y: 630 } }),
   feet: (s) => makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { feet: true }, viewSeg: 'feetView', zoom: { seg: 'feetZoom', x: 297, bottom: true } }),
-  pickNow: makePickNow, pickNew: makePickNew,
+  pickNow: makePickNow, pickNew: makePickNew, levelup: makeLevelUp, aura: makeAura,
 };
 const live = new Map();
 const io = new IntersectionObserver((entries) => { for (const e of entries) { const s = e.target, name = s.dataset.stage;

@@ -2,7 +2,12 @@
 // plus four proposed changes that are off unless asked for, so the Playground can show "In the app now" (the real
 // /body3d.js) next to "Proposed" (this file). Every change is marked LAB. When Marcus signs one off, move that
 // change into /body3d.js.
-//   createBodyView({ ..., lab: { relax, abs, wrist, feet, stay } })
+//   createBodyView({ ..., lab: { relax, abs, wrist, feet, stay, fade } })
+//   fade:  milliseconds; setPeople() then glides colours and sizes from the old to the new instead of swapping.
+//   view.levelUp(index, key, color, level)  the muscle drains away, then builds back in the new colour and size from
+//          the bottom up, slice by slice with a lit edge, and a shimmer runs over it once. Returns a promise.
+//   view.buildIn(keys)                      everyone's muscles in keys build up the same way (Aura).
+//   view.throwSpin(speed)                   a push to the spin that settles back to the idle turn.
 //   relax: strength shows only on the strong. Advanced and Elite as now, lower levels smaller; extra width from
 //          body weight only as far as the strength level backs it.
 //   abs:   the inside of the abs sheets takes the abs colour (the pale specks beside the abs that flicker).
@@ -273,6 +278,9 @@ const merge = (THREE, parts, R = 0, opt = {}) => {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aAxis', new THREE.BufferAttribute(axis, 3)); geo.setAttribute('aApex', new THREE.BufferAttribute(apex, 4));
   geo.setAttribute('aO', new THREE.BufferAttribute(ao, 1)); geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1)); geo.setAttribute('aGroup', new THREE.BufferAttribute(grp, 1));
   geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingBox(); geo.computeBoundingSphere(); geo.userData.grp = grp;
+  // LAB grow: each group's lowest and highest point, so a muscle can be built from its own bottom to its own top.
+  { const lo = new Array(16).fill(Infinity), hi = new Array(16).fill(-Infinity); for (let i = 0; i < nv; i++) { const g = grp[i], y = pos[i * 3 + 1]; if (y < lo[g]) lo[g] = y; if (y > hi[g]) hi[g] = y; }
+    for (let g = 0; g < 16; g++) if (lo[g] > hi[g]) { lo[g] = 0; hi[g] = 1; } geo.userData.lo = lo; geo.userData.hi = hi; }
   // The head, for the Exodia mark: which points are the head, and the box the mark is laid over (seen from the front).
   if (headI && !R) { const [, , v0, v1] = headI, hd = new Float32Array(nv); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity, zs = 0;
     for (let i = v0; i < v1; i++) { hd[i] = 1; x0 = Math.min(x0, pos[i * 3]); x1 = Math.max(x1, pos[i * 3]); y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); z0 = Math.min(z0, pos[i * 3 + 2]); z1 = Math.max(z1, pos[i * 3 + 2]); zs += pos[i * 3 + 2]; }
@@ -328,10 +336,10 @@ float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * 
 float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
-const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying float vOwn;';
+const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying float vOwn; varying vec2 vGrow;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift; uniform float uFixAbs;
+  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift; uniform float uFixAbs; uniform float uGrowOn[16]; uniform float uGrowLo[16]; uniform float uGrowHi[16]; uniform float uGrowT; uniform float uGrowK;
   ${VARY}`;
 // Bulk. A muscle moves out along its normals by its own amount. Where it meets or lies over a muscle of another
 // group, both move by the average of the two, so neighbours of different sizes meet without a step. The belly
@@ -348,14 +356,17 @@ const V_BODY = `
   vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel); vFade = anySel * (1.0 - sel);
   vDef = vec2(1.0, step(0.5, abs(aGroup - 1.0)));
   vOwn = (1.0 - step(0.5, abs(aGroup - 10.0))) * uFixAbs; // LAB abs: group 10 is the abs
+  // LAB grow: x: this muscle is being built, y: how far up the muscle this point is (0 its lowest point, 1 its top).
+  vGrow = vec2(uGrowOn[gi], clamp((position.y - uGrowLo[gi]) / max(1e-4, uGrowHi[gi] - uGrowLo[gi]), 0.0, 0.999));
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
   float bulk = mix(uBulk[gi], uBulk[int(aNear.x + 0.5)], aNear.y);
-  transformed += normal * bulk * aLift * mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)) * step(0.5, aGroup);`;
+  transformed += normal * bulk * aLift * mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)) * step(0.5, aGroup);
+  transformed += normal * uGrowK * 0.005 * vGrow.x * exp(-pow((vGrow.y - uGrowT) / 0.16, 2.0)) * aLift; // LAB grow: a soft swell travels with the edge`;
 // Fibre lines: where planes through the muscle's fan point cut its surface, so they run towards that point; two
 // plane families, each used where it crosses the surface cleanly. As the fan widens new lines fade in between the
 // old ones. Where lines would sit closer than the screen can draw they melt into their own average (no moire).
 const F_PARS = `
-  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook; uniform float uXr;
+  uniform float uFreq; uniform vec4 uP; uniform vec4 uQ; uniform vec3 uPlain; uniform float uBook; uniform float uXr; uniform float uGrowT; uniform float uGrowN; uniform float uGrowS;
   ${VARY}
   ${NOISE}
   float fibreFam(float u, float sc, float kf){
@@ -459,7 +470,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
   const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uXr: { value: 0 }, uPick: { value: new Array(16).fill(0) }, uPickOn: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
-    uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 }, uFixAbs: { value: LAB.abs ? 1 : 0 },
+    uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 }, uFixAbs: { value: LAB.abs ? 1 : 0 }, uGrowOn: { value: new Array(16).fill(0) }, uGrowLo: { value: new Array(16).fill(0) }, uGrowHi: { value: new Array(16).fill(1) }, uGrowT: { value: 2 }, uGrowN: { value: 24 }, uGrowS: { value: -1 }, uGrowK: { value: 0 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
   // The x-ray copy draws the picked muscle where other muscles cover it, clearly, over the drawing, so turning the
@@ -471,6 +482,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
+        // LAB grow: only the slices under the edge exist yet; the newest ones are lit and their seams show.
+        float growGlow = 0.0, growSeam = 0.0;
+        if (vGrow.x > 0.5) { if (floor(vGrow.y * uGrowN) / uGrowN >= uGrowT) discard;
+          float gd = uGrowT - vGrow.y; growGlow = (1.0 - smoothstep(0.0, 0.09, gd)) * smoothstep(0.0, 0.12, 1.0 - uGrowT);
+          growSeam = smoothstep(0.36, 0.5, abs(fract(vGrow.y * uGrowN) - 0.5)) * (1.0 - smoothstep(0.05, 0.4, gd)); }
         #ifdef XRAY
           diffuseColor.a = 0.82 * uXr * step(0.5, vShade.z); if (diffuseColor.a < 0.01) discard;
         #else
@@ -482,7 +498,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         #endif
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
-        diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;`)
+        diffuseColor.rgb *= 1.0 - uP.x * fG * fAmt;
+        diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - 0.16 * growSeam), vec3(1.0, 0.98, 0.94), 0.5 * growGlow);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         { float hgt = -fG * fAmt * uP.y * 0.0007; vec2 dH = vec2(dFdx(hgt), dFdy(hgt));
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
@@ -491,6 +508,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5 * vDef.x, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend));
         vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
+        outgoingLight += vec3(1.0, 0.97, 0.93) * (0.3 * exp(-pow((vGrow.y - uGrowS) / 0.07, 2.0)) + 0.25 * growGlow) * vGrow.x; // LAB grow: the shimmer
         #include <opaque_fragment>`); };
     m.customProgramCacheKey = () => 'body3dLabMuscle' + Boolean(xray); return m; };
   const muscleMat = mkMuscle(false);
@@ -584,6 +602,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   // Picking muscles for a plan (Train together): pickOn eases to pickTo; face turns everyone to one side and holds.
   let pickOn = 0, pickTo = 0, face = null, pickSpin = false; // pickSpin: the see-through view keeps turning (Focus)
   let raf = 0, lastT = 0, lastDraw = 0, dirty = true, onScreen = false, dead = false, lastTap = null;
+  // LAB grow, fade: small timed animations, stepped in tick() with everything else.
+  const NO_GROW = new Array(16).fill(0), anims = [], sm = (u) => u * u * (3 - 2 * u);
+  const run = (ms, step, done) => { anims.push({ t0: null, ms: reduced.matches ? 1 : ms, step, done }); kick(); };
 
   // Where each person stands in the host: one row, feet on one line, the tallest as big as the host allows.
   const layout = () => {
@@ -618,6 +639,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
     pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
+    { const fx = p.fx, ud = muscle.geometry.userData; U.uGrowLo.value = ud.lo; U.uGrowHi.value = ud.hi; U.uGrowOn.value = fx ? fx.on : NO_GROW; U.uGrowT.value = fx ? fx.t : 2; U.uGrowS.value = fx ? fx.s : -1; U.uGrowK.value = fx ? fx.k : 0; } // LAB grow
     { const hb = ctx.geometry.userData.head, hc = HEADS[p.head]; HU.uHead.value = hb && hc && HU.tMark.value ? 1 : 0;
       if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4];
         HU.uHeadLook.value = p.headLook && HU.tCrest.value ? 1 : 0; HU.uHeadC.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, (hb[5] + hb[6]) / 2); } }
@@ -673,6 +695,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     for (let i = 0; i < people.length; i++) { const to = open === i ? 1 : 0, t = ts[i] || 0; if (t !== to) { ts[i] = Math.max(0, Math.min(1, t + Math.sign(to - t) * ms / (reduced.matches ? 1 : 480))); anim = true; } }
     if (Math.abs(pickTo - pickOn) > 0.002) { pickOn += (pickTo - pickOn) * Math.min(1, 0.2 * dt); anim = true; } else pickOn = pickTo;
     if (face !== null && !drag) { const d = Math.atan2(Math.sin(face - angle), Math.cos(face - angle)); if (Math.abs(d) > 0.002) { angle += d * Math.min(1, 0.15 * dt); speed = 0; anim = true; } }
+    if (anims.length) { anim = true; for (const a of anims.slice()) { if (a.t0 === null) a.t0 = now; const u = Math.min(1, (now - a.t0) / a.ms); a.step(u); if (u >= 1) { anims.splice(anims.indexOf(a), 1); if (a.done) a.done(); } } } // LAB
     const sy = selGroup === sel.x ? 1 : 0;
     if (Math.abs(sy - sel.y) > 0.002 || sel.w > 0.002) { sel.y += (sy - sel.y) * Math.min(1, 0.2 * dt); sel.w += (0 - sel.w) * Math.min(1, 0.2 * dt); anim = true; } else { sel.y = sy; sel.w = 0; }
     if (inOver && open < 0 && !anim && ts.every((t) => !t)) { settle(); moving = false; }
@@ -772,6 +795,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       size(); render(); kick();
     },
     setPeople(list) {
+      const prev = people;
       people = (list || []).map((p) => {
         const pal = [plainC], bulk = [0], has = [0], labels = {}, fem = p.sex === 'female';
         for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push(LAB.relax ? bulkOfP(g, m.level, fem, avgLevel(p)) : bulkOf(g, m.level, fem)); }
@@ -781,6 +805,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
         return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(LAB.relax ? frameCap(avgLevel(p)) : 1.12, Math.sqrt(bmi / 23)) * (LAB.relax ? frameSlim(avgLevel(p)) : 1)) };
       });
+      // LAB fade: someone who was already there glides from the old colours and sizes to the new.
+      if (LAB.fade) for (const p of people) { const old = prev.find((o) => o.id === p.id); if (!old) continue;
+        const to = { pal: p.pal, bulk: p.bulk }, from = { pal: old.pal.map((c) => c.clone()), bulk: old.bulk.slice() };
+        p.pal = from.pal.map((c) => c.clone()); p.bulk = from.bulk.slice();
+        run(LAB.fade, (u) => { const e = sm(u); for (let g = 0; g < 16; g++) { p.pal[g].copy(from.pal[g]).lerp(to.pal[g], e); p.bulk[g] = from.bulk[g] + (to.bulk[g] - from.bulk[g]) * e; } }, () => { p.pal = to.pal; p.bulk = to.bulk; }); }
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
       if (open >= 0) setWho(people[open]);
@@ -800,6 +829,19 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       showName();
       dirty = true; kick();
     },
+    // LAB grow. The muscle drains from the top down, takes the new colour and size, builds up from the bottom slice
+    // by slice, then one shimmer runs over it.
+    levelUp(index, key, color, level) { const p = people[index], g = GROUPS.indexOf(key) + 1; if (!p || !g) return Promise.resolve();
+      return new Promise((res) => { const fx = p.fx = { on: new Array(16).fill(0), t: 1.001, s: -1, k: 0 }; fx.on[g] = 1;
+        run(560, (u) => { fx.t = 1.001 * (1 - sm(u)); }, () => {
+          p.pal = p.pal.slice(); p.pal[g] = new THREE.Color(color); p.has = p.has.slice(); p.has[g] = 1; p.bulk = p.bulk.slice(); p.bulk[g] = LAB.relax ? bulkOfP(key, level, p.fem, level) : bulkOf(key, level, p.fem);
+          run(1800, (u) => { fx.t = 1.001 * (0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
+            run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { if (p.fx === fx) p.fx = null; dirty = true; res(); }); }); }); }); },
+    buildIn(keys) { const gs = (keys || []).map((k) => GROUPS.indexOf(k) + 1).filter(Boolean); if (!gs.length) return Promise.resolve();
+      return new Promise((res) => { const all = people.map((p) => { const fx = p.fx = { on: new Array(16).fill(0), t: 0, s: -1, k: 0 }; for (const g of gs) fx.on[g] = 1; return [p, fx]; });
+        run(1900, (u) => { for (const [, fx] of all) { fx.t = 1.001 * (0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); } }, () => { for (const [, fx] of all) { fx.k = 0; fx.t = 2; }
+          run(900, (u) => { for (const [, fx] of all) fx.s = -0.2 + 1.4 * sm(u); }, () => { for (const [p, fx] of all) if (p.fx === fx) p.fx = null; dirty = true; res(); }); }); }); },
+    throwSpin(s) { speed = reduced.matches ? 0 : s; hold = false; face = null; kick(); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
     destroy() {
@@ -811,6 +853,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     // For tests and tuning only.
     debug: {
       setAngle(a) { angle = a; speed = 0; hold = true; dirty = true; size(); render(); },
+      grow(index, keys, t, s = -1, k = 0) { const p = people[index]; if (!p) return; p.fx = keys ? { on: GROUPS.map(() => 0), t, s, k } : null; if (keys) { p.fx.on.unshift(0); for (const key of keys) p.fx.on[GROUPS.indexOf(key) + 1] = 1; } dirty = true; size(); render(); }, // LAB: one still frame of a build
       state: () => ({ angle, open, inOver, W, H, hostW, hostH, running: Boolean(raf), dpr: DPR, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lost: renderer.getContext().isContextLost(), canvas }),
       pick: (i, x, y) => { const g = pick(i, x, y); return g ? GROUPS[g - 1] : g; },
     },
