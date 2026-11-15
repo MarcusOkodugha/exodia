@@ -2035,3 +2035,11 @@ html.resuming .boot { display: none; }
 .session.gliding { position: relative; overflow: hidden; }
 .dayGhost { position: absolute; top: 0; left: 0; right: 0; padding: inherit; pointer-events: none; }
 .dayGhost > .headRow { visibility: hidden; }
+/* The open box: a clear "Full log" button top right opens the whole log (it replaced the Log button in the menu). */
+.dock .sheet { position: relative; }
+.dock .sheet .logOpen { position: absolute; z-index: 3; top: 4px; right: 10px; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px 0 9px; border: 0; border-radius: 14px; background: rgb(var(--clayRgb) / 0.09); color: var(--clayText, var(--clay)); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.dock .sheet .logOpen svg { width: 14px; height: 14px; }
+.dock .sheet.peek .logOpen { display: none; }
+@media (hover: hover) and (pointer: fine) { .dock .grabber { cursor: ns-resize; } }
+/* The computer's two-column muscle list reads top to bottom down each column, like the body (traps first). */
+.right .muscleList { grid-auto-flow: column; grid-template-rows: repeat(8, auto); }

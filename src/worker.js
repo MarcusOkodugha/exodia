@@ -1367,8 +1367,9 @@ const friendView = async (env, profile, share, isAdmin, today) => {
   // Strength levels need the heaviest set of each lift, nothing more.
   out.tops = share.strength ? [...tops].map(([name, top]) => ({ name, date: top.date, set: top.set })) : [];
   const body = meta.body && Number(meta.body.kg) > 0 ? meta.body : null;
-  // Height goes with bodyweight: shared exactly when bodyweight is, so Train together can line people up by height.
-  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight), ...(share.bodyweight && Number(body.cm) > 0 ? { cm: Number(body.cm) } : {}) };
+  // Height always goes along (it isn't private, and it's what sizes your figure next to friends); bodyweight is exact
+  // only when shared, otherwise rounded to 5 kg.
+  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight), ...(Number(body.cm) > 0 ? { cm: Number(body.cm) } : {}) };
   if (isAdmin) {
     const open = await env.DB.prepare("SELECT at, detail FROM events WHERE profile = ? AND kind = 'open' ORDER BY at DESC LIMIT 1").bind(profile).first();
     const last = await env.DB.prepare('SELECT max(at) AS at FROM events WHERE profile = ?').bind(profile).first();

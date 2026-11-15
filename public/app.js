@@ -992,11 +992,9 @@ const renderExercise = (session, exercise, exerciseIndex) => {
   const editing = view.editDay === session.date;
   const cells = setCells(session, exercise);
   const groups = [];
-  exercise.sets.forEach((set, index) => {
-    const last = groups.at(-1);
-    if (last && !editing && sameSet(exercise.sets[last.start], set)) last.count += 1;
-    else groups.push({ start: index, count: 1 });
-  });
+  // An opened day shows every set on its own row (a new set lands right under the last); "3 × 5" style grouping is
+  // only for the closed day's short line (Marcus, 15 Nov).
+  exercise.sets.forEach((set, index) => groups.push({ start: index, count: 1 }));
   const rows = groups.map(({ start, count }, groupIndex) => {
     const set = exercise.sets[start];
     const lastRow = groupIndex === groups.length - 1;
@@ -1734,9 +1732,10 @@ const chartFor = (allPoints) => {
   ${picked ? `<button class="pickInfo num" data-action="jump-session" data-date="${picked.date}" aria-label="Open ${dayLabel(picked.date)} on Home"><b>${dayLabel(picked.date)}</b> · <span class="nw">${picked.top.kg} × ${picked.top.reps}</span>${picked.top.rpe ? ` @ RPE ${picked.top.rpe}` : ''} ${picked.sessionEstimate > 0 ? ` · <span class="nw">est. ${Math.round(picked.sessionEstimate)}&nbsp;kg${picked.from && (picked.from.kg !== picked.top.kg || picked.from.reps !== picked.top.reps) ? ` from ${picked.from.kg} × ${picked.from.reps}` : ''}</span>` : ''}${picked.isPr ? ' · 1RM PR' : ''} <span class="pickOpen">Open day${ICONS.chevRight}</span></button>` : ''}`;
 };
 
+// Top of the body to the bottom (Marcus, 15 Nov), so the list reads the way the figure stands.
 const MUSCLES = [
-  ['chest', 'Chest'], ['traps', 'Traps'], ['upperBack', 'Upper back'], ['lowerBack', 'Lower back'], ['quads', 'Quads'], ['hamstrings', 'Hamstrings'], ['shoulders', 'Shoulders'], ['rearDelts', 'Rear delts'], ['biceps', 'Biceps'],
-  ['triceps', 'Triceps'], ['glutes', 'Glutes'], ['abs', 'Abs'], ['calves', 'Calves'], ['forearms', 'Forearms'], ['adductors', 'Adductors'],
+  ['traps', 'Traps'], ['shoulders', 'Shoulders'], ['rearDelts', 'Rear delts'], ['chest', 'Chest'], ['upperBack', 'Upper back'], ['biceps', 'Biceps'], ['triceps', 'Triceps'], ['forearms', 'Forearms'],
+  ['abs', 'Abs'], ['lowerBack', 'Lower back'], ['glutes', 'Glutes'], ['quads', 'Quads'], ['adductors', 'Adductors'], ['hamstrings', 'Hamstrings'], ['calves', 'Calves'],
 ];
 // First match wins: [name pattern, muscles worked hard, muscles helping (half a set)].
 const MUSCLE_RULES = [
@@ -1880,10 +1879,17 @@ const muscleLevels = () => {
     const result = liftStrength(lift, body);
     return [lift.key, result.everScore || 0];
   }));
+  // A muscle's main lift (the biggest share: deadlift for the lower back) proves its level, and a weaker lift that
+  // also trains it never pulls it below that (Marcus, 15 Nov: rows must not take a 300 kg deadlift's lower back
+  // from Elite). Other lifts can still lift it higher through the weighted mix.
   return Object.fromEntries(MUSCLES.map(([key]) => {
-    const parts = Object.entries(MUSCLE_LIFTS[key] || {}).filter(([lift]) => scores[lift] > 0);
+    const all = Object.entries(MUSCLE_LIFTS[key] || {});
+    const parts = all.filter(([lift]) => scores[lift] > 0);
     const weight = parts.reduce((sum, [, share]) => sum + share, 0);
-    return [key, weight ? parts.reduce((sum, [lift, share]) => sum + scores[lift] * share, 0) / weight : 0];
+    const mix = weight ? parts.reduce((sum, [lift, share]) => sum + scores[lift] * share, 0) / weight : 0;
+    const top = Math.max(0, ...all.map(([, share]) => share));
+    const main = Math.max(0, ...all.filter(([, share]) => share === top).map(([lift]) => scores[lift] || 0));
+    return [key, Math.max(mix, main)];
   }));
 };
 const tierOf = (level) => STRENGTH_TIERS.find(([from]) => level >= from) || null;
@@ -1928,7 +1934,9 @@ let body3dWant = null;
 let body3dSig = '';
 let body3dWaited = false;
 const RECOVERY_HEX = { recov4: '#C96442', recov3: '#E2AF9C', recov2: '#D2DFCE', recov1: '#6F9B6A' };
-const body3dOn = () => featureOn('body3d') && body3dState !== 'failed' && !reducedData();
+// Low Data Mode no longer swaps the 3D body for the old flat one (Marcus, 15 Nov: never show the flat figure); the model
+// downloads once and is kept on the phone.
+const body3dOn = () => featureOn('body3d') && body3dState !== 'failed';
 const reducedData = () => Boolean(navigator.connection?.saveData);
 const body3dPick = (key, index = 0) => {
   if (view.route === 'together' && view.together?.picking && key) {
@@ -1993,7 +2001,8 @@ const headMark = (levels) => {
 };
 const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
-  return { ...extra, ...(id === 'me' ? { head: headMark(levels) } : {}), id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
+  // The head mark is about strength, so it shows only on the Strength figure, never on Recovery or Train together.
+  return { ...extra, ...(id === 'me' && colours === strengthColour ? { head: headMark(levels), headMark: 'crest' } : {}), id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
@@ -2042,19 +2051,19 @@ const renderMuscles = () => {
   const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `${toggle}
-    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour, strengthLabel)], bodySvg('front', load, levels) + bodySvg('back', load, levels)) || bodySvg('front', load, levels) + bodySvg('back', load, levels)}
+    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour, strengthLabel)], '') || ''}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
         return `<div class="muscleRow${tier ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}"${tier ? ` style="--rowc:${TIER_COLOURS[tier[2]]}"` : ''} data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
       }).join('')}</div>
     </div>
     <div class="anatomyFoot">${levelKey('body')}</div>`
-    : `${bodyForm('Add your bodyweight to see your strength across your anatomy')}<div class="muscles emptyLevels">${bodySvg('front', load, {})}${bodySvg('back', load, {})}
+    : `${bodyForm('Add your bodyweight to see your strength across your anatomy')}<div class="muscles emptyLevels">
       <div class="muscleList">${MUSCLES.map(([, label]) => `<div class="muscleRow muted"><i class="muscleSwatch tierNone"></i><span>${label}</span><span class="num tierWord">–</span></div>`).join('')}</div>
     </div>`}`;
   }
   return `${toggle}
-    <div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, recoveryColour(load), recoveryLabel)], bodySvg('front', load) + bodySvg('back', load)) || bodySvg('front', load) + bodySvg('back', load)}
+    <div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, recoveryColour(load), recoveryLabel)], '') || ''}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const left = daysLeft(load, key);
         const last = lastTrained()[key];
@@ -3416,11 +3425,52 @@ const liftStrength = (lift, body) => {
 };
 // Bodyweight and sex, asked where they're needed (Strength level, and the anatomy's Strength view). Both forms can be
 // on screen at once (computer), so each reads its own field.
+// Male until you pick Female; what you type is kept as you type it, no Save button (Marcus, 15 Nov).
+const bodySexNow = () => view.bodySex || state.body?.sex || 'male';
+// Keep the body from the form: returns true when it changed. Height is optional (it lines people up in Train together).
+const keepBody = (form) => {
+  const kgText = String(form?.querySelector('.bodyKg')?.value || '').trim();
+  const cmText = String(form?.querySelector('.bodyCm')?.value || '').trim();
+  const kg = Number(kgText.replace(',', '.'));
+  const cm = Math.round(Number(cmText.replace(',', '.')));
+  view.bodyError = kgText && !(kg >= 30 && kg <= 250) ? 'Type your bodyweight in kg, like 85.' : cmText && !(cm >= 120 && cm <= 230) ? 'Type your height in cm, like 180.' : '';
+  const kgOk = kg >= 30 && kg <= 250;
+  if (!kgOk && !state.body?.kg) return false;
+  const next = { kg: kgOk ? Math.round(kg * 10) / 10 : state.body.kg, sex: bodySexNow(), ...(cm >= 120 && cm <= 230 ? { cm } : state.body?.cm && !cmText ? {} : state.body?.cm ? { cm: state.body.cm } : {}) };
+  if (JSON.stringify(next) === JSON.stringify(state.body || {})) return false;
+  state.body = next;
+  save();
+  clearTimeout(view.bodySyncTimer);
+  view.bodySyncTimer = setTimeout(syncNow, 800);
+  return true;
+};
+// Typing keeps the numbers right away (no redraw, so the keyboard stays up); leaving the form redraws, so the
+// figure and the strength levels change straight away. Return closes the keyboard.
+document.addEventListener('input', (event) => {
+  const field = event.target.closest?.('.bodyForm .bodyKg, .bodyForm .bodyCm');
+  if (!field) return;
+  clearTimeout(view.bodyTypeTimer);
+  view.bodyTypeTimer = setTimeout(() => keepBody(field.closest('.bodyForm')), 350);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && event.target.closest?.('.bodyForm .bodyKg, .bodyForm .bodyCm')) event.target.blur();
+});
+document.addEventListener('focusout', (event) => {
+  const form = event.target.closest?.('.bodyForm');
+  if (!form) return;
+  setTimeout(() => {
+    if (document.activeElement?.closest('.bodyForm')) return;
+    clearTimeout(view.bodyTypeTimer);
+    keepBody(form);
+    view.bodyEdit = false;
+    render();
+  }, 0);
+});
 const bodyForm = (title) => `<div class="bodyForm">
     <p class="bodyTitle">${title}</p>
     <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Height lines you up next to friends. Saved on your account, on all your devices.</p>
-    <div class="segment full bodySex${view.bodySex || state.body?.sex ? '' : ' needs'}" role="group" aria-label="Sex">${['male', 'female'].map((sex) => `<button class="segmentOption" data-action="body-sex" data-sex="${sex}" aria-pressed="${(view.bodySex || state.body?.sex) === sex}">${sex === 'male' ? 'Male' : 'Female'}</button>`).join('')}<i class="segmentKnob${(view.bodySex || state.body?.sex) === 'female' ? ' on' : ''}" aria-hidden="true"></i></div>
-    <div class="bodyFields"><label class="fxSearch bodyField${state.body?.kg ? '' : ' needs'}"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField${state.body?.cm ? '' : ' needs'}"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label><button class="fxBtn clay" data-action="body-save">Save</button></div>
+    <div class="segment full bodySex" role="group" aria-label="Sex">${['male', 'female'].map((sex) => `<button class="segmentOption" data-action="body-sex" data-sex="${sex}" aria-pressed="${bodySexNow() === sex}">${sex === 'male' ? 'Male' : 'Female'}</button>`).join('')}<i class="segmentKnob${bodySexNow() === 'female' ? ' on' : ''}" aria-hidden="true"></i></div>
+    <div class="bodyFields"><label class="fxSearch bodyField${state.body?.kg ? '' : ' needs'}"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField${state.body?.cm ? '' : ' needs'}"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label></div>
     ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
   </div>`;
 const renderStrength = () => {
@@ -3853,7 +3903,7 @@ const runAiSearch = () => {
 
 const drawerContent = () => {
   const history = exodiaHistory();
-  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['log', 'Log', ICONS.log], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Help & feedback', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route || (route === 'feedback' && view.route === 'help') ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
+  return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Help & feedback', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route || (route === 'feedback' && view.route === 'help') ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       ${friendsSide()}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
       <div id="drawerList">${drawerList()}</div>
@@ -3977,7 +4027,8 @@ const typingBubble = () => `<div class="bubbleOut" role="status"><p>${writingLin
 const feedbackChat = () => `${(state.feedback || []).map((item) => `<div class="chatItem"><div class="bubbleIn">${esc(item.said)}</div><div class="bubbleOut"><p>Sent to Marcus · ${item.kind === 'bug' ? 'Bug' : 'Idea'}: ${esc(item.title)}</p></div></div>`).join('')}${view.pending.filter((pending) => pending.feedback).map((pending) => `<div class="chatItem"><div class="bubbleIn">${esc(pending.text)}</div>${typingBubble()}</div>`).join('')}` || '<p class="empty">Say or type an idea or a bug.</p>';
 
 // Quick add gets the whole panel when it shows; the log stays on the Log page.
-const quickShown = () => !nameQuery() && (view.showQuick || (!view.draft.trim() && !view.quickHidden));
+// The open box shows your log with Quick add under it, also while you type (only a lift name switches to picks).
+const quickShown = () => !nameQuery() && (view.showQuick || !view.quickHidden);
 
 const sheetBody = () => (view.route === 'feedback' ? `<div class="chat">${feedbackChat()}</div>`
   : nameQuery()
@@ -4015,11 +4066,14 @@ const sheetFull = () => typeof view.sheetH !== 'number' || view.sheetH > SHEET_S
 const sizeButton = () => `<button class="sizeBtn${sheetFull() ? ' full' : ''}" data-action="sheet-size" aria-label="${sheetFull() ? 'Make smaller' : 'Show more'}">${ICONS.chev}</button>`;
 const renderSheet = () => `<div class="sheet${quickShown() ? ' quickMode' : ''}${nameQuery() ? ' nameMode' : ''}${sheetPeek() ? ' peek' : ''}${sheetSmall() ? ' small' : ''}" role="group" aria-label="Chat"${sheetStyle()}>
   <button class="grabber" data-action="sheet-toggle" aria-label="${sheetPeek() ? 'Show more' : 'Show less'}"></button>
+  ${view.route === 'log' || view.route === 'feedback' ? '' : `<button class="logOpen" data-action="open-log" aria-label="Open your whole log">${ICONS.expand}<span>Full log</span></button>`}
   <div class="sheetBody scroll" data-mode="${nameQuery() ? `q:${esc(nameQuery())}` : quickShown() ? 'quick' : 'chat'}">${sheetBody()}</div>
 </div>`;
 
 const openChat = () => {
   if (!view.composer) view.trayEnter = true;
+  // Every fresh open shows both again: the log and Quick add.
+  if (!view.composer) view.quickHidden = false;
   if (!view.composer) SHEET_SMALL = 360;
   view.composer = true;
   if (!view.composerDate) view.composerDate = todayIso();
@@ -5636,7 +5690,7 @@ const renderTogether = () => {
   const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
   // One switch under the squad: show what the day trains (the rest see-through), off = recovery again.
   const focusSwitch = squad3d && !picking && dayMuscles.length ? `<button class="fxSet tgFocus" role="switch" aria-checked="${show === 'focus'}" data-action="together-focus"><span class="fxSetText"><b>Show what you'll train</b></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${focusSwitch}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => { const draw = () => sides.map((side) => bodySvg(side, entry.load)).join(''); return `<figure>${sides.length > 1 ? '<div class="tgPair">' : ''}${entry.me ? draw() : asPerson(entry.person, draw)}${sides.length > 1 ? '</div>' : ''}<figcaption>${esc(entry.name)}</figcaption></figure>`; }).join('')}</div>`;
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${focusSwitch}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => `<figure><figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`; // never the old flat figure (Marcus, 15 Nov): names only until the 3D body is there
   bodyChosen = null;
   // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
   const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -8681,6 +8735,8 @@ document.addEventListener('click', (event) => {
     view.bodySex = target.dataset.sex;
     document.querySelectorAll('[data-action="body-sex"]').forEach((chip) => chip.setAttribute('aria-pressed', String(chip.dataset.sex === target.dataset.sex)));
     target.closest('.segment')?.querySelector('.segmentKnob')?.classList.toggle('on', target.dataset.sex === 'female');
+    // Takes effect at once (after the knob has slid), as long as a bodyweight is known.
+    if (keepBody(target.closest('.bodyForm'))) setTimeout(render, 260);
     return;
   }
   if (action === 'body-edit') {
@@ -8787,7 +8843,12 @@ document.addEventListener('click', (event) => {
     document.documentElement.classList.remove('exodiaBlue');
   } else if (action === 'dev-newuser') return enterSandbox();
   else if (action === 'dev-exit') return exitSandbox();
-  else if (action === 'open-menu') view.menu = true;
+  else if (action === 'open-log') {
+    // The Log page is reached from the open box (no Log button in the menu any more).
+    closeTray();
+    location.hash = '#/log';
+    return;
+  } else if (action === 'open-menu') view.menu = true;
   else if (action === 'close-menu') view.menu = false;
   else if (action === 'open-composer') {
     view.trayEnter = !view.composer;
@@ -9630,6 +9691,16 @@ document.addEventListener('focusin', (event) => {
   }, 60);
 });
 
+// On a computer the bar also answers the trackpad or scroll wheel: scroll up over it to make the panel taller.
+document.addEventListener('wheel', (event) => {
+  const grab = event.target.closest?.('.dock .grabber');
+  if (!grab) return;
+  event.preventDefault();
+  const sheet = grab.closest('.sheet');
+  const dockBox = document.querySelector('.dock .prompt')?.getBoundingClientRect();
+  const most = Math.max(SHEET_PEEK, (dockBox ? dockBox.top : window.innerHeight) - 72);
+  setSheet(Math.round(Math.max(SHEET_PEEK, Math.min(most, sheet.offsetHeight - event.deltaY))));
+}, { passive: false });
 let sheetDrag = null;
 document.addEventListener('pointerdown', (event) => {
   const grab = event.target.closest('.dock .grabber');
