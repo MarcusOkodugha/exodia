@@ -51,15 +51,16 @@ const stepOf = (lv) => {
   return STEP[STEP.length - 1][1];
 };
 const bulkOf = (g, lv, fem) => (fem ? 0.8 : 1) * BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
-// Proposed sizing (createBodyView({ sizing: 'strong' }), in the lab until Marcus signs it off): strength shows in
-// the body only for the strong. From 3.5 up (close to Advanced, and Elite) a muscle is exactly as big as above.
-// Below that it loses muscle step by step, every group, down to clearly lean at Beginner; a muscle with no level
-// counts as Novice, since nothing says it is strong. Weight widens the figure half as much, so a heavier friend
-// is not broader than a stronger one.
-const STEP_LEAN = [[1, -2.6], [2, -1.7], [3, -0.5], [3.5, 0.825]];
+// Size by strength for the strong only (createBodyView({ sizing: 'strong' })). From 3.5 up (close to Advanced,
+// and Elite) a muscle is exactly as big as above. Below that every group loses size step by step down to a lean
+// Beginner; a muscle with no level counts as Novice, since nothing says it is strong. A muscle is never drawn
+// inwards: its leanest is a thin layer over the model's own surface (LEAN), because pulling muscles in opened
+// gaps (bone through the abs, the layer underneath showing as lines). Weight widens the figure half as much, so
+// a heavier friend is not broader than a stronger one.
+const LEAN = 0.22, LEAN_STEP = [[1, 0], [2, 0.3], [3, 0.68], [3.5, 1]]; // LEAN: share of BASE left on a Beginner; LEAN_STEP: how far from lean to the 3.5 size
 const bulkStrong = (g, lv, fem) => { const l = lv == null || !isFinite(lv) ? 2 : Math.max(1, Math.min(6, lv)); if (l >= 3.5) return bulkOf(g, l, fem);
-  let st = STEP_LEAN[0][1]; for (let i = 1; i < STEP_LEAN.length; i++) if (l <= STEP_LEAN[i][0]) { const [a, x] = STEP_LEAN[i - 1], [b, y] = STEP_LEAN[i]; st = x + (y - x) * (l - a) / (b - a); break; }
-  const grow = (GROW[g] || 1) - 1; return Math.max(-0.0062, (fem ? 0.8 : 1) * BASE * (1 + (grow * 0.825 + Math.max(grow, 0.8) * (st - 0.825)) * (fem ? 0.6 : 1))); }; // never drawn in further than a lean Beginner
+  let f = 0; for (let i = 1; i < LEAN_STEP.length; i++) if (l <= LEAN_STEP[i][0]) { const [a, x] = LEAN_STEP[i - 1], [b, y] = LEAN_STEP[i]; f = x + (y - x) * (l - a) / (b - a); break; }
+  const lean = (fem ? 0.8 : 1) * BASE * LEAN; return lean + (bulkOf(g, 3.5, fem) - lean) * f; };
 // Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
 // look with fibre lines you can see. D: no fibre lines.
 const LOOKS = {
