@@ -1961,9 +1961,16 @@ const loadBody3d = () => {
     });
 };
 // A person as the 3D body wants them: each muscle's colour (strength level or recovery) and level (for its size).
+// The Exodia mark on your own 3D head (Marcus picked the hand, 15 Nov): blue while you have Exodia, clay when every
+// muscle is Advanced or better.
+const headMark = (levels) => {
+  if (exodiaHit()) return 'blue';
+  const known = Object.values(levels).filter(Boolean);
+  return known.length >= 8 && known.every((level) => level >= 4) ? 'clay' : null;
+};
 const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
-  return { ...extra, id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
+  return { ...extra, ...(id === 'me' ? { head: headMark(levels) } : {}), id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, levels[key]) || null, level: levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
@@ -2924,11 +2931,18 @@ const settingsToggles = () => {
   }
   if (!push && !me) return '';
   // Two groups, each marked on the right by the same clay hooks as the set rows, so no one reads a friends switch as a notification one.
-  return `${push ? `<p class="section">Notifications</p><div class="fxSettings setToggles hooked">${push}</div>` : ''}${me ? `<p class="section">What friends see</p><div class="fxSettings setToggles hooked">` : ''}${me ? SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('') + '<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div></div>' : ''}`;
+  return `${push ? `<p class="section">Notifications</p><div class="fxSettings setToggles">${push}</div>` : ''}${me ? `<p class="section">What friends see</p><div class="fxSettings setToggles">` : ''}${me ? SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('') + '<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div></div>' : ''}`;
+};
+// Settings groups: each heading and what's under it sit in one group, marked on the right by one clay bracket
+// (the same hairline as the hooks on set rows), all the same width, so it's clear which switches belong together.
+const groupSettings = (html) => {
+  const end = html.lastIndexOf('</main>');
+  const parts = html.slice(0, end).split('<p class="section">');
+  return parts[0] + parts.slice(1).map((part) => `<section class="setGroup"><p class="section">${part}</section>`).join('') + html.slice(end);
 };
 const renderYou = () => {
   loadChanges();
-  return `<main class="page youPage">
+  return groupSettings(`<main class="page youPage">
     <p class="eyebrow">Settings</p>
     <h1 class="title nameTitle"><label for="name" class="sr">Your name</label><input id="name" class="titleInput" autocomplete="given-name" value="${esc(state.name || '')}" placeholder="Your name" data-name-input><label for="name" class="nameEdit" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg></label></h1>
     ${setupNote()}
@@ -2966,7 +2980,7 @@ const renderYou = () => {
       <div class="row"><button class="textBtn dangerBtn" data-action="start-fresh">Start fresh on this device</button></div>
     </section>
     <p class="note">Nothing is deleted: your log stays saved online. This device just starts an empty Exodia; open your own link again to get your log back.</p>
-  </main>`;
+  </main>`);
 };
 
 const desktopQuery = window.matchMedia('(min-width: 1024px)');
@@ -4876,13 +4890,8 @@ const startFresh = () => {
   render();
 };
 
-// New first screen (preview until Marcus says yes): open /join?onboard2 once and this phone keeps it.
-const onboardV2 = () => {
-  try {
-    if (/[?&]onboard2\b/.test(location.search)) localStorage.setItem('exodia.onboard2', '1');
-    return localStorage.getItem('exodia.onboard2') === '1';
-  } catch { return false; }
-};
+// The new first screen, for every new person (Marcus, 15 Nov).
+const onboardV2 = () => true;
 // Two clear choices, a name, and example data as a quiet link far below. Bringing data opens the box.
 const renderOnboardTwo = () => {
   const { busy, status, recording: listening, hearing, file, bring } = view.onboard;
@@ -4901,14 +4910,14 @@ const renderOnboardTwo = () => {
     ${bring ? `<p class="onboardMove">Paste your past workouts in the box below: copied from another app, a spreadsheet or your notes. Any format works. Or tap + to add a file.</p>${exportHelp(false)}` : ''}
     <button class="textBtn onboardLook" data-action="onboard-demo" ${locked ? 'disabled' : ''}>Just look around with example data</button>
   </main>
-  ${bring ? `<div class="dock onboardDock">
+  ${`<div class="dock onboardDock">
     <div class="prompt onboardPrompt${filled ? ' hasText' : ''}${listening ? ' listening' : ''}${file ? ' hasChip' : ''}">
       ${file ? `<div class="contextChip"><span class="contextKind">File</span><span class="contextLabel">${esc(file.name)}</span><button class="contextX" data-action="onboard-unfile" aria-label="Remove file">${ICONS.close}</button></div>` : ''}
       <label for="onboardData" class="sr">Your training so far</label>
       <textarea id="onboardData" class="promptInput onboardData" rows="3" placeholder="Paste your past workouts here: from another app, a spreadsheet or notes. Any format." ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
       <div class="promptBar"><button class="roundBtn soft onboardFile" data-action="pick-file" aria-label="Add a file" ${locked ? 'disabled' : ''}>${ICONS.plus}</button><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><button class="roundBtn send" data-action="onboard-start" aria-label="Add it" ${locked || !filled ? 'disabled' : ''}>${ICONS.up}</button></div>
     </div>
-  </div>` : ''}`;
+  </div>`}`;
 };
 // After the name and the first choice: one calm stop in Settings for body and notifications, always skippable.
 const setupNote = () => (view.setupNote ? `<section class="setupNote" role="status"><p><b>You're in.</b> Two quick things make Exodia yours: your body and notifications. Or skip for now.</p><button class="fxBtn clay" data-action="setup-done">Done</button></section>${bodyForm('Add your bodyweight, height and sex')}${pushRow() ? `<div class="fxSettings">${pushRow()}</div>` : ''}` : '');

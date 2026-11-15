@@ -6,23 +6,13 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Decide: pick the Exodia hit animation and the head mark.** Five animations play in the Playground (3D fist opens is the likely one); the 3D head mark is built but off until you pick.
-  1. Dev button → Play Exodia: 3D fist opens (new), 3D hand (new), five arcs (new); or open the [Playground](/lab/playground.html)
-  2. Tell the 3D session which one should play on a hit
-  3. Head on the 3D body: [hand drawn on it](/lab/body3d-test.html?t=one&head=blue), [colour only](/lab/body3d-test.html?t=one&head=blue&mark=0), or neither
+- [ ] **Decide: which Exodia hit animation plays.** Play them in the Playground; when one feels right, say which (the 3D head mark is decided: the hand, 15 Nov).
+  1. Dev button → Play Exodia, or open the [Playground](/lab/playground.html)
+  2. Say the name in the chat
 
-- [ ] **Decide: easier logging at the gym?** (15 Nov) Last time's sets greyed under each lift (tap to log), tap "3×" to get − 3 +, tap a grouped row to open it and swipe a group away whole, Done always within reach. The plus already adds only your warm-up ladder (v469).
-  1. Yes = the next session builds all four, tests them at the gym sizes, and sends you before/after pictures first.
-- [ ] **Decide: the 5 speed fixes?** (15 Nov) Every button reacts the moment you press it; adding a set pops the count; the mic answers at once; % and PR update while you type; opening and closing a day and deleting a row slide instead of jump.
-  1. Yes = built in that order, with before/after pictures for the ones that look different.
-- [ ] **Decide: launch notifications for everyone?** (15 Nov) Only you and Test profiles have them. Friends get one tap, "Turn on notifications", on the Friends page and under a planned workout. Only friend requests and workout changes, plus the morning "Push day with Romi today".
-  1. Yes = launched (no update needed, it shows on their next open).
-- [ ] **Decide: launch the new first screen?** (15 Nov) First and last name, "Bring my training" (filled) or "Start blank", then one stop for body and notifications (switched on; the phone asks when they tap Done). Today only [/join?onboard2](https://exodia.marcusokodugha.workers.dev/join?onboard2) shows it.
-  1. Open [/join?onboard2](https://exodia.marcusokodugha.workers.dev/join?onboard2) in a private window and go through it.
-  2. Yes = every new person gets it. Notifications in it only show once notifications are launched.
-- [ ] **Say "go" to Fable for the new Exodia animations.** (15 Nov) Fable waits for your own word before building: a Playground (Dev menu) with the hit animations side by side, two new hit animations (3D hand, flat), and the Exodia mark on the 3D head (blue with Exodia, clay when all Advanced). Lab only until you pick.
-  1. Open the [Fable session](https://claude.ai/code/session_01NhH2ACEKgEpry1oKmdM1Gr) and type "go".
-  1. Say the letter in the chat or in Admin → Change the app.
+- [ ] **See how easier logging would work.** (15 Nov) Not built: you asked to see it first. Pictures of each step come on the decisions page.
+  1. Open the decisions page link in the chat and answer there.
+
 - [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
   1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
   2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
