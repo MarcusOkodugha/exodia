@@ -1981,7 +1981,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.picking) view.together.picking = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.picking) view.together.picking = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
