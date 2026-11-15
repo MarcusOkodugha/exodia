@@ -1,4 +1,4 @@
-// Playground sections by Fable 5.2 T (15 Nov): five proposals for the 3D body, each "In the app now" next to
+// Playground sections by Fable 5.2 T (15 Nov): proposals for the 3D body, each "In the app now" next to
 // "Proposed". "In the app now" is drawn by the app's own /body3d.js; "Proposed" by /lab/body3d-lab.js (the same file
 // with the proposed change switched on). Nothing here is loaded by the app. A stage only holds its WebGL views
 // while it is near the screen, so the page never keeps more than a few alive.
@@ -10,21 +10,22 @@ const tier = (l) => (l >= 5 ? ['Elite', C.eli] : l >= 4 ? ['Advanced', C.adv] : 
 const person = (name, cm, kg, sex, levels, tag = '') => ({ id: name, name: tag ? `${name}, ${tag}` : name, heightCm: cm, kg, sex,
   muscles: Object.fromEntries(Object.entries(levels).map(([k, l]) => [k, { color: tier(l)[1], level: l, label: `${NAMES[k]} · ${tier(l)[0]} ${l.toFixed(1)}` }])) });
 const every = (l) => Object.fromEntries(GROUPS.map((g) => [g, l]));
-// The five people. Marcus and Benjamin from their real numbers; Adam, Romi and the tall Beginner are assumptions.
+// The five people. Marcus and Benjamin from their real numbers; Adam and Romi are guesses (their own numbers are in
+// the app's database, which this session could not read); the tall Beginner is made up as the hard test.
 const WHO = [
   { key: 'Marcus', cm: 194, kg: 92, sex: 'male', note: '194 cm, 92 kg', levels: { traps: 5.4, lowerBack: 5.0, hamstrings: 4.9, glutes: 4.5, chest: 3.7, quads: 3.7, upperBack: 3.6, rearDelts: 3.6, biceps: 3.6, triceps: 3.6, shoulders: 3.4, abs: 3.7, forearms: 5.4 } },
   { key: 'Benjamin', cm: 195, kg: 110, sex: 'male', note: '195 cm, 110 kg', levels: { traps: 2.3, shoulders: 2.9, rearDelts: 2.3, chest: 2.9, upperBack: 2.3, biceps: 2.3, triceps: 2.9, forearms: 2.3, lowerBack: 2.3 } },
   { key: 'Adam', cm: 180, kg: 80, sex: 'male', note: '180 cm, 80 kg', levels: every(3.0) },
-  { key: 'Romi', cm: 165, kg: 60, sex: 'female', note: '165 cm, 60 kg', levels: every(2.5) },
+  { key: 'Romi', cm: 178, kg: 75, sex: 'male', note: '178 cm, 75 kg', levels: every(2.5) },
   { key: 'Beginner', cm: 203, kg: 95, sex: 'male', note: '203 cm, 95 kg', levels: every(1.0) },
 ];
 const who = (key, tag) => { const w = WHO.find((x) => x.key === key); return person(w.key, w.cm, w.kg, w.sex, w.levels, tag); };
 // The width rule, as both files have it, to print the numbers under the figures.
 const avgOf = (w) => { const l = Object.values(w.levels); return l.reduce((a, b) => a + b, 0) / l.length; };
-const cap = (lv) => (lv >= 5 ? 1.12 : lv >= 4 ? 1.08 + (lv - 4) * 0.04 : lv >= 3 ? 1.04 + (lv - 3) * 0.04 : lv >= 2 ? 1.02 + (lv - 2) * 0.02 : 1.02);
-const slim = (lv) => (lv >= 3 ? 1 : 1 - 0.02 * (3 - Math.max(1, lv)));
+const cap = (lv) => (lv >= 4 ? 1.12 : lv >= 3.5 ? 1.03 + (lv - 3.5) * 0.18 : 1.03);
 const widthNow = (w) => Math.max(0.9, Math.min(1.12, Math.sqrt(w.kg / (w.cm / 100) ** 2 / 23)));
-const widthNew = (w) => Math.max(0.9, Math.min(cap(avgOf(w)), Math.sqrt(w.kg / (w.cm / 100) ** 2 / 23)) * slim(avgOf(w)));
+const widthNew = (w) => Math.max(0.9, Math.min(cap(avgOf(w)), Math.sqrt(w.kg / (w.cm / 100) ** 2 / 23)));
+const frameOf = (w) => (avgOf(w) < 2 ? 'Slim frame' : `Width ${pct(widthNew(w))}`);
 const pct = (x) => { const p = Math.round((x - 1) * 100); return `${p < 0 ? '−' : '+'}${Math.abs(p)}%`; };
 
 const root = document.getElementById('fable');
@@ -32,37 +33,41 @@ const seg = (name, options, picked, cols = options.length) => `<div class="fxSeg
 const head = (n, title, lead) => `<p class="fxBy">Fable 5.2 T</p><h2>${n}. ${title}</h2><p class="fxLead">${lead}</p><p class="fxLead fxSign">Not in the app. It goes in only when you sign it off.</p>`;
 const pair = (a = 'In the app now', b = 'Proposed', extra = '') => `<div class="fxPair${extra}"><div class="fxCol"><div class="fxCell" data-host="now"></div><p class="fxCap">${a}</p></div><div class="fxCol"><div class="fxCell" data-host="new"></div><p class="fxCap">${b}</p></div></div>`;
 const VIEWS = [['0', 'Front'], ['3.1416', 'Back'], ['turn', 'Turning']];
+// The same key as under the recovery figure on Trends.
+const recovKey = '<p class="fxKey"><b>Recovery</b><span>Just trained</span><i style="background:#C96442"></i><i style="background:#E2AF9C"></i><i style="background:#D2DECE"></i><i style="background:#6F9B6A"></i><span>Recovered</span></p>';
+const SOUND = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 
 root.innerHTML = `
-<p class="fxIntro"><b>Fable 5.2 T</b>: seven proposals for the 3D body. Every figure can be dragged round and tapped open, as in the app.</p>
+<p class="fxIntro"><b>Fable 5.2 T</b>: five proposals for the 3D body. Every figure can be dragged round and tapped open, as in the app. Now in the app (v492): the feet fix and the level-up animation.</p>
 
-<section class="fx" id="fx-strength">${head(1, 'Strength shows only on the strong', 'Today a weak body is drawn almost as big as a strong one, and width comes from body weight alone, so Benjamin (110 kg, Novice) is the broadest of all. Proposed: Advanced and Elite muscles exactly as now; below that a muscle is let down (a Novice’s shoulders and arms lie flat instead of pushed out, a Beginner’s a little more); extra width from weight only as far as the strength level backs it; a weak frame a little slimmer.')}
+<section class="fx" id="fx-strength">${head(1, 'Strength shows only on the strong', 'Round 2. Advanced and Elite look exactly as in the app. Below that the body is let down step by step: thinner arms and flatter shoulder caps the weaker they are, and a Beginner is skinny all over (narrow shoulders, flat chest, thin legs, no shoulder bulge). A Novice keeps a normal frame and is clearly more than a Beginner. Body weight no longer makes anyone below Advanced broader, so Benjamin is as wide as Marcus; the difference is Marcus’s shoulders and arms.')}
   <div class="fxStage" data-stage="row">
     ${seg('rowView', VIEWS, '0')}
     <p class="fxCap top">In the app now</p><div class="fxRow5" data-host="now"></div>
     <div class="fxNames">${WHO.map((w) => `<span><b>${w.key}</b><small>${w.cm} cm</small><small>${w.kg} kg</small><small>Width ${pct(widthNow(w))}</small></span>`).join('')}</div>
     <p class="fxCap top">Proposed</p><div class="fxRow5" data-host="new"></div>
-    <div class="fxNames">${WHO.map((w) => `<span><b>${w.key}</b><small>${tier(avgOf(w))[0]}</small><small>average ${avgOf(w).toFixed(1)}</small><small>Width ${pct(widthNew(w))}</small></span>`).join('')}</div>
+    <div class="fxNames">${WHO.map((w) => `<span><b>${w.key}</b><small>${tier(avgOf(w))[0]}</small><small>average ${avgOf(w).toFixed(1)}</small><small>${frameOf(w)}</small></span>`).join('')}</div>
   </div>
-  <p class="fxNote">The tall Beginner (203 cm, 95 kg, Beginner on every muscle) is the key test: today he stands there as big as anyone; proposed he is flatter and slimmer than the strong ones and never the strongest-looking.</p>
-  <p class="fxNote">Assumptions: Adam about 180 cm, 80 kg, Intermediate 3.0 everywhere; Romi about 165 cm, 60 kg, Novice 2.5 everywhere; Marcus’s forearms Elite. Benjamin’s legs have no lifts logged. Short but very strong people are left as they are for now.</p>
+  <p class="fxNote">The tall Beginner (203 cm, 95 kg, Beginner on every muscle) is the hard test: today he stands there with the biggest shoulders of all; proposed he is the skinniest.</p>
+  <p class="fxNote">Marcus 194 cm, 92 kg and Benjamin 195 cm, 110 kg are real. Guesses, to be replaced with what they entered in the app: Adam 180 cm, 80 kg, Intermediate 3.0 everywhere; Romi (a man) 178 cm, 75 kg, Novice 2.5 everywhere. Marcus’s forearms are taken as Elite. Benjamin’s legs have no lifts logged. Short but very strong people are left as they are for now.</p>
   <div class="fxStage" data-stage="one">
     <p class="fxSub">One at a time, at phone size (the 198 × 380 slot on Trends)</p>
-    ${seg('onePerson', WHO.map((w) => [w.key, w.key]), 'Benjamin')}
+    ${seg('onePerson', WHO.map((w) => [w.key, w.key]), 'Beginner')}
     ${seg('oneView', VIEWS, '0')}
     ${pair()}
   </div>
 </section>
 
-<section class="fx" id="fx-abs">${head(2, 'Abs: the pale specks beside the six-pack', 'With Abs picked, pale specks come and go beside the abs as the body turns. The earlier fix has not regressed (the deep belly muscle is still tucked 4 mm in, the camera depth range is still tight). This is another cause: the abs are thin sheets, and in the gaps where two sheets meet you look at the inside of a sheet, which was painted pale like tendon. Proposed: the inside of an abs sheet is abs colour.')}
+<section class="fx" id="fx-abs">${head(2, 'Abs: clean edges', 'Round 2. The ragged look came from the obliques: they end in a saw-toothed rim that lay on top of the six-pack’s clean edge, with pale specks in the gaps. Proposed: the six-pack is a touch wider and the rim of the obliques dips under it, so the seam you see is the six-pack’s own smooth edge; the deep belly muscle sits deeper so nothing fights for the same spot; the inside of an abs sheet is abs colour. Look with Abs picked and not picked.')}
   <div class="fxStage" data-stage="abs">
     ${seg('absView', [['0.5', 'Quarter'], ['0', 'Front'], ['turn', 'Turning']], '0.5')}
-    ${seg('absZoom', [['phone', 'Phone size'], ['close', 'Close up']], 'phone')}
+    ${seg('absZoom', [['phone', 'Phone size'], ['close', 'Close up']], 'close')}
+    ${seg('absPick', [['abs', 'Abs picked'], ['none', 'Not picked']], 'abs')}
     ${pair()}
   </div>
 </section>
 
-<section class="fx" id="fx-fingers">${head(3, 'Fingers: the blue on the hands', 'The forearm muscles in the model run on as tendons over the back of the hand and into the fingers, and they carry the forearm colour with them. Marcus’s forearms are Elite, so his fingers get blue streaks. Proposed: the forearm colour stops at the wrist; hand and fingers stay plain.')}
+<section class="fx" id="fx-fingers">${head(3, 'Fingers: the blue on the hands', 'Round 2. The forearm muscles in the model run on as tendons over the hand into the fingers and carried the forearm colour with them (blue on Marcus). Proposed: the colour fades out over the wrist, about 3 cm into the hand, instead of a hard cut; hand and fingers stay plain.')}
   <div class="fxStage" data-stage="fingers">
     ${seg('fingersView', [['3.1416', 'Back'], ['0', 'Front'], ['turn', 'Turning']], '3.1416')}
     ${seg('fingersZoom', [['phone', 'Phone size'], ['close', 'Close up']], 'close')}
@@ -70,56 +75,43 @@ root.innerHTML = `
   </div>
 </section>
 
-<section class="fx" id="fx-feet">${head(4, 'Feet cut off', 'The figure fills its slot to within 2%. Toes that point towards you are nearer the eye, so they are drawn a few pixels lower than the slot ends and get cut flat. Proposed: the figure is the same size in the same place, but the picture is allowed to go on below the slot, on top of what lies there (taps there still reach what is underneath).')}
-  <div class="fxStage" data-stage="feet">
-    ${seg('feetView', [['0.9', 'Quarter'], ['0', 'Front'], ['turn', 'Turning']], '0.9')}
-    ${seg('feetZoom', [['phone', 'Phone size'], ['close', 'Close up']], 'close')}
-    ${pair('In the app now', 'Proposed', ' feet')}
-  </div>
-</section>
-
-<section class="fx" id="fx-pick">${head(5, 'Picking muscles for a planned day', 'Train together. Today the three figures stand still, yours a bit bigger, and you tap small muscles. Proposed: choose Custom and your own figure opens over the screen, stands still, and you pick from a list beside it or by tapping the figure; Done closes it. Tap a row for a muscle on the other side and the figure turns to it.')}
+<section class="fx" id="fx-pick">${head(4, 'Picking muscles for a planned day', 'Train together. The figures here show Recovery colours, as in the app. Taps that land just beside a muscle (the shoulder at the outline) now count, here and in the app.')}
   <div class="fxStage fxPhone" data-stage="pickNow">
     <p class="fxCap top">In the app now</p>
+    <p class="fxWhy">All three stand still and you tap the muscle on the small figures. No list; a muscle on the other side means turning the figure.</p>
     <div class="fxSquad" data-host="now"></div>
     <div class="fxNames3" data-names></div>
+    ${recovKey}
     <p class="fxWhy" data-hint></p>
     <p class="fxPlanned"><span>Planned</span><b data-planned></b></p>
     <p class="fxLinks"><button type="button" class="fxText" data-toggle>Change muscles</button></p>
   </div>
   <div class="fxStage fxPhone" data-stage="pickNew">
     <p class="fxCap top">Proposed</p>
+    <p class="fxWhy">Tap Custom: your own figure opens big with every muscle in a list beside it. Tap a name or the figure, then Done. A cross takes a planned muscle off.</p>
     <div class="fxSquad" data-host="new"></div>
     <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
+    ${recovKey}
     <p class="fxLabel">What to train</p>
     ${seg('kind', [['Push', 'Push'], ['Pull', 'Pull'], ['Legs', 'Legs'], ['Full body', 'Full body'], ['Move', 'Move']], 'Pull')}
-    <p class="fxLabel">Muscles</p>
-    ${seg('custom', [['day', 'Whole day'], ['custom', 'Custom']], 'day')}
+    <div class="fxRowLine"><span class="fxLabel">Muscles</span>${seg('custom', [['day', 'Whole day'], ['custom', 'Custom']], 'day')}</div>
     <p class="fxPlanned"><span>Planned</span><b data-planned></b></p>
   </div>
 </section>
 
-<section class="fx" id="fx-levelup">${head(6, 'Level-up: a muscle moves up a colour', 'When a muscle reaches a new level colour you get a notice, like “Rear delts just moved to Advanced”. Tap it and that muscle drains away, then builds back bigger in the new colour from the bottom up, slice by slice, with a lit edge and one shimmer that settles. Today the colour just changes the next time you look.')}
-  <div class="fxStage" data-stage="levelup">
-    ${seg('luMuscle', GROUPS.map((g) => [g, NAMES[g]]), 'rearDelts', 3)}
-    ${seg('luLevel', [['2', 'Novice'], ['3', 'Intermediate'], ['4', 'Advanced'], ['5', 'Elite']], '4')}
-    <button type="button" class="fxNotice" data-play><i></i><span><b data-text></b><small>Tap to see it</small></span></button>
-    ${pair('In the app now', 'Proposed')}
-  </div>
-</section>
-
-<section class="fx" id="fx-aura">${head(7, 'Aura mode (Train together)', 'One button under the squad. It starts a song and the figures loop through scenes: a spin, see-through, the muscles you’ll train building in, recovery colours, the trained muscles, everyone’s strength colours, and round again. Tap again to stop.')}
+<section class="fx" id="fx-aura">${head(5, 'Aura mode (Train together)', 'A switch under the squad. On: the song plays and the figures run with it. They start fully see-through; at the drop (0:40) everyone builds from the feet up into their strength colours while turning; then what you train today, then recovery, and on through more build-ups, changing every four bars. A small sound button mutes it. Off: back to normal.')}
   <div class="fxStage fxPhone" data-stage="aura">
     <p class="fxCap top">In the app now</p>
+    <p class="fxWhy">No Aura: the squad as it is.</p>
     <div class="fxSquad" data-host="now"></div>
     <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
     <p class="fxCap top">Proposed</p>
     <div class="fxSquad" data-host="new"></div>
     <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
-    <p class="fxScene" data-scene>Pull day</p>
-    <button type="button" class="fxAura" data-aura aria-pressed="false">Aura</button>
+    <div class="fxAuraRow"><button type="button" class="fxAura" role="switch" data-aura aria-checked="false"><span>Aura</span><i aria-hidden="true"></i></button><button type="button" class="fxMute" data-mute aria-label="Sound off" aria-pressed="false" hidden>${SOUND}</button><button type="button" class="fxText fxSkip" data-skip hidden>Skip to the drop</button></div>
+    <p class="fxWhy" data-song></p>
   </div>
-  <p class="fxNote">The song here is a placeholder made in the page (a soft beat and four chords), until you send the real one. To keep the app light: one small file (a 60 to 90 second loop, AAC or Opus at about 64 kbit/s, roughly 0.5 MB), served by the Worker like any other file, left out of the offline cache, and fetched only when Aura is tapped. It plays from that tap, so the phone never asks for permission; on silent mode the scenes run without sound.</p>
+  <p class="fxNote">The song is not in the code. The page asks the Worker for it (/api/aura-song) only when Aura is switched on, so nothing is downloaded before that and it is never part of the offline cache; it starts from that tap, so the phone never asks for permission. Until the song is uploaded, a placeholder beat made in the page plays instead. Scenes follow the song’s own clock (99 beats a minute, the drop at 0:40.5), so they stay in step even if the phone stutters. “Skip to the drop” is only here, for judging it quickly.</p>
 </section>`;
 
 // ---------- the two renderers, loaded once ----------
@@ -164,10 +156,10 @@ const makePair = async (stage, { people, lab, viewSeg, selected = null, zoom = n
   // Dragging a figure yourself takes over from the switch.
   const grab = () => { turn.pause(); if (viewSeg) unpress(stage, viewSeg); };
   hosts.forEach((h) => h.addEventListener('pointerdown', grab));
-  return { setPeople, views, turn, destroy: () => { turn.stop(); offs.forEach((f) => f()); hosts.forEach((h) => h.removeEventListener('pointerdown', grab)); views.forEach((v) => v.destroy()); } };
+  return { setPeople, views, turn, select: (key) => { sel = key; for (const v of views) v.setSelected(sel); }, destroy: () => { turn.stop(); offs.forEach((f) => f()); hosts.forEach((h) => h.removeEventListener('pointerdown', grab)); views.forEach((v) => v.destroy()); } };
 };
 
-// ---------- 5: picking muscles ----------
+// ---------- 4: picking muscles ----------
 const RC = { 4: '#C96442', 3: '#E2AF9C', 2: '#D2DECE', 1: '#6F9B6A' };
 const RECOV = {
   Marcus: { chest: 4, shoulders: 4, triceps: 3, rearDelts: 1, quads: 3, glutes: 2, hamstrings: 2, adductors: 1, calves: 1, lowerBack: 2, upperBack: 1, traps: 1, biceps: 1, forearms: 1, abs: 2 },
@@ -178,7 +170,9 @@ const KIND = { Push: ['chest', 'shoulders', 'triceps'], Pull: ['upperBack', 'rea
 const BACK = new Set(['rearDelts', 'traps', 'upperBack', 'lowerBack', 'triceps', 'glutes', 'hamstrings', 'calves']);
 const squad = (extra) => ['Marcus', 'Benjamin', 'Romi'].map((n, i) => { const w = WHO.find((x) => x.key === n);
   return { id: n, name: n, heightCm: w.cm, kg: w.kg, sex: w.sex, muscles: Object.fromEntries(GROUPS.map((g) => [g, { color: RC[RECOV[n][g]] || null, level: w.levels[g] || null, label: NAMES[g] }])), ...extra(i) }; });
-const listOf = (keys) => (keys.length ? GROUPS.filter((g) => keys.includes(g)).map((g) => NAMES[g]).join(', ') : 'Nothing yet');
+const CROSS = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+// The planned muscles, each with a small cross that takes it off (as the app has from v492).
+const listOf = (keys) => (keys.length ? GROUPS.filter((g) => keys.includes(g)).map((g) => `<span class="fxMus">${NAMES[g]}<button type="button" data-off="${g}" aria-label="Remove ${NAMES[g]}">${CROSS}</button></span>`).join('') : 'Nothing yet');
 
 // In the app now: all three stand still, turned to the day's side, you 1.6 times as wide; tap a muscle on a figure.
 const makePickNow = async (stage) => {
@@ -189,11 +183,12 @@ const makePickNow = async (stage) => {
     view.setPeople(squad((i) => (picking ? { picks: muscles, zoom: i === 0 ? 1.6 : 1 } : {})));
     view.setMode(picking ? { pick: true, face: Math.PI } : {});
     names.style.gridTemplateColumns = picking ? '1.6fr 1fr 1fr' : '1fr 1fr 1fr'; names.innerHTML = '<span>Marcus</span><span>Benjamin</span><span>Romi</span>';
-    hint.textContent = picking ? 'Tap a muscle to add it to the workout.' : 'Pull day on Sunday.'; planned.textContent = listOf(muscles); btn.textContent = picking ? 'Done' : 'Change muscles';
+    hint.textContent = picking ? 'Tap a muscle to add it to the workout.' : 'Pull day on Sunday.'; planned.innerHTML = listOf(muscles); btn.textContent = picking ? 'Done' : 'Change muscles';
   };
   const toggle = () => { picking = !picking; draw(); };
-  btn.addEventListener('click', toggle); view.attach(stage.querySelector('[data-host]')); draw();
-  return { destroy: () => { btn.removeEventListener('click', toggle); view.destroy(); } };
+  const off = (e) => { const b = e.target.closest('[data-off]'); if (b) { muscles = muscles.filter((x) => x !== b.dataset.off); draw(); } };
+  btn.addEventListener('click', toggle); planned.addEventListener('click', off); view.attach(stage.querySelector('[data-host]')); draw();
+  return { destroy: () => { btn.removeEventListener('click', toggle); planned.removeEventListener('click', off); view.destroy(); } };
 };
 
 // Proposed: Custom opens your own figure over the screen with a list beside it.
@@ -209,7 +204,7 @@ const makePickNew = async (stage) => {
   const people = () => squad((i) => (picking ? { picks: i === 0 ? chosen() : [] } : {}));
   const draw = () => {
     view.setPeople(people()); view.setMode(picking ? { pick: true, face } : {});
-    planned.textContent = listOf(chosen());
+    planned.innerHTML = listOf(chosen());
     sub.textContent = `${kind} day · ${chosen().length} picked`;
     list.innerHTML = GROUPS.map((g) => `<button type="button" class="fxPickRow" data-key="${g}" aria-pressed="${chosen().includes(g)}"><i style="background:${RC[RECOV.Marcus[g]] || '#E9E5DC'}"></i><span>${NAMES[g]}</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg></button>`).join('');
   };
@@ -221,6 +216,8 @@ const makePickNew = async (stage) => {
   const done = (closed) => { if (!picking) return; picking = false; back.classList.remove('on'); ui.classList.remove('on'); if (!closed) view.collapse(); draw();
     setTimeout(() => { if (!picking) { back.remove(); ui.remove(); document.body.classList.remove('fxPicking'); } }, 520); };
   const onList = (e) => { const b = e.target.closest('[data-key]'); if (b) flip(b.dataset.key, true); };
+  const offOne = (e) => { const b = e.target.closest('[data-off]'); if (!b) return; custom = chosen().filter((x) => x !== b.dataset.off); for (const x of stage.querySelectorAll('[data-seg="custom"] button')) x.setAttribute('aria-pressed', String(x.dataset.key === 'custom')); draw(); };
+  planned.addEventListener('click', offOne);
   list.addEventListener('click', onList); ui.querySelector('.fxDone').addEventListener('click', () => done(false));
   const offs = [
     onSeg(stage, 'kind', (key) => { kind = key; custom = null; for (const x of stage.querySelectorAll('[data-seg="custom"] button')) x.setAttribute('aria-pressed', String(x.dataset.key === 'day')); draw(); }),
@@ -230,60 +227,68 @@ const makePickNew = async (stage) => {
   return { destroy: () => { offs.forEach((f) => f()); back.remove(); ui.remove(); document.body.classList.remove('fxPicking'); view.destroy(); } };
 };
 
-// ---------- 6: level-up ----------
-const makeLevelUp = async (stage) => {
-  const p = await makePair(stage, { people: () => [], lab: {}, viewSeg: null }); const [app, lab] = p.views;
-  const btn = stage.querySelector('[data-play]'), text = btn.querySelector('[data-text]'), dot = btn.querySelector('i'); let busy = false, played = false;
-  const key = () => segKey(stage, 'luMuscle'), to = () => Number(segKey(stage, 'luLevel'));
-  const marcus = (level) => { const w = WHO[0]; return [person(w.key, w.cm, w.kg, w.sex, { ...w.levels, [key()]: level })]; };
-  // Before: the muscle one colour lower, turned so it faces you.
-  const reset = () => { played = false; app.setPeople(marcus(to() - 0.4)); lab.setPeople(marcus(to() - 0.4)); p.turn.set(BACK.has(key()) ? '3.1416' : '0');
-    text.textContent = `${NAMES[key()]} just moved to ${tier(to())[0]}`; dot.style.background = tier(to())[1]; };
-  const play = async () => { if (busy) return; busy = true; btn.classList.add('busy'); if (played) { reset(); await new Promise((r) => setTimeout(r, 700)); }
-    played = true; setTimeout(() => app.setPeople(marcus(to())), 560); // the app: the colour simply changes
-    await lab.levelUp(0, key(), tier(to())[1], to()); busy = false; btn.classList.remove('busy'); };
-  btn.addEventListener('click', play);
-  const offs = [onSeg(stage, 'luMuscle', () => { if (!busy) reset(); }), onSeg(stage, 'luLevel', () => { if (!busy) reset(); })];
-  reset();
-  return { destroy: () => { btn.removeEventListener('click', play); offs.forEach((f) => f()); p.destroy(); } };
-};
-
-// ---------- 7: Aura ----------
-// Placeholder song: a soft beat and four chords made with Web Audio, started from the tap. 100 beats a minute.
-const BEAT = 0.6;
-const startSong = () => { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return () => {};
-  const ac = new AC(), out = ac.createGain(); out.gain.value = 0.0001; out.connect(ac.destination); out.gain.exponentialRampToValueAtTime(0.4, ac.currentTime + 1.5);
-  const chords = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]]; let n = 0, next = ac.currentTime + 0.08;
+// ---------- 5: Aura ----------
+// The song's own clock drives everything: the drop and the tempo, measured from the file Marcus sent.
+const AURA = { drop: 40.5, bpm: 99, bars: 4 };
+const BEAT = 60 / AURA.bpm, SCENE = BEAT * 4 * AURA.bars; // one scene is four bars, about 9.7 s
+// Placeholder song until the real one is on the Worker: a soft beat and four chords made with Web Audio at the same
+// tempo, quiet for the first two bars and "dropping" after them, so the scenes can be judged without the file.
+const synthSong = (ac) => { const out = ac.createGain(); out.gain.value = 0.4; out.connect(ac.destination);
+  const chords = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]]; const t0 = ac.currentTime + 0.08; let n = 0, next = t0;
   const note = (type, f0, f1, at, len, vol, attack) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, at); if (f1) o.frequency.exponentialRampToValueAtTime(f1, at + len * 0.6);
     g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + attack); g.gain.exponentialRampToValueAtTime(0.0001, at + len); o.connect(g).connect(out); o.start(at); o.stop(at + len + 0.05); };
-  const fill = () => { while (next < ac.currentTime + 0.4) { note('sine', 105, 44, next, 0.34, 0.6, 0.01);
-    if (n % 2 === 1) note('triangle', chords[Math.floor(n / 8) % 4][2] * 2, 0, next, 0.5, 0.05, 0.02);
-    if (n % 8 === 0) for (const f of chords[(n / 8) % 4]) note('triangle', f, 0, next, BEAT * 8, 0.11, 0.5);
+  const fill = () => { while (next < ac.currentTime + 0.4) { const dropped = n >= 8;
+    if (dropped) note('sine', 105, 44, next, 0.34, 0.6, 0.01);
+    if (dropped && n % 2 === 1) note('triangle', chords[Math.floor(n / 8) % 4][2] * 2, 0, next, 0.5, 0.05, 0.02);
+    if (n % 8 === 0) for (const f of chords[(n / 8) % 4]) note('triangle', f, 0, next, BEAT * 8, dropped ? 0.11 : 0.07, 0.5);
     n++; next += BEAT; } };
   const id = setInterval(fill, 120); fill();
-  return () => { clearInterval(id); out.gain.cancelScheduledValues(ac.currentTime); out.gain.setTargetAtTime(0.0001, ac.currentTime, 0.12); setTimeout(() => ac.close(), 800); };
-};
+  return { drop: BEAT * 8, time: () => ac.currentTime - t0, mute: (m) => out.gain.setTargetAtTime(m ? 0.0001 : 0.4, ac.currentTime, 0.05), seek: () => {}, stop: () => { clearInterval(id); out.gain.setTargetAtTime(0.0001, ac.currentTime, 0.1); } }; };
+// The real song: asked for only now, from the Worker; then the local test file; else the placeholder. Everything is
+// started inside the tap, so the phone lets it play.
+const startSong = (say) => { const AC = window.AudioContext || window.webkitAudioContext, ac = AC ? new AC() : null; if (ac && ac.state === 'suspended') ac.resume();
+  const audio = new Audio(), urls = ['/api/aura-song', '/lab/aura.mp3']; let synth = null, muted = false, dead = false, at = 0;
+  audio.loop = true; audio.preload = 'auto';
+  const fall = () => { if (dead) return; if (at < urls.length) { audio.src = urls[at++]; audio.play().then(() => say(''), fall); } else if (ac) { synth = synthSong(ac); synth.mute(muted); say('Placeholder music: the song is not on the Worker yet.'); } };
+  audio.addEventListener('error', () => { if (!synth) fall(); }); fall();
+  return { drop: () => (synth ? synth.drop : AURA.drop), time: () => (synth ? synth.time() : audio.currentTime), playing: () => Boolean(synth) || (!audio.paused && audio.readyState > 2),
+    mute: (m) => { muted = m; audio.muted = m; if (synth) synth.mute(m); }, seek: (t) => { if (!synth) audio.currentTime = t; },
+    stop: () => { dead = true; audio.pause(); audio.removeAttribute('src'); audio.load(); if (synth) synth.stop(); if (ac) setTimeout(() => ac.close(), 600); } }; };
 const makeAura = async (stage) => {
-  const m = await load(); const day = KIND.Pull, btn = stage.querySelector('[data-aura]'), label = stage.querySelector('[data-scene]'); let on = false, stopSong = null, timer = 0, at = 0;
-  const now = await m.app({}), view = await m.lab({ lab: { fade: 700 } });
+  const m = await load(); const day = KIND.Pull, btn = stage.querySelector('[data-aura]'), muteBtn = stage.querySelector('[data-mute]'), skip = stage.querySelector('[data-skip]'), note = stage.querySelector('[data-song]');
+  let on = false, song = null, raf = 0, scene = '', timers = [];
+  const now = await m.app({}), view = await m.lab({ lab: { fade: 600 } });
   const recov = (n) => (g) => RC[RECOV[n][g]] || null, strength = (n) => (g) => { const l = WHO.find((w) => w.key === n).levels[g]; return l ? tier(l)[1] : null; }, trained = () => (g) => (day.includes(g) ? '#C96442' : null);
   const people = (colour, picks) => ['Marcus', 'Benjamin', 'Romi'].map((n) => { const w = WHO.find((x) => x.key === n);
     return { id: n, name: n, heightCm: w.cm, kg: w.kg, sex: w.sex, picks: picks || [], muscles: Object.fromEntries(GROUPS.map((g) => [g, { color: colour(n)(g), level: w.levels[g] || null, label: NAMES[g] }])) }; });
+  const later = (ms, f) => timers.push(setTimeout(() => { if (on) f(); }, ms));
+  const ghost = (colour) => { view.setPeople(people(colour, [])); view.setMode({ pick: true, spin: true }); }; // everyone fully see-through
+  // From see-through, the whole body builds from the feet up over two bars while it turns, then stands complete.
+  const build = (colour, wait) => { later(wait, () => { view.setPeople(people(colour, GROUPS)); view.throwSpin(0.07); view.buildIn(GROUPS, 'feet', BEAT * 8 * 1000).then(() => { if (on && scene.includes('|build')) view.setMode({}); }); }); };
   const SCENES = [
-    ['Spin', () => { view.setMode({}); view.setPeople(people(recov)); view.throwSpin(0.11); }],
-    ['See-through', () => { view.setPeople(people(recov, [])); view.setMode({ pick: true, spin: true }); }],
-    ['What you’ll train', () => { view.setPeople(people(recov, day)); view.buildIn(day); }],
-    ['Recovery', () => { view.setMode({}); }],
-    ['Trained', () => { view.setPeople(people(trained, day)); view.setMode({ pick: true, spin: true }); }],
-    ['Strength', () => { view.setMode({}); view.setPeople(people(strength)); }],
+    ['build-strength', () => { ghost(strength); build(strength, 0); }], // the drop
+    ['focus', () => { view.setPeople(people(trained, day)); view.setMode({ pick: true, spin: true }); }],
+    ['recovery', () => { view.setPeople(people(recov)); view.setMode({}); view.throwSpin(0.05); }],
+    ['build-recovery', () => { ghost(recov); build(recov, BEAT * 2 * 1000); }],
+    ['focus-build', () => { view.setPeople(people(recov, day)); view.setMode({ pick: true, spin: true }); view.buildIn(day, null, BEAT * 4 * 1000); }],
+    ['strength', () => { view.setPeople(people(strength)); view.setMode({}); view.throwSpin(0.09); }],
+    ['build-strength', () => { ghost(strength); build(strength, BEAT * 2 * 1000); }],
   ];
-  const say = (t) => { label.classList.add('out'); setTimeout(() => { label.textContent = t; label.classList.remove('out'); }, 180); };
-  const next = () => { const [name, go] = SCENES[at % SCENES.length]; at++; say(name); go(); timer = setTimeout(next, BEAT * 8 * 1000); };
-  const stop = () => { on = false; clearTimeout(timer); if (stopSong) stopSong(); stopSong = null; btn.setAttribute('aria-pressed', 'false'); btn.textContent = 'Aura'; say('Pull day'); view.setMode({}); view.setPeople(people(recov)); };
-  const toggle = () => { if (on) return stop(); on = true; at = 0; btn.setAttribute('aria-pressed', 'true'); btn.textContent = 'Stop'; try { stopSong = startSong(); } catch { stopSong = null; } next(); };
-  btn.addEventListener('click', toggle);
+  // Which scene the song is in right now; a change of scene is the only thing that does any work.
+  const tick = () => { raf = requestAnimationFrame(tick); if (!song || !song.playing()) return; const t = song.time(), d = song.drop();
+    const name = t < d ? 'intro' : 's' + Math.floor((t - d) / SCENE); if (name === scene.split('|')[0]) return;
+    for (const id of timers) clearTimeout(id); timers = [];
+    if (name === 'intro') { scene = 'intro|intro'; ghost(strength); return; }
+    const i = Number(name.slice(1)), [kind, go] = i === 0 ? SCENES[0] : SCENES[1 + (i - 1) % (SCENES.length - 1)]; scene = name + '|' + kind; go(); };
+  const stop = () => { on = false; cancelAnimationFrame(raf); for (const id of timers) clearTimeout(id); timers = []; if (song) song.stop(); song = null; scene = '';
+    btn.setAttribute('aria-checked', 'false'); muteBtn.hidden = true; skip.hidden = true; note.textContent = ''; view.setMode({}); view.setPeople(people(recov)); };
+  const toggle = () => { if (on) return stop(); on = true; btn.setAttribute('aria-checked', 'true'); muteBtn.hidden = false; skip.hidden = false; muteBtn.setAttribute('aria-pressed', 'false'); muteBtn.setAttribute('aria-label', 'Sound off');
+    song = startSong((text) => { note.textContent = text; }); scene = ''; ghost(strength); scene = 'intro|intro'; tick(); };
+  const mute = () => { const m = muteBtn.getAttribute('aria-pressed') !== 'true'; muteBtn.setAttribute('aria-pressed', String(m)); muteBtn.setAttribute('aria-label', m ? 'Sound on' : 'Sound off'); if (song) song.mute(m); };
+  const jump = () => { if (song) song.seek(AURA.drop - 3); };
+  btn.addEventListener('click', toggle); muteBtn.addEventListener('click', mute); skip.addEventListener('click', jump);
   now.attach(stage.querySelector('[data-host="now"]')); now.setPeople(people(recov)); view.attach(stage.querySelector('[data-host="new"]')); view.setPeople(people(recov));
-  return { destroy: () => { if (on) stop(); btn.removeEventListener('click', toggle); now.destroy(); view.destroy(); } };
+  return { destroy: () => { if (on) stop(); btn.removeEventListener('click', toggle); muteBtn.removeEventListener('click', mute); skip.removeEventListener('click', jump); now.destroy(); view.destroy(); } };
 };
 
 // ---------- stages: built when near the screen, taken down when far away ----------
@@ -291,14 +296,15 @@ const MAKE = {
   row: (s) => makePair(s, { people: (tag) => WHO.map((w) => who(w.key, tag)), lab: { relax: true }, viewSeg: 'rowView' }),
   one: async (s) => { const p = await makePair(s, { people: (tag) => [who(segKey(s, 'onePerson'), tag)], lab: { relax: true }, viewSeg: 'oneView' });
     const off = onSeg(s, 'onePerson', (key) => p.setPeople((tag) => [who(key, tag)])); return { destroy: () => { off(); p.destroy(); } }; },
-  abs: (s) => makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { abs: true }, viewSeg: 'absView', selected: 'abs', zoom: { seg: 'absZoom', x: 297, y: 440 } }),
+  abs: async (s) => { const p = await makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { abs: true }, viewSeg: 'absView', selected: 'abs', zoom: { seg: 'absZoom', x: 297, y: 440 } });
+    const off = onSeg(s, 'absPick', (key) => p.select(key === 'abs' ? 'abs' : null)); return { destroy: () => { off(); p.destroy(); } }; },
   fingers: (s) => makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { wrist: true }, viewSeg: 'fingersView', zoom: { seg: 'fingersZoom', x: 128, y: 630 } }),
-  feet: (s) => makePair(s, { people: (tag) => [who('Marcus', tag)], lab: { feet: true }, viewSeg: 'feetView', zoom: { seg: 'feetZoom', x: 297, bottom: true } }),
-  pickNow: makePickNow, pickNew: makePickNew, levelup: makeLevelUp, aura: makeAura,
+  pickNow: makePickNow, pickNew: makePickNew, aura: makeAura,
 };
+const KEEP = new URLSearchParams(location.search).has('shots'); // for full-page pictures: every stage stays up
 const live = new Map();
 const io = new IntersectionObserver((entries) => { for (const e of entries) { const s = e.target, name = s.dataset.stage;
   if (e.isIntersecting && !live.has(s)) { const made = MAKE[name](s).catch((err) => { s.classList.add('fxFail'); s.dataset.fail = 'Could not draw: ' + err.message; return null; }); live.set(s, made); }
-  else if (!e.isIntersecting && live.has(s) && !document.querySelector('.body3dOver.on')) { const made = live.get(s); live.delete(s); made.then((x) => x && x.destroy()); } } }, { rootMargin: '250px 0px' });
-for (const s of root.querySelectorAll('[data-stage]')) io.observe(s);
+  else if (!KEEP && !e.isIntersecting && live.has(s) && !document.querySelector('.body3dOver.on')) { const made = live.get(s); live.delete(s); made.then((x) => x && x.destroy()); } } }, { rootMargin: '250px 0px' });
+for (const s of root.querySelectorAll('[data-stage]')) { io.observe(s); if (KEEP && !live.has(s)) live.set(s, MAKE[s.dataset.stage](s).catch(() => null)); }
 window.__fable = { live, ready: async () => { await Promise.all([...live.values()]); return live.size; } };

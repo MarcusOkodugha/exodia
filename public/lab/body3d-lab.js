@@ -1,19 +1,19 @@
-// LAB COPY of /body3d.js (Fable 5.2 T, 15 Nov). The app does not load this file. It is body3d.js as it is in the app,
-// plus four proposed changes that are off unless asked for, so the Playground can show "In the app now" (the real
-// /body3d.js) next to "Proposed" (this file). Every change is marked LAB. When Marcus signs one off, move that
-// change into /body3d.js.
-//   createBodyView({ ..., lab: { relax, abs, wrist, feet, stay, fade } })
-//   fade:  milliseconds; setPeople() then glides colours and sizes from the old to the new instead of swapping.
-//   view.levelUp(index, key, color, level)  the muscle drains away, then builds back in the new colour and size from
-//          the bottom up, slice by slice with a lit edge, and a shimmer runs over it once. Returns a promise.
-//   view.buildIn(keys)                      everyone's muscles in keys build up the same way (Aura).
-//   view.throwSpin(speed)                   a push to the spin that settles back to the idle turn.
-//   relax: strength shows only on the strong. Advanced and Elite as now, lower levels smaller; extra width from
-//          body weight only as far as the strength level backs it.
-//   abs:   the inside of the abs sheets takes the abs colour (the pale specks beside the abs that flicker).
-//   wrist: the forearm muscles end at the wrist; their tendons into the fingers stay plain like the hand.
-//   feet:  the canvas reaches a little below its slot and the picture goes on there, so toes are never cut off.
+// LAB COPY of /body3d.js (Fable 5.2 T). The app does not load this file. It is body3d.js as it is in the app, plus
+// proposed changes that are off unless asked for, so the Playground can show "In the app now" (the real /body3d.js)
+// next to "Proposed" (this file). Every change is marked LAB. When Marcus signs one off, move that change into
+// /body3d.js. This file is generated from body3d.js, so it always carries what the app has (feet, level-up, taps).
+//   createBodyView({ ..., lab: { relax, abs, wrist, stay, fade } })
+//   relax: strength shows only on the strong. Advanced and Elite as now. Below that the muscles are let down, the
+//          arms and shoulders are thinner the weaker they are, a Beginner's whole frame is slim, and extra width
+//          from body weight only counts from Advanced.
+//   abs:   clean edges on the abs: the ragged rim of the obliques lies under the six-pack, the deep belly muscle
+//          deeper, and the inside of an abs sheet is abs colour.
+//   wrist: the forearm colour fades out at the wrist instead of running into the fingers.
 //   stay:  while picking muscles in an opened figure, a tap beside the body does not close it (Done does).
+//   fade:  milliseconds; setPeople() then glides colours and sizes from the old to the new instead of swapping.
+//   view.buildIn(keys, from)   everyone's muscles in keys build up from the bottom (Aura); from: 'feet' builds the
+//                              whole body in one sweep from the soles to the crown.
+//   view.throwSpin(speed)      a push to the spin that settles back to the idle turn.
 //
 // Exodia 3D body. One WebGL canvas that draws one or several people from the same anatomy model: muscles in the
 // colours the app passes in, each muscle as bulky as its strength level, drag to spin, tap a muscle, open one
@@ -26,6 +26,8 @@
 //                              the hand drawn on the head (blue: has Exodia, clay: all Advanced);
 //                              headMark: false keeps the colour but leaves the hand off; 'crest' is the newer mark (lab)
 //   view.setSelected('chest' | null)
+//   view.levelUp(index, key, color, level)   the muscle drains away and builds back in the new colour and size from the
+//                              bottom up, slice by slice; resolves when it has settled. The app then sets the same people.
 //   view.expand(index) / view.collapse()
 //   view.destroy()
 //
@@ -42,7 +44,9 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module
 const MODEL_URL = '/models/anatomy.glb';
 
 const NAMES = { chest: 'Chest', shoulders: 'Shoulders', rearDelts: 'Rear delts', traps: 'Traps', upperBack: 'Upper back', lowerBack: 'Lower back', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', abs: 'Abs', glutes: 'Glutes', quads: 'Quads', hamstrings: 'Hamstrings', adductors: 'Adductors', calves: 'Calves' };
-const GROUPS = Object.keys(NAMES);
+const GROUPS = Object.keys(NAMES), G_SHOULDER = GROUPS.indexOf('shoulders') + 1;
+// Seen best from behind (a level-up turns the figure to the side its muscle is on).
+const BACK = new Set(['rearDelts', 'traps', 'upperBack', 'lowerBack', 'triceps', 'glutes', 'hamstrings', 'calves']);
 // Muscle group from the model's own part name (anterior_delt, vastus_group, ...). The hip flexors show at the
 // groin between the quads and take their colour; the neck extensors lie under the traps. Neck flexors, hands and
 // feet are not trained as a group and stay plain.
@@ -68,11 +72,11 @@ const stepOf = (lv) => {
   return STEP[STEP.length - 1][1];
 };
 const bulkOf = (g, lv, fem) => (fem ? 0.8 : 1) * BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
-// LAB relax. Advanced (4) and up: the same numbers as STEP. Below that the muscle is let down more: Intermediate 3.0
-// sits just over G's own build, a Novice's shoulders and arms lie at the model's own surface (nothing pushed out),
-// a Beginner's a little inside it. Under G every group takes part (by at least SLIM), also the ones that never grow
-// in the app (abs, calves), so a weak body is a little slighter all over. Never further in than LOW times BASE.
-const STEP_P = [[1, -1], [2, -0.6], [3, 0.1], [4, 1], [5, 1.35], [6, 1.5]], LOW = -0.5, SLIM = 0.6;
+// LAB relax. From 3.5 up: the same numbers as STEP, so Advanced, Elite and a strong Intermediate look as they do in
+// the app. Below that the muscle is let down: Novice 2.0 is G's own build (nothing added), a Beginner lies inside
+// it. Under G every group takes part (by at least SLIM), also the ones that never grow in the app (abs, calves).
+// Never further in than LOW times BASE.
+const STEP_P = [[1, -1], [2, 0], [3, 0.5], [3.5, 0.825], [4, 1], [5, 1.35], [6, 1.5]], LOW = -0.5, SLIM = 0.6;
 const stepOfP = (lv) => {
   if (lv == null || !isFinite(lv)) return 0;
   const l = Math.max(1, Math.min(6, lv));
@@ -80,15 +84,28 @@ const stepOfP = (lv) => {
   return STEP_P[STEP_P.length - 1][1];
 };
 // avg: the person's average level, for a muscle with no level of its own: it goes with the rest of the body, never above G.
-const bulkOfP = (g, lv, fem, avg) => { if (lv >= 4) return bulkOf(g, lv, fem); // Advanced and Elite: exactly the app's size
+const bulkOfP = (g, lv, fem, avg) => { if (lv >= 3.5) return bulkOf(g, lv, fem);
   const s = lv > 0 ? stepOfP(lv) : avg > 0 ? Math.min(0, stepOfP(avg)) : 0, grow = (GROW[g] || 1) - 1;
   return (fem ? 0.8 : 1) * BASE * Math.max(LOW, 1 + (s < 0 ? Math.max(grow, SLIM) : grow) * s * (fem ? 0.6 : 1)); };
-// LAB relax. How much wider than the model a body may be drawn for its weight, by average strength level: about
-// 2% with no levels or Beginner, 3% at Novice 2.5, 4% Intermediate, 8% Advanced, 12% Elite (the app: 12% for anyone).
-const frameCap = (lv) => (!(lv > 0) ? 1.02 : lv >= 5 ? 1.12 : lv >= 4 ? 1.08 + (lv - 4) * 0.04 : lv >= 3 ? 1.04 + (lv - 3) * 0.04 : lv >= 2 ? 1.02 + (lv - 2) * 0.02 : 1.02);
-// LAB relax. Under Intermediate the whole frame is drawn a little slimmer as well: 4% at Beginner, 2% at Novice 2.0,
-// nothing from Intermediate up. So a tall Beginner never stands there as the broadest one.
-const frameSlim = (lv) => (!(lv > 0) || lv >= 3 ? 1 : 1 - 0.02 * (3 - Math.max(1, lv)));
+// LAB relax. Extra width from body weight: the app's 12% only from Advanced; up to Intermediate 3.5 at most 3%.
+const frameCap = (lv) => (lv >= 4 ? 1.12 : lv >= 3.5 ? 1.03 + (lv - 3.5) * 0.18 : 1.03);
+// LAB relax. The shape of a weaker body, from the same model (as the woman's shape is made). a: how thin the arms
+// and shoulder caps are (0 from Advanced, 1 a Beginner), about each arm's own line, so the body keeps its width.
+// t: a Beginner's frame (0 from Novice 2.0, 1 at Beginner 1.0): shoulders and ribcage narrower, chest flatter, legs
+// thinner about their own line, arms moved in with the shoulders. Keys are [height, scale at full strength].
+const TX = [[0.72, 1], [0.64, 0.9], [0.55, 0.875], [0.4, 0.885], [0.25, 0.92], [0.1, 0.95], [0, 0.96]];
+const TZ = [[0.7, 1], [0.55, 0.9], [0.4, 0.86], [0.25, 0.9], [0.1, 0.93], [0, 0.95]];
+const LS = [[-0.02, 0.95], [-0.15, 0.86], [-0.4, 0.88], [-0.55, 0.86], [-0.75, 0.94], [-0.82, 1]], LZ = [[-0.1, -0.01], [-0.3, -0.018], [-0.4, -0.029], [-0.5, -0.053], [-0.7, -0.055], [-0.8, -0.049]];
+const AS = [[0.64, 0.9], [0.57, 0.7], [0.47, 0.74], [0.3, 0.78], [0.15, 0.82], [0.03, 0.9], [-0.02, 1]];
+const AX = [[0.6, 0.2], [0.5, 0.207], [0.4, 0.207], [0.3, 0.23], [0.2, 0.246], [0.1, 0.257], [0, 0.285], [-0.12, 0.29]], AZ = [[0.55, -0.045], [0.3, -0.043], [0.2, -0.03], [0.1, -0.011], [0, 0.019], [-0.12, 0.056]];
+const slimAt = (a, t) => (x, y, z) => {
+  const ax = Math.abs(x), sg = Math.sign(x) || 1, arm = Math.min(1, Math.max(0, (ax - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
+  const kx = 1 - t * (1 - keyAt(TX, y)), kz = 1 - t * (1 - keyAt(TZ, y)), ls = 1 - t * (1 - keyAt(LS, y)), lz = keyAt(LZ, y);
+  const lg = Math.min(1, Math.max(0, -y / 0.12)), leg = lg * lg * (3 - 2 * lg);
+  let X = x * kx + (sg * (0.09 + (ax - 0.09) * ls) - x * kx) * leg, Z = z * kz + (lz + (z - lz) * ls - z * kz) * leg;
+  const as = 1 - a * (1 - keyAt(AS, y)), cx = keyAt(AX, y), cz = keyAt(AZ, y), inX = t * (1 - keyAt(TX, Math.max(y, 0.5))) * 0.165;
+  const aX = sg * (cx + (ax - cx) * as - inX), aZ = cz + (z - cz) * as;
+  return [X + (aX - X) * sm, y, Z + (aZ - Z) * sm]; };
 // Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
 // look with fibre lines you can see. D: no fibre lines.
 const LOOKS = {
@@ -141,7 +158,7 @@ const parseGlb = (THREE, buf) => {
 // One geometry for all muscles and one for everything else (head, bones, hands, feet): two draw calls a figure.
 // Each vertex carries its group, baked shade, where its muscle's fibres run to and how near it is to the muscle's
 // ends, so one shader can colour, bulk, draw the fibres and pale the tendon ends.
-const WRIST = 0.002; // LAB wrist: the height of the wrist crease in the model
+const WRIST = 0.004; // LAB wrist: the height of the wrist crease in the model
 const merge = (THREE, parts, R = 0, opt = {}) => {
   let nv = 0, ni = 0; for (const o of parts) { nv += o.count; ni += o.idx.length; }
   let pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
@@ -155,7 +172,12 @@ const merge = (THREE, parts, R = 0, opt = {}) => {
     if (/lower_lats/.test(o.name)) kind.fill(1, vo, vo + cnt); if (/erector/.test(o.name)) kind.fill(2, vo, vo + cnt); if (/hip_flex/.test(o.name)) kind.fill(3, vo, vo + cnt); if (opt.wrist && /forearm|brachiorad/.test(o.name)) kind.fill(4, vo, vo + cnt);
     // The deep belly muscle sits a millimetre or two under the obliques; tucked a little further in, the two never
     // fight for the same pixel (a flicker beside the abs while the body turns).
-    if (/transverse_abdominis/.test(o.name)) for (let i = vo * 3; i < (vo + cnt) * 3; i++) pos[i] -= nor[i] * 0.004;
+    // LAB abs. The obliques end in a ragged rim that lay on top of the six-pack's clean edge. Now the six-pack is a
+    // little wider and the rim of the obliques dips 4 mm under it, so the seam you see is the six-pack's own smooth
+    // edge; the deep belly muscle goes 10 mm in so nothing shares a depth.
+    if (opt.abs && /rectus_abdominis/.test(o.name)) for (let i = vo; i < vo + cnt; i++) { const ax = Math.abs(pos[i * 3]), t = Math.min(1, Math.max(0, (ax - 0.035) / 0.05)); pos[i * 3] += Math.sign(pos[i * 3]) * 0.008 * t * t * (3 - 2 * t); }
+    if (opt.abs && /obliques/.test(o.name)) for (let i = vo; i < vo + cnt; i++) { const ax = Math.abs(pos[i * 3]), t = Math.min(1, Math.max(0, (ax - 0.085) / 0.035)), w = 1 - t * t * (3 - 2 * t); for (let k = 0; k < 3; k++) pos[i * 3 + k] -= nor[i * 3 + k] * 0.004 * w; }
+    if (/transverse_abdominis/.test(o.name)) for (let i = vo * 3; i < (vo + cnt) * 3; i++) pos[i] -= nor[i] * (opt.abs ? 0.01 : 0.004);
     const cc = skin ? skinC : plain;
     for (let i = 0; i < cnt; i++) { ao[vo + i] = o.ao && !skin && !head ? o.ao[i] : 1; grp[vo + i] = gi; col.set([cc.r, cc.g, cc.b], (vo + i) * 3); }
     // Fibre direction. Real fibres fan: a pec runs from the sternum and collarbone to one spot on the upper arm,
@@ -228,9 +250,10 @@ const merge = (THREE, parts, R = 0, opt = {}) => {
   // showed as a flat top on the quads in the see-through view). The K === 3 branch below is kept for that cut.
   // Every triangle a line crosses is cut along it, so colour ends on a clean edge, not a fade across a triangle.
   const gLow = GROUPS.indexOf('lowerBack') + 1, gUp = GROUPS.indexOf('upperBack') + 1, gQ = GROUPS.indexOf('quads') + 1, gFo = GROUPS.indexOf('forearms') + 1;
-  // LAB wrist (K === 4): the forearm muscles are cut at the wrist the same way; below it they are no group (plain).
+  // LAB wrist (K === 4): the forearm muscles are cut the same way 3 cm into the hand; below that they are no group
+  // (plain), and the shader fades the colour out between the wrist crease and the cut.
   if (R > 0) for (const K of opt.wrist ? [1, 4] : [1]) {
-    const f = (i) => pos[i * 3 + 1] - (K === 4 ? WRIST : K === 3 ? 0.1 : 0.32), ok = (k) => (K === 4 ? k === 4 : K === 3 ? k === 3 : k === 1 || k === 2);
+    const f = (i) => pos[i * 3 + 1] - (K === 4 ? WRIST - 0.03 : K === 3 ? 0.1 : 0.32), ok = (k) => (K === 4 ? k === 4 : K === 3 ? k === 3 : k === 1 || k === 2);
     const gOf = (i, inn) => (K === 4 ? (inn ? 0 : gFo) : K === 3 ? (inn ? gQ : 0) : inn ? gLow : kind[i] === 1 ? gUp : 0);
     // Typed arrays with room for the new corners (a cut adds at most four per triangle it crosses, and few cross).
     const cap = nv + 24000, grow = (A, n) => { const B = new A.constructor(cap * n); B.set(A); return B; };
@@ -278,7 +301,7 @@ const merge = (THREE, parts, R = 0, opt = {}) => {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aAxis', new THREE.BufferAttribute(axis, 3)); geo.setAttribute('aApex', new THREE.BufferAttribute(apex, 4));
   geo.setAttribute('aO', new THREE.BufferAttribute(ao, 1)); geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1)); geo.setAttribute('aGroup', new THREE.BufferAttribute(grp, 1));
   geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingBox(); geo.computeBoundingSphere(); geo.userData.grp = grp;
-  // LAB grow: each group's lowest and highest point, so a muscle can be built from its own bottom to its own top.
+  // Each group's lowest and highest point, so a muscle can be built from its own bottom to its own top (level-up).
   { const lo = new Array(16).fill(Infinity), hi = new Array(16).fill(-Infinity); for (let i = 0; i < nv; i++) { const g = grp[i], y = pos[i * 3 + 1]; if (y < lo[g]) lo[g] = y; if (y > hi[g]) hi[g] = y; }
     for (let g = 0; g < 16; g++) if (lo[g] > hi[g]) { lo[g] = 0; hi[g] = 1; } geo.userData.lo = lo; geo.userData.hi = hi; }
   // The head, for the Exodia mark: which points are the head, and the box the mark is laid over (seen from the front).
@@ -298,14 +321,14 @@ const SX = [[0.86, 0.93], [0.74, 0.84], [0.66, 0.83], [0.56, 0.84], [0.45, 0.86]
 const SZ = [[0.3, 1], [0.2, 0.93], [0.1, 1]];
 const ARM = [[0.55, 0.215], [0.3, 0.24], [0.05, 0.28], [-0.15, 0.3]];
 const keyAt = (keys, y) => { if (y >= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (y >= keys[i][0]) { const [a, x] = keys[i - 1], [b, w] = keys[i], t = (y - b) / (a - b); return w + (x - w) * t * t * (3 - 2 * t); } return keys[keys.length - 1][1]; };
-const female = (x, y, z) => {
+const FEMALE = (x, y, z) => {
   const ax = Math.abs(x), sg = Math.sign(x) || 1, arm = Math.min(1, Math.max(0, (ax - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
   const tX = x * keyAt(SX, y), tZ = z * keyAt(SZ, y) * (z < 0 ? 1 + 0.14 * Math.exp(-(((y + 0.03) / 0.1) ** 2)) : 1);
   const cx = keyAt(ARM, y), aX = sg * (cx + (ax - cx) * 0.86 - 0.036), aZ = -0.02 + (z + 0.02) * 0.86;
   let X = tX + (aX - tX) * sm, Y = y, Z = tZ + (aZ - tZ) * sm;
   if (y > 0.7) { Y = 0.7 + (y - 0.7) * 0.94; Z *= 0.94; } // a smaller head
   return [X, Y, Z]; };
-const femalePart = (THREE, o) => {
+const femalePart = (THREE, o, female = FEMALE) => { // LAB: any shape function
   const pos = new Float32Array(o.pos.length), nor = new Float32Array(o.nor.length), m = new THREE.Matrix3(), n = new THREE.Vector3(), e = 0.002;
   for (let q = 0; q < o.pos.length; q += 3) { const x = o.pos[q], y = o.pos[q + 1], z = o.pos[q + 2];
     const d = (k) => { const a = [x, y, z], b = [x, y, z]; a[k] += e; b[k] -= e; const fa = female(...a), fb = female(...b); return [(fa[0] - fb[0]) / (2 * e), (fa[1] - fb[1]) / (2 * e), (fa[2] - fb[2]) / (2 * e)]; };
@@ -314,7 +337,7 @@ const femalePart = (THREE, o) => {
   return { ...o, pos, nor }; };
 
 const assetsBy = {};
-const loadAssets = (opt = {}) => { const key = opt.wrist ? 'wrist' : 'app'; return assetsBy[key] || (assetsBy[key] = (async () => {
+const loadAssets = (opt = {}) => { const key = (opt.wrist ? 'w' : '') + (opt.abs ? 'a' : ''); return assetsBy[key] || (assetsBy[key] = (async () => {
   const [THREE, buf] = await Promise.all([
     import(THREE_URL),
     fetch(MODEL_URL).then((r) => { if (!r.ok) throw new Error('body3d: model ' + r.status); return r.arrayBuffer(); }),
@@ -324,9 +347,14 @@ const loadAssets = (opt = {}) => { const key = opt.wrist ? 'wrist' : 'app'; retu
   const muscleGeo = merge(THREE, parts.filter((o) => !/context/.test(o.name)), tall * 0.022, opt);
   const box = muscleGeo.boundingBox.clone().union(ctxGeo.boundingBox);
   // The woman's figure is built the first time someone female is shown, not before.
+  // LAB relax: the shapes of weaker bodies, each built the first time someone needs it.
+  const shapes = new Map(), shaped = (s, isFem) => { const key = `${s.a},${s.t},${isFem ? 1 : 0}`; let g = shapes.get(key);
+    if (!g) { const sl = slimAt(s.a, s.t), fn = isFem ? (x, y, z) => FEMALE(...sl(x, y, z)) : sl, sp = parts.map((o) => femalePart(THREE, o, fn));
+      shapes.set(key, g = { muscleGeo: merge(THREE, sp.filter((o) => !/context/.test(o.name)), tall * 0.022, opt), ctxGeo: merge(THREE, sp.filter((o) => /context/.test(o.name))) }); }
+    return g; };
   let fem = null; const femaleGeo = () => fem || (fem = (() => { const fp = parts.map((o) => femalePart(THREE, o));
     return { muscleGeo: merge(THREE, fp.filter((o) => !/context/.test(o.name)), tall * 0.022, opt), ctxGeo: merge(THREE, fp.filter((o) => /context/.test(o.name))) }; })());
-  return { THREE, muscleGeo, ctxGeo, femaleGeo, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
+  return { THREE, muscleGeo, ctxGeo, femaleGeo, shaped, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
 })().catch((e) => { delete assetsBy[key]; throw e; })); };
 
 // ---------- shaders (look F from the lab, bulk per muscle group) ----------
@@ -336,10 +364,10 @@ float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * 
 float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
-const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying float vOwn; varying vec2 vGrow;';
+const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying vec2 vGrow; varying float vOwn;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
-  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift; uniform float uFixAbs; uniform float uGrowOn[16]; uniform float uGrowLo[16]; uniform float uGrowHi[16]; uniform float uGrowT; uniform float uGrowK;
+  uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift; uniform float uGrowOn[16]; uniform float uGrowLo[16]; uniform float uGrowHi[16]; uniform float uGrowT; uniform float uGrowK; uniform float uFixAbs; uniform float uWrist;
   ${VARY}`;
 // Bulk. A muscle moves out along its normals by its own amount. Where it meets or lies over a muscle of another
 // group, both move by the average of the two, so neighbours of different sizes meet without a step. The belly
@@ -356,12 +384,15 @@ const V_BODY = `
   vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel); vFade = anySel * (1.0 - sel);
   vDef = vec2(1.0, step(0.5, abs(aGroup - 1.0)));
   vOwn = (1.0 - step(0.5, abs(aGroup - 10.0))) * uFixAbs; // LAB abs: group 10 is the abs
-  // LAB grow: x: this muscle is being built, y: how far up the muscle this point is (0 its lowest point, 1 its top).
+  // LAB wrist: group 9 is the forearms; their colour fades to the hand's over the 3 cm below the wrist crease.
+  vCol = mix(vCol, mix(uPal[0], vCol, smoothstep(uWrist - 0.03, uWrist + 0.004, position.y)), (1.0 - step(0.5, abs(aGroup - 9.0))) * step(-0.5, uWrist));
+  // Building a muscle up (level-up). x: this muscle is being built, y: how far up the muscle this point is (0 its
+  // lowest point, 1 its top).
   vGrow = vec2(uGrowOn[gi], clamp((position.y - uGrowLo[gi]) / max(1e-4, uGrowHi[gi] - uGrowLo[gi]), 0.0, 0.999));
   vec3 fr = abs(aAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0); vE1 = normalize(cross(aAxis, fr)); vE2 = cross(aAxis, vE1);
   float bulk = mix(uBulk[gi], uBulk[int(aNear.x + 0.5)], aNear.y);
   transformed += normal * bulk * aLift * mix(0.15, 1.15, smoothstep(0.3, 0.85, aO)) * step(0.5, aGroup);
-  transformed += normal * uGrowK * 0.005 * vGrow.x * exp(-pow((vGrow.y - uGrowT) / 0.16, 2.0)) * aLift; // LAB grow: a soft swell travels with the edge`;
+  transformed += normal * uGrowK * 0.005 * vGrow.x * exp(-pow((vGrow.y - uGrowT) / 0.16, 2.0)) * aLift; // a soft swell travels with the edge`;
 // Fibre lines: where planes through the muscle's fan point cut its surface, so they run towards that point; two
 // plane families, each used where it crosses the surface cleanly. As the fan widens new lines fade in between the
 // old ones. Where lines would sit closer than the screen can draw they melt into their own average (no moire).
@@ -448,9 +479,13 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const LAB = lab || {};
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
-  const { THREE, muscleGeo, ctxGeo, femaleGeo, center, height } = await loadAssets({ wrist: Boolean(LAB.wrist) });
+  const { THREE, muscleGeo, ctxGeo, femaleGeo, shaped, center, height } = await loadAssets({ wrist: Boolean(LAB.wrist), abs: Boolean(LAB.abs) });
   const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.R;
-  const avgLevel = (p) => { const ls = GROUPS.map((g) => (p.muscles || {})[g]?.level).filter((l) => l > 0); return ls.length ? ls.reduce((a, b) => a + b, 0) / ls.length : 0; };
+  const avgOf = (p, keys) => { const ls = keys.map((g) => (p.muscles || {})[g]?.level).filter((l) => l > 0); return ls.length ? ls.reduce((a, b) => a + b, 0) / ls.length : 0; };
+  const avgLevel = (p) => avgOf(p, GROUPS);
+  // LAB relax: which shape someone stands in, in quarter steps so only a few shapes are ever built.
+  const shapeOf = (p) => { const all = avgLevel(p), arms = avgOf(p, ['shoulders', 'rearDelts', 'biceps', 'triceps', 'forearms']) || all, q = (v) => Math.round(Math.min(1, Math.max(0, v)) * 4) / 4;
+    const a = all > 0 ? q((4 - arms) / 3) : 0, t = all > 0 ? q(2 - all) : 0; return a || t ? { a, t } : null; };
 
   const canvas = document.createElement('canvas'); canvas.className = 'body3dCanvas'; canvas.setAttribute('aria-hidden', 'true');
   const ua = navigator.userAgent || '';
@@ -470,7 +505,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
   const plainC = new THREE.Color(PLAIN);
   const U = { uPal: { value: Array.from({ length: 16 }, () => plainC) }, uBulk: { value: new Array(16).fill(0) }, uBook: { value: 0 }, uXr: { value: 0 }, uPick: { value: new Array(16).fill(0) }, uPickOn: { value: 0 }, uSel: { value: new THREE.Vector4(-1, 0, -1, 0) },
-    uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 }, uFixAbs: { value: LAB.abs ? 1 : 0 }, uGrowOn: { value: new Array(16).fill(0) }, uGrowLo: { value: new Array(16).fill(0) }, uGrowHi: { value: new Array(16).fill(1) }, uGrowT: { value: 2 }, uGrowN: { value: 24 }, uGrowS: { value: -1 }, uGrowK: { value: 0 },
+    uClay: { value: new THREE.Color(CLAY) }, uPlain: { value: plainC }, uFreq: { value: 300 }, uFixAbs: { value: LAB.abs ? 1 : 0 }, uWrist: { value: LAB.wrist ? WRIST : -1 }, uGrowOn: { value: new Array(16).fill(0) }, uGrowLo: { value: new Array(16).fill(0) }, uGrowHi: { value: new Array(16).fill(1) }, uGrowT: { value: 2 }, uGrowN: { value: 24 }, uGrowS: { value: -1 }, uGrowK: { value: 0 },
     uP: { value: new THREE.Vector4(LOOK.groove, LOOK.bump, LOOK.crease, LOOK.sheen) }, uQ: { value: new THREE.Vector4(1, LOOK.warm, LOOK.tendon, 0) } };
   // Transparent so that, with the drawing on, every muscle but the picked one can fade away (one pass, not two).
   // The x-ray copy draws the picked muscle where other muscles cover it, clearly, over the drawing, so turning the
@@ -482,7 +517,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     s.vertexShader = V_PARS + '\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + V_BODY);
     s.fragmentShader = F_PARS + '\n' + s.fragmentShader
       .replace('#include <color_fragment>', `diffuseColor.rgb = vCol;
-        // LAB grow: only the slices under the edge exist yet; the newest ones are lit and their seams show.
+        // Building up: only the slices under the edge exist yet; the newest ones are lit and their seams show.
         float growGlow = 0.0, growSeam = 0.0;
         if (vGrow.x > 0.5) { if (floor(vGrow.y * uGrowN) / uGrowN >= uGrowT) discard;
           float gd = uGrowT - vGrow.y; growGlow = (1.0 - smoothstep(0.0, 0.09, gd)) * smoothstep(0.0, 0.12, 1.0 - uGrowT);
@@ -494,7 +529,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         #endif
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
         #ifndef XRAY
-          if (!gl_FrontFacing) diffuseColor.rgb = mix(uPlain * 0.97, vCol * 0.93, vOwn); // LAB abs: the inside of an abs sheet is abs, not tendon
+          if (!gl_FrontFacing) diffuseColor.rgb = mix(uPlain * 0.97, vCol, vOwn); // LAB abs: the inside of an abs sheet is abs, not tendon
         #endif
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
@@ -508,7 +543,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         outgoingLight *= mix(vec3(1.0), mix(vec3(0.5), vec3(0.66, 0.42, 0.37), uQ.y), clamp((1.0 - vShade.x) * 1.5 * vDef.x, 0.0, 1.0) * uP.z * (1.0 - 0.85 * tend));
         vec3 hv = normalize(normalize(vec3(2.0, 3.0, 4.0)) + normalize(vViewPosition));
         outgoingLight += vec3(1.0, 0.97, 0.93) * pow(max(dot(normal, hv), 0.0), 26.0) * uP.w;
-        outgoingLight += vec3(1.0, 0.97, 0.93) * (0.3 * exp(-pow((vGrow.y - uGrowS) / 0.07, 2.0)) + 0.25 * growGlow) * vGrow.x; // LAB grow: the shimmer
+        outgoingLight += vec3(1.0, 0.97, 0.93) * (0.3 * exp(-pow((vGrow.y - uGrowS) / 0.07, 2.0)) + 0.25 * growGlow) * vGrow.x; // the shimmer that runs over it once
         #include <opaque_fragment>`); };
     m.customProgramCacheKey = () => 'body3dLabMuscle' + Boolean(xray); return m; };
   const muscleMat = mkMuscle(false);
@@ -551,6 +586,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         { float hgt = crestH * 0.0016; vec2 dH = vec2(dFdx(hgt), dFdy(hgt)); vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
           if (crestH > 0.0 || abs(dH.x) + abs(dH.y) > 0.0) normal = normalize(abs(det) * normal - sign(det) * (dH.x * r1 + dH.y * r2)); }`); };
   ctxMat.customProgramCacheKey = () => 'body3dCtxHead';
+  const BODY_LO = new Array(16).fill(center.y - height / 2), BODY_HI = new Array(16).fill(center.y + height / 2); // LAB
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
   fig.position.copy(center).negate(); pivot.add(fig); scene.add(pivot);
   const muscle = new THREE.Mesh(muscleGeo, muscleMat), ctx = new THREE.Mesh(ctxGeo, ctxMat); fig.add(muscle, ctx);
@@ -578,7 +614,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const xrayMat = mkMuscle(true);
   dScene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); { const sun2 = new THREE.DirectionalLight(0xffffff, 1.1); sun2.position.set(2, 3, 4); dScene.add(sun2); }
   const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, xrayMat, 4), dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
-  const useGeo = (p) => { const g = p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; };
+  const useGeo = (p) => { const g = p.shape ? shaped(p.shape, p.fem) : p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(2, 3, 4); scene.add(sun);
   // The sheet that covers the page while a figure is open.
   const veilMat = new THREE.MeshBasicMaterial({ color: '#FAF9F5', transparent: true, depthTest: false, depthWrite: false });
@@ -590,19 +626,21 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const reduced = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   let hostEl = null, hostW = 0, hostH = 0, W = 0, H = 0, inOver = false;
-  // LAB feet. In its slot the canvas is taller than the slot by BLEED of its height, and the picture simply goes on
-  // down there (same figure, same size, same place). Taps still belong to the slot only: the canvas lets them
-  // through and the slot listens, so whatever lies under the feet stays tappable.
-  const BLEED = LAB.feet ? 0.08 : 0; let bleedPx = 0;
-  const fit = () => { if (!BLEED) return; const inHost = !inOver; canvas.style.bottom = inHost ? 'auto' : ''; canvas.style.height = inHost ? `calc(100% + ${bleedPx}px)` : ''; canvas.style.pointerEvents = inHost ? 'none' : ''; canvas.style.zIndex = inHost ? '1' : ''; };
-  const bleedAt = (r) => (BLEED ? Math.round(bleedPx * (1 - r.e)) : 0);
+  // Feet. Toes that point at you are nearer the eye and land a few pixels under the slot, where they were cut flat.
+  // So in its slot the canvas is taller than the slot by BLEED of its height and the picture simply goes on down
+  // there (same figure, same size, same place), on top of what lies under it. Taps still belong to the slot only:
+  // the canvas lets them through and the slot listens, so whatever lies under the feet stays tappable.
+  const BLEED = 0.08; let bleedPx = 0;
+  const fit = () => { const inHost = !inOver; canvas.style.bottom = inHost ? 'auto' : ''; canvas.style.height = inHost ? `calc(100% + ${bleedPx}px)` : ''; canvas.style.pointerEvents = inHost ? 'none' : ''; canvas.style.zIndex = inHost ? '1' : ''; };
+  const bleedAt = (r) => Math.round(bleedPx * (1 - r.e));
   let people = [], slots = [], ts = [];
   let angle = 0.5, speed = reduced.matches ? 0 : 0.05, hold = false, drag = null, open = -1;
   let selGroup = 0; const sel = U.uSel.value;
   // Picking muscles for a plan (Train together): pickOn eases to pickTo; face turns everyone to one side and holds.
   let pickOn = 0, pickTo = 0, face = null, pickSpin = false; // pickSpin: the see-through view keeps turning (Focus)
   let raf = 0, lastT = 0, lastDraw = 0, dirty = true, onScreen = false, dead = false, lastTap = null;
-  // LAB grow, fade: small timed animations, stepped in tick() with everything else.
+  // Small timed animations (a muscle building up), stepped in tick() with everything else.
+  let fxAll = null; // LAB: a build that everyone shares (Aura), also for people set while it runs
   const NO_GROW = new Array(16).fill(0), anims = [], sm = (u) => u * u * (3 - 2 * u);
   const run = (ms, step, done) => { anims.push({ t0: null, ms: reduced.matches ? 1 : ms, step, done }); kick(); };
 
@@ -639,7 +677,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
     pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
-    { const fx = p.fx, ud = muscle.geometry.userData; U.uGrowLo.value = ud.lo; U.uGrowHi.value = ud.hi; U.uGrowOn.value = fx ? fx.on : NO_GROW; U.uGrowT.value = fx ? fx.t : 2; U.uGrowS.value = fx ? fx.s : -1; U.uGrowK.value = fx ? fx.k : 0; } // LAB grow
+    { const fx = p.fx, ud = muscle.geometry.userData; U.uGrowLo.value = fx && fx.body ? BODY_LO : ud.lo; U.uGrowHi.value = fx && fx.body ? BODY_HI : ud.hi; U.uGrowOn.value = fx ? fx.on : NO_GROW; U.uGrowT.value = fx ? fx.t : 2; U.uGrowS.value = fx ? fx.s : -1; U.uGrowK.value = fx ? fx.k : 0; }
     { const hb = ctx.geometry.userData.head, hc = HEADS[p.head]; HU.uHead.value = hb && hc && HU.tMark.value ? 1 : 0;
       if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4];
         HU.uHeadLook.value = p.headLook && HU.tCrest.value ? 1 : 0; HU.uHeadC.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, (hb[5] + hb[6]) / 2); } }
@@ -695,7 +733,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     for (let i = 0; i < people.length; i++) { const to = open === i ? 1 : 0, t = ts[i] || 0; if (t !== to) { ts[i] = Math.max(0, Math.min(1, t + Math.sign(to - t) * ms / (reduced.matches ? 1 : 480))); anim = true; } }
     if (Math.abs(pickTo - pickOn) > 0.002) { pickOn += (pickTo - pickOn) * Math.min(1, 0.2 * dt); anim = true; } else pickOn = pickTo;
     if (face !== null && !drag) { const d = Math.atan2(Math.sin(face - angle), Math.cos(face - angle)); if (Math.abs(d) > 0.002) { angle += d * Math.min(1, 0.15 * dt); speed = 0; anim = true; } }
-    if (anims.length) { anim = true; for (const a of anims.slice()) { if (a.t0 === null) a.t0 = now; const u = Math.min(1, (now - a.t0) / a.ms); a.step(u); if (u >= 1) { anims.splice(anims.indexOf(a), 1); if (a.done) a.done(); } } } // LAB
+    if (anims.length) { anim = true; for (const a of anims.slice()) { if (a.t0 === null) a.t0 = now; const u = Math.min(1, (now - a.t0) / a.ms); a.step(u); if (u >= 1) { anims.splice(anims.indexOf(a), 1); if (a.done) a.done(); } } }
     const sy = selGroup === sel.x ? 1 : 0;
     if (Math.abs(sy - sel.y) > 0.002 || sel.w > 0.002) { sel.y += (sy - sel.y) * Math.min(1, 0.2 * dt); sel.w += (0 - sel.w) * Math.min(1, 0.2 * dt); anim = true; } else { sel.y = sy; sel.w = 0; }
     if (inOver && open < 0 && !anim && ts.every((t) => !t)) { settle(); moving = false; }
@@ -719,9 +757,18 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     const r = place(i); if (!r) return null;
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
     pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); if (people[i]) useGeo(people[i]); scene.updateMatrixWorld(true);
-    ndc.set((x - r.x) / r.w * 2 - 1, -((y - r.y) / (r.h + bl) * 2 - 1)); ray.setFromCamera(ndc, cam);
-    const hit = ray.intersectObjects([muscle, ctx], false)[0];
-    return hit ? (hit.object === muscle ? muscle.geometry.userData.grp[hit.face.a] : 0) : null;
+    const cast = (px, py) => { ndc.set((px - r.x) / r.w * 2 - 1, -((py - r.y) / (r.h + bl) * 2 - 1)); ray.setFromCamera(ndc, cam);
+      const hit = ray.intersectObjects([muscle, ctx], false)[0];
+      return hit ? (hit.object === muscle ? muscle.geometry.userData.grp[hit.face.a] : 0) : null; };
+    const g = cast(x, y); if (g) return g;
+    // A fingertip is wider than a muscle's edge. A tap that just misses (beside the outline at the shoulder, on the
+    // skin between two muscles) goes to the muscle most of the ring around it lands on: first 7 px out, then 14.
+    // The shoulders are a thin strip from most sides, so their hits count double.
+    for (const rad of [7, 14]) { const votes = new Map(); let best = 0;
+      for (let k = 0; k < 8; k++) { const h = cast(x + rad * Math.cos(k * Math.PI / 4), y + rad * Math.sin(k * Math.PI / 4)); if (!h) continue;
+        const v = (votes.get(h) || 0) + (h === G_SHOULDER ? 2 : 1); votes.set(h, v); if (!best || v > votes.get(best)) best = h; }
+      if (best) return best; }
+    return g;
   };
   // The line under the open figure: the picked muscle with what the app says about it ("Traps · Elite 5.4",
   // "Quads · 2 days ago") when it passes a label, else just its name.
@@ -763,7 +810,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   };
   // Drag sideways to spin (with a little throw); a touch that moved less than 6 px is a tap. Up and down is left
   // to the page (touch-action: pan-y), which then cancels the pointer.
-  const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} kick(); };
+  const down = (e) => { if (e.button || (e.target !== canvas && e.target !== hostEl)) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} kick(); };
   const move = (e) => { if (!drag || drag.id !== e.pointerId) return; drag.far = Math.max(drag.far, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
     if (drag.far < 6) return; face = null; spunSincePick = true; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
     angle = drag.a + (e.clientX - drag.x) * k; speed = Math.max(-0.3, Math.min(0.3, (e.clientX - drag.last) * k / Math.max(1, e.timeStamp - drag.lt) * 16.7)); drag.last = e.clientX; drag.lt = e.timeStamp; kick(); };
@@ -771,7 +818,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     if (d.far < 6) { speed = 0.0001 * Math.sign(d.a - angle || 1); tap(e); } else if (e.timeStamp - d.lt > 80 || reduced.matches) speed = 0; kick(); };
   const cancel = () => { drag = null; kick(); };
   const listen = (el, on) => { for (const [n, f] of [['pointerdown', down], ['pointermove', move], ['pointerup', up], ['pointercancel', cancel]]) el[on ? 'addEventListener' : 'removeEventListener'](n, f); };
-  listen(canvas, true);
+  listen(canvas, true); // the opened figure; in its slot the slot itself listens (see attach)
   // A lost GPU context usually comes back; if it hasn't after 3 s (iOS after the app was in the background), the app
   // is told so it can build a new view instead of leaving an empty frame.
   let lostTimer = 0;
@@ -789,7 +836,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const handle = {
     attach(host) {
       if (dead || !host) return;
-      if (host !== hostEl) { if (hostEl) { hostEl.classList.remove('body3dHost'); if (BLEED) listen(hostEl, false); } if (BLEED) listen(host, true); if (ro) { ro.disconnect(); ro.observe(host); } hostEl = host; host.classList.add('body3dHost'); hostW = hostH = 0; }
+      if (host !== hostEl) { if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } listen(host, true); if (ro) { ro.disconnect(); ro.observe(host); } hostEl = host; host.classList.add('body3dHost'); hostW = hostH = 0; }
       if (!inOver && canvas.parentNode !== host) host.appendChild(canvas); fit();
       // Draw before the browser paints, so a moved or resized canvas never shows empty.
       size(); render(); kick();
@@ -803,12 +850,12 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
-        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(LAB.relax ? frameCap(avgLevel(p)) : 1.12, Math.sqrt(bmi / 23)) * (LAB.relax ? frameSlim(avgLevel(p)) : 1)) };
+        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(LAB.relax ? frameCap(avgLevel(p)) : 1.12, Math.sqrt(bmi / 23))), shape: LAB.relax ? shapeOf(p) : null };
       });
       // LAB fade: someone who was already there glides from the old colours and sizes to the new.
       if (LAB.fade) for (const p of people) { const old = prev.find((o) => o.id === p.id); if (!old) continue;
         const to = { pal: p.pal, bulk: p.bulk }, from = { pal: old.pal.map((c) => c.clone()), bulk: old.bulk.slice() };
-        p.pal = from.pal.map((c) => c.clone()); p.bulk = from.bulk.slice();
+        p.pal = from.pal.map((c) => c.clone()); p.bulk = from.bulk.slice(); if (old.fx) p.fx = old.fx; // a build in progress carries on
         run(LAB.fade, (u) => { const e = sm(u); for (let g = 0; g < 16; g++) { p.pal[g].copy(from.pal[g]).lerp(to.pal[g], e); p.bulk[g] = from.bulk[g] + (to.bulk[g] - from.bulk[g]) * e; } }, () => { p.pal = to.pal; p.bulk = to.bulk; }); }
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
@@ -829,31 +876,35 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       showName();
       dirty = true; kick();
     },
-    // LAB grow. The muscle drains from the top down, takes the new colour and size, builds up from the bottom slice
-    // by slice, then one shimmer runs over it.
-    levelUp(index, key, color, level) { const p = people[index], g = GROUPS.indexOf(key) + 1; if (!p || !g) return Promise.resolve();
+    // Level-up. The figure turns to the side the muscle is on; the muscle drains from the top down, takes the new
+    // colour and size, builds up from the bottom slice by slice with a lit edge, then one shimmer runs over it.
+    levelUp(index, key, color, level) { const p = people[index], g = GROUPS.indexOf(key) + 1; if (!p || !g || dead) return Promise.resolve();
       return new Promise((res) => { const fx = p.fx = { on: new Array(16).fill(0), t: 1.001, s: -1, k: 0 }; fx.on[g] = 1;
+        const was = { face, hold }; face = BACK.has(key) ? Math.PI : 0; hold = true; speed = 0;
+        const end = () => { if (p.fx === fx) p.fx = null; face = was.face; hold = was.hold; if (!hold) speed = reduced.matches ? 0 : 0.0001; dirty = true; kick(); res(); };
         run(560, (u) => { fx.t = 1.001 * (1 - sm(u)); }, () => {
-          p.pal = p.pal.slice(); p.pal[g] = new THREE.Color(color); p.has = p.has.slice(); p.has[g] = 1; p.bulk = p.bulk.slice(); p.bulk[g] = LAB.relax ? bulkOfP(key, level, p.fem, level) : bulkOf(key, level, p.fem);
+          p.pal = p.pal.slice(); p.pal[g] = new THREE.Color(color); p.has = p.has.slice(); p.has[g] = 1; p.bulk = p.bulk.slice(); p.bulk[g] = bulkOf(key, level, p.fem);
           run(1800, (u) => { fx.t = 1.001 * (0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
-            run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { if (p.fx === fx) p.fx = null; dirty = true; res(); }); }); }); }); },
-    buildIn(keys) { const gs = (keys || []).map((k) => GROUPS.indexOf(k) + 1).filter(Boolean); if (!gs.length) return Promise.resolve();
-      return new Promise((res) => { const all = people.map((p) => { const fx = p.fx = { on: new Array(16).fill(0), t: 0, s: -1, k: 0 }; for (const g of gs) fx.on[g] = 1; return [p, fx]; });
-        run(1900, (u) => { for (const [, fx] of all) { fx.t = 1.001 * (0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); } }, () => { for (const [, fx] of all) { fx.k = 0; fx.t = 2; }
-          run(900, (u) => { for (const [, fx] of all) fx.s = -0.2 + 1.4 * sm(u); }, () => { for (const [p, fx] of all) if (p.fx === fx) p.fx = null; dirty = true; res(); }); }); }); },
+            run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, end); }); }); }); },
+    // LAB (Aura). Everyone's muscles in keys build up together. from 'feet': the whole body in one sweep, soles to crown.
+    buildIn(keys, from, ms = 1900) { const gs = (keys || GROUPS).map((k) => GROUPS.indexOf(k) + 1).filter(Boolean); if (!gs.length) return Promise.resolve();
+      return new Promise((res) => { const fx = { on: new Array(16).fill(0), t: 0, s: -1, k: 0, body: from === 'feet' ? 1 : 0 }; for (const g of gs) fx.on[g] = 1; if (fx.body) fx.on[0] = 1;
+        for (const p of people) p.fx = fx; fxAll = fx;
+        run(ms, (u) => { fx.t = 1.001 * (fx.body ? u : 0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
+          run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { for (const p of people) if (p.fx === fx) p.fx = null; if (fxAll === fx) fxAll = null; dirty = true; res(); }); }); }); },
     throwSpin(s) { speed = reduced.matches ? 0 : s; hold = false; face = null; kick(); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
     destroy() {
       if (dead) return; dead = true; clearTimeout(lostTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
-      if (hostEl) { hostEl.classList.remove('body3dHost'); if (BLEED) listen(hostEl, false); } canvas.remove(); over.remove();
+      if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } canvas.remove(); over.remove();
       muscleMat.dispose(); xrayMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
     },
     // For tests and tuning only.
     debug: {
       setAngle(a) { angle = a; speed = 0; hold = true; dirty = true; size(); render(); },
-      grow(index, keys, t, s = -1, k = 0) { const p = people[index]; if (!p) return; p.fx = keys ? { on: GROUPS.map(() => 0), t, s, k } : null; if (keys) { p.fx.on.unshift(0); for (const key of keys) p.fx.on[GROUPS.indexOf(key) + 1] = 1; } dirty = true; size(); render(); }, // LAB: one still frame of a build
+      grow(index, keys, t, s = -1, k = 0, body = 0) { const p = people[index]; if (!p) return; p.fx = keys ? { on: new Array(16).fill(0), t, s, k, body } : null; if (keys) for (const key of keys) p.fx.on[GROUPS.indexOf(key) + 1] = 1; dirty = true; size(); render(); }, // LAB: one still frame of a build
       state: () => ({ angle, open, inOver, W, H, hostW, hostH, running: Boolean(raf), dpr: DPR, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lost: renderer.getContext().isContextLost(), canvas }),
       pick: (i, x, y) => { const g = pick(i, x, y); return g ? GROUPS[g - 1] : g; },
     },
