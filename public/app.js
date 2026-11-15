@@ -5664,11 +5664,17 @@ const openSwitch = () => {
   if (!view.body3dOpen || !body3d) return '';
   if (view.route === 'together' && view.together) {
     const plan = togetherPlan();
-    // Picking muscles: your figure opens and stands still; under it the muscles as a list and Done.
+    // Picking muscles: your figure opens and stands still, with the same muscle list as beside an opened figure
+    // (rows with your levels; tap a row to add or take it off) and Done. Beside the figure on a computer, under it on a phone.
     if (view.together.picking && plan) {
       const me = plan.members.find((member) => member.me) || {};
       const on = new Set((plan.muscles?.length ? plan.muscles : KIND_MUSCLES[plan.kind] || []).filter((key) => !(me.skip || []).includes(key)));
-      return `<div class="body3dModes pickPanel"><p class="pickTitle">Select the muscles you want to train</p><div class="pickChips">${MUSCLES.map(([key, label]) => `<button class="pickChip${on.has(key) ? ' on' : ''}" data-action="pick-muscle" data-muscle="${key}" aria-pressed="${on.has(key)}">${esc(label)}</button>`).join('')}</div><button class="fxBtn clay pickDone" data-action="together-muscles">Done</button></div>`;
+      const levels = (state.body?.kg && state.body?.sex ? muscleLevels() : null) || {};
+      const rows = MUSCLES.map(([key, label]) => {
+        const tier = tierOf(levels[key] || 0);
+        return `<div class="muscleRow${tier ? '' : ' muted'}${on.has(key) ? ' picked' : ''}"${tier ? ` style="--rowc:${TIER_COLOURS[tier[2]]}"` : ''} data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0" aria-pressed="${on.has(key)}"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord">${tier ? `<span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;
+      }).join('');
+      return `<div class="body3dModes pickPanel${desktopQuery.matches ? ' side' : ''}"><p class="section pickTitle">Select the muscles you want to train</p><div class="muscleList">${rows}</div><button class="fxBtn clay pickDone" data-action="together-muscles">Done</button></div>`;
     }
     const kind = view.together.kind || view.together.fit;
     const focus = Boolean(plan?.muscles?.length || (KIND_MUSCLES[plan?.kind || kind] || []).length);
