@@ -1766,6 +1766,13 @@ export default {
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Aura mode's song: kept out of the public repo, in Workers KV (binding AURA, key "song.mp3"), fetched only when
+    // someone switches Aura on. Not uploaded yet: 404, and the app plays its own soft beat instead.
+    if (url.pathname === '/api/aura-song') {
+      const song = env.AURA ? await env.AURA.get('song.mp3', { type: 'arrayBuffer' }) : null;
+      if (!song) return new Response('Not here yet', { status: 404 });
+      return new Response(song, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'public, max-age=31536000, immutable' } });
+    }
     if (url.pathname === '/api/features') return features(request, env);
     if (url.pathname === '/api/friends') return social(request, env, 'friends', ctx);
     if (url.pathname === '/api/together') return social(request, env, 'together', ctx);
