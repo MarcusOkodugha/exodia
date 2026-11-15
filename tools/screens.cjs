@@ -73,7 +73,7 @@ const sizes = [['large', 430, 932], ['phone', 393, 852], ['small', 375, 812], ['
     for (const [name, hash, act, where = 'all', data = 'full'] of shots) {
       if (where === 'phone' && kind === 'desktop') continue;
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: kind !== 'desktop' });
-      await page.route('**/api/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ cursor: 1, sessions: [], meta: null, admin: process.env.ADMIN !== '0', name: 'Romy', days: 212 }) }));
+      await page.route('**/api/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ cursor: 1, sessions: [], meta: null, admin: process.env.ADMIN !== '0', launched: ['friends', 'body3d'], name: 'Romy', days: 212 }) }));
       await page.route('**/me/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8') }));
       if (THREE) await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(path.join(THREE, route.request().url().split('three@0.170.0/')[1])) }));
       await page.addInitScript((state) => { if (state) localStorage.setItem('exodia.v1', state); }, data === 'full' ? JSON.stringify(full) : '');
