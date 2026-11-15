@@ -1767,15 +1767,17 @@ export default {
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    // Aura mode's song: kept out of the public repo, in Workers KV (binding AURA, key "song.mp3"), fetched only when
-    // someone switches Aura on. Not uploaded yet: 404, and the app plays its own soft beat instead.
+    // Aura mode's song: kept out of the public repo, in Workers KV (binding AURA). Each song is stored under its own
+    // file name; the key "current" names the one that plays (old uploads under "song.mp3" still work). Not uploaded
+    // yet: 404, and the app plays its own soft beat instead.
     if (url.pathname === '/api/aura-song') {
-      const song = env.AURA ? await env.AURA.get('song.mp3', { type: 'arrayBuffer' }) : null;
+      const name = env.AURA ? (await env.AURA.get('current')) || 'song.mp3' : null;
+      const song = name ? await env.AURA.get(name, { type: 'arrayBuffer' }) : null;
       if (!song) return new Response('Not here yet', { status: 404 });
       // Whatever the file was (mp3, m4a, wav), say what it really is so every browser plays it.
       const head = new Uint8Array(song.slice(0, 12)), text = (from, to) => String.fromCharCode(...head.slice(from, to));
       const type = text(4, 8) === 'ftyp' ? 'audio/mp4' : text(0, 4) === 'RIFF' ? 'audio/wav' : text(0, 4) === 'OggS' ? 'audio/ogg' : 'audio/mpeg';
-      return new Response(song, { headers: { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable' } });
+      return new Response(song, { headers: { 'content-type': type, 'cache-control': 'public, max-age=300' } });
     }
     if (url.pathname === '/api/features') return features(request, env);
     if (url.pathname === '/api/friends') return social(request, env, 'friends', ctx);
