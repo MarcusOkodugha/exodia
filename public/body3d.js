@@ -7,7 +7,7 @@
 //   view.setPeople([{ id, name, heightCm, sex, head: 'blue' | 'clay' | null, muscles: { chest: { color: '#C96442', level: 3.6 }, ... } }])
 //                              head: the Exodia mark: the head and the rest of the body outside the muscles in that colour,
 //                              the hand drawn on the head (blue: has Exodia, clay: all Advanced);
-//                              headMark: false keeps the colour but leaves the hand off
+//                              headMark: false keeps the colour but leaves the hand off; 'crest' is the newer mark (lab)
 //   view.setSelected('chest' | null)
 //   view.expand(index) / view.collapse()
 //   view.destroy()
@@ -239,9 +239,9 @@ const merge = (THREE, parts, R = 0) => {
   geo.setAttribute('aO', new THREE.BufferAttribute(ao, 1)); geo.setAttribute('aEnd', new THREE.BufferAttribute(end, 1)); geo.setAttribute('aGroup', new THREE.BufferAttribute(grp, 1));
   geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingBox(); geo.computeBoundingSphere(); geo.userData.grp = grp;
   // The head, for the Exodia mark: which points are the head, and the box the mark is laid over (seen from the front).
-  if (headI && !R) { const [, , v0, v1] = headI, hd = new Float32Array(nv); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, zs = 0;
-    for (let i = v0; i < v1; i++) { hd[i] = 1; x0 = Math.min(x0, pos[i * 3]); x1 = Math.max(x1, pos[i * 3]); y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); zs += pos[i * 3 + 2]; }
-    geo.setAttribute('aHead', new THREE.BufferAttribute(hd, 1)); geo.userData.head = [(x0 + x1) / 2, y0, y1, x1 - x0, zs / (v1 - v0)]; }
+  if (headI && !R) { const [, , v0, v1] = headI, hd = new Float32Array(nv); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity, zs = 0;
+    for (let i = v0; i < v1; i++) { hd[i] = 1; x0 = Math.min(x0, pos[i * 3]); x1 = Math.max(x1, pos[i * 3]); y0 = Math.min(y0, pos[i * 3 + 1]); y1 = Math.max(y1, pos[i * 3 + 1]); z0 = Math.min(z0, pos[i * 3 + 2]); z1 = Math.max(z1, pos[i * 3 + 2]); zs += pos[i * 3 + 2]; }
+    geo.setAttribute('aHead', new THREE.BufferAttribute(hd, 1)); geo.userData.head = [(x0 + x1) / 2, y0, y1, x1 - x0, zs / (v1 - v0), z0, z1]; }
   return geo;
 };
 
@@ -461,12 +461,19 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   // logo's own colours: its fill all over, and the hand drawn in the logo's lighter line colour, with the eye on
   // the face and the plain hand on the back of the head, as the flat figure had it.
   const HEADS = { blue: ['#7CA3DD', '#D3E1F6'], clay: ['#C96442', '#F2B594'] }; // the level colours themselves, so the body is one colour with Elite or Advanced muscles
-  const HU = { uHead: { value: 0 }, uHeadFill: { value: new THREE.Color() }, uHeadLine: { value: new THREE.Color() }, uHeadBox: { value: new THREE.Vector4() }, uHeadZ: { value: 0 }, tMark: { value: null }, tMarkBack: { value: null } };
+  // headMark 'crest' (lab, the better mark): the real logo at full sharpness, laid round the head's own curve
+  // (measured as angles from the middle of the head, so it does not stretch at the sides): on the forehead with
+  // the eye, on the back of the head without it. The hand is a shade deeper than the head and its lines stand up
+  // from the surface, so the head's own light and shadow run over them.
+  const CREST = { front: 0.56, back: 0.3, span: 1.2 }; // how far up the forehead / the back it looks, and its width in radians
+  const HU = { uHead: { value: 0 }, uHeadFill: { value: new THREE.Color() }, uHeadLine: { value: new THREE.Color() }, uHeadBox: { value: new THREE.Vector4() }, uHeadZ: { value: 0 }, tMark: { value: null }, tMarkBack: { value: null },
+    uHeadLook: { value: 0 }, uHeadC: { value: new THREE.Vector3() }, uCrest: { value: new THREE.Vector3(CREST.front, CREST.back, CREST.span) }, tCrest: { value: null } };
   let marks = null; const loadMarks = () => { if (marks) return; marks = true; const tl = new THREE.TextureLoader(), done = () => { dirty = true; kick(); };
-    HU.tMark.value = tl.load('/hamsa-mask.png', done); HU.tMarkBack.value = tl.load('/hamsa-mask-back.png', done); };
+    HU.tMark.value = tl.load('/hamsa-mask.png', done); HU.tMarkBack.value = tl.load('/hamsa-mask-back.png', done);
+    HU.tCrest.value = tl.load('/hamsa-512.png', done); HU.tCrest.value.anisotropy = 8; };
   ctxMat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, HU);
     sh.vertexShader = 'attribute float aHead; varying float vHead; varying vec3 vHP; varying vec3 vHN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vHead = aHead; vHP = position; vHN = normal;');
-    sh.fragmentShader = 'uniform float uHead; uniform vec3 uHeadFill; uniform vec3 uHeadLine; uniform vec4 uHeadBox; uniform float uHeadZ; uniform sampler2D tMark; uniform sampler2D tMarkBack; varying float vHead; varying vec3 vHP; varying vec3 vHN;\n' + sh.fragmentShader
+    sh.fragmentShader = 'uniform float uHead; uniform vec3 uHeadFill; uniform vec3 uHeadLine; uniform vec4 uHeadBox; uniform float uHeadZ; uniform sampler2D tMark; uniform sampler2D tMarkBack; uniform float uHeadLook; uniform vec3 uHeadC; uniform vec3 uCrest; uniform sampler2D tCrest; varying float vHead; varying vec3 vHP; varying vec3 vHN; float crestH = 0.0;\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         if (uHead > 0.5) { // the whole body outside the muscles takes the colour (neck, hands, feet); the hand is drawn on the head only
           float front = step(uHeadZ, vHP.z);
@@ -474,7 +481,19 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
           vec4 m = mix(texture2D(tMarkBack, uv), texture2D(tMark, uv), front);
           float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
           float line = smoothstep(0.18, 0.34, m.a) * (1.0 - smoothstep(0.62, 0.82, m.a)) * inside * smoothstep(0.25, 0.55, abs(normalize(vHN).z)) * uHeadBox.z * step(0.5, vHead); // not round the sides; z: the hand drawn or the colour alone
-          diffuseColor.rgb = mix(uHeadFill, uHeadLine, line); }`); };
+          diffuseColor.rgb = mix(uHeadFill, uHeadLine, line);
+          if (uHeadLook > 0.5) {
+            vec3 d = normalize(vHP - uHeadC); float fr = step(0.0, d.z);
+            vec3 f = normalize(vec3(0.0, mix(uCrest.y, uCrest.x, fr), fr * 2.0 - 1.0)), rt = normalize(cross(vec3(0.0, 1.0, 0.0), f)), up = cross(f, rt);
+            vec2 t = vec2(dot(d, rt), dot(d, up)); vec2 cuv = t / max(length(t), 1e-5) * acos(clamp(dot(d, f), -1.0, 1.0)) / uCrest.z + 0.5;
+            vec4 c = texture2D(tCrest, cuv); float box = step(0.0, cuv.x) * step(cuv.x, 1.0) * step(0.0, cuv.y) * step(cuv.y, 1.0) * step(0.5, vHead) * uHeadBox.z;
+            float hand = smoothstep(0.3, 0.7, c.a) * box;
+            float ln = smoothstep(0.56, 0.68, dot(c.rgb / max(c.a, 0.001), vec3(0.299, 0.587, 0.114))) * hand;
+            ln *= 1.0 - (1.0 - fr) * (1.0 - smoothstep(0.9, 1.0, length((cuv - vec2(0.502, 0.298)) / vec2(0.232, 0.182)))); // no eye on the back
+            crestH = ln; diffuseColor.rgb = mix(mix(uHeadFill, uHeadFill * 0.84, hand), uHeadLine, ln); } }`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        { float hgt = crestH * 0.0016; vec2 dH = vec2(dFdx(hgt), dFdy(hgt)); vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
+          if (crestH > 0.0 || abs(dH.x) + abs(dH.y) > 0.0) normal = normalize(abs(det) * normal - sign(det) * (dH.x * r1 + dH.y * r2)); }`); };
   ctxMat.customProgramCacheKey = () => 'body3dCtxHead';
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
   fig.position.copy(center).negate(); pivot.add(fig); scene.add(pivot);
@@ -555,7 +574,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     aim(r); pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
     { const hb = ctx.geometry.userData.head, hc = HEADS[p.head]; HU.uHead.value = hb && hc && HU.tMark.value ? 1 : 0;
-      if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4]; } }
+      if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4];
+        HU.uHeadLook.value = p.headLook && HU.tCrest.value ? 1 : 0; HU.uHeadC.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, (hb[5] + hb[6]) / 2); } }
     // The drawing replaces the rest of the body only for one or two people; a row of many fades to plain instead.
     // An opened figure always gets the drawing, however many stand in the row (r.e rises as it opens).
     // Picking muscles for a plan: each person shows the muscles they'll train, solid, the rest as the drawing.
@@ -709,7 +729,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
-        return { id: p.id, name: p.name || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
