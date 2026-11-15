@@ -2015,9 +2015,10 @@ const body3dSlot = (kind, people, flat, mode = null) => {
   if (!body3dOn() || body3dWant) return null;
   loadBody3d();
   body3dWant = { people, mode, selected: view.route === 'together' && view.together?.picking ? null : view.musclePick || null };
-  // Train together: fewer people stand taller; seven still fit side by side on a phone. Picking muscles, the figures
-  // get more room (you the most), so a muscle is easy to hit.
-  const tall = kind === 'squad' ? (mode?.pick ? 380 : people.length <= 2 ? 272 : people.length <= 4 ? 248 : 210) : 0;
+  // Train together: fewer people stand taller; seven still fit side by side on a phone. The height never changes with a
+  // switch (picking, what you train, strength): nothing on the page moves when you flick one (Marcus, 15 Nov). On the
+  // computer there's room, so the figures are always as big as when picking.
+  const tall = kind === 'squad' ? (desktopQuery.matches ? (people.length <= 4 ? 420 : 360) : people.length <= 2 ? 300 : people.length <= 4 ? 260 : 210) : 0;
   // Still loading: the slot stays empty at its full size (no flat figure that then swaps), and the body fades in.
   if (body3dState !== 'ready') body3dWaited = true;
   return `<div class="body3dSlot ${kind}" data-body3d="${kind}"${tall ? ` style="height:${tall}px"` : ''}>${kind === 'one' ? `<button class="iconBtn body3dExpand" data-action="body3d-expand" data-index="0" aria-label="Full screen">${ICONS.expand}</button>` : ''}</div>`;
@@ -2040,6 +2041,19 @@ const placeBody3d = () => {
   }
   body3d.setMode(want.mode || {});
   body3d.setSelected(want.selected);
+  syncB3dList();
+};
+// Computer: with a figure opened full screen there's room beside it, so the same muscle list as before opening sits
+// to its right (tap a row to pick that muscle, as on the page). Phone: the figure has the screen to itself.
+const syncB3dList = () => {
+  document.querySelector('.b3dList')?.remove();
+  if (!desktopQuery.matches || !view.body3dOpen) return;
+  const list = document.querySelector('.body3dHost')?.closest('.muscles')?.querySelector('.muscleList');
+  if (!list) return;
+  const side = document.createElement('div');
+  side.className = 'b3dList';
+  side.appendChild(list.cloneNode(true));
+  document.body.appendChild(side);
 };
 const renderMuscles = () => {
   loadAnatomy();
@@ -8153,7 +8167,7 @@ function pickMuscle(key) {
 }
 
 document.addEventListener('click', (event) => {
-  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"], .body3dSlot, .body3dOver')) pickMuscle(null);
+  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"], .body3dSlot, .body3dOver, .b3dList')) pickMuscle(null);
   // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
   if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
@@ -9552,6 +9566,8 @@ document.addEventListener('keydown', (event) => {
 const route = () => {
   // A body opened full screen belongs to the page it was opened on; leaving the page closes it.
   body3d?.collapse();
+  view.body3dOpen = false;
+  document.querySelector('.b3dList')?.remove();
   const name = location.hash.replace(/^#\/?/, '');
   const profile = name.match(/^me\/([a-f0-9]{32})$/);
   if (profile) {

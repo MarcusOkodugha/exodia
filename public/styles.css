@@ -2052,3 +2052,10 @@ html.resuming .boot { display: none; }
 .roundBtn.send.nudge { animation: sendNudge 1.6s ease-in-out infinite; }
 @keyframes sendNudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0.45); } 50% { box-shadow: 0 0 0 8px rgb(var(--clayRgb) / 0); } }
 @media (prefers-reduced-motion: reduce) { .roundBtn.send.nudge { animation: none; box-shadow: 0 0 0 3px rgb(var(--clayRgb) / 0.35); } }
+
+/* Computer: the muscle list beside a figure opened full screen (over the opened view, right of the figure). */
+.b3dList { position: fixed; z-index: 90; top: 50%; right: max(32px, calc(50vw - 520px)); width: 260px; transform: translateY(-50%); animation: b3dListIn 0.35s ease both; }
+.b3dList .muscleList { display: grid; grid-template-columns: 1fr; gap: 3px; font-size: 15px; line-height: 22px; }
+.b3dList .muscleRow { padding-top: 3px; padding-bottom: 3px; }
+@keyframes b3dListIn { from { opacity: 0; transform: translate(8px, -50%); } }
+@media (prefers-reduced-motion: reduce) { .b3dList { animation: none; } }
