@@ -54,13 +54,15 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Fable 5.2, in the playground for Marcus to sign off (15 Nov):** strength shows in the body only for the strong (Advanced/Elite stay as now, weaker levels relaxed, Marcus as wide as Benjamin), with Marcus, Benjamin, Adam and Romi side by side "In the app now" vs "Proposed"; outer abs flicker when Abs is picked; blue tint on the fingers; feet cut off on the spinning figure (fix without making it smaller); picking muscles for a planned day: your figure opens, stops, "Select the muscles you want to train" with a list and Done. Nothing goes into the app until Marcus says so.
+- [ ] **Ages (15 Nov):** Marcus, Adam, Benjamin, Romi 26; Augustine (Marcus's dad) 56. Each can type it in Settings → Your body (age field since v488); setting it for them needs a session with Cloudflare (D1) access.
+
 - [ ] **Settings redo (14 Nov, Marcus).** Clear sections with space and a soft fade between them, no divider lines (CLAUDE.md). Order: your body; **Add your data** as its own section that pulses and nudges until someone has added data; **Share Exodia** as one section; Friends; **What's new**: a short summary of recent releases, tap to expand detail, scroll back to the very first; at the bottom Download a backup, Restore a backup, Danger zone (Start fresh). Last name field next to the name. Body fields (kg, cm) use the same input as the onboarding "Your name" field; Male/Female smaller; kg, cm and Save the same size on one row, no odd Save button; remove input-looking lines elsewhere.
 - [x] **Sidebar without Log (14 Nov, v487).** Log is out of the menu; the open box has a clear "Full log" button.
 - [ ] **Toggles as an orange underline (14 Nov):** send Marcus a picture example only (switches with just a clay line under the picked option); don't change the app until he says.
 - [ ] **Invite by SMS (14 Nov).** In Add friends, after a search: share a link (the phone's share sheet / SMS) that opens Exodia and sends a friend request to the one who shared it. Built with the Web Share API and an `sms:` link from the user's phone (Exodia can't send SMS itself without a paid SMS service).
 - [ ] **Home logging, easier at the gym (14 Nov, proposal sent, build when Marcus says go).** Today + on Bench copies every set of last time (140, 130… even when he stopped at 130). Done in v469: + adds only the warm-up ladder of last time (one set per weight up to 90% of the top). Still to do: show the rest of last time greyed underneath, tap a grey set to log it; (2) tap a "3×" count to get − 3 + right there; (3) tap a grouped row and it opens into single sets, swipe a group and the whole group goes (with Undo); (4) Done stays in reach at the bottom of the open day, not far below many sets. Compare with StrengthLog: previous numbers shown in grey next to each set, tick off sets as you go, rest timer, warm-up calculator.
 - [ ] **Train together, picking and title (14 Nov, Marcus).** "Add a note" and "Change muscles" look like buttons (clay). Tapping beside the figures ends picking and goes back to recovery (also after tapping a single muscle). A switch Recovery / What you're training over the figures. The title says the focus: "Pull day tomorrow · upper back, biceps, rear delts".
-- [ ] **Old flat figure on the computer (14 Nov).** The right panel on the computer (Trends side panel next to Train together) still draws the old flat anatomy: only one 3D slot per page is filled (body3dWant takes the first). Give the side panel the 3D body too (second view or move the canvas), so the old drawing never shows.
 - [ ] **Train together flow (14 Nov, proposals for Marcus):** 1) move When (a one-week strip with today) up under the headline so the order is who, when, what; 2) tapping a friend's circle on a planned day adds them to the plan at once, say so ("Romi added" / undo).
 
 
@@ -104,6 +106,11 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 - [ ] Once both friends on the shared log have answered "Who's using Exodia on this phone?", delete the SPLIT_PROFILES secret.
 
 ## Done (recent)
+
+- Strength levels count reps (130 × 10 ≈ 173) and age (Foster/McCulloch coefficients), age field in the body form, friends' best set by estimated max (v488)
+- First-screen paste goes in by itself and says "Added X days, Y sets" (v488)
+- Train together: a friend's name over their opened figure opens their page (v488)
+- Computer: muscle list beside an opened figure; Train together figures one size whatever you switch (v489)
 - ✓ 3D body: lower back shows from behind (the lats lying over the erectors below the ribs count as lower back), picked muscle in its own colour, full screen sharper with finer fibres, name line takes a label from the app (v461).
 - ✓ Box never gone: ensureDock every 1.5 s and on return/page/rotate/focusout (missing → render, lifted with no keyboard → --kb 0, leftover clip → cleared), dock on its own layer for iOS; anatomy is never a page swipe and the 3D body takes every touch (touch-action none) (v458)
 - ✓ Cardio with a distance: "swam 500 meters", "bike 90 km", "ran 5k" show the distance on the session and count as cardio (time estimated when not said). 3D body launched for everyone (v456).
