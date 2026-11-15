@@ -886,7 +886,7 @@ const sync = async (request, env) => {
     .map((change) => ({ date: change.date, updated: Math.round(change.updated), base: Number.isFinite(change.base) ? Math.round(change.base) : null, data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
     .filter((change) => change.data === null || change.data.length <= MAX_RECORD);
   const meta = body?.meta && typeof body.meta === 'object' && Number.isFinite(body.meta.updated)
-    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex, ...(Number(body.meta.body.cm) >= 120 && Number(body.meta.body.cm) <= 230 ? { cm: Math.round(Number(body.meta.body.cm)) } : {}) } } : {}), ...cleanVisits(body.meta.visits) }), updated: Math.round(body.meta.updated) }
+    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex, ...(Number(body.meta.body.cm) >= 120 && Number(body.meta.body.cm) <= 230 ? { cm: Math.round(Number(body.meta.body.cm)) } : {}), ...(Number(body.meta.body.age) >= 12 && Number(body.meta.body.age) <= 100 ? { age: Math.round(Number(body.meta.body.age)) } : {}) } } : {}), ...cleanVisits(body.meta.visits) }), updated: Math.round(body.meta.updated) }
     : null;
   if (meta && meta.json.length > MAX_RECORD * 4) return json({ error: 'Too big' }, 400);
   const now = Date.now();
@@ -1357,8 +1357,9 @@ const friendView = async (env, profile, share, isAdmin, today) => {
         const reps = Number(set.reps) || 0;
         if (set.warmup || !(reps > 0)) continue;
         const name = String(exercise.name || '').slice(0, 60);
-        const known = tops.get(name);
-        if (!known || kg > known.set.kg || (kg === known.set.kg && reps > known.set.reps)) tops.set(name, { date, set: shareSet(set) });
+        // The best set is the one with the highest estimated one-rep max (130 × 10 beats 140 × 1), as the app scores it.
+        const known = tops.get(name), one = kg * (reps <= 1 ? 1 : reps <= 10 ? 36 / (37 - reps) : 1 + reps / 30);
+        if (!known || one > known.one || (one === known.one && reps > known.set.reps)) tops.set(name, { date, set: shareSet(set), one });
       }
     }
   }
@@ -1369,7 +1370,7 @@ const friendView = async (env, profile, share, isAdmin, today) => {
   const body = meta.body && Number(meta.body.kg) > 0 ? meta.body : null;
   // Height always goes along (it isn't private, and it's what sizes your figure next to friends); bodyweight is exact
   // only when shared, otherwise rounded to 5 kg.
-  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight), ...(Number(body.cm) > 0 ? { cm: Number(body.cm) } : {}) };
+  if (body && (share.strength || share.bodyweight)) out.body = { sex: body.sex === 'female' ? 'female' : 'male', kg: share.bodyweight ? Number(body.kg) : Math.round(Number(body.kg) / 5) * 5, exact: Boolean(share.bodyweight), ...(Number(body.cm) > 0 ? { cm: Number(body.cm) } : {}), ...(share.strength && Number(body.age) > 0 ? { age: Number(body.age) } : {}) }; // age: their levels adjust like yours
   if (isAdmin) {
     const open = await env.DB.prepare("SELECT at, detail FROM events WHERE profile = ? AND kind = 'open' ORDER BY at DESC LIMIT 1").bind(profile).first();
     const last = await env.DB.prepare('SELECT max(at) AS at FROM events WHERE profile = ?').bind(profile).first();

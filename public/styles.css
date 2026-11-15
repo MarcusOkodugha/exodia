@@ -1895,6 +1895,10 @@ button.wnDay { cursor: pointer; }
 .body3dClose svg { display: block; margin: auto; }
 .body3dWho { position: absolute; top: calc(env(safe-area-inset-top) + 20px); left: 60px; right: 60px; text-align: center; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
 .body3dOver.in .body3dClose, .body3dOver.in .body3dWho { opacity: 1; }
+.body3dWho { padding: 0; border: 0; background: none; font-family: inherit; }
+/* A friend's name opens their page. */
+.body3dOver.in .body3dWho.link { pointer-events: auto; cursor: pointer; color: var(--clayText); }
+.body3dWho.link::after { content: ' \203A'; }
 .body3dName { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 22px); text-align: center; font-size: 15px; font-weight: 600; color: var(--text); opacity: 0; transform: translateY(4px); transition: opacity 0.28s ease, transform 0.28s ease; pointer-events: none; }
 .body3dOver.in .body3dName.on { opacity: 1; transform: none; }
 /* Opened: the person's name top left, the picked muscle top right (its colour square, "Upper back · Intermediate 3.6"),
@@ -2025,7 +2029,7 @@ html.resuming .boot { display: none; }
 .youPage .setGroup::after { content: ""; position: absolute; top: 33px; right: 0; bottom: 2px; width: 76px; border-top: var(--hair) solid rgb(var(--clayRgb) / 0.36); border-right: var(--hair) solid rgb(var(--clayRgb) / 0.36); pointer-events: none; }
 /* Body form: Male / Female, then bodyweight and height side by side at full width, and one full-width Save under them,
    the same height as the fields so nothing sits out of proportion. */
-.bodyFields { grid-template-columns: 1fr 1fr; }
+.bodyFields { grid-template-columns: repeat(3, minmax(0, 1fr)); } /* kg, cm, age: the same size on one row */
 .bodyFields .fxBtn { grid-column: 1 / -1; width: 100%; height: 48px; margin-top: 2px; font-size: 16px; font-weight: 600; border-radius: 14px; }
 /* First screen: the two choices breathe apart and their words sit centred in the wide buttons. */
 .onboardChoices.two { gap: 16px; }
@@ -2043,3 +2047,8 @@ html.resuming .boot { display: none; }
 @media (hover: hover) and (pointer: fine) { .dock .grabber { cursor: ns-resize; } }
 /* The computer's two-column muscle list reads top to bottom down each column, like the body (traps first). */
 .right .muscleList { grid-auto-flow: column; grid-template-rows: repeat(8, auto); }
+
+/* After a paste, the send button pulses gently until you send. */
+.roundBtn.send.nudge { animation: sendNudge 1.6s ease-in-out infinite; }
+@keyframes sendNudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0.45); } 50% { box-shadow: 0 0 0 8px rgb(var(--clayRgb) / 0); } }
+@media (prefers-reduced-motion: reduce) { .roundBtn.send.nudge { animation: none; box-shadow: 0 0 0 3px rgb(var(--clayRgb) / 0.35); } }

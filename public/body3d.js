@@ -397,7 +397,7 @@ const breastGeo = (THREE) => { const g = new THREE.SphereGeometry(1, 40, 28), p 
 
 // ---------- the view ----------
 
-export async function createBodyView({ onPick, onExpand, onCollapse, onLost, names, look } = {}) {
+export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onWho, names, look } = {}) {
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
   const { THREE, muscleGeo, ctxGeo, femaleGeo, center, height } = await loadAssets();
@@ -415,7 +415,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
 
   // Overlay for the open view: the same canvas moves in here and covers the screen.
   const over = document.createElement('div'); over.className = 'body3dOver';
-  over.innerHTML = '<div class="body3dWho"></div><button type="button" class="body3dClose" aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l12 12M15 3L3 15"/></svg></button><div class="body3dName"></div>';
+  over.innerHTML = '<button type="button" class="body3dWho"></button><button type="button" class="body3dClose" aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l12 12M15 3L3 15"/></svg></button><div class="body3dName"></div>';
   const whoEl = over.querySelector('.body3dWho'), nameEl = over.querySelector('.body3dName'), closeEl = over.querySelector('.body3dClose');
 
   // One scene, drawn once per person with that person's colours and bulk as uniforms.
@@ -662,7 +662,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
       nameEl.replaceChildren(sw, text); nameEl.classList.add('on'); } else nameEl.classList.remove('on'); };
   const doExpand = (i) => {
     if (dead || i === open || !people[i]) return false;
-    open = i; whoEl.textContent = people[i].name || ''; showName();
+    open = i; setWho(people[i]); showName();
     if (!inOver) {
       const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); if (/^#[0-9a-f]{6}$/i.test(bg)) veilMat.color.set(bg);
       inOver = true; pr = DPR_OPEN; renderer.setPixelRatio(pr); W = H = 0; if (!over.parentNode) document.body.appendChild(over);
@@ -672,6 +672,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
     dirty = true; kick(); return true;
   };
   const doCollapse = () => { if (open < 0) return false; open = -1; over.classList.remove('in'); dirty = true; kick(); return true; };
+  // The name over an opened figure: a friend's opens their page ("Romi ›"); your own is just your name.
+  const setWho = (p) => { whoEl.textContent = p?.name || ''; whoEl.classList.toggle('link', Boolean(p?.link && onWho)); };
+  whoEl.addEventListener('click', () => { const p = people[open]; if (p?.link && onWho) { doCollapse(); onWho(p.link); } });
   const userCollapse = () => { if (doCollapse() && onCollapse) onCollapse(); };
   const onKey = (e) => { if (e.key === 'Escape' && open >= 0) userCollapse(); };
   const tap = (e) => {
@@ -729,11 +732,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
-        return { id: p.id, name: p.name || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
       });
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
-      if (open >= 0) whoEl.textContent = people[open].name;
+      if (open >= 0) setWho(people[open]);
       showName();
       layout(); dirty = true; kick();
     },

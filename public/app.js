@@ -1980,7 +1980,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -3374,6 +3374,11 @@ const STRENGTH_NOW_DAYS = 90;
 // against Strength Level's one-rep max standards. Reps and RPE never raise it: 290 × 3 at RPE 7 counts as 290, the
 // same as a single would. They only break a tie: at the same weight, more reps wins, then the earlier day (the first
 // time you did it). Pull-ups count your most reps in one set against Strength Level's reps table.
+// Age: Strength Level compares you with lifters your age. A lift counts a little more for teenagers and from 41 on
+// (the age coefficients junior and masters powerlifting use: Foster for 14–22, McCulloch from 41); 23 to 40 and no
+// age given: no change.
+const AGE_COEF = { 14: 1.23, 15: 1.18, 16: 1.13, 17: 1.08, 18: 1.06, 19: 1.04, 20: 1.03, 21: 1.02, 22: 1.01, 41: 1.01, 42: 1.02, 43: 1.031, 44: 1.043, 45: 1.055, 46: 1.068, 47: 1.082, 48: 1.097, 49: 1.113, 50: 1.13, 51: 1.147, 52: 1.165, 53: 1.184, 54: 1.204, 55: 1.225, 56: 1.246, 57: 1.268, 58: 1.291, 59: 1.315, 60: 1.34, 61: 1.366, 62: 1.393, 63: 1.421, 64: 1.45, 65: 1.48, 66: 1.511, 67: 1.543, 68: 1.576, 69: 1.61, 70: 1.645 };
+const ageFactor = (age) => { const a = Math.round(Number(age) || 0); if (!a) return 1; if (a < 14) return 1.23; if (a > 70) return Math.min(2, 1.645 + (a - 70) * 0.04); return AGE_COEF[a] || 1; };
 const liftStrength = (lift, body) => {
   const since = addDays(todayIso(), -STRENGTH_NOW_DAYS);
   // Pull-ups have two ways to count: most reps in one set, and the most weight added for a set (kg on the belt).
@@ -3399,8 +3404,11 @@ const liftStrength = (lift, body) => {
             if (recent) top.recentAdded = better(top.recentAdded, kg, reps, set, session.date, exercise.name);
           }
         } else if (kg > 0) {
-          top.added = better(top.added, kg, reps, set, session.date, exercise.name);
-          if (recent) top.recentAdded = better(top.recentAdded, kg, reps, set, session.date, exercise.name);
+          // Strength Level's standards are one-rep maxes, so a set counts as its estimated 1RM (130 × 10 is about
+          // 173, not 130), adjusted for age like Strength Level does. It used to count the weight alone.
+          const one = Math.round(estimate(kg, reps > 0 ? reps : 1) * ageFactor(body.age) * 10) / 10;
+          top.added = better(top.added, one, kg, set, session.date, exercise.name);
+          if (recent) top.recentAdded = better(top.recentAdded, one, kg, set, session.date, exercise.name);
         }
       }
     }
@@ -3427,16 +3435,19 @@ const liftStrength = (lift, body) => {
 // on screen at once (computer), so each reads its own field.
 // Male until you pick Female; what you type is kept as you type it, no Save button (Marcus, 15 Nov).
 const bodySexNow = () => view.bodySex || state.body?.sex || 'male';
-// Keep the body from the form: returns true when it changed. Height is optional (it lines people up in Train together).
+// Keep the body from the form: returns true when it changed. Height is optional (it lines people up in Train together),
+// and so is age (the strength standards adjust for it, as on Strength Level).
 const keepBody = (form) => {
   const kgText = String(form?.querySelector('.bodyKg')?.value || '').trim();
   const cmText = String(form?.querySelector('.bodyCm')?.value || '').trim();
   const kg = Number(kgText.replace(',', '.'));
   const cm = Math.round(Number(cmText.replace(',', '.')));
-  view.bodyError = kgText && !(kg >= 30 && kg <= 250) ? 'Type your bodyweight in kg, like 85.' : cmText && !(cm >= 120 && cm <= 230) ? 'Type your height in cm, like 180.' : '';
+  const ageText = String(form?.querySelector('.bodyAge')?.value || '').trim();
+  const age = Math.round(Number(ageText));
+  view.bodyError = kgText && !(kg >= 30 && kg <= 250) ? 'Type your bodyweight in kg, like 85.' : cmText && !(cm >= 120 && cm <= 230) ? 'Type your height in cm, like 180.' : ageText && !(age >= 12 && age <= 100) ? 'Type your age in years, like 30.' : '';
   const kgOk = kg >= 30 && kg <= 250;
   if (!kgOk && !state.body?.kg) return false;
-  const next = { kg: kgOk ? Math.round(kg * 10) / 10 : state.body.kg, sex: bodySexNow(), ...(cm >= 120 && cm <= 230 ? { cm } : state.body?.cm && !cmText ? {} : state.body?.cm ? { cm: state.body.cm } : {}) };
+  const next = { kg: kgOk ? Math.round(kg * 10) / 10 : state.body.kg, sex: bodySexNow(), ...(cm >= 120 && cm <= 230 ? { cm } : state.body?.cm && !cmText ? {} : state.body?.cm ? { cm: state.body.cm } : {}), ...(age >= 12 && age <= 100 ? { age } : state.body?.age && ageText ? { age: state.body.age } : {}) };
   if (JSON.stringify(next) === JSON.stringify(state.body || {})) return false;
   state.body = next;
   save();
@@ -3447,13 +3458,13 @@ const keepBody = (form) => {
 // Typing keeps the numbers right away (no redraw, so the keyboard stays up); leaving the form redraws, so the
 // figure and the strength levels change straight away. Return closes the keyboard.
 document.addEventListener('input', (event) => {
-  const field = event.target.closest?.('.bodyForm .bodyKg, .bodyForm .bodyCm');
+  const field = event.target.closest?.('.bodyForm .bodyKg, .bodyForm .bodyCm, .bodyForm .bodyAge');
   if (!field) return;
   clearTimeout(view.bodyTypeTimer);
   view.bodyTypeTimer = setTimeout(() => keepBody(field.closest('.bodyForm')), 350);
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && event.target.closest?.('.bodyForm .bodyKg, .bodyForm .bodyCm')) event.target.blur();
+  if (event.key === 'Enter' && event.target.closest?.('.bodyForm .bodyKg, .bodyForm .bodyCm, .bodyForm .bodyAge')) event.target.blur();
 });
 document.addEventListener('focusout', (event) => {
   const form = event.target.closest?.('.bodyForm');
@@ -3468,9 +3479,9 @@ document.addEventListener('focusout', (event) => {
 });
 const bodyForm = (title) => `<div class="bodyForm">
     <p class="bodyTitle">${title}</p>
-    <p class="bodyText">Strength Level's standards depend on bodyweight and sex. Height lines you up next to friends. Saved on your account, on all your devices.</p>
+    <p class="bodyText">Strength Level's standards depend on bodyweight, sex and age. Height lines you up next to friends. Saved on your account, on all your devices.</p>
     <div class="segment full bodySex" role="group" aria-label="Sex">${['male', 'female'].map((sex) => `<button class="segmentOption" data-action="body-sex" data-sex="${sex}" aria-pressed="${bodySexNow() === sex}">${sex === 'male' ? 'Male' : 'Female'}</button>`).join('')}<i class="segmentKnob${bodySexNow() === 'female' ? ' on' : ''}" aria-hidden="true"></i></div>
-    <div class="bodyFields"><label class="fxSearch bodyField${state.body?.kg ? '' : ' needs'}"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField${state.body?.cm ? '' : ' needs'}"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label></div>
+    <div class="bodyFields"><label class="fxSearch bodyField${state.body?.kg ? '' : ' needs'}"><input class="num bodyKg" inputmode="decimal" placeholder="80" aria-label="Bodyweight in kg" value="${esc(state.body?.kg || '')}"><span>kg</span></label><label class="fxSearch bodyField${state.body?.cm ? '' : ' needs'}"><input class="num bodyCm" inputmode="numeric" placeholder="180" aria-label="Height in cm" value="${esc(state.body?.cm || '')}"><span>cm</span></label><label class="fxSearch bodyField"><input class="num bodyAge" inputmode="numeric" placeholder="30" aria-label="Age in years" value="${esc(state.body?.age || '')}"><span>years</span></label></div>
     ${view.bodyError ? `<p class="bodyError">${esc(view.bodyError)}</p>` : ''}
   </div>`;
 const renderStrength = () => {
@@ -3547,7 +3558,7 @@ const renderStrength = () => {
   return `<p class="section">Strength level ${known ? `<button class="textBtn bodyEdit" data-action="body-edit">${Math.round(body.kg)} kg${body.cm ? ` · ${body.cm} cm` : ''} · ${body.sex === 'male' ? 'Male' : 'Female'}</button>` : ''}</p>
     <section class="card webCard${known ? '' : ' empty'}">
       ${askBody ? bodyForm(known ? 'Change your bodyweight, height or sex' : 'Add your bodyweight to see your strength level') : ''}
-      ${!known ? '' : `<div class="webTop"><p class="webIntro">The heaviest you've lifted in each, against Strength Level's standards for your bodyweight</p><p class="webLegend">${[[false, 'All time', 'solid'], [true, 'Last 3 months', 'dotted']].map(([value, label, look]) => `<button class="webPick" data-action="web-now" data-now="${value ? 1 : 0}" aria-pressed="${recent === value}"><i class="${look}"></i>${label}</button>`).join('')}</p></div>`}
+      ${!known ? '' : `<div class="webTop"><p class="webIntro">Your best in each as a one-rep max (reps count: 130 × 10 is about 173), against Strength Level's standards for your bodyweight</p><p class="webLegend">${[[false, 'All time', 'solid'], [true, 'Last 3 months', 'dotted']].map(([value, label, look]) => `<button class="webPick" data-action="web-now" data-now="${value ? 1 : 0}" aria-pressed="${recent === value}"><i class="${look}"></i>${label}</button>`).join('')}</p></div>`}
       <svg class="web" viewBox="${(middle - half).toFixed(0)} -40 ${(half * 2).toFixed(0)} 394" style="max-width:${Math.round(((half * 2) / 448) * 380)}px" role="img" aria-label="Strength level per lift, ${recent ? 'last 3 months' : 'all time'}: ${lifts.map((lift) => `${lift.label} ${shown(lift) ? levelWord(shownScore(lift)) : 'not logged'}`).join('; ')}">
         ${lifts.map((lift, index) => `<line x1="${middle}" y1="${middle}" x2="${point(index, outer)[0].toFixed(1)}" y2="${point(index, outer)[1].toFixed(1)}" class="webSpoke"/>`).join('')}
         ${rings}
@@ -4261,7 +4272,8 @@ const syncDock = () => {
   const prompt = dock?.querySelector('.prompt');
   if (!prompt) return;
   prompt.classList.toggle('hasText', view.draft.trim().length > 0);
-  prompt.querySelector('.promptButtons').outerHTML = promptButtons();
+  const buttons = prompt.querySelector('.promptButtons'); // the first screen's box has none
+  if (buttons) buttons.outerHTML = promptButtons();
   const sheet = dock.querySelector('.sheet');
   if (showSheet() && (!sheet || sheet.classList.contains('leaving'))) {
     sheet?.remove();
@@ -5592,7 +5604,7 @@ const renderFriend = () => {
   const readOnly = (html) => html.replace(/ data-action="(jump-session|body-edit|body-save|body-sex|level-info)"[^>]*?(?=>)/g, '');
   const body = asPerson(person, () => `
     ${friend.shares?.recovery || friend.shares?.strength ? `<section class="friendAnatomy">${renderMuscles()}</section>` : ''}
-    ${friend.shares?.strength && friend.body ? readOnly(renderStrength()).replace("The heaviest you've lifted in each", `The heaviest ${esc(friend.name)} has lifted in each`).replace(/<button class="textBtn bodyEdit"[^>]*>([^<]*)<\/button>/, friend.body.exact ? '<span class="muted">$1</span>' : '') : ''}
+    ${friend.shares?.strength && friend.body ? readOnly(renderStrength()).replace('Your best in each', `${esc(friend.name)}&#39;s best in each`).replace(/<button class="textBtn bodyEdit"[^>]*>([^<]*)<\/button>/, friend.body.exact ? '<span class="muted">$1</span>' : '') : ''}
     ${friend.shares?.strength && friend.body ? renderImpressive().replace('Your most impressive lift', `${esc(friend.name)}&#39;s most impressive lift`) : ''}
     ${friend.shares?.workouts ? `<p class="section">Recent days</p><div class="fxDays">${days.map((session) => `<div class="fxDay"><span class="fxDayName">${esc(dayName(session))}</span><span class="muted">${dayLabel(session.date)}</span></div>`).join('') || '<p class="empty">Nothing in the last 3 weeks.</p>'}</div>` : ''}`);
   return `<main class="page friendPage">
@@ -5686,7 +5698,8 @@ const renderTogether = () => {
   const focusView = show === 'focus' && !picking;
   const colourOf = (entry) => (focusView ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
   const labelOf = show === 'strength' ? strengthLabel : recoveryLabel;
-  const extra = (entry) => (picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {});
+  // A friend's opened figure has their name as a link to their page.
+  const extra = (entry) => ({ ...(entry.me ? {} : { link: `#/friend/${entry.handle}` }), ...(picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {}) });
   const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
   // One switch under the squad: show what the day trains (the rest see-through), off = recovery again.
   const focusSwitch = squad3d && !picking && dayMuscles.length ? `<button class="fxSet tgFocus" role="switch" aria-checked="${show === 'focus'}" data-action="together-focus"><span class="fxSetText"><b>Show what you'll train</b></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
@@ -8426,12 +8439,16 @@ document.addEventListener('click', (event) => {
     view.onboard.busy = true;
     view.onboard.status = '';
     render();
+    const summary = [];
     parts.reduce((done, part) => done.then(() => importText(part, (index, total, note) => {
       view.onboard.status = note || (total > 1 ? `Reading part ${index + 1} of ${total}…` : '');
       render();
-    })), Promise.resolve())
+    }).then((did) => summary.push(...(Array.isArray(did) ? did : [])))), Promise.resolve())
       .then(() => {
         view.onboard = null;
+        // Always say what came in (new people never saw a confirmation: the next screen opened straight away).
+        const said = summary.filter((line) => typeof line === 'string' && line.trim());
+        view.toast = said.length ? { kind: 'rep', title: said[0], text: said.slice(1).join(' · ') || 'Your training is in. Trends shows it now.' } : { kind: 'info', title: 'Nothing was added', text: 'Exodia found no workouts in that. Try a file from your app, or a day like "Bench 100 × 5".' };
         if (onboardV2()) {
           view.setupNote = true;
           location.hash = '#/you';
@@ -9478,6 +9495,13 @@ document.addEventListener('drop', (event) => {
 });
 document.addEventListener('paste', (event) => {
   const files = [...(event.clipboardData?.files || [])];
+  // Training pasted as text: on the first screen it goes in by itself once you've seen it land in the box; in the box
+  // later the send button pulses until you send (new people didn't know a paste still needed a tap).
+  const pasted = files.length ? '' : event.clipboardData?.getData('text') || '';
+  if (pasted.trim().length > 15 && /\d/.test(pasted)) {
+    if (event.target.id === 'onboardData') setTimeout(() => { const go = document.querySelector('[data-action="onboard-start"]'); if (go && view.onboard?.data.trim() && !view.onboard.busy) { go.disabled = false; go.click(); } }, 700);
+    else if (event.target.id === 'draft') setTimeout(() => document.querySelector('.dock .roundBtn.send[data-action="send"]')?.classList.add('nudge'), 150);
+  }
   if (!files.length) return;
   event.preventDefault();
   takeFiles(files);
