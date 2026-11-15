@@ -5128,10 +5128,15 @@ const planAddedBanner = () => {
   const today = todayIso();
   const fresh = (view.social?.plans || []).find((plan) => plan.date >= today && plan.by && plan.by !== 'me' && !seen.includes(`${plan.date}|${plan.kind}|${plan.by}`));
   if (!fresh || view.toast) return;
+  if (view.route === 'together' && view.together?.date === fresh.date) return;
   seen = [...seen, `${fresh.date}|${fresh.kind}|${fresh.by}`].slice(-40);
   try { localStorage.setItem('exodia.plansSeen', JSON.stringify(seen)); } catch { /* private mode */ }
   const when = fresh.date === today ? 'today' : parseIso(fresh.date).toLocaleDateString('en-GB', { weekday: 'long' });
   view.toast = { kind: 'rep', title: `${fresh.by} added you to ${fresh.kind.toLowerCase() === 'full body' ? 'a full body day' : `${fresh.kind} day`} ${fresh.date === today ? 'today' : `on ${when}`}`, text: 'Tap to see the plan', go: fresh.date };
+  const shown = view.toast;
+  setTimeout(() => {
+    if (view.toast === shown) clearToast();
+  }, 8000);
 };
 const loadSocial = () => {
   if (!featureOn('friends') || !syncState?.profile || socialLoading) return socialLoading;
@@ -5237,7 +5242,7 @@ const avatarLook = () => {
   const ordered = [...names].sort((one, two) => nameHash(one) - nameHash(two));
   const start = (nameHash(ordered[0] || '') >>> 4) % 360;
   ordered.forEach((name, index) => {
-    map.set(name, { background: auroraOf(name, index + start), letters: initials(name, names) });
+    map.set(name, { background: auroraOf(name), letters: initials(name, names) });
   });
   view.avatarLook = { sig, map };
   return map;
@@ -5420,7 +5425,7 @@ const renderFriends = () => {
   return `<main class="page friendsPage">
     <h1 class="title">Friends</h1>
     <label class="fxSearch">${ICONS.search}<span class="sr">Search names</span><input id="friendSearch" type="search" placeholder="Search names" autocomplete="off" enterkeyhint="search" value="${esc(search.q)}"></label>
-    ${search.q.trim().length < 2 && view.everyone?.length ? `<p class="section">People on Exodia</p><div class="fxList">${view.everyone.filter((row) => row.status !== 'friends').map((row) => person(row, statusButton(row))).join('')}</div>` : ''}
+    ${search.q.trim().length < 2 && view.everyone?.length ? `<p class="section">People on Exodia</p><div class="fxList">${view.everyone.filter((row) => row.status !== 'friends' && row.status !== 'asked').map((row) => person(row, statusButton(row))).join('')}</div>` : ''}
     ${search.q.trim().length >= 2 ? `<div class="fxList">${search.people.length ? search.people.map((row) => person(row, statusButton(row))).join('') : `<p class="fxEmpty">${search.loading ? 'Looking…' : 'Nobody with that name yet.'}</p>`}</div>` : ''}
     ${social?.requests?.length ? `<p class="section">Wants to be your friend</p><div class="fxList">${social.requests.map((row) => person(row, `<button class="fxBtn quiet" data-action="friend-decline" data-handle="${row.handle}">No</button><button class="fxBtn clay" data-action="friend-accept" data-handle="${row.handle}">Accept</button>`)).join('')}</div>` : ''}
     ${social?.friends?.length && featureOn('notifications') && pushSupported() && pushState() === 'off' && !view.pushOfferGone ? `<p class="tgWhy tgPush">Get a notice when a friend adds you to a workout. Only plans and friend requests, never reminders. <button class="textBtn clay" data-action="push-toggle">Turn on notifications</button></p>` : ''}
@@ -8164,6 +8169,11 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (['friend-ask', 'friend-accept', 'friend-decline', 'friend-cancel', 'friend-remove', 'friend-share', 'friend-hide'].includes(action)) {
+    // A quick second tap on the same row (the button just changed under the finger) is ignored for a second.
+    const tapKey = `${action}|${target.dataset.handle || target.dataset.key || ''}`;
+    const rowKey = target.dataset.handle || target.dataset.key || '';
+    if (rowKey && view.friendTap?.row === rowKey && Date.now() - view.friendTap.at < 1000 && view.friendTap.key !== tapKey) return;
+    view.friendTap = { row: rowKey, key: tapKey, at: Date.now() };
     if (target.disabled) return;
     const step = { 'friend-ask': 'ask', 'friend-accept': 'accept', 'friend-decline': 'decline', 'friend-cancel': 'decline', 'friend-remove': 'remove', 'friend-share': 'sharing', 'friend-hide': 'hide' }[action];
     if (step === 'hide') {
@@ -8286,6 +8296,7 @@ document.addEventListener('click', (event) => {
     if (date) view.together.date = date;
     syncTogether();
     // Opening Train together normally starts on today; this one opens on the planned day.
+    view.together.chosen = true;
     view.togetherWith = true;
     location.hash = '#/together';
     render();
@@ -8357,10 +8368,8 @@ document.addEventListener('click', (event) => {
   if (action === 'together-muscles') {
     view.together.picking = !view.together.picking;
     const plan = togetherPlan();
-    if (view.together.picking && plan && !plan.muscles?.length && KIND_MUSCLES[plan.kind]) {
-      plan.muscles = [...KIND_MUSCLES[plan.kind]];
-      togetherSend({ action: 'muscles', muscles: plan.muscles });
-    }
+    // Start from the day's usual muscles on screen; nothing is saved for everyone until a muscle is tapped.
+    if (view.together.picking && plan && !plan.muscles?.length && KIND_MUSCLES[plan.kind]) plan.muscles = [...KIND_MUSCLES[plan.kind]];
     render();
     return;
   }
@@ -9211,6 +9220,7 @@ const route = () => {
   if (planDay) {
     startTogether();
     view.together.date = planDay[1] < todayIso() ? todayIso() : planDay[1];
+    view.together.chosen = true;
     view.togetherWith = true;
     history.replaceState(null, '', '#/together');
     loadSocial();
@@ -9224,6 +9234,7 @@ const route = () => {
   view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together'].includes(name) ? name : 'home';
   view.friendHandle = friendPage ? friendPage[1] : null;
   if (view.route !== 'you') view.setupNote = false;
+  if (view.toast?.undo && wasRoute && wasRoute !== view.route) view.toast = null;
   if (['friends', 'together', 'friend'].includes(view.route)) loadSocial();
   if (view.route === 'friends') loadEveryone();
   if (view.route === 'together' && wasRoute !== 'together') {

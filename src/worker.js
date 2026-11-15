@@ -1440,7 +1440,7 @@ const notify = async (env, profiles, notice, { optional = false, window = 600000
     const { results } = await env.DB.prepare(`SELECT endpoint FROM push_subs WHERE profile = ?${optional ? ' AND hits = 1' : ''}`).bind(profile).all();
     if (!results.length) continue;
     // Never twice the same thing within 10 minutes (a note edited three times is one notice).
-    if (await env.DB.prepare('SELECT 1 FROM notices WHERE profile = ? AND title = ? AND created > ?').bind(profile, notice.title.slice(0, 120), now - window).first()) continue;
+    if (await env.DB.prepare('SELECT 1 FROM notices WHERE profile = ? AND title = ? AND body = ? AND url = ? AND created > ?').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now - window).first()) continue;
     await env.DB.prepare('INSERT INTO notices (profile, title, body, url, created) VALUES (?, ?, ?, ?, ?)').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now).run();
     for (const { endpoint } of results) {
       const response = await pushTo(env, endpoint).catch(() => null);
@@ -1527,7 +1527,7 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
     // No name typed: everyone public who has logged something, so friends can be added from the list without searching.
     if (query.length === 1) return json({ people: [] });
     const all = query.length === 0;
-    const { results } = await env.DB.prepare("SELECT p.id, p.meta, s.findable FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE lower(trim(json_extract(p.meta, '$.name'))) LIKE ?1 || '%' AND p.id != ?2 AND EXISTS (SELECT 1 FROM sessions WHERE profile = p.id AND data IS NOT NULL) ORDER BY p.meta_updated DESC LIMIT ?3").bind(query.replace(/[%_]/g, ''), key, all ? 300 : 40).all();
+    const { results } = await env.DB.prepare("SELECT p.id, p.meta, s.findable FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE (lower(trim(json_extract(p.meta, '$.name'))) LIKE ?1 || '%' OR lower(trim(json_extract(p.meta, '$.name'))) LIKE '% ' || ?1 || '%') AND p.id != ?2 AND EXISTS (SELECT 1 FROM sessions WHERE profile = p.id AND data IS NOT NULL) ORDER BY p.meta_updated DESC LIMIT ?3").bind(query.replace(/[%_]/g, ''), key, all ? 300 : 40).all();
     const seen = new Set();
     const people = [];
     for (const row of results) {
@@ -1616,7 +1616,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
   const friends = await friendKeys(env, key);
   let plan = await myPlan(env, date, key);
   const write = async (next, members, newKind, extra = {}) => {
-    const changed = await env.DB.prepare('UPDATE plans SET kind = ?, members = ?, by = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(newKind, JSON.stringify(members), extra.by || key, now, next.id, next.version).run();
+    const changed = await env.DB.prepare(`UPDATE plans SET kind = ?, members = ?, by = ?,${newKind !== next.kind ? " muscles = '[]'," : ''} version = version + 1, updated = ? WHERE id = ? AND version = ?`).bind(newKind, JSON.stringify(members), extra.by || key, now, next.id, next.version).run();
     return changed.meta?.changes > 0;
   };
   const answer = async (status = 200, extra = {}) => {

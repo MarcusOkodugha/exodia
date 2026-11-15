@@ -562,7 +562,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
 
   // The loop only runs while there is something to draw: on screen, page visible, and something moving.
   const live = () => !dead && !document.hidden && (onScreen || inOver);
-  const idleSpeed = () => (reduced.matches || selGroup || hold ? 0 : 0.006 * Math.sign(speed || 1));
+  // A picked muscle holds the figure still to look at it, until you spin it yourself: then it keeps turning your way.
+  let spunSincePick = false;
+  const idleSpeed = () => (reduced.matches || hold || (selGroup && !spunSincePick) ? 0 : 0.006 * Math.sign(speed || 1));
   const settle = () => { // back in the row after closing
     inOver = false; pr = DPR; renderer.setPixelRatio(pr); W = H = 0; over.classList.remove('on', 'in'); document.removeEventListener('keydown', onKey);
     if (hostEl) hostEl.appendChild(canvas);
@@ -643,7 +645,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
   // to the page (touch-action: pan-y), which then cancels the pointer.
   const down = (e) => { if (e.button) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { canvas.setPointerCapture(e.pointerId); } catch {} kick(); };
   const move = (e) => { if (!drag || drag.id !== e.pointerId) return; drag.far = Math.max(drag.far, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
-    if (drag.far < 6) return; face = null; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
+    if (drag.far < 6) return; face = null; spunSincePick = true; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
     angle = drag.a + (e.clientX - drag.x) * k; speed = Math.max(-0.3, Math.min(0.3, (e.clientX - drag.last) * k / Math.max(1, e.timeStamp - drag.lt) * 16.7)); drag.last = e.clientX; drag.lt = e.timeStamp; kick(); };
   const up = (e) => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null;
     if (d.far < 6) { speed = 0.0001 * Math.sign(d.a - angle || 1); tap(e); } else if (e.timeStamp - d.lt > 80 || reduced.matches) speed = 0; kick(); };
@@ -669,7 +671,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
       if (host !== hostEl) { if (hostEl) hostEl.classList.remove('body3dHost'); if (ro) { ro.disconnect(); ro.observe(host); } hostEl = host; host.classList.add('body3dHost'); hostW = hostH = 0; }
       if (!inOver && canvas.parentNode !== host) host.appendChild(canvas);
       // Draw before the browser paints, so a moved or resized canvas never shows empty.
-      onScreen = true; size(); render(); kick();
+      size(); render(); kick();
     },
     setPeople(list) {
       people = (list || []).map((p) => {
@@ -694,7 +696,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, nam
       dirty = true; kick();
     },
     setSelected(key) {
-      const g = GROUPS.indexOf(key) + 1; if (g === selGroup) return;
+      const g = GROUPS.indexOf(key) + 1; if (g === selGroup) return; spunSincePick = false;
       if (sel.y > 0.01) { sel.z = sel.x; sel.w = sel.y; } sel.y = 0; if (g) sel.x = g; selGroup = g;
       showName();
       dirty = true; kick();

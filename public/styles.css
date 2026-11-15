@@ -872,7 +872,7 @@ body.dropping .prompt::before { opacity: 1; animation: none; }
    narrow phones (320) the columns tighten and the % is left out. */
 .setRow .pct { min-width: 0; overflow: hidden; }
 .setRow .pct:has(.prPill) .setPct { display: none; }
-@media (max-width: 359px) {
+@media (max-width: 369px) {
   .setRow { grid-template-columns: 22px 50px 18px 10px 36px 46px minmax(0, 1fr) 20px; column-gap: 3px; }
   .rpeTag { grid-template-columns: 28px 18px; }
   .setPct { display: none; }
