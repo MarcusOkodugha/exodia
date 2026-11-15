@@ -2923,7 +2923,8 @@ const settingsToggles = () => {
     setTimeout(loadSocial, 0);
   }
   if (!push && !me) return '';
-  return `<p class="section">${me ? 'Notifications and friends' : 'Notifications'}</p><div class="fxSettings setToggles">${push}${me ? SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('') + '<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div>' : ''}</div>`;
+  // Two groups, each marked on the right by the same clay hooks as the set rows, so no one reads a friends switch as a notification one.
+  return `${push ? `<p class="section">Notifications</p><div class="fxSettings setToggles hooked">${push}</div>` : ''}${me ? `<p class="section">What friends see</p><div class="fxSettings setToggles hooked">` : ''}${me ? SHARE_ROWS.map(([key, title, note]) => `<button class="fxSet" role="switch" aria-checked="${Boolean(me.shares?.[key])}" data-action="friend-share" data-key="${key}"><span class="fxSetText"><b>${title}</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`).join('') + '<div class="fxSet still"><span class="fxSetText"><b>What you said</b><small>Voice notes, messages and feedback</small></span><span class="fxNever">Never shared</span></div></div>' : ''}`;
 };
 const renderYou = () => {
   loadChanges();
@@ -4894,17 +4895,17 @@ const renderOnboardTwo = () => {
     <div class="onboardNames"><label class="sr" for="onboardName">First name</label><input id="onboardName" class="onboardField" autocomplete="given-name" placeholder="First name" value="${esc(view.onboard.first || '')}" ${busy ? 'disabled' : ''}><label class="sr" for="onboardLast">Last name</label><input id="onboardLast" class="onboardField" autocomplete="family-name" placeholder="Last name" value="${esc(view.onboard.last || '')}" ${busy ? 'disabled' : ''}></div>
     ${busy ? `<p class="onboardStatus" role="status">${writingLine(status)}</p>` : status ? `<p class="onboardStatus" role="status">${esc(status)}</p>` : ''}
     <div class="onboardChoices two">
+      <button class="onboardChoice main primary${bring ? ' on' : ''}" data-action="onboard-bring" aria-expanded="${Boolean(bring)}" ${locked ? 'disabled' : ''}><b>Bring my training</b><span>From another app, a spreadsheet or notes</span></button>
       <button class="onboardChoice main" data-action="onboard-blank" ${locked ? 'disabled' : ''}><b>Start blank</b><span>Log as you go</span></button>
-      <button class="onboardChoice main${bring ? ' on' : ''}" data-action="onboard-bring" ${locked ? 'disabled' : ''}><b>Bring my training</b><span>From another app, a file or notes</span></button>
     </div>
-    ${bring ? `<p class="onboardMove">Paste or drop it in the box below, in any format, or tap + for a file.</p>${exportHelp(false)}` : ''}
+    ${bring ? `<p class="onboardMove">Paste your past workouts in the box below: copied from another app, a spreadsheet or your notes. Any format works. Or tap + to add a file.</p>${exportHelp(false)}` : ''}
     <button class="textBtn onboardLook" data-action="onboard-demo" ${locked ? 'disabled' : ''}>Just look around with example data</button>
   </main>
   ${bring ? `<div class="dock onboardDock">
     <div class="prompt onboardPrompt${filled ? ' hasText' : ''}${listening ? ' listening' : ''}${file ? ' hasChip' : ''}">
       ${file ? `<div class="contextChip"><span class="contextKind">File</span><span class="contextLabel">${esc(file.name)}</span><button class="contextX" data-action="onboard-unfile" aria-label="Remove file">${ICONS.close}</button></div>` : ''}
       <label for="onboardData" class="sr">Your training so far</label>
-      <textarea id="onboardData" class="promptInput onboardData" rows="3" placeholder="Paste your training here" ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
+      <textarea id="onboardData" class="promptInput onboardData" rows="3" placeholder="Paste your past workouts here: from another app, a spreadsheet or notes. Any format." ${locked ? 'disabled' : ''}>${esc(view.onboard.data)}</textarea>
       <div class="promptBar"><button class="roundBtn soft onboardFile" data-action="pick-file" aria-label="Add a file" ${locked ? 'disabled' : ''}>${ICONS.plus}</button><span class="modelTag onboardTag">Exodia <span class="modelVersion">1.0</span></span><button class="roundBtn send" data-action="onboard-start" aria-label="Add it" ${locked || !filled ? 'disabled' : ''}>${ICONS.up}</button></div>
     </div>
   </div>` : ''}`;
@@ -5046,8 +5047,8 @@ const pushState = () => {
 };
 const pushPost = (body) => fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json', 'x-exodia-key': syncState.profile }, body: JSON.stringify(body) });
 const turnPush = async (on) => {
-  const registration = await navigator.serviceWorker.ready;
   if (!on) {
+    const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
       await pushPost({ action: 'unsubscribe', endpoint: subscription.endpoint }).catch(() => {});
@@ -5057,15 +5058,18 @@ const turnPush = async (on) => {
     render();
     return;
   }
+  // Ask first, straight from the tap: Safari only shows the question while the tap is fresh.
+  const asking = Notification.requestPermission();
   view.push = 'asking';
   render();
-  const permission = await Notification.requestPermission();
+  const permission = await asking;
   if (permission !== 'granted') {
     view.push = permission === 'denied' ? 'blocked' : 'off';
     render();
     return;
   }
   try {
+    const registration = await navigator.serviceWorker.ready;
     const { key } = await (await fetch('/api/push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'key' }) })).json();
     const raw = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0));
     const subscription = (await registration.pushManager.getSubscription()) || (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw }));
@@ -5078,12 +5082,15 @@ const turnPush = async (on) => {
   }
   render();
 };
-// The switch, the same one as What friends see. Off by default; nothing is ever sent about not training.
+// Right after joining, notifications start switched on: tapping Done asks the phone (it needs a tap to ask).
+const pushPre = () => Boolean(view.setupNote) && view.pushPre !== false && pushState() === 'off' && typeof Notification !== 'undefined' && Notification.permission === 'default';
+// The switch, the same one as What friends see. Nothing is ever sent about not training.
 const pushRow = () => {
   if (!featureOn('notifications')) return '';
   if (pushNeedsHomeScreen()) return `<div class="fxSet still"><span class="fxSetText"><b>Notifications</b><small>On iPhone: Share, then Add to Home Screen. Open Exodia from there and turn them on here.</small></span></div>`;
   if (!pushSupported()) return '';
   const state = pushState();
+  if (pushPre()) return `<button class="fxSet" role="switch" aria-checked="true" data-action="push-toggle"><span class="fxSetText"><b>Notifications</b><small>When a friend adds you to a workout, changes it or asks to be your friend. Nothing else. Your phone asks when you tap Done.</small></span><i class="fxSwitch" aria-hidden="true"></i></button>`;
   const note = state === 'blocked' ? "Off in your phone's settings. Without them you won't hear when a friend adds you to a workout. Exodia never sends reminders or ads." : state === 'failed' ? "Couldn't turn them on. Try again." : state === 'on' ? 'When a friend adds you to a workout, changes it or asks to be your friend. Nothing else.' : "Off: you won't hear when a friend adds you to a workout or changes it. Exodia never sends reminders or ads.";
   const hits = state === 'on' ? `<button class="fxSet" role="switch" aria-checked="${pushHits()}" data-action="push-hits"><span class="fxSetText"><b>When a friend hits Exodia</b><small>Optional. At most once a day per friend.</small></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
   return `<button class="fxSet" role="switch" aria-checked="${state === 'on' || state === 'asking'}" data-action="push-toggle"${state === 'blocked' ? ' disabled' : ''}><span class="fxSetText"><b>Notifications</b><small>${note}</small></span><i class="fxSwitch" aria-hidden="true"></i></button>${hits}`;
@@ -8074,10 +8081,15 @@ document.addEventListener('click', (event) => {
   if (action === 'onboard-bring' && view.onboard) {
     view.onboard.bring = !view.onboard.bring;
     render();
-    if (view.onboard.bring) document.getElementById('onboardData')?.focus();
+    if (view.onboard.bring) {
+      document.getElementById('onboardData')?.focus({ preventScroll: true });
+      // Small phones: the how-to sits where the box now covers it, so bring it up above the box.
+      requestAnimationFrame(() => document.querySelector('.onboardMove')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    }
     return;
   }
   if (action === 'setup-done') {
+    if (pushPre()) turnPush(true);
     view.setupNote = false;
     location.hash = '#/';
     render();
@@ -8374,6 +8386,11 @@ document.addEventListener('click', (event) => {
   }
   if (action === 'push-toggle') {
     if (view.push === 'asking') return;
+    if (pushPre()) {
+      view.pushPre = false;
+      render();
+      return;
+    }
     view.pushOfferGone = true;
     turnPush(view.push !== 'on');
     return;

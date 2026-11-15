@@ -17,7 +17,11 @@ Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ]
   1. Yes = built in that order, with before/after pictures for the ones that look different.
 - [ ] **Decide: launch notifications for everyone?** (15 Nov) Only you and Test profiles have them. Friends get one tap, "Turn on notifications", on the Friends page and under a planned workout. Only friend requests and workout changes, plus the morning "Push day with Romi today".
   1. Yes = launched (no update needed, it shows on their next open).
-- [ ] **Pick an avatar style (A–E).** (15 Nov) The picture is in the chat: A Mesh, B Swirl, C Grain, D Aurora, E Sunset, F today.
+- [ ] **Decide: launch the new first screen?** (15 Nov) First and last name, "Bring my training" (filled) or "Start blank", then one stop for body and notifications (switched on; the phone asks when they tap Done). Today only [/join?onboard2](https://exodia.marcusokodugha.workers.dev/join?onboard2) shows it.
+  1. Open [/join?onboard2](https://exodia.marcusokodugha.workers.dev/join?onboard2) in a private window and go through it.
+  2. Yes = every new person gets it. Notifications in it only show once notifications are launched.
+- [ ] **Say "go" to Fable for the new Exodia animations.** (15 Nov) Fable waits for your own word before building: a Playground (Dev menu) with the hit animations side by side, two new hit animations (3D hand, flat), and the Exodia mark on the 3D head (blue with Exodia, clay when all Advanced). Lab only until you pick.
+  1. Open the [Fable session](https://claude.ai/code/session_01NhH2ACEKgEpry1oKmdM1Gr) and type "go".
   1. Say the letter in the chat or in Admin → Change the app.
 - [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
   1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
@@ -54,7 +58,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
   - Round 5 (13 Nov): no cards anywhere on the page. Compact suggestions as two label rows (Best fit / Also good: plan + one grey line of why and ideas). When (two-week strip, today picked) and What (Best fit / Push / Pull / Legs segment) open from the start, so the whole page is one overview. A different pick on a planned day is one plain line under What: "Marcus picked Push for Sat 21 Nov." then Change to Pull / Keep Push as text buttons.
   - Round 6 (13 Nov): Best fit / Also good as one two-way switch (same look as the app's switches, one text style, no clay highlight word); tapping one sets What and the plan. What = Push / Pull / Legs / Full body. Who's coming = one row that scrolls sideways and ends in "+ Add"; one tap adds or removes. No story ring: options A fade-to-grey, B small clay check, C bold name + dot, D group together (sent, Marcus to pick).
   - Round 7 (13 Nov, Marcus: "go with A"): not coming fades to grey, coming has full colour + a small clay check. "What to train" is one piece: Push / Pull / Legs / Full body / Move, the best fit pre-picked with a small clay "Best fit" above it, one grey line under it with why and what else works. When strip under it. Picking a later day (e.g. Push on Sunday) adds "Until then, for you": each day from today with what fits and why, ending on the day.
-  - Must come first: names are accounts with no lock, so anyone who types a name opens that log. A searchable friends list makes names easy to find, so add a lock (PIN or this-phone-only claim) before Friends ships.
+  - Decided 15 Nov: no lock or PIN on names. It's a training app among friends; seeing someone's log is fine.
 - [ ] **Training program.** Programs inside Exodia (plan days and weeks, follow along, log against them).
 - [ ] **Apple Health.** Connect to the Health app (workouts, steps, bodyweight in; training out).
 

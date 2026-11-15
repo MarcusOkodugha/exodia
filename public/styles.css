@@ -2007,3 +2007,19 @@ body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dMo
 html.leaving #app { opacity: 0; transition: opacity 0.16s ease; }
 html.resuming #app { opacity: 0; transition: none; }
 html.resuming .boot { display: none; }
+/* First screen: two full-width choices, one under the other, so the words always fit. Bring my training leads,
+   filled in clay; Start blank is the quiet card. No arrows. */
+.onboardChoices.two { grid-template-columns: 1fr; gap: 10px; }
+.onboardChoices.two .onboardChoice.main { min-height: 0; padding: 15px 18px; gap: 2px; }
+.onboardChoices.two .onboardChoice::after { content: none; }
+.onboardChoices.two .onboardChoice.main b { font-size: 17px; line-height: 22px; }
+.onboardChoices.two .onboardChoice.main.primary { background: var(--clay); box-shadow: 0 1px 3px rgb(var(--clayRgb) / 0.3); }
+.onboardChoices.two .onboardChoice.main.primary b { color: #FFFFFF; }
+.onboardChoices.two .onboardChoice.main.primary span { color: rgb(255 255 255 / 0.82); }
+.onboardChoices.two .onboardChoice.main.primary.on { box-shadow: 0 0 0 3px rgb(var(--clayRgb) / 0.22), 0 1px 3px rgb(var(--clayRgb) / 0.3); }
+.onboardChoices.two .onboardChoice.main:active { transform: scale(0.985); }
+.onboardChoices.two .onboardChoice.main { transition: transform 0.15s ease, box-shadow 0.2s ease; }
+/* Settings: each group of switches carries the set rows' clay hooks on its right (a hairline over each row and down
+   the side), and the space between groups breaks them, so Notifications and What friends see read as two things. */
+.hooked .fxSet { position: relative; padding-right: 14px; }
+.hooked .fxSet::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 76px; border-top: var(--hair) solid rgb(var(--clayRgb) / 0.36); border-right: var(--hair) solid rgb(var(--clayRgb) / 0.36); pointer-events: none; }
