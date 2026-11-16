@@ -54,7 +54,7 @@ const shots = [
   ['feedback', '#/feedback', null],
   ['settings', '#/you', null],
   ['admin', '#/admin', null],
-  ['red-pill-open', '#/', async (page) => { if (!(await page.locator('.leftPill').count())) return; await page.click('.leftPill'); await page.click('[data-action="left-item"] >> nth=0'); }],
+  ['red-pill-open', '#/', async (page) => { if (!(await page.locator('.leftPill').count())) return; await page.click('.leftPill'); if (await page.locator('[data-action="left-item"]').count()) await page.click('[data-action="left-item"] >> nth=0'); }], // the red pill is empty on purpose (16 Nov)
   // The opened 3D body: nothing of the page may show on top of it or peek around it (needs THREE_DIR, see below).
   ['trends-3d-open', '#/trends', async (page) => { if (!THREE) return; await page.waitForSelector('.body3dSlot canvas', { timeout: 20000 }); await page.click('.body3dExpand'); await page.waitForTimeout(1500); }, 'all'],
   ['onboarding', '#/', null, 'all', 'fresh'],
