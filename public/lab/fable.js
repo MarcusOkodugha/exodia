@@ -38,44 +38,15 @@ const recovKey = '<p class="fxKey"><b>Recovery</b><span>Just trained</span><i st
 const SOUND = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 
 root.innerHTML = `
-<p class="fxIntro"><b>Fable 5.2 T</b>: five proposals for the 3D body. Every figure can be dragged round and tapped open, as in the app. Now in the app (v492): the feet fix and the level-up animation.</p>
+<p class="fxIntro"><b>Fable 5.2 T</b>. Now in the app, so no longer shown here: the feet fix and the level-up animation (v496), strength only on the strong, the clean abs edges and the wrist fade (v499), and Aura mode in Train together (v501). Still to look at: the picking prototype below.</p>
 
-<section class="fx" id="fx-strength">${head(1, 'Strength shows only on the strong', 'Round 2. Advanced and Elite look exactly as in the app. Below that the body is let down step by step: thinner arms and flatter shoulder caps the weaker they are, and a Beginner is skinny all over (narrow shoulders, flat chest, thin legs, no shoulder bulge). A Novice keeps a normal frame and is clearly more than a Beginner. Body weight no longer makes anyone below Advanced broader, so Benjamin is as wide as Marcus; the difference is Marcus’s shoulders and arms.')}
-  <div class="fxStage" data-stage="row">
-    ${seg('rowView', VIEWS, '0')}
-    <p class="fxCap top">In the app now</p><div class="fxRow5" data-host="now"></div>
-    <div class="fxNames">${WHO.map((w) => `<span><b>${w.key}</b><small>${w.cm} cm</small><small>${w.kg} kg</small><small>Width ${pct(widthNow(w))}</small></span>`).join('')}</div>
-    <p class="fxCap top">Proposed</p><div class="fxRow5" data-host="new"></div>
-    <div class="fxNames">${WHO.map((w) => `<span><b>${w.key}</b><small>${tier(avgOf(w))[0]}</small><small>average ${avgOf(w).toFixed(1)}</small><small>${frameOf(w)}</small></span>`).join('')}</div>
-  </div>
-  <p class="fxNote">The tall Beginner (203 cm, 95 kg, Beginner on every muscle) is the hard test: today he stands there with the biggest shoulders of all; proposed he is the skinniest.</p>
-  <p class="fxNote">Marcus 194 cm, 92 kg and Benjamin 195 cm, 110 kg are real. Guesses, to be replaced with what they entered in the app: Adam 180 cm, 80 kg, Intermediate 3.0 everywhere; Romi (a man) 178 cm, 75 kg, Novice 2.5 everywhere. Marcus’s forearms are taken as Elite. Benjamin’s legs have no lifts logged. Short but very strong people are left as they are for now.</p>
-  <div class="fxStage" data-stage="one">
-    <p class="fxSub">One at a time, at phone size (the 198 × 380 slot on Trends)</p>
-    ${seg('onePerson', WHO.map((w) => [w.key, w.key]), 'Beginner')}
-    ${seg('oneView', VIEWS, '0')}
-    ${pair()}
-  </div>
-</section>
 
-<section class="fx" id="fx-abs">${head(2, 'Abs: clean edges', 'Round 2. The ragged look came from the obliques: they end in a saw-toothed rim that lay on top of the six-pack’s clean edge, with pale specks in the gaps. Proposed: the six-pack is a touch wider and the rim of the obliques dips under it, so the seam you see is the six-pack’s own smooth edge; the deep belly muscle sits deeper so nothing fights for the same spot; the inside of an abs sheet is abs colour. Look with Abs picked and not picked.')}
-  <div class="fxStage" data-stage="abs">
-    ${seg('absView', [['0.5', 'Quarter'], ['0', 'Front'], ['turn', 'Turning']], '0.5')}
-    ${seg('absZoom', [['phone', 'Phone size'], ['close', 'Close up']], 'close')}
-    ${seg('absPick', [['abs', 'Abs picked'], ['none', 'Not picked']], 'abs')}
-    ${pair()}
-  </div>
-</section>
 
-<section class="fx" id="fx-fingers">${head(3, 'Fingers: the blue on the hands', 'Round 2. The forearm muscles in the model run on as tendons over the hand into the fingers and carried the forearm colour with them (blue on Marcus). Proposed: the colour fades out over the wrist, about 3 cm into the hand, instead of a hard cut; hand and fingers stay plain.')}
-  <div class="fxStage" data-stage="fingers">
-    ${seg('fingersView', [['3.1416', 'Back'], ['0', 'Front'], ['turn', 'Turning']], '3.1416')}
-    ${seg('fingersZoom', [['phone', 'Phone size'], ['close', 'Close up']], 'close')}
-    ${pair()}
-  </div>
-</section>
 
-<section class="fx" id="fx-pick">${head(4, 'Picking muscles for a planned day', 'Train together. The figures here show Recovery colours, as in the app. Taps that land just beside a muscle (the shoulder at the outline) now count, here and in the app.')}
+
+
+
+<section class="fx" id="fx-pick">${head(1, 'Picking muscles for a planned day', 'Train together. The figures here show Recovery colours, as in the app. Taps that land just beside a muscle (the shoulder at the outline) now count, here and in the app.')}
   <div class="fxStage fxPhone" data-stage="pickNow">
     <p class="fxCap top">In the app now</p>
     <p class="fxWhy">All three stand still and you tap the muscle on the small figures. No list; a muscle on the other side means turning the figure.</p>
@@ -99,20 +70,7 @@ root.innerHTML = `
   </div>
 </section>
 
-<section class="fx" id="fx-aura">${head(5, 'Aura mode (Train together)', 'A switch under the squad. On: the song plays and the figures run with it. They start fully see-through; at the drop (0:40) everyone builds from the feet up into their strength colours while turning; then what you train today, then recovery, and on through more build-ups, changing every four bars. A small sound button mutes it. Off: back to normal.')}
-  <div class="fxStage fxPhone" data-stage="aura">
-    <p class="fxCap top">In the app now</p>
-    <p class="fxWhy">No Aura: the squad as it is.</p>
-    <div class="fxSquad" data-host="now"></div>
-    <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
-    <p class="fxCap top">Proposed</p>
-    <div class="fxSquad" data-host="new"></div>
-    <div class="fxNames3"><span>Marcus</span><span>Benjamin</span><span>Romi</span></div>
-    <div class="fxAuraRow"><button type="button" class="fxAura" role="switch" data-aura aria-checked="false"><span>Aura</span><i aria-hidden="true"></i></button><button type="button" class="fxMute" data-mute aria-label="Sound off" aria-pressed="false" hidden>${SOUND}</button><button type="button" class="fxText fxSkip" data-skip hidden>Skip to the drop</button></div>
-    <p class="fxWhy" data-song></p>
-  </div>
-  <p class="fxNote">The song is not in the code. The page asks the Worker for it (/api/aura-song) only when Aura is switched on, so nothing is downloaded before that and it is never part of the offline cache; it starts from that tap, so the phone never asks for permission. Until the song is uploaded, a placeholder beat made in the page plays instead. Scenes follow the song’s own clock (99 beats a minute, the drop at 0:40.5), so they stay in step even if the phone stutters. “Skip to the drop” is only here, for judging it quickly.</p>
-</section>`;
+`;
 
 // ---------- the two renderers, loaded once ----------
 let mods = null;
