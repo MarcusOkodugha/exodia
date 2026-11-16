@@ -116,6 +116,8 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 - End every reply with one short line starting with 🔴 that names what's still waiting on him (open decisions and his to-dos), and point to the red pill in the app for the steps. Keep reminding him until each one is done.
 - Always give links as clickable markdown links, never as bare text to copy.
 - When he has to run a command, say exactly where: "Terminal on your Mac", and start it with `cd ~/code/exodia &&` when it needs the project folder. Give one command per code block, and say what he should see when it worked.
+- In commands, write his real file names exactly as he gave them (never rename his files). If you don't know a name, write PASTE-FILE-NAME-HERE and say so; never guess it with `ls | head` tricks.
+- Aura song: Workers KV namespace `2e8d4387a94b47bd84c88799f30ac390`, each song under its own file name, key `current` names the one that plays.
 - Never use clipboard tricks like `pbpaste |`. Copying the command overwrites what he copied before. Use commands that prompt for the value instead (for example `npx wrangler secret put NAME`, then he pastes with ⌘V).
 - Anything only he can do (logins, dashboards, tokens) goes as numbered taps with the exact button names. Never ask him to paste tokens or passwords in chat.
 - Do the whole thing end to end: edit, check, commit, push, then confirm it's live. Don't hand him steps you can do yourself.
