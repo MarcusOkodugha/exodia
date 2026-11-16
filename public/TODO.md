@@ -54,6 +54,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **For Fable 5.2 (limit resets 19 Nov 22:00 UTC):** Aura smooth on iPhone 15 Pro Max (spin and toes-up build; no full page render during scenes, shapes pre-built before the drop at 0:39.5); see-through in Aura for up to 7 people (today limited to few); desktop flashes dark then white on opening; general lag on opening (make the 3D preload wait for idle). Never make a figure look worse; stop and report if it does.
+
 - [ ] **Easier logging, rest of 6A (Marcus decided 16 Nov):** + lays out last time's sets as grey placeholders (warm-ups marked W) that only count once ticked; one steady "+ Add set" row under every lift (copies the next set from last time); Undo bar by the thumb at the bottom; swipe then tap Delete only. Bugs already fixed in v500. Test like a normal user with an agent before pushing (scripts: tools/screens.cjs plus a touch test).
 - [ ] **Check on Marcus's phone (16 Nov):** level-up now plays by itself on Trends once (v502); Aura switch (v501) with the song once uploaded; window resizing on the Mac app (v499).
 
