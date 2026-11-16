@@ -5719,7 +5719,7 @@ const backDock = () => `<div class="backDock"><a class="backHome" href="#/">${IC
 // starts inside that tap, so the phone never asks for permission. If it can't be had, a soft beat made on the phone
 // keeps the time instead. Scenes follow the song's own clock, so they stay in step even if the phone stutters. It
 // stops when the switch goes off, when you leave Train together and when the app goes to the background.
-const AURA = { drop: 40.5, bpm: 99, bars: 4 }; // measured from the song: the drop, the tempo, bars per scene
+const AURA = { drop: 39.5, bpm: 99, bars: 4 }; // drop at 0:39.5 (Marcus, 16 Nov: 39–40 s) // measured from the song: the drop, the tempo, bars per scene
 const AURA_BEAT = 60 / AURA.bpm;
 let aura = null;
 const auraSynth = (ac) => {
@@ -5767,10 +5767,13 @@ const auraBuild = (show, wait) => {
   auraShow({ show, picks: 'none', pick: true });
   aura.timers.push(setTimeout(() => {
     if (!aura) return;
+    // The build is set up first (muscles hidden, clock not started) and the page redraw comes after, so the heavy
+    // redraw lands before the first frame of the build and the climb from the feet stays smooth.
+    if (body3d) {
+      body3d.throwSpin(0.07);
+      body3d.buildIn(null, 'feet', AURA_BEAT * 8 * 1000).then(() => { if (aura?.scene.build) auraShow({ show, picks: 'none', pick: false }); });
+    }
     auraShow({ show, picks: 'all', pick: true, build: true });
-    if (!body3d) return;
-    body3d.throwSpin(0.07);
-    body3d.buildIn(null, 'feet', AURA_BEAT * 8 * 1000).then(() => { if (aura?.scene.build) auraShow({ show, picks: 'none', pick: false }); });
   }, wait));
 };
 const AURA_SCENES = [
