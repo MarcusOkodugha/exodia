@@ -1771,9 +1771,11 @@ export default {
     // file name; the key "current" names the one that plays (old uploads under "song.mp3" still work). Not uploaded
     // yet: 404, and the app plays its own soft beat instead.
     if (url.pathname === '/api/aura-song') {
-      const name = env.AURA ? (await env.AURA.get('current')) || 'song.mp3' : null;
+      // "current" may hold the file name or a whole path (/Users/…/song.mp3): the last part is the name.
+      const name = env.AURA ? ((await env.AURA.get('current')) || 'song.mp3').split('/').pop().trim() : null;
       const song = name ? await env.AURA.get(name, { type: 'arrayBuffer' }) : null;
-      if (!song) return new Response('Not here yet', { status: 404 });
+      // A few bytes is not a song (a path saved as text by mistake): say so, and the app plays its own beat.
+      if (!song || song.byteLength < 20000) return new Response('Not here yet', { status: 404 });
       // Whatever the file was (mp3, m4a, wav), say what it really is so every browser plays it.
       const head = new Uint8Array(song.slice(0, 12)), text = (from, to) => String.fromCharCode(...head.slice(from, to));
       const type = text(4, 8) === 'ftyp' ? 'audio/mp4' : text(0, 4) === 'RIFF' ? 'audio/wav' : text(0, 4) === 'OggS' ? 'audio/ogg' : 'audio/mpeg';

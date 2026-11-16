@@ -5815,6 +5815,8 @@ const auraStop = (quiet = false) => {
 };
 // Called from the tap on the switch, so the sound may start.
 const auraStart = () => {
+  // iPhone: play like a music app, so the silent switch doesn't mute Aura (it muted even the stand-in beat).
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
   const Context = window.AudioContext || window.webkitAudioContext;
   const ac = Context ? new Context() : null;
   if (ac?.state === 'suspended') ac.resume().catch(() => {});
