@@ -1989,7 +1989,7 @@ body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dMo
 /* The slot takes the taps (the canvas reaches a little below it for the feet and lets them through). */
 .body3dHost { cursor: grab; }
 /* Level-up: the notice over the anatomy ("Rear delts just moved to Advanced"); a tap plays it on the 3D body. */
-.lvlUp { display: flex; align-items: center; gap: 10px; width: 100%; margin: 20px 0 -12px; padding: 12px 14px; border-radius: 14px; background: var(--field); color: var(--text); text-align: left; transition: transform 0.15s ease; }
+.lvlUp { display: flex; align-items: center; gap: 10px; width: 100%; margin: 20px 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--field); color: var(--text); text-align: left; }
 .lvlUp:active { transform: scale(0.985); }
 .lvlUp .muscleSwatch { flex: none; }
 .lvlUpText { min-width: 0; }

@@ -54,6 +54,9 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
+- [ ] **Easier logging, rest of 6A (Marcus decided 16 Nov):** + lays out last time's sets as grey placeholders (warm-ups marked W) that only count once ticked; one steady "+ Add set" row under every lift (copies the next set from last time); Undo bar by the thumb at the bottom; swipe then tap Delete only. Bugs already fixed in v500. Test like a normal user with an agent before pushing (scripts: tools/screens.cjs plus a touch test).
+- [ ] **Check on Marcus's phone (16 Nov):** level-up now plays by itself on Trends once (v502); Aura switch (v501) with the song once uploaded; window resizing on the Mac app (v499).
+
 - [x] **Muscle size follows strength (15 Nov, v494):** Fable's sizing switched on in the app (Marcus asked for it directly): Advanced/Elite muscles stay as before, weaker ones leaner, width from weight halved.
 - [x] **Ages (15 Nov), done:** Marcus, Adam, Benjamin, Romi 26; Augustine 56, set in D1 with a sync bump. The server keeps a body field an older phone leaves out, so an app without the age field can't wipe it (v491).
 

@@ -2039,20 +2039,25 @@ const levelUpNotice = () => {
   const tier = tierOf(muscleLevels()?.[one.key] || 0);
   const title = MUSCLES.find(([key]) => key === one.key)?.[1];
   if (!tier || !title) return '';
-  return `<button class="lvlUp" data-action="level-up" data-muscle="${one.key}"><i class="muscleSwatch ${tier[2]}"></i><span class="lvlUpText"><b>${title} just moved to ${tier[1]}</b><small>Tap to see it</small></span></button>`;
+  // Not a button (Marcus, 16 Nov): it plays by itself once the 3D body is on screen, and only once per level.
+  return `<div class="lvlUp" role="status"><i class="muscleSwatch ${tier[2]}"></i><span class="lvlUpText"><b>${title} just moved to ${tier[1]}</b></span></div>`;
 };
 const playLevelUp = (key) => {
   if (levelUpBusy) return;
+  // Seen the moment it starts, so it never asks again (it used to come back each time the app opened).
+  const forget = () => { try { localStorage.setItem('exodia.levelUps', JSON.stringify(levelUps().filter((one) => one.key !== key))); } catch {} levelUpsMemo = null; };
   const done = () => {
     levelUpBusy = false;
-    try { localStorage.setItem('exodia.levelUps', JSON.stringify(levelUps().filter((one) => one.key !== key))); } catch {}
-    levelUpsMemo = null;
+    forget();
     render();
   };
   const tier = tierOf(muscleLevels()?.[key] || 0);
   if (!tier || body3dState === 'failed') { done(); return; }
   if (body3dState !== 'ready' || !body3d) return; // still loading: the notice stays for the next tap
   levelUpBusy = true;
+  const keep = levelUps().find((one) => one.key === key);
+  forget();
+  levelUpsMemo = keep ? [keep] : []; // the line stays on screen while it plays
   if (view.muscleMode !== 'strength' || view.musclePick) {
     view.muscleMode = 'strength';
     view.musclePick = null;
@@ -2109,6 +2114,9 @@ const placeBody3d = () => {
   }
   body3d.setMode(want.mode || {});
   body3d.setSelected(want.selected);
+  // A level-up waiting: it plays by itself on your Strength figure, once.
+  const next = view.route === 'trends' && slot.dataset.body3d === 'one' ? levelUps().at(-1) : null;
+  if (next && !levelUpBusy) setTimeout(() => playLevelUp(next.key), 600);
   syncB3dList();
   // Picking muscles: the opened figure ends right above the muscle list, so the list never covers it.
   const pickPanel = document.querySelector('.pickPanel');
