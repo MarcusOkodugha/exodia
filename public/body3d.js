@@ -11,6 +11,10 @@
 //   view.setSelected('chest' | null)
 //   view.levelUp(index, key, color, level)   the muscle drains away and builds back in the new colour and size from the
 //                              bottom up, slice by slice; resolves when it has settled. The app then sets the same people.
+//   view.setPeople(list, { fade: 600 })     the same people glide to their new colours and sizes instead of swapping
+//   view.buildIn(keys, from, ms)             everyone's muscles in keys build up from the bottom together (Aura);
+//                              from 'feet': the whole body in one sweep from the soles to the crown
+//   view.throwSpin(speed)                    a push to the spin that settles back to the idle turn
 //   view.expand(index) / view.collapse()
 //   view.destroy()
 //
@@ -569,6 +573,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         { float hgt = crestH * 0.0016; vec2 dH = vec2(dFdx(hgt), dFdy(hgt)); vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition); vec3 r1 = cross(sy, normal), r2 = cross(normal, sx); float det = dot(sx, r1);
           if (crestH > 0.0 || abs(dH.x) + abs(dH.y) > 0.0) normal = normalize(abs(det) * normal - sign(det) * (dH.x * r1 + dH.y * r2)); }`); };
   ctxMat.customProgramCacheKey = () => 'body3dCtxHead';
+  const BODY_LO = new Array(16).fill(center.y - height / 2), BODY_HI = new Array(16).fill(center.y + height / 2); // the whole figure, for a build from the feet
   const scene = new THREE.Scene(), pivot = new THREE.Group(), fig = new THREE.Group();
   fig.position.copy(center).negate(); pivot.add(fig); scene.add(pivot);
   const muscle = new THREE.Mesh(muscleGeo, muscleMat), ctx = new THREE.Mesh(ctxGeo, ctxMat); fig.add(muscle, ctx);
@@ -658,7 +663,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
     pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
-    { const fx = p.fx, ud = muscle.geometry.userData; U.uGrowLo.value = ud.lo; U.uGrowHi.value = ud.hi; U.uGrowOn.value = fx ? fx.on : NO_GROW; U.uGrowT.value = fx ? fx.t : 2; U.uGrowS.value = fx ? fx.s : -1; U.uGrowK.value = fx ? fx.k : 0; }
+    { const fx = p.fx, ud = muscle.geometry.userData; U.uGrowLo.value = fx && fx.body ? BODY_LO : ud.lo; U.uGrowHi.value = fx && fx.body ? BODY_HI : ud.hi; U.uGrowOn.value = fx ? fx.on : NO_GROW; U.uGrowT.value = fx ? fx.t : 2; U.uGrowS.value = fx ? fx.s : -1; U.uGrowK.value = fx ? fx.k : 0; }
     { const hb = ctx.geometry.userData.head, hc = HEADS[p.head]; HU.uHead.value = hb && hc && HU.tMark.value ? 1 : 0;
       if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4];
         HU.uHeadLook.value = p.headLook && HU.tCrest.value ? 1 : 0; HU.uHeadC.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, (hb[5] + hb[6]) / 2); } }
@@ -832,7 +837,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       // Draw before the browser paints, so a moved or resized canvas never shows empty.
       size(); render(); kick();
     },
-    setPeople(list) {
+    setPeople(list, { fade = 0 } = {}) {
+      const prev = people;
       people = (list || []).map((p) => {
         const pal = [plainC], bulk = [0], has = [0], labels = {}, fem = p.sex === 'female';
         const avg = strong ? avgOf(p, GROUPS) : 0;
@@ -844,6 +850,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(strong ? frameCap(avg) : 1.12, Math.sqrt(bmi / 23))), shape: strong ? shapeOf(p, avg) : null };
       });
       for (const p of people) if (p.shape) shaped(p.shape, p.fem); // built now, not in the middle of a frame
+      // fade: someone who was already there glides from the old colours and sizes to the new; a build in progress carries on.
+      if (fade) for (const p of people) { const old = prev.find((o) => o.id === p.id); if (!old) continue;
+        const to = { pal: p.pal, bulk: p.bulk }, from = { pal: old.pal.map((c) => c.clone()), bulk: old.bulk.slice() };
+        p.pal = from.pal.map((c) => c.clone()); p.bulk = from.bulk.slice(); if (old.fx) p.fx = old.fx;
+        run(fade, (u) => { const e = sm(u); for (let g = 0; g < 16; g++) { p.pal[g].copy(from.pal[g]).lerp(to.pal[g], e); p.bulk[g] = from.bulk[g] + (to.bulk[g] - from.bulk[g]) * e; } }, () => { p.pal = to.pal; p.bulk = to.bulk; }); }
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
       if (open >= 0) setWho(people[open]);
@@ -873,6 +884,14 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
           p.pal = p.pal.slice(); p.pal[g] = new THREE.Color(color); p.has = p.has.slice(); p.has[g] = 1; p.bulk = p.bulk.slice(); p.bulk[g] = bulkOf(key, level, p.fem);
           run(1800, (u) => { fx.t = 1.001 * (0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
             run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, end); }); }); }); },
+    // Aura. Everyone's muscles in keys (all of them when keys is null) build up together, as in a level-up.
+    // from 'feet': heights are measured over the whole body, so it is one sweep from the soles to the crown.
+    buildIn(keys, from, ms = 1900) { const gs = (keys || GROUPS).map((k) => GROUPS.indexOf(k) + 1).filter(Boolean); if (!gs.length || dead) return Promise.resolve();
+      return new Promise((res) => { const fx = { on: new Array(16).fill(0), t: 0, s: -1, k: 0, body: from === 'feet' }; for (const g of gs) fx.on[g] = 1; if (fx.body) fx.on[0] = 1;
+        for (const p of people) p.fx = fx;
+        run(ms, (u) => { fx.t = 1.001 * (fx.body ? u : 0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
+          run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { for (const p of people) if (p.fx === fx) p.fx = null; dirty = true; kick(); res(); }); }); }); },
+    throwSpin(s) { speed = reduced.matches ? 0 : s; hold = false; face = null; kick(); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
     destroy() {

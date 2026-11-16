@@ -2105,7 +2105,7 @@ const placeBody3d = () => {
   const sig = JSON.stringify(want.people);
   if (sig !== body3dSig) {
     body3dSig = sig;
-    body3d.setPeople(want.people);
+    body3d.setPeople(want.people, aura ? { fade: 600 } : undefined);
   }
   body3d.setMode(want.mode || {});
   body3d.setSelected(want.selected);
@@ -5704,6 +5704,121 @@ const backDock = () => `<div class="backDock"><a class="backHome" href="#/">${IC
 // Train together.
 // Optional, off the normal path: a note everyone in the plan sees, and the muscles you'll train, tapped on the
 // figures above. Both are quiet text until someone uses them.
+// Aura mode (Train together, Marcus's pick 9, 16 Nov). A switch under the squad. On: the song plays and the figures run
+// with it. Everyone starts fully see-through; at the drop they build from the feet up into their strength colours while
+// turning, then what you train today, then recovery, and on through more build-ups, a new scene every four bars. The
+// song is not in the app: it is asked from the Worker (/api/aura-song, kept in KV) only when the switch goes on, and it
+// starts inside that tap, so the phone never asks for permission. If it can't be had, a soft beat made on the phone
+// keeps the time instead. Scenes follow the song's own clock, so they stay in step even if the phone stutters. It
+// stops when the switch goes off, when you leave Train together and when the app goes to the background.
+const AURA = { drop: 40.5, bpm: 99, bars: 4 }; // measured from the song: the drop, the tempo, bars per scene
+const AURA_BEAT = 60 / AURA.bpm;
+let aura = null;
+const auraSynth = (ac) => {
+  const out = ac.createGain();
+  out.gain.value = 0.4;
+  out.connect(ac.destination);
+  const chords = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]];
+  const start = ac.currentTime + 0.08;
+  const began = performance.now(); // scenes go by the wall clock, so they run even if the phone holds the sound back
+  let count = 0;
+  let next = start;
+  const note = (type, from, to, at, length, volume, attack) => {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, at);
+    if (to) osc.frequency.exponentialRampToValueAtTime(to, at + length * 0.6);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(volume, at + attack);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    osc.connect(gain).connect(out);
+    osc.start(at);
+    osc.stop(at + length + 0.05);
+  };
+  const fill = () => {
+    while (next < ac.currentTime + 0.4) {
+      const dropped = count >= 8;
+      if (dropped) note('sine', 105, 44, next, 0.34, 0.6, 0.01);
+      if (count % 8 === 0) for (const tone of chords[(count / 8) % 4]) note('triangle', tone, 0, next, AURA_BEAT * 8, dropped ? 0.11 : 0.07, 0.5);
+      count += 1;
+      next += AURA_BEAT;
+    }
+  };
+  const timer = setInterval(fill, 120);
+  fill();
+  return { drop: AURA_BEAT * 8, time: () => (performance.now() - began) / 1000, mute: (muted) => out.gain.setTargetAtTime(muted ? 0.0001 : 0.4, ac.currentTime, 0.05), stop: () => clearInterval(timer) };
+};
+const auraShow = (scene) => {
+  if (!aura) return;
+  aura.scene = scene;
+  render();
+};
+// From see-through, the whole body builds from the feet up over two bars while it turns, then stands complete.
+const auraBuild = (show, wait) => {
+  auraShow({ show, picks: 'none', pick: true });
+  aura.timers.push(setTimeout(() => {
+    if (!aura) return;
+    auraShow({ show, picks: 'all', pick: true, build: true });
+    if (!body3d) return;
+    body3d.throwSpin(0.07);
+    body3d.buildIn(null, 'feet', AURA_BEAT * 8 * 1000).then(() => { if (aura?.scene.build) auraShow({ show, picks: 'none', pick: false }); });
+  }, wait));
+};
+const AURA_SCENES = [
+  () => auraBuild('strength', 0), // the drop
+  () => auraShow({ show: 'focus', picks: 'day', pick: true }),
+  () => { auraShow({ show: 'recovery', picks: 'none', pick: false }); body3d?.throwSpin(0.05); },
+  () => auraBuild('recovery', AURA_BEAT * 2 * 1000),
+  () => { auraShow({ show: 'focus', picks: 'day', pick: true }); if (aura.day.length) body3d?.buildIn(aura.day, null, AURA_BEAT * 4 * 1000); },
+  () => { auraShow({ show: 'strength', picks: 'none', pick: false }); body3d?.throwSpin(0.09); },
+  () => auraBuild('strength', AURA_BEAT * 2 * 1000)
+];
+const auraTick = () => {
+  if (!aura) return;
+  aura.raf = requestAnimationFrame(auraTick);
+  const playing = aura.synth || (!aura.audio.paused && aura.audio.readyState > 2);
+  if (!playing) return;
+  const time = aura.synth ? aura.synth.time() : aura.audio.currentTime;
+  const drop = aura.synth ? aura.synth.drop : AURA.drop;
+  const at = time < drop ? -1 : Math.floor((time - drop) / (AURA_BEAT * 4 * AURA.bars));
+  if (at === aura.at) return;
+  aura.at = at;
+  for (const timer of aura.timers) clearTimeout(timer);
+  aura.timers = [];
+  if (at < 0) auraShow({ show: 'strength', picks: 'none', pick: true }); // before the drop (and when the song comes round again)
+  else AURA_SCENES[at === 0 ? 0 : 1 + (at - 1) % (AURA_SCENES.length - 1)]();
+};
+const auraStop = (quiet = false) => {
+  if (!aura) return;
+  const was = aura;
+  aura = null;
+  cancelAnimationFrame(was.raf);
+  for (const timer of was.timers) clearTimeout(timer);
+  was.audio.pause();
+  was.audio.removeAttribute('src');
+  was.audio.load();
+  if (was.synth) was.synth.stop();
+  if (was.ac) was.ac.close().catch(() => {});
+  if (!quiet) render();
+};
+// Called from the tap on the switch, so the sound may start.
+const auraStart = () => {
+  const Context = window.AudioContext || window.webkitAudioContext;
+  const ac = Context ? new Context() : null;
+  if (ac?.state === 'suspended') ac.resume().catch(() => {});
+  const audio = new Audio();
+  audio.loop = true;
+  aura = { audio, ac, synth: null, muted: false, scene: { show: 'strength', picks: 'none', pick: true }, timers: [], at: -1, raf: 0, day: [] };
+  const fallBack = () => { if (aura?.audio !== audio || aura.synth || !ac) return; aura.synth = auraSynth(ac); aura.synth.mute(aura.muted); };
+  audio.addEventListener('error', fallBack);
+  audio.src = '/api/aura-song';
+  audio.play().catch(fallBack);
+  render();
+  auraTick();
+};
+document.addEventListener('visibilitychange', () => { if (document.hidden) auraStop(); });
+const AURA_SOUND = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 const planExtras = (plan) => {
   const together = view.together;
   const label = (key) => MUSCLES.find(([muscle]) => muscle === key)?.[1] || key;
@@ -5788,16 +5903,22 @@ const renderTogether = () => {
   if (!view.body3dOpen && together.show === 'strength') together.show = 'recovery'; // Strength only in an opened figure
   const show = together.show === 'focus' && !dayMuscles.length ? 'recovery' : together.show || 'recovery';
   const focusView = show === 'focus' && !picking;
+  // Aura runs the figures while it is on: its scene says which colours they wear and which muscles stand solid.
+  if (picking && aura) auraStop(true);
+  const scene = aura ? aura.scene : null;
+  if (aura) aura.day = dayMuscles;
   // Picking and Focus: the planned muscles in clay, the same colour as the chips under an opened figure.
-  const colourOf = (entry) => (focusView || picking ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
+  const colourOf = (entry) => (scene ? (scene.show === 'strength' ? strengthColour : scene.show === 'focus' && dayMuscles.length ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : recoveryColour(entry.load)) : focusView || picking ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
   const labelOf = show === 'strength' ? strengthLabel : recoveryLabel;
   // A friend's opened figure has their name as a link to their page.
   view.squadMe = people.findIndex((entry) => entry.me);
-  const extra = (entry) => ({ ...(entry.me ? {} : { link: `#/friend/${entry.handle}` }), ...(picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {}) });
-  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
+  const extra = (entry) => ({ ...(entry.me ? {} : { link: `#/friend/${entry.handle}` }), ...(scene ? { picks: scene.picks === 'all' ? MUSCLES.map(([key]) => key) : scene.picks === 'day' ? picksOf(entry) : [] } : picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {}) });
+  const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', scene ? (scene.pick ? { pick: true, spin: true } : null) : picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
   // One switch under the squad: show what the day trains (the rest see-through), off = recovery again.
   const focusSwitch = squad3d && !picking && dayMuscles.length ? `<button class="fxSet tgFocus" role="switch" aria-checked="${show === 'focus'}" data-action="together-focus"><span class="fxSetText"><b>Show what you'll train</b></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${focusSwitch}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => `<figure><figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`; // never the old flat figure (Marcus, 15 Nov): names only until the 3D body is there
+  // Aura: the same kind of switch; while it is on, a small sound button sits beside it.
+  const auraSwitch = squad3d && !picking ? `<div class="tgAuraRow"><button class="fxSet tgAura" role="switch" aria-checked="${Boolean(aura)}" data-action="together-aura"><span class="fxSetText"><b>Aura</b></span><i class="fxSwitch" aria-hidden="true"></i></button>${aura ? `<button class="tgAuraMute" data-action="together-aura-mute" aria-pressed="${aura.muted}" aria-label="${aura.muted ? 'Sound on' : 'Sound off'}">${AURA_SOUND}</button>` : ''}</div>` : '';
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${focusSwitch}${auraSwitch}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => `<figure><figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`; // never the old flat figure (Marcus, 15 Nov): names only until the 3D body is there
   bodyChosen = null;
   // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
   const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -5908,6 +6029,7 @@ const askBodyOnce = () => {
 };
 const render = () => {
   keepPrivateUrl();
+  if (aura && view.route !== 'together') auraStop(true); // Aura belongs to Train together: leaving stops the music
   body3dWant = null;
   const app = document.getElementById('app');
   const hit = exodiaHit();
@@ -8755,6 +8877,19 @@ document.addEventListener('click', (event) => {
   if (action === 'body3d-expand') {
     body3d?.expand(Number(target.dataset.index) || 0);
     view.body3dOpen = true;
+    render();
+    return;
+  }
+  if (action === 'together-aura') {
+    if (aura) auraStop();
+    else auraStart();
+    return;
+  }
+  if (action === 'together-aura-mute') {
+    if (!aura) return;
+    aura.muted = !aura.muted;
+    aura.audio.muted = aura.muted;
+    if (aura.synth) aura.synth.mute(aura.muted);
     render();
     return;
   }

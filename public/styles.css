@@ -1996,6 +1996,11 @@ body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dMo
 .lvlUp b { display: block; font-size: 15px; line-height: 20px; font-weight: 600; }
 .lvlUp small { display: block; font-size: 13px; line-height: 18px; color: var(--text2); }
 /* Planned muscles: each with a small cross that takes it off the plan. */
+/* Aura: its switch, and the small sound button beside it while it is on (it takes no room of its own). */
+.tgAuraRow { position: relative; }
+.tgAuraMute { position: absolute; top: 50%; right: 54px; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 20px; color: var(--text2); }
+.tgAuraMute .off, .tgAuraMute[aria-pressed="true"] .on { display: none; }
+.tgAuraMute[aria-pressed="true"] .off { display: inline; }
 .tgFocusList b { display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .tgFocusList .tgMus { display: inline-flex; align-items: center; white-space: nowrap; font-size: 15px; color: var(--text); }
 .tgMus button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin: -3px -6px -3px -2px; padding: 0; border-radius: 13px; color: var(--text2); }
