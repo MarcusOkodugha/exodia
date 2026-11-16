@@ -55,16 +55,23 @@ const stepOf = (lv) => {
   return STEP[STEP.length - 1][1];
 };
 const bulkOf = (g, lv, fem) => (fem ? 0.8 : 1) * BASE * (1 + ((GROW[g] || 1) - 1) * stepOf(lv) * (fem ? 0.6 : 1));
-// Size by strength for the strong only (createBodyView({ sizing: 'strong' })). From 3.5 up (close to Advanced,
-// and Elite) a muscle is exactly as big as above. Below that every group loses size step by step down to a lean
-// Beginner; a muscle with no level counts as Novice, since nothing says it is strong. A muscle is never drawn
-// inwards: its leanest is a thin layer over the model's own surface (LEAN), because pulling muscles in opened
-// gaps (bone through the abs, the layer underneath showing as lines). Weight widens the figure half as much, so
-// a heavier friend is not broader than a stronger one.
-const LEAN = 0.22, LEAN_STEP = [[1, 0], [2, 0.3], [3, 0.68], [3.5, 1]]; // LEAN: share of BASE left on a Beginner; LEAN_STEP: how far from lean to the 3.5 size
-const bulkStrong = (g, lv, fem) => { const l = lv == null || !isFinite(lv) ? 2 : Math.max(1, Math.min(6, lv)); if (l >= 3.5) return bulkOf(g, l, fem);
-  let f = 0; for (let i = 1; i < LEAN_STEP.length; i++) if (l <= LEAN_STEP[i][0]) { const [a, x] = LEAN_STEP[i - 1], [b, y] = LEAN_STEP[i]; f = x + (y - x) * (l - a) / (b - a); break; }
-  const lean = (fem ? 0.8 : 1) * BASE * LEAN; return lean + (bulkOf(g, 3.5, fem) - lean) * f; };
+// Size by strength for the strong only (createBodyView({ sizing: 'strong' }), Marcus's pick 1B, 16 Nov). From 3.5
+// up (a strong Intermediate, Advanced, Elite) everything is exactly as above. Below that the body is let down:
+// - Muscles: Novice 2.0 is G's own build (nothing added), a Beginner a thin layer over the model's own surface
+//   (LEAN; never drawn inwards, which opened gaps). Under G every group takes part by at least SLIM, also the ones
+//   that never grow (abs, calves). A muscle with no level goes with the person's average, never above G.
+// - Shape (SHAPES below): the weaker the arms, the thinner the arms and the flatter the shoulder caps, about each
+//   arm's own line, so the body keeps its width; a Beginner's whole frame is slim.
+// - Width from body weight: the 12% only from Advanced; up to 3.5 at most 3%, so a heavier friend is not broader
+//   than a stronger one.
+const STEP_P = [[1, -1], [2, 0], [3, 0.5], [3.5, 0.825]], LEAN = 0.22, SLIM = 0.6;
+const stepOfP = (lv) => { const l = Math.max(1, Math.min(3.5, lv));
+  for (let i = 1; i < STEP_P.length; i++) if (l <= STEP_P[i][0]) { const [a, x] = STEP_P[i - 1], [b, y] = STEP_P[i]; return x + (y - x) * (l - a) / (b - a); }
+  return STEP_P[STEP_P.length - 1][1]; };
+const bulkStrong = (g, lv, fem, avg) => { if (lv >= 3.5) return bulkOf(g, lv, fem);
+  const s = lv > 0 ? stepOfP(lv) : avg > 0 ? Math.min(0, stepOfP(avg)) : 0, grow = (GROW[g] || 1) - 1;
+  return (fem ? 0.8 : 1) * BASE * Math.max(LEAN, 1 + (s < 0 ? Math.max(grow, SLIM) : grow) * s * (fem ? 0.6 : 1)); };
+const frameCap = (lv) => (lv >= 4 ? 1.12 : lv >= 3.5 ? 1.03 + (lv - 3.5) * 0.18 : 1.03);
 // Looks. R: G's real light and deep creases, colour to every muscle's edge (no pale tendon ends). F: the earlier
 // look with fibre lines you can see. D: no fibre lines.
 const LOOKS = {
@@ -117,6 +124,7 @@ const parseGlb = (THREE, buf) => {
 // One geometry for all muscles and one for everything else (head, bones, hands, feet): two draw calls a figure.
 // Each vertex carries its group, baked shade, where its muscle's fibres run to and how near it is to the muscle's
 // ends, so one shader can colour, bulk, draw the fibres and pale the tendon ends.
+const WRIST = 0.004; // the height of the wrist crease in the model
 const merge = (THREE, parts, R = 0) => {
   let nv = 0, ni = 0; for (const o of parts) { nv += o.count; ni += o.idx.length; }
   let pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), axis = new Float32Array(nv * 3), col = new Float32Array(nv * 3), apex = new Float32Array(nv * 4);
@@ -127,10 +135,15 @@ const merge = (THREE, parts, R = 0) => {
     const cnt = o.count, ctx = /context/.test(o.name), skin = /skin/.test(o.name), head = /body_context/.test(o.name);
     const gi = ctx ? 0 : GROUPS.indexOf(GROUP(o.name)) + 1;
     pos.set(o.pos, vo * 3); nor.set(o.nor, vo * 3); pid.fill(np++, vo, vo + cnt);
-    if (/lower_lats/.test(o.name)) kind.fill(1, vo, vo + cnt); if (/erector/.test(o.name)) kind.fill(2, vo, vo + cnt); if (/hip_flex/.test(o.name)) kind.fill(3, vo, vo + cnt);
+    if (/lower_lats/.test(o.name)) kind.fill(1, vo, vo + cnt); if (/erector/.test(o.name)) kind.fill(2, vo, vo + cnt); if (/hip_flex/.test(o.name)) kind.fill(3, vo, vo + cnt); if (/forearm|brachiorad/.test(o.name)) kind.fill(4, vo, vo + cnt);
     // The deep belly muscle sits a millimetre or two under the obliques; tucked a little further in, the two never
     // fight for the same pixel (a flicker beside the abs while the body turns).
-    if (/transverse_abdominis/.test(o.name)) for (let i = vo * 3; i < (vo + cnt) * 3; i++) pos[i] -= nor[i] * 0.004;
+    // The edges of the abs. The obliques end in a ragged rim that lay on top of the six-pack's clean edge. So the
+    // six-pack is a little wider and the rim of the obliques dips 4 mm under it: the seam you see is the six-pack's
+    // own smooth edge. The deep belly muscle goes 10 mm in, so no two sheets share a depth.
+    if (/rectus_abdominis/.test(o.name)) for (let i = vo; i < vo + cnt; i++) { const ax = Math.abs(pos[i * 3]), t = Math.min(1, Math.max(0, (ax - 0.035) / 0.05)); pos[i * 3] += Math.sign(pos[i * 3]) * 0.008 * t * t * (3 - 2 * t); }
+    if (/obliques/.test(o.name)) for (let i = vo; i < vo + cnt; i++) { const ax = Math.abs(pos[i * 3]), t = Math.min(1, Math.max(0, (ax - 0.085) / 0.035)), w = 1 - t * t * (3 - 2 * t); for (let k = 0; k < 3; k++) pos[i * 3 + k] -= nor[i * 3 + k] * 0.004 * w; }
+    if (/transverse_abdominis/.test(o.name)) for (let i = vo * 3; i < (vo + cnt) * 3; i++) pos[i] -= nor[i] * 0.01;
     const cc = skin ? skinC : plain;
     for (let i = 0; i < cnt; i++) { ao[vo + i] = o.ao && !skin && !head ? o.ao[i] : 1; grp[vo + i] = gi; col.set([cc.r, cc.g, cc.b], (vo + i) * 3); }
     // Fibre direction. Real fibres fan: a pec runs from the sternum and collarbone to one spot on the upper arm,
@@ -202,10 +215,13 @@ const merge = (THREE, parts, R = 0) => {
   // show with the quads all the way up to the spine, where the muscle really goes (a straight cut at the hip bone
   // showed as a flat top on the quads in the see-through view). The K === 3 branch below is kept for that cut.
   // Every triangle a line crosses is cut along it, so colour ends on a clean edge, not a fade across a triangle.
-  const gLow = GROUPS.indexOf('lowerBack') + 1, gUp = GROUPS.indexOf('upperBack') + 1, gQ = GROUPS.indexOf('quads') + 1;
-  if (R > 0) for (const K of [1]) {
-    const f = (i) => pos[i * 3 + 1] - (K === 3 ? 0.1 : 0.32), ok = (k) => (K === 3 ? k === 3 : k === 1 || k === 2);
-    const gOf = (i, inn) => (K === 3 ? (inn ? gQ : 0) : inn ? gLow : kind[i] === 1 ? gUp : 0);
+  const gLow = GROUPS.indexOf('lowerBack') + 1, gUp = GROUPS.indexOf('upperBack') + 1, gQ = GROUPS.indexOf('quads') + 1, gFo = GROUPS.indexOf('forearms') + 1;
+  // The wrist (K === 4). The forearm muscles run on as tendons over the hand into the fingers and took the forearm
+  // colour with them (blue fingers). They are cut the same way 3 cm into the hand: below that they are no group
+  // (plain), and the shader fades the colour out between the wrist crease and the cut.
+  if (R > 0) for (const K of [1, 4]) {
+    const f = (i) => pos[i * 3 + 1] - (K === 4 ? WRIST - 0.03 : K === 3 ? 0.1 : 0.32), ok = (k) => (K === 4 ? k === 4 : K === 3 ? k === 3 : k === 1 || k === 2);
+    const gOf = (i, inn) => (K === 4 ? (inn ? 0 : gFo) : K === 3 ? (inn ? gQ : 0) : inn ? gLow : kind[i] === 1 ? gUp : 0);
     // Typed arrays with room for the new corners (a cut adds at most four per triangle it crosses, and few cross).
     const cap = nv + 24000, grow = (A, n) => { const B = new A.constructor(cap * n); B.set(A); return B; };
     const P = grow(pos, 3), N = grow(nor, 3), AX = grow(axis, 3), CO = grow(col, 3), AP = grow(apex, 4), O = grow(ao, 1), E = grow(end, 1), G = grow(grp, 1), PI = grow(pid, 1), KI = grow(kind, 1);
@@ -272,14 +288,31 @@ const SX = [[0.86, 0.93], [0.74, 0.84], [0.66, 0.83], [0.56, 0.84], [0.45, 0.86]
 const SZ = [[0.3, 1], [0.2, 0.93], [0.1, 1]];
 const ARM = [[0.55, 0.215], [0.3, 0.24], [0.05, 0.28], [-0.15, 0.3]];
 const keyAt = (keys, y) => { if (y >= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (y >= keys[i][0]) { const [a, x] = keys[i - 1], [b, w] = keys[i], t = (y - b) / (a - b); return w + (x - w) * t * t * (3 - 2 * t); } return keys[keys.length - 1][1]; };
-const female = (x, y, z) => {
+const FEMALE = (x, y, z) => {
   const ax = Math.abs(x), sg = Math.sign(x) || 1, arm = Math.min(1, Math.max(0, (ax - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
   const tX = x * keyAt(SX, y), tZ = z * keyAt(SZ, y) * (z < 0 ? 1 + 0.14 * Math.exp(-(((y + 0.03) / 0.1) ** 2)) : 1);
   const cx = keyAt(ARM, y), aX = sg * (cx + (ax - cx) * 0.86 - 0.036), aZ = -0.02 + (z + 0.02) * 0.86;
   let X = tX + (aX - tX) * sm, Y = y, Z = tZ + (aZ - tZ) * sm;
   if (y > 0.7) { Y = 0.7 + (y - 0.7) * 0.94; Z *= 0.94; } // a smaller head
   return [X, Y, Z]; };
-const femalePart = (THREE, o) => {
+// SHAPES: a weaker body from the same model, made the way the woman's shape is. a: how thin the arms and shoulder
+// caps are (0 from Advanced, 1 a Beginner), about each arm's own line. t: a Beginner's frame (0 from Novice 2.0, 1 at
+// Beginner 1.0): shoulders and ribcage narrower, chest flatter, legs thinner about their own line, arms moved in with
+// the shoulders. Keys are [height, scale at full strength of a or t].
+const TX = [[0.72, 1], [0.64, 0.9], [0.55, 0.875], [0.4, 0.885], [0.25, 0.92], [0.1, 0.95], [0, 0.96]];
+const TZ = [[0.7, 1], [0.55, 0.9], [0.4, 0.86], [0.25, 0.9], [0.1, 0.93], [0, 0.95]];
+const LS = [[-0.02, 0.95], [-0.15, 0.86], [-0.4, 0.88], [-0.55, 0.86], [-0.75, 0.94], [-0.82, 1]], LZ = [[-0.1, -0.01], [-0.3, -0.018], [-0.4, -0.029], [-0.5, -0.053], [-0.7, -0.055], [-0.8, -0.049]];
+const AS = [[0.64, 0.9], [0.57, 0.7], [0.47, 0.74], [0.3, 0.78], [0.15, 0.82], [0.03, 0.9], [-0.02, 1]];
+const AX = [[0.6, 0.2], [0.5, 0.207], [0.4, 0.207], [0.3, 0.23], [0.2, 0.246], [0.1, 0.257], [0, 0.285], [-0.12, 0.29]], AZ = [[0.55, -0.045], [0.3, -0.043], [0.2, -0.03], [0.1, -0.011], [0, 0.019], [-0.12, 0.056]];
+const slimAt = (a, t) => (x, y, z) => {
+  const ax = Math.abs(x), sg = Math.sign(x) || 1, arm = Math.min(1, Math.max(0, (ax - 0.17) / 0.04)), sm = arm * arm * (3 - 2 * arm);
+  const kx = 1 - t * (1 - keyAt(TX, y)), kz = 1 - t * (1 - keyAt(TZ, y)), ls = 1 - t * (1 - keyAt(LS, y)), lz = keyAt(LZ, y);
+  const lg = Math.min(1, Math.max(0, -y / 0.12)), leg = lg * lg * (3 - 2 * lg);
+  const X = x * kx + (sg * (0.09 + (ax - 0.09) * ls) - x * kx) * leg, Z = z * kz + (lz + (z - lz) * ls - z * kz) * leg;
+  const as = 1 - a * (1 - keyAt(AS, y)), cx = keyAt(AX, y), cz = keyAt(AZ, y), inX = t * (1 - keyAt(TX, Math.max(y, 0.5))) * 0.165;
+  const aX = sg * (cx + (ax - cx) * as - inX), aZ = cz + (z - cz) * as;
+  return [X + (aX - X) * sm, y, Z + (aZ - Z) * sm]; };
+const femalePart = (THREE, o, female = FEMALE) => { // any shape function
   const pos = new Float32Array(o.pos.length), nor = new Float32Array(o.nor.length), m = new THREE.Matrix3(), n = new THREE.Vector3(), e = 0.002;
   for (let q = 0; q < o.pos.length; q += 3) { const x = o.pos[q], y = o.pos[q + 1], z = o.pos[q + 2];
     const d = (k) => { const a = [x, y, z], b = [x, y, z]; a[k] += e; b[k] -= e; const fa = female(...a), fb = female(...b); return [(fa[0] - fb[0]) / (2 * e), (fa[1] - fb[1]) / (2 * e), (fa[2] - fb[2]) / (2 * e)]; };
@@ -298,9 +331,14 @@ const loadAssets = () => assets || (assets = (async () => {
   const muscleGeo = merge(THREE, parts.filter((o) => !/context/.test(o.name)), tall * 0.022);
   const box = muscleGeo.boundingBox.clone().union(ctxGeo.boundingBox);
   // The woman's figure is built the first time someone female is shown, not before.
+  // The shapes of weaker bodies, each built the first time someone needs it.
+  const shapes = new Map(), shaped = (s, isFem) => { const key = `${s.a},${s.t},${isFem ? 1 : 0}`; let g = shapes.get(key);
+    if (!g) { const sl = slimAt(s.a, s.t), fn = isFem ? (x, y, z) => FEMALE(...sl(x, y, z)) : sl, sp = parts.map((o) => femalePart(THREE, o, fn));
+      shapes.set(key, g = { muscleGeo: merge(THREE, sp.filter((o) => !/context/.test(o.name)), tall * 0.022), ctxGeo: merge(THREE, sp.filter((o) => /context/.test(o.name))) }); }
+    return g; };
   let fem = null; const femaleGeo = () => fem || (fem = (() => { const fp = parts.map((o) => femalePart(THREE, o));
     return { muscleGeo: merge(THREE, fp.filter((o) => !/context/.test(o.name)), tall * 0.022), ctxGeo: merge(THREE, fp.filter((o) => /context/.test(o.name))) }; })());
-  return { THREE, muscleGeo, ctxGeo, femaleGeo, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
+  return { THREE, muscleGeo, ctxGeo, femaleGeo, shaped, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
 })().catch((e) => { assets = null; throw e; }));
 
 // ---------- shaders (look F from the lab, bulk per muscle group) ----------
@@ -310,7 +348,7 @@ float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * 
 float n3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }`;
-const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying vec2 vGrow;';
+const VARY = 'varying vec3 vP; varying vec3 vON; varying vec4 vApex; varying vec3 vA; varying vec3 vE1; varying vec3 vE2; varying vec3 vCol; varying vec3 vShade; varying vec2 vDef; varying float vFade; varying vec2 vGrow; varying float vOwn;';
 const V_PARS = `
   attribute vec4 aApex; attribute vec3 aAxis; attribute vec2 aNear; attribute float aGroup; attribute float aO; attribute float aEnd;
   uniform vec3 uPal[16]; uniform float uBulk[16]; uniform vec4 uSel; uniform vec3 uClay; uniform vec3 uPlain; uniform float uBook; uniform float uPick[16]; uniform float uPickOn; attribute float aLift; uniform float uGrowOn[16]; uniform float uGrowLo[16]; uniform float uGrowHi[16]; uniform float uGrowT; uniform float uGrowK;
@@ -329,6 +367,9 @@ const V_BODY = `
   vCol = mix(mix(own, uPlain, 0.82 * anySel * (1.0 - uBook)), picked, sel);
   vP = position; vON = normal; vApex = aApex; vA = aAxis; vShade = vec3(aO, aEnd, sel); vFade = anySel * (1.0 - sel);
   vDef = vec2(1.0, step(0.5, abs(aGroup - 1.0)));
+  vOwn = 1.0 - step(0.5, abs(aGroup - 10.0)); // the abs (group 10): the inside of their sheets is abs colour too
+  // The forearms (group 9): their colour fades to the hand's over the 3 cm below the wrist crease.
+  vCol = mix(vCol, mix(uPal[0], vCol, smoothstep(${(WRIST - 0.03).toFixed(3)}, ${(WRIST + 0.004).toFixed(3)}, position.y)), 1.0 - step(0.5, abs(aGroup - 9.0)));
   // Building a muscle up (level-up). x: this muscle is being built, y: how far up the muscle this point is (0 its
   // lowest point, 1 its top).
   vGrow = vec2(uGrowOn[gi], clamp((position.y - uGrowLo[gi]) / max(1e-4, uGrowHi[gi] - uGrowLo[gi]), 0.0, 0.999));
@@ -420,9 +461,13 @@ const breastGeo = (THREE) => { const g = new THREE.SphereGeometry(1, 40, 28), p 
 
 export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onWho, names, look, sizing } = {}) {
   const strong = sizing === 'strong';
+  const avgOf = (p, keys) => { const ls = keys.map((g) => (p.muscles || {})[g]?.level).filter((l) => l > 0); return ls.length ? ls.reduce((a, b) => a + b, 0) / ls.length : 0; };
+  // Which shape someone stands in (see SHAPES), in quarter steps so only a few shapes are ever built.
+  const shapeOf = (p, all) => { const arms = avgOf(p, ['shoulders', 'rearDelts', 'biceps', 'triceps', 'forearms']) || all, q = (v) => Math.round(Math.min(1, Math.max(0, v)) * 4) / 4;
+    const a = all > 0 ? q((4 - arms) / 3) : 0, t = all > 0 ? q(2 - all) : 0; return a || t ? { a, t } : null; };
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
-  const { THREE, muscleGeo, ctxGeo, femaleGeo, center, height } = await loadAssets();
+  const { THREE, muscleGeo, ctxGeo, femaleGeo, shaped, center, height } = await loadAssets();
   const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.R;
 
   const canvas = document.createElement('canvas'); canvas.className = 'body3dCanvas'; canvas.setAttribute('aria-hidden', 'true');
@@ -467,7 +512,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         #endif
         // Where the model has a gap (the tendon diamond between the traps), the inside shows as pale tendon.
         #ifndef XRAY
-          if (!gl_FrontFacing) diffuseColor.rgb = uPlain * 0.97;
+          if (!gl_FrontFacing) diffuseColor.rgb = mix(uPlain * 0.97, vCol, vOwn); // through a gap between two abs sheets you see abs, not pale specks
         #endif
         float tend = smoothstep(0.45, 0.95, vShade.y) * vDef.y; float fAmt = (1.0 - 0.85 * tend) * uQ.x * vDef.x * (1.0 - 0.6 * vFade); float fG = fibre(normalize(vON));
         diffuseColor.rgb = mix(diffuseColor.rgb, uPlain * 1.04, tend * uQ.z);
@@ -551,7 +596,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const xrayMat = mkMuscle(true);
   dScene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); { const sun2 = new THREE.DirectionalLight(0xffffff, 1.1); sun2.position.set(2, 3, 4); dScene.add(sun2); }
   const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, xrayMat, 4), dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
-  const useGeo = (p) => { const g = p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; };
+  const useGeo = (p) => { const g = p.shape ? shaped(p.shape, p.fem) : p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(2, 3, 4); scene.add(sun);
   // The sheet that covers the page while a figure is open.
   const veilMat = new THREE.MeshBasicMaterial({ color: '#FAF9F5', transparent: true, depthTest: false, depthWrite: false });
@@ -764,9 +809,19 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
 
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((en) => { onScreen = en[en.length - 1].isIntersecting; if (onScreen) { dirty = true; kick(); } }) : null;
   if (io) io.observe(canvas); else onScreen = true;
-  const ro = 'ResizeObserver' in window ? new ResizeObserver(() => { size(); if (dirty) render(); kick(); }) : null;
+  // Resizing (dragging the window's edge on the computer). Every step used to allocate a new full-sharpness canvas
+  // and draw it at once, twice (the observer and the window both fire). Now a resize in progress is drawn once a
+  // frame at the screen's plain sharpness, and at full sharpness 200 ms after it stops.
+  let coarse = false, settleTimer = 0;
+  const resized = () => { if (dead) return;
+    const w = inOver ? over.clientWidth : hostEl ? hostEl.clientWidth : 0, h = inOver ? over.clientHeight : hostEl ? hostEl.clientHeight : 0;
+    if (!W || !H || (inOver ? w === W && h === H : w === hostW && h === hostH)) { size(); if (dirty) render(); kick(); return; } // first size, or nothing changed
+    if (!coarse && pr > 1) { coarse = true; renderer.setPixelRatio(1); }
+    clearTimeout(settleTimer); settleTimer = setTimeout(() => { if (dead) return; coarse = false; renderer.setPixelRatio(pr); size(); render(); kick(); }, 200);
+    dirty = true; if (live()) kick(); else { size(); render(); } };
+  const ro = 'ResizeObserver' in window ? new ResizeObserver(resized) : null;
   const onVis = () => { if (!document.hidden) { dirty = true; kick(); } };
-  const onWin = () => { size(); if (dirty) { render(); kick(); } };
+  const onWin = resized;
   document.addEventListener('visibilitychange', onVis); window.addEventListener('resize', onWin);
 
   const handle = {
@@ -780,13 +835,15 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     setPeople(list) {
       people = (list || []).map((p) => {
         const pal = [plainC], bulk = [0], has = [0], labels = {}, fem = p.sex === 'female';
-        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push((strong ? bulkStrong : bulkOf)(g, m.level, fem)); }
+        const avg = strong ? avgOf(p, GROUPS) : 0;
+        for (const g of GROUPS) { const m = (p.muscles || {})[g] || {}; pal.push(m.color ? new THREE.Color(m.color) : plainC); has.push(m.color ? 1 : 0); if (m.label) labels[g] = String(m.label); bulk.push(strong ? bulkStrong(g, m.level, fem, avg) : bulkOf(g, m.level, fem)); }
         // Build: wider for more weight at the same height (BMI), within a calm range.
         const cm = p.heightCm > 0 ? p.heightCm : DEFAULT_CM, bmi = p.kg > 0 ? p.kg / (cm / 100) ** 2 : 23;
         const pick = [0, ...GROUPS.map((g) => ((p.picks || []).includes(g) ? 1 : 0))];
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
-        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: strong ? Math.max(0.95, Math.min(1.06, 1 + (Math.sqrt(bmi / 23) - 1) * 0.5)) : Math.max(0.9, Math.min(1.12, Math.sqrt(bmi / 23))) };
+        return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(strong ? frameCap(avg) : 1.12, Math.sqrt(bmi / 23))), shape: strong ? shapeOf(p, avg) : null };
       });
+      for (const p of people) if (p.shape) shaped(p.shape, p.fem); // built now, not in the middle of a frame
       ts = people.map((_, i) => ts[i] || 0);
       if (open >= people.length) { open = -1; ts = ts.map(() => 0); if (inOver) settle(); }
       if (open >= 0) setWho(people[open]);
@@ -819,7 +876,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
     destroy() {
-      if (dead) return; dead = true; clearTimeout(lostTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
+      if (dead) return; dead = true; clearTimeout(lostTimer); clearTimeout(settleTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
       if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } canvas.remove(); over.remove();
       muscleMat.dispose(); xrayMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
