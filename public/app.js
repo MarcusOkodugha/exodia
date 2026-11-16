@@ -6392,8 +6392,28 @@ const resultDetail = (touched) => {
   }).join('');
 };
 
+// Whatever just landed is brought into view: on Home the page glides to that day (a quick smooth scroll, never a wait),
+// and from Add your data you're taken to Home onto the newest day that came in. Nothing moves if it's already in view.
+const revealDay = (dates) => {
+  const date = [...new Set(dates)].filter(Boolean).sort().pop();
+  if (!date) return;
+  if (view.route === 'import') location.hash = '#/';
+  const go = (tries = 0) => {
+    const card = document.getElementById(`session-${date}`);
+    if (!card) return tries < 10 && setTimeout(() => go(tries + 1), 60);
+    // The new sets, not the top of a long day: the part that glows is what you look for.
+    const target = card.querySelector('.exercise.glow') || card;
+    const box = target.getBoundingClientRect(), top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top')) || 60;
+    const dock = document.querySelector('.dock')?.getBoundingClientRect().top || innerHeight;
+    if (box.top >= top && box.bottom <= dock - 8) return; // already fully in view
+    const room = dock - top, y = scrollY + box.top - top - Math.max(16, (room - Math.min(box.height, room)) / 2);
+    scrollTo({ top: Math.max(0, y), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  };
+  requestAnimationFrame(() => go());
+};
 const showResult = (did, touched, before = null) => {
   glowFor(touched);
+  revealDay(touched.map((item) => item.date));
   const detail = resultDetail(touched);
   const named = touched.filter((item) => item.name);
   const edit = named.length ? { date: named[0].date, names: [...new Set(named.filter((item) => item.date === named[0].date).map((item) => item.name))] } : null;
