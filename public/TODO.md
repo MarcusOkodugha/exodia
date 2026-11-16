@@ -6,21 +6,18 @@ The shared to-do list for Marcus and every Claude session. Read it at the start,
 
 Shown in the app as the red pill only Marcus sees (newest first). Format: `- [ ] **Title.** Why, in one line.`, then indented steps (`1.`) with links. A title starting with `Decide:` gets Yes / No buttons that send the answer to Claude.
 
-- [ ] **Put the Aura song in Cloudflare (not GitHub).** You chose to keep it out of the public code; it lives in Cloudflare's free key-value store and is fetched only when Aura is on.
-  1. Terminal on your Mac: `cd ~/code/exodia && npx wrangler kv namespace create AURA` (you'll see an id like `id = "…"`)
-  2. Send that id in the chat (it is not a secret); Claude adds it to the app and pushes
-  3. Then, Terminal on your Mac, with the song in Downloads named aura.mp3: `cd ~/code/exodia && git pull && npx wrangler kv key put song.mp3 --binding AURA --path ~/Downloads/aura.mp3 --remote` (you'll see "Writing the contents of …")
-
-- [ ] **Answer the decisions page (9 questions).** Everything you need to decide, with pictures: strength look, abs specks, blue fingers, feet, picking muscles, easier logging, hit animation, level-up, Aura.
-  1. Open [Exodia decisions](https://claude.ai/artifact/Dq7ZjRBojVuwepZt7bn45C)
-  2. Try the 3D ones in the [Playground](/lab/playground.html) (sections marked Fable 5.2 T)
-  3. Answer in the chat with number and letter, like "1B 2B 3A"
-
-- [ ] **Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
-  1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
-  2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
+(Empty on purpose: Marcus's decisions go on the Exodia decisions page, his to-dos in the chat.)
 
 ## Decide later (backlog)
+
+- [ ] **Put the Aura song in Cloudflare (not GitHub).** The store is ready; two commands upload the song and choose it. Free, and fetched only when Aura is switched on.
+  1. Terminal on your Mac (put your song's file name, as it is in Downloads, in place of PASTE-FILE-NAME-HERE both times): `cd ~/code/exodia && npx wrangler kv key put "PASTE-FILE-NAME-HERE" --path ~/Downloads/"PASTE-FILE-NAME-HERE" --namespace-id 2e8d4387a94b47bd84c88799f30ac390 --remote` (you'll see "Writing the contents of …")
+  2. Then: `cd ~/code/exodia && npx wrangler kv key put current "PASTE-FILE-NAME-HERE" --namespace-id 2e8d4387a94b47bd84c88799f30ac390 --remote` (you'll see "Writing the value …")
+  3. To change song later: do 1 with the new file, then 2 with its name
+
+- [ ] **(Optional, told in chat) Let Google Maps keep recording gym visits (optional).** Exodia filled the calendar from your Timeline; with location on "Always" it keeps a record, so later gym days can be filled the same way. Takes a minute, nothing else to do.
+  1. iPhone **Settings** → **Privacy & Security** → **Location Services** → **Google Maps** → **Always**, and turn on **Precise Location**
+  2. Google Maps → your profile picture → **Your Timeline** → make sure it's on
 
 Not urgent and not in the red pill. Marcus decides these when he wants; nothing is blocked on them.
 

@@ -69,7 +69,7 @@ Bigger features ship behind a feature name (the `BETA` list in `src/worker.js`, 
 
 `public/TODO.md` holds everything Marcus has asked for that isn't done yet, and what's waiting on him. Read it at the start of every session. When he asks for something, add it; when it's live, move it to Done. When he asks "what's not done", answer from it.
 
-Decisions that aren't urgent go under "Decide later (backlog)" in the same file: out of the red pill and out of the 🔴 line, but never deleted. Its "Waiting on Marcus" section is also the red pill in the app that only Marcus sees: it opens to each item's steps and links, and `Decide:` items get Yes / No buttons that start a change session with his answer. Keep that section current and in its format (title, one line why, numbered steps with links), and do everything you can yourself so the list only holds what truly needs him.
+Decisions that aren't urgent go under "Decide later (backlog)" in the same file, never deleted. Don't put things in the "Waiting on Marcus" section (the red pill in the app): Marcus finds it annoying (16 Nov). His decisions go on the Exodia decisions page and his to-dos (commands, taps) go in the chat; leave that section empty.
 
 ## Before you say something is or isn't done
 
@@ -113,7 +113,7 @@ To check that a deploy is live, fetch `https://exodia.marcusokodugha.workers.dev
 - Start every reply with the status in a word or two: "Shipped (v474)." or "Not shipped." Then one short line per point ("Looks spiky. See here: link"). When something needs his eye, show it: a close-up picture and the exact place to see it (link, or the taps to get there). He asked for this on 14 Nov after replies got too long.
 - Format: short main lines first, then optional detail in a quote starting with "> More:". `<details>` tags show as raw text in his app, so don't use them.
 - Decisions go on ONE page, never scattered pictures in the chat (Marcus, 15 Nov: "This is how I like it"). Publish an Artifact page called "Exodia decisions" (or update the existing one): at the top "Done" rows with a green "Live vNNN" tag; below "Decisions to be made", numbered 1, 2, 3… each with one line of why, its pictures embedded and captioned (before/after labelled), and options 1A / 1B… with the recommended one in green. He answers "1A 2B 3A". Keep text short. When something is launched or done, update the page and the red pill the same moment, so nothing already done still asks him.
-- End every reply with one short line starting with 🔴 that names what's still waiting on him (open decisions and his to-dos), and point to the red pill in the app for the steps. Keep reminding him until each one is done.
+- End every reply with one short line starting with 🔴 that names what's still waiting on him (open decisions and his to-dos), with the decisions page link or the command itself. Never send him to the red pill. Keep reminding him until each one is done.
 - Always give links as clickable markdown links, never as bare text to copy.
 - When he has to run a command, say exactly where: "Terminal on your Mac", and start it with `cd ~/code/exodia &&` when it needs the project folder. Give one command per code block, and say what he should see when it worked.
 - In commands, write his real file names exactly as he gave them (never rename his files). If you don't know a name, write PASTE-FILE-NAME-HERE and say so; never guess it with `ls | head` tricks.

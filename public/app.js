@@ -5718,7 +5718,7 @@ const planExtras = (plan) => {
   const muscles = together.picking
     ? `<p class="tgWhy">Tap a muscle to add it to the workout.</p>${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`
     : `${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`;
-  const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
+  const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn clay" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
 // The switch over the squad (and in an opened figure): Recovery, Strength, and Focus once the plan has muscles.
