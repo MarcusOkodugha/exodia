@@ -8229,6 +8229,8 @@ const slideAway = (element, done) => {
   setTimeout(finish, 300);
 };
 const deleteRow = (action, target) => {
+  // A number box still open would get the next set's value typed into it once the rows move up.
+  if (document.activeElement?.matches?.('input[data-field]')) document.activeElement.blur();
   const date = target.dataset.date;
   const session = sessionFor(date);
   if (!session) return;
@@ -9197,7 +9199,10 @@ document.addEventListener('click', (event) => {
   } else if (action === 'add-set' && session) {
     buzz(8);
     const exercise = session.exercises[Number(target.dataset.exercise)];
-    const last = exercise.sets.at(-1) || { kg: '', reps: '' };
+    // Following last time's sets: the next one from last time (the working set after the warm-ups), else a copy of the last.
+    const prev = lastSetsFor(exercise.name, date), n = exercise.sets.length;
+    const follows = prev && n < prev.length && exercise.sets.every((set, index) => Number(set.kg) === Number(prev[index].kg));
+    const last = (follows ? prev[n] : null) || exercise.sets.at(-1) || { kg: '', reps: '' };
     changeWithUndo(`Added a ${exercise.name} set on ${dayLabel(date)}`, () => exercise.sets.push({ kg: last.kg, reps: last.reps, edited: true }), 'Add set');
     if (last.kg === '') view.focusSet = { date, name: exercise.name };
   } else if (action === 'quick-all') {
@@ -9238,8 +9243,20 @@ document.addEventListener('click', (event) => {
   } else if (action === 'pick' || action === 'create') {
     const name = action === 'create' ? titleCase(target.dataset.name) : target.dataset.name;
     const day = view.composerDate || todayIso();
+    lastSwipe = Date.now(); // a double tap must not fall through to the day underneath once the panel closes
+    // Already on that day (a second tap, or coming back to it): nothing is added again, the page just goes to it.
+    if (sessionFor(day)?.exercises.some((exercise) => exercise.name === name)) {
+      closeComposer();
+      glowFor([{ date: day, name }]);
+      revealDay([day]);
+      render();
+      return;
+    }
     const last = usualStart(name, day);
-    changeWithUndo(`Added ${name} to ${dayLabel(day)}`, () => addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps })) : [{ kg: '', reps: '' }] }] }, day), `Add ${name}`);
+    // The way up (below the top weight) is warm-up, so it never counts for e1RM, volume or Exodia by itself.
+    // usualStart stops below 90% of last time's top set, so when it returned a shorter ladder every set in it is a warm-up.
+    const full = lastSetsFor(name, day), ladder = Boolean(last && full && last.length < full.length);
+    changeWithUndo(`Added ${name} to ${dayLabel(day)}`, () => addEntries({ exercises: [{ name, sets: last ? last.map((set) => ({ kg: set.kg, reps: set.reps, ...(set.warmup || ladder ? { warmup: true } : {}) })) : [{ kg: '', reps: '' }] }] }, day), `Add ${name}`);
     closeComposer();
     if (!last) view.focusSet = { date: day, name };
   } else if (action === 'pick-cardio') {
@@ -9525,7 +9542,25 @@ document.addEventListener('change', (event) => {
     const session = sessionFor(target.dataset.date);
     const exercise = session.exercises[Number(target.dataset.exercise)];
     const set = exercise.sets[Number(target.dataset.set)];
-    const removed = set && set.kg === '' && set.reps === '';
+    // A row emptied to be retyped stays while you're still in it (kg → reps → back); it only goes once you leave it
+    // (the focus has moved by the next tick, so that's when it's decided).
+    if (set && set.kg === '' && set.reps === '') {
+      const row = target.closest('.setRow');
+      setTimeout(() => {
+        if (row && row.contains(document.activeElement)) return;
+        const now = sessionFor(target.dataset.date)?.exercises[Number(target.dataset.exercise)];
+        const still = now?.sets[Number(target.dataset.set)];
+        if (!still || still.kg !== '' || still.reps !== '') return;
+        now.sets.splice(Number(target.dataset.set), 1);
+        const day = sessionFor(target.dataset.date);
+        if (!now.sets.length) day.exercises.splice(Number(target.dataset.exercise), 1);
+        if (!day.exercises.length && !day.cardio) state.sessions = state.sessions.filter((item) => item !== day);
+        save();
+        render();
+      }, 30);
+      return;
+    }
+    const removed = false;
     if (removed) exercise.sets.splice(Number(target.dataset.set), Number(target.dataset.count) || 1);
     if (exercise.sets.length === 0) session.exercises.splice(Number(target.dataset.exercise), 1);
     if (session.exercises.length === 0 && !session.cardio) state.sessions = state.sessions.filter((item) => item !== session);
@@ -9974,7 +10009,9 @@ const endSwipe = () => {
   face.style.transition = '';
   face.style.transform = '';
   if (!active) return;
-  if (dx < -face.offsetWidth * 0.55) {
+  // A long swipe deletes a set at once; a whole lift only goes after its Delete is tapped (a swipe just above the first
+  // set used to take the lift and the day with it).
+  if (dx < -face.offsetWidth * 0.55 && !face.matches('.exHead')) {
     buzz(15);
     face.parentElement.querySelector('.swipeDel').click();
     lastSwipe = Date.now();

@@ -1,4 +1,11 @@
 {
+  "500": [
+    "Logging: tapping a lift you already have today no longer adds its sets again, it takes you to it",
+    "The sets + fills in on the way up are warm-ups, so they never count as work until you change them",
+    "The + under a lift adds the next set from last time (your work set), not another warm-up",
+    "Swiping no longer deletes a whole lift by accident, and deleting never puts your typing into another set",
+    "Clearing a set to retype it keeps the row"
+  ],
   "499": [
     "3D bodies: strength shows only on the strong. Advanced and Elite look as before; weaker arms and shoulders are thinner, a Beginner is slim all over, and body weight no longer makes anyone below Advanced broader",
     "3D bodies: clean edges on the abs, and the forearm colour fades out at the wrist instead of running into the fingers",
