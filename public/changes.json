@@ -1,6 +1,9 @@
 {
+  "512": [
+    "Notifications is now its own page from the bell: friend requests and workouts coming up, each row opens where it belongs"
+  ],
   "511": [
-    "Notifications: a bell next to Trends. A clay number when a friend invites you, a warm glow once; tap it for every workout coming up",
+    "Notifications: a bell next to Trends. A clay number when a friend invites you, a warm glow once; tap it to see what's coming up",
     "Invites: one small Going, tap again to take it back. Nothing on Home moves when invites load"
   ],
   "510": [

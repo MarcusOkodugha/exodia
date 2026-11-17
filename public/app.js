@@ -5399,6 +5399,7 @@ const loadSocial = () => {
     .then(({ ok, data }) => {
       if (ok) {
         keepSocial(data);
+        if (view.route === 'notifications') markInvitesSeen();
         syncTogether();
       }
       render();
@@ -5864,14 +5865,16 @@ const planStatus = (plan) => {
   const sentBy = plan.mine ? 'You sent the invite.' : `${esc(owner?.name || plan.by)} invited you.`;
   return `<div class="tgPlanRow"><p class="tgPlan">${sentBy}</p>${plan.mine ? '<button class="fxBtn quiet" data-action="together-leave">Leave plan</button>' : goingPill(plan.date, me?.going === 'yes')}</div>${who}`;
 };
-// Notifications: the bell left of Trends. Its place is always there (nothing moves when invites load); the clay
-// count shows invites you haven't looked at, and opening the panel clears it. The panel lists every plan coming up
-// that you're in: invites first get "X invited you" and a small Going.
+// Notifications: the bell left of Trends opens the Notifications page. Its place is always there (nothing moves when
+// invites load); the clay count shows invites and friend requests you haven't looked at, and the page clears it.
 const comingUp = () => (featureOn('friends') ? (view.social?.plans || []).filter((plan) => plan.sent && plan.date >= todayIso()) : []);
 const openInvites = () => comingUp().filter((plan) => !plan.mine && plan.members.find((member) => member.me)?.going !== 'yes');
 const inviteKey = (plan) => `${plan.id}|${plan.date}`;
 const invitesSeen = () => { try { return JSON.parse(localStorage.getItem('exodia.invitesSeen') || '[]'); } catch { return []; } };
-const unseenInvites = () => { const seen = invitesSeen(); return openInvites().filter((plan) => !seen.includes(inviteKey(plan))); };
+const unseenInvites = () => { const seen = invitesSeen(); return [...openInvites().map(inviteKey), ...(featureOn('friends') ? view.social?.requests || [] : []).map((row) => `r|${row.handle}`)].filter((key) => !seen.includes(key)); };
+const markInvitesSeen = () => {
+  try { localStorage.setItem('exodia.invitesSeen', JSON.stringify([...new Set([...invitesSeen(), ...unseenInvites()])].slice(-80))); } catch { /* private mode */ }
+};
 // The glow plays once per visit when something new is waiting. Redraws build the bell new, so its animation is
 // started at the same moment it had reached (a negative delay) instead of starting over.
 const bellButton = () => {
@@ -5880,39 +5883,30 @@ const bellButton = () => {
   if (count && !view.bellGlowAt) view.bellGlowAt = Date.now();
   const since = view.bellGlowAt ? Date.now() - view.bellGlowAt : 0;
   const glow = count && since < 2600 ? ` glow" style="--since:-${since}ms` : '';
-  return `<button class="iconBtn bellBtn${view.inbox ? ' on' : ''}${glow}" data-action="inbox-toggle" aria-label="Notifications${count ? `, ${count} new` : ''}" aria-expanded="${Boolean(view.inbox)}">${ICONS.bell}${count ? `<span class="bellCount num">${count}</span>` : ''}</button>`;
+  return `<a class="iconBtn bellBtn${view.route === 'notifications' ? ' on' : ''}${glow}" href="#/notifications" aria-label="Notifications${count ? `, ${count} new` : ''}">${ICONS.bell}${count ? `<span class="bellCount num">${count}</span>` : ''}</a>`;
 };
-const inboxPanel = () => {
-  if (!view.inbox) return '';
+// The Notifications page: the same title, sections and rows as Friends. Each row opens where it's about (the plan in
+// Train together, Friends for a request), with the chevron every link row in Exodia has; invites keep a small Going.
+const renderNotifications = () => {
+  if (!featureOn('friends')) return renderHome();
+  const requests = view.social?.requests || [];
   const plans = comingUp();
-  const rows = plans.map((plan) => {
-    const owner = plan.members.find((member) => member.owner)?.name || plan.by;
+  const row = (href, who, top, main, sub, extra = '') => `<div class="fxLine noteRow"><a class="fxLink" href="${href}">${avatar(who)}<span class="fxText">${top}<span class="fxName">${main}</span>${sub ? `<span class="fxSub">${sub}</span>` : ''}</span></a>${extra}<a class="noteChev" href="${href}" tabindex="-1" aria-hidden="true">${ICONS.chevRight}</a></div>`;
+  const planRows = plans.map((plan) => {
     const me = plan.members.find((member) => member.me);
     const others = plan.members.filter((member) => !member.me);
-    const from = plan.mine ? `With ${listNames(others)}` : me?.going === 'yes' ? `With ${listNames(others)}` : `${esc(owner)} invited you`;
-    const day = `${esc(plan.kind)} day ${planWhen(plan.date)}`;
-    return `<div class="inboxRow${!plan.mine && me?.going !== 'yes' ? ' invite' : ''}"><button class="inboxOpen" data-action="invite-open" data-date="${plan.date}"><span class="inboxFrom">${from}</span><b class="inboxDay">${day}</b>${plan.note ? `<span class="inboxNote">${esc(plan.note)}</span>` : ''}</button>${plan.mine ? '' : goingPill(plan.date, me?.going === 'yes')}</div>`;
+    const owner = plan.members.find((member) => member.owner);
+    const invite = !plan.mine && me?.going !== 'yes';
+    const top = invite ? `<span class="fxSub noteFrom">${esc(owner?.name || plan.by)} invited you</span>` : `<span class="fxSub">With ${listNames(others)}</span>`;
+    return row(`#/together/${plan.date}`, (invite ? owner?.name : others[0]?.name) || plan.by, top, `${esc(plan.kind)} day ${planWhen(plan.date)}`, plan.note ? esc(plan.note) : '', plan.mine ? '' : goingPill(plan.date, me?.going === 'yes'));
   }).join('');
-  return `<div class="inboxScrim" data-action="inbox-close"></div><div class="inbox${view.inboxEnter ? ' enter' : ''}${view.inboxLeaving ? ' leave' : ''}" role="dialog" aria-label="Notifications"><p class="inboxHead">Notifications</p>${rows || '<p class="inboxEmpty">Nothing yet. Workouts friends invite you to show up here.</p>'}</div>`;
-};
-const inboxOpen = () => {
-  view.inbox = true;
-  view.inboxEnter = true;
-  view.inboxLeaving = false;
-  const seen = invitesSeen();
-  try { localStorage.setItem('exodia.invitesSeen', JSON.stringify([...new Set([...seen, ...openInvites().map(inviteKey)])].slice(-60))); } catch { /* private mode */ }
-  render();
-  setTimeout(() => { view.inboxEnter = false; }, 450);
-};
-// Closing plays the panel back into the bell, then it's gone.
-const inboxClose = () => {
-  if (!view.inbox || view.inboxLeaving) return;
-  view.inboxLeaving = true;
-  view.inboxEnter = false;
-  document.querySelector('.inbox')?.classList.add('leave');
-  document.querySelector('.inboxScrim')?.classList.add('leave');
-  document.querySelector('.bellBtn')?.classList.remove('on');
-  setTimeout(() => { view.inbox = false; view.inboxLeaving = false; render(); }, 220);
+  const requestRows = requests.map((one) => row('#/friends', one.name, '', esc(one.name), 'Wants to be your friend')).join('');
+  return `<main class="page notificationsPage">
+    <h1 class="title">Notifications</h1>
+    ${requestRows ? `<p class="section">Friend requests</p><div class="fxList">${requestRows}</div>` : ''}
+    ${planRows ? `<p class="section">Coming up</p><div class="fxList">${planRows}</div>` : ''}
+    ${!planRows && !requestRows ? `<p class="fxEmpty">${view.social ? 'Nothing yet. When a friend plans a workout with you, it shows up here.' : 'Loading…'}</p>` : ''}
+  </main>`;
 };
 // Going from anywhere: shown at once, then saved; the plans come back from the server. Taking Going back is quiet.
 const answerInvite = (date, going, pill) => {
@@ -6191,7 +6185,7 @@ const render = () => {
   const setFocus = focused && focused.dataset?.field && focused.matches('input') ? { ...focused.dataset, caret: [focused.selectionStart, focused.selectionEnd] } : null;
   const oldBody = document.querySelector('.sheetBody');
   const chatScroll = oldBody && (view.showQuick || oldBody.scrollHeight - oldBody.scrollTop - oldBody.clientHeight > 40) ? oldBody.scrollTop : null;
-  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : view.route === 'help' ? renderHelp() : view.route === 'friends' ? renderFriends() : view.route === 'together' ? renderTogether() : view.route === 'friend' ? renderFriend() : renderHome();
+  const page = view.route === 'feedback' ? renderFeedback() : view.route === 'trends' ? renderTrends() : view.route === 'you' ? renderYou() : view.route === 'log' ? renderLog() : view.route === 'admin' && view.isAdmin ? renderAdmin() : view.route === 'import' ? renderImport() : view.route === 'help' ? renderHelp() : view.route === 'friends' ? renderFriends() : view.route === 'notifications' ? renderNotifications() : view.route === 'together' ? renderTogether() : view.route === 'friend' ? renderFriend() : renderHome();
   const dock = view.route === 'friend' && featureOn('friends') ? backDock() : `${showSheet() ? '<div class="chatScrim"></div>' : ''}${renderDock()}`;
   const layout = desktopQuery.matches
     ? `<div class="desk">
@@ -6220,7 +6214,7 @@ const render = () => {
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.link ? 'toast-link' : view.toast.go ? 'toast-go' : view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${inboxPanel()}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}${openSwitch()}`;
+    </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}${openSwitch()}`;
   const freshRight = document.querySelector('.right');
   if (freshRight && rightTop) freshRight.scrollTop = rightTop;
   document.querySelectorAll('.calScroll').forEach((strip, index) => {
@@ -9065,26 +9059,6 @@ document.addEventListener('click', (event) => {
     answerInvite(target.dataset.date, going ? 'no' : 'yes', target);
     return;
   }
-  if (action === 'inbox-toggle') {
-    if (view.inbox) inboxClose(); else inboxOpen();
-    return;
-  }
-  if (action === 'inbox-close') {
-    inboxClose();
-    return;
-  }
-  if (action === 'invite-open') {
-    view.inbox = false;
-    view.inboxLeaving = false;
-    startTogether();
-    view.together.date = target.dataset.date;
-    syncTogether();
-    view.together.chosen = true;
-    view.togetherWith = true;
-    location.hash = '#/together';
-    render();
-    return;
-  }
   if (action === 'together-leave') {
     view.together.people = new Set();
     view.together.kind = null;
@@ -10008,7 +9982,6 @@ document.addEventListener('keydown', (event) => {
     render();
     return;
   }
-  if (event.key === 'Escape' && view.inbox) inboxClose();
   if (event.key === 'Escape' && (view.menu || view.composer)) {
     view.menu = false;
     view.composer = false;
@@ -10051,11 +10024,12 @@ const route = () => {
   }
   const friendPage = name.match(/^friend\/([a-f0-9]{16})$/);
   const wasRoute = view.route;
-  view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together'].includes(name) ? name : 'home';
+  view.route = friendPage ? 'friend' : ['trends', 'you', 'log', 'admin', 'feedback', 'import', 'help', 'friends', 'together', 'notifications'].includes(name) ? name : 'home';
   view.friendHandle = friendPage ? friendPage[1] : null;
   if (view.route !== 'you') view.setupNote = false;
   if (view.toast?.undo && wasRoute && wasRoute !== view.route) view.toast = null;
-  if (['friends', 'together', 'friend'].includes(view.route)) loadSocial();
+  if (['friends', 'together', 'friend', 'notifications'].includes(view.route)) loadSocial();
+  if (view.route === 'notifications') markInvitesSeen();
   if (view.route === 'friends') loadEveryone();
   if (view.route === 'together' && wasRoute !== 'together') {
     view.whenScroll = null;
