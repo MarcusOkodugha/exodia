@@ -9,7 +9,7 @@ main{max-width:1100px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px
 .legacyBtn{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:10px;background:#EFECE4;color:var(--text);font-size:14px;font-weight:600;text-decoration:none}
 .credit{font-size:11.5px;color:var(--text2);margin:16px 0 0;line-height:16px;text-align:center}
 /* Exodia hit animations: a row of plays and one stage that covers the screen. */
-.hits{margin:14px 0 18px}.hits h2{margin:0 0 8px;font-size:15px;font-weight:600}
+.hits{margin:34px 0 18px}.hits h2{margin:0 0 6px;font-size:19px;line-height:24px;font-weight:600}.hits p{margin:0 0 8px;font-size:14px;line-height:20px;color:var(--text2)}
 .hitRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 @media (min-width:700px){.hitRow{grid-template-columns:repeat(5,minmax(0,1fr))}}
 .hitRow button{display:block;width:100%;padding:12px 12px;border:0;border-radius:14px;background:#F0EEE6;color:var(--text);font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer}
@@ -31,95 +31,24 @@ main{max-width:1100px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px
 #hitClose{position:fixed;top:calc(env(safe-area-inset-top) + 6px);right:6px;z-index:51;width:48px;height:48px;border:0;background:none;color:var(--text2);display:none}
 #hitStage.on + #hitClose{display:block}
 
-/* ===== Fable 5.2 T sections (lab/fable.js) ===== */
-.fxIntro{margin:16px 0 0;font-size:14px;line-height:20px;color:var(--text2)}.fxIntro b{color:var(--text)}
-.fx{margin:34px 0 0}
-.fxBy{margin:0 0 2px;font-size:12.5px;font-weight:600;color:var(--clayText)}
-.fx h2{margin:0 0 6px;font-size:19px;line-height:24px;font-weight:600}
-.fxLead{margin:0 0 6px;max-width:680px;font-size:14px;line-height:20px;color:var(--text2)}
-.fxLead.fxSign{color:var(--text);font-weight:600}
-.fxNote{margin:10px 0 0;max-width:680px;font-size:13px;line-height:18px;color:var(--text2)}
-.fxSub{margin:26px 0 2px;font-size:15px;font-weight:600}
-.fxStage{margin-top:10px}
-.fxStage.fxFail::after{content:attr(data-fail);display:block;font-size:13px;color:var(--text2)}
-.fxSeg{display:grid;gap:0;width:100%;max-width:420px;margin:8px 0;padding:3px;box-sizing:border-box;border-radius:10px;background:#EFECE4}
-.fxSeg button{height:36px;min-width:0;padding:0 2px;border:0;border-radius:8px;background:none;color:var(--text2);font:inherit;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:background .2s ease,color .2s ease,box-shadow .2s ease}
-.fxSeg button[aria-pressed="true"]{background:#fff;color:var(--text);box-shadow:0 1px 2px rgb(20 20 19 / .1)}
-.fxSeg[data-seg="onePerson"],.fxSeg[data-seg="kind"]{max-width:520px}
-.fxSeg[data-seg="onePerson"] button,.fxSeg[data-seg="kind"] button{font-size:13px}
-.fxCap{margin:6px 0 0;text-align:center;font-size:14px;font-weight:600}
-.fxCap.top{margin:14px 0 4px;text-align:left}
-.fxRow5{width:100%;max-width:990px;height:210px;margin:0 auto;touch-action:pan-y}
-@media (min-width:600px){.fxRow5{height:300px}}
-@media (min-width:1040px){.fxRow5{height:380px}}
-.fxNames{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));max-width:990px;margin:4px auto 0;text-align:center}
-.fxNames b{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
-.fxNames small{display:block;font-size:11px;line-height:14px;color:var(--text2)}
-.fxPair{display:grid;grid-template-columns:repeat(2,minmax(0,198px));justify-content:center;gap:0 10px;margin-top:10px}
-.fxCol{min-width:0}
-.fxCell{position:relative;height:380px;overflow:hidden;touch-action:pan-y;user-select:none;-webkit-user-select:none}
-.fxStage[data-stage="one"] .fxCell{overflow:visible}
-.fxInner{position:absolute;left:0;top:0;width:100%;height:380px}
-.fxInner.close{width:594px;height:1140px}
-.fxPair.feet .fxCell{height:424px}
-.fxPair.feet .fxCell::after{content:'Below the figure';position:absolute;left:0;right:0;top:380px;height:44px;border-radius:10px;background:#EFECE4;color:var(--text2);font-size:13px;line-height:44px;text-align:center}
-/* 5: Train together, picking muscles */
-.fxPhone{max-width:393px;margin:14px auto 0}
-.fxSquad{height:260px;touch-action:pan-y}
-.fxNames3{display:grid;grid-template-columns:1fr 1fr 1fr;margin:2px 0 10px;text-align:center;font-size:13px;color:var(--text2)}
-.fxLabel{margin:14px 0 0;font-size:13px;color:var(--text2)}
-.fxWhy{margin:0 0 8px;font-size:14px;line-height:20px;color:var(--text2)}
-.fxPlanned{display:flex;gap:10px;align-items:baseline;margin:8px 0;min-height:42px;font-size:15px;line-height:21px}
-.fxPlanned span{flex:none;font-size:13px;color:var(--text2)}.fxPlanned b{font-weight:600}
-.fxLinks{margin:0}
-.fxText{padding:8px 0;border:0;background:none;color:var(--clayText);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
-/* 6: the level-up notice; 7: Aura */
-.fxSeg[data-seg="luMuscle"] button{height:32px;font-size:13px}
-.fxNotice{display:flex;align-items:center;gap:10px;width:100%;max-width:420px;margin:10px 0 0;padding:12px 14px;box-sizing:border-box;border:0;border-radius:14px;background:#EFECE4;color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:transform .15s ease,opacity .2s ease}
-.fxNotice:active{transform:scale(.98)}.fxNotice.busy{opacity:.55}
-.fxNotice i{flex:none;width:12px;height:12px;border-radius:4px;transition:background .3s ease}
-.fxNotice b{display:block;font-size:15px;line-height:20px;font-weight:600}
-.fxNotice small{display:block;font-size:12.5px;line-height:17px;color:var(--text2)}
-.fxScene{margin:8px 0 0;text-align:center;font-size:15px;line-height:20px;font-weight:600;transition:opacity .18s ease,transform .18s ease}
-.fxScene.out{opacity:0;transform:translateY(3px)}
-.fxKey{display:flex;align-items:center;justify-content:center;gap:5px;margin:0 0 8px;font-size:12.5px;line-height:16px;color:var(--text2)}
-.fxKey b{margin-right:6px;font-weight:600;color:var(--text)}.fxKey i{width:10px;height:10px;border-radius:3px}
-.fxRowLine{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 0}
-.fxRowLine .fxLabel{margin:0}
-.fxRowLine .fxSeg{width:auto;margin:0;padding:2px}
-.fxRowLine .fxSeg button{height:28px;padding:0 12px;font-size:13px}
-.fxPlanned b{display:flex;flex-wrap:wrap;gap:2px 10px}
-.fxPlanned .fxMus{display:inline-flex;align-items:center;white-space:nowrap;font-size:15px;color:var(--text)}
-.fxMus button{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin:-3px -6px -3px -2px;padding:0;border:0;border-radius:13px;background:none;color:var(--text2);cursor:pointer}
-.fxAuraRow{display:flex;align-items:center;gap:6px;margin:8px 0 0;min-height:44px}
-.fxAura{display:flex;align-items:center;gap:10px;height:44px;margin:0;padding:0;border:0;background:none;color:var(--text);font:inherit;font-size:16px;font-weight:600;cursor:pointer}
-.fxAura i{position:relative;width:44px;height:26px;border-radius:13px;background:#DAD6CA;transition:background .25s ease}
-.fxAura i::after{content:'';position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 1px 2px rgb(20 20 19 / .2);transition:transform .25s ease}
-.fxAura[aria-checked="true"] i{background:var(--clay)}.fxAura[aria-checked="true"] i::after{transform:translateX(18px)}
-.fxMute{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;background:none;color:var(--text2);cursor:pointer}
-.fxMute[hidden],.fxSkip[hidden]{display:none}
-.fxMute .off{display:none}.fxMute[aria-pressed="true"] .on{display:none}.fxMute[aria-pressed="true"] .off{display:inline}
-.fxSkip{margin-left:auto;font-size:13px;font-weight:500;color:var(--text2)}
-body.fxPicking{--pickW:150px}
-@media (min-width:700px){body.fxPicking{--pickW:240px}}
-body.fxPicking .body3dOver{right:var(--pickW);bottom:calc(env(safe-area-inset-bottom) + 80px)}
-body.fxPicking .body3dWho,body.fxPicking .body3dClose,body.fxPicking .body3dName{display:none}
-.fxPickBack{position:fixed;inset:0;z-index:79;background:var(--bg);opacity:0;transition:opacity .2s ease}
-.fxPickBack.on{opacity:1}
-.fxPick{position:fixed;inset:0;z-index:81;pointer-events:none;opacity:0;transform:translateY(6px);transition:opacity .3s ease .1s,transform .3s ease .1s}
-.fxPick.on{opacity:1;transform:none}
-.fxPick.on .fxPickList,.fxPick.on .fxDone{pointer-events:auto}
-.fxPickTitle{position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top) + 16px);margin:0;font-size:17px;line-height:22px;font-weight:600}
-.fxPickSub{position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top) + 40px);margin:0;font-size:13px;line-height:18px;color:var(--text2)}
-.fxPickList{position:absolute;right:0;top:calc(env(safe-area-inset-top) + 72px);bottom:calc(env(safe-area-inset-bottom) + 84px);width:var(--pickW);display:flex;flex-direction:column;justify-content:center;overflow-y:auto}
-.fxPickRow{display:grid;grid-template-columns:10px minmax(0,1fr) 16px;align-items:center;gap:8px;flex:none;height:36px;padding:0 12px 0 4px;border:0;background:none;color:var(--text2);font:inherit;font-size:15px;text-align:left;cursor:pointer}
-.fxPickRow i{width:10px;height:10px;border-radius:3px}
-.fxPickRow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fxPickRow svg{color:var(--clay);opacity:0;transform:scale(.6);transition:opacity .18s ease,transform .18s ease}
-.fxPickRow[aria-pressed="true"]{color:var(--text);font-weight:600}
-.fxPickRow[aria-pressed="true"] svg{opacity:1;transform:none}
-@media (max-height:700px){.fxPickRow{height:30px}}
-.fxDone{position:absolute;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 16px);height:48px;max-width:420px;margin:0 auto;border:0;border-radius:14px;background:var(--clay);color:#fff;font:inherit;font-size:16px;font-weight:600;cursor:pointer}
+/* Aura build: now vs smoother (lab/aura-build.js) */
+.ab{margin:22px 0 0}
+.abBy{margin:0 0 2px;font-size:12.5px;font-weight:600;color:var(--clayText)}
+.ab h2{margin:0 0 6px;font-size:19px;line-height:24px;font-weight:600}
+.abLead{margin:0 0 6px;max-width:680px;font-size:14px;line-height:20px;color:var(--text2)}
+.abLead.abSign{color:var(--text);font-weight:600}
+.abPair{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;margin-top:12px}
+@media (min-width:760px){.abPair{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}}
+.abHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.abTitle{margin:0;font-size:15px;font-weight:600}
+.abReplay{height:36px;padding:0 14px;border:0;border-radius:10px;background:#EFECE4;color:var(--text);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.abReplay:active{transform:scale(.97)}
+.abSquad{height:260px;margin-top:6px;touch-action:pan-y}
+@media (min-width:760px){.abSquad{height:360px}}
+.abNames{display:grid;grid-template-columns:1fr 1fr 1fr;margin:2px 0 0;text-align:center;font-size:13px;color:var(--text2)}
+.abLine{margin:8px 0 0;font-size:13px;line-height:18px;color:var(--text2)}
+.abAll{margin:14px 0 0}
+.abNote{margin:10px 0 0;max-width:680px;font-size:13px;line-height:18px;color:var(--text2)}
 /* ===== 3D body: the app's own rules for body3d.js (copied from styles.css, which this page does not load) ===== */
 .body3dHost{position:relative}
 .body3dCanvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;cursor:grab}
@@ -138,8 +67,8 @@ body.fxPicking .body3dWho,body.fxPicking .body3dClose,body.fxPicking .body3dName
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head><body><main>
 <div class="top"><a class="back" href="/">Back to Exodia</a><a class="legacyBtn" href="/lab/looks.html">Legacy anatomies</a></div>
-<div id="fable"></div>
-<section class="hits fx"><h2>Exodia hit</h2><p class="fxLead">Still to decide: which hit animation plays. Tap one to play it.</p><div class="hitRow" id="hitRow"></div></section>
+<section class="ab" id="auraBuild"></section>
+<section class="hits"><h2>Exodia hit</h2><p>Still to decide: which hit animation plays. Tap one to play it.</p><div class="hitRow" id="hitRow"></div></section>
 <p class="credit">Model: Z-Anatomy (Gauthier Kervyn), BodyParts3D (DBCLS), CC BY-SA 4.0.</p>
 </main>
 <div id="hitStage" aria-hidden="true"></div><button id="hitClose" aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l12 12M15 3L3 15"/></svg></button>
@@ -157,5 +86,5 @@ window.__playHit = (k) => row.querySelector(`[data-hit="${k}"]`).click();
 // /lab/playground.html?play=fist3d starts that one straight away (the Dev menu's links).
 { const want = new URLSearchParams(location.search).get('play'); if (want && row.querySelector(`[data-hit="${want}"]`)) window.__playHit(want); }
 </script>
-<script type="module" src="/lab/fable.js"></script>
+<script type="module" src="/lab/aura-build.js"></script>
 </body></html>
