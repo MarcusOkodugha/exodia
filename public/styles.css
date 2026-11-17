@@ -2107,17 +2107,20 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 /* Train together invites. A draft: the note and Send invite on one line under the plan. Once sent: who's going and
    who's invited in a quiet line; the invited have one small Going pill on the plan's line. */
 .tgSendForm { display: flex; align-items: center; gap: 10px; margin: -12px 0 22px; }
-.tgSendForm .fxBtn { height: 40px; padding: 0 16px; font-size: 15px; }
 .tgGoing { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 22px; font-size: 14px; line-height: 20px; color: var(--text2); }
 .tgPlanRow + .tgGoing { margin-top: -14px; }
 .tgGoing b { font-weight: 600; }
 .tgGoing .yes { color: var(--text); }
 .tgGoing .yes b { color: var(--clayText); }
-/* Going: the same size as Accept on Friends, clay; tapped it turns soft with a check (tap again to take it back). Presses like an iOS button. */
-.goingPill { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 92px; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--clay); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.28s ease, color 0.28s ease, transform 0.18s cubic-bezier(0.32, 0.72, 0, 1); }
-.goingPill:active { transform: scale(0.94); }
-.goingPill[aria-pressed="true"] { background: rgb(var(--clayRgb) / 0.12); color: var(--clayText); }
-.goingPill svg { width: 13px; height: 13px; }
+/* No pill buttons on Friends, Train together and Notifications: an action is clay text, like Save next to the note
+   (Accept, Add, Send invite, Going). Quiet ones (No, Remove, Leave plan) stay grey text. */
+.friendsPage .fxBtn.clay, .togetherPage .tgPlanRow .fxBtn.clay, .tgSendForm .fxBtn.clay { height: 44px; padding: 0 0 0 14px; background: none; color: var(--clayText); font-size: 15px; font-weight: 600; }
+.friendsPage .fxBtn.quiet { height: 44px; font-size: 15px; }
+/* Going: clay text; tapped, a calm grey check. Right-aligned in a fixed width so the check never moves the row. */
+.goingPill { flex: none; display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 76px; height: 44px; padding: 0; border: 0; background: none; color: var(--clayText); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: color 0.28s ease, opacity 0.18s ease; }
+.goingPill:active { opacity: 0.5; }
+.goingPill[aria-pressed="true"] { color: var(--text2); font-weight: 500; }
+.goingPill svg { width: 14px; height: 14px; }
 
 /* Notifications bell, left of Trends. It sits on top of the bar (absolute), so the logo stays centred and nothing
    moves when the count arrives. The count is a small clay badge; when something new waits, the bell glows warm once
