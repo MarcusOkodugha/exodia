@@ -1607,6 +1607,7 @@ const renderHome = () => {
   return `<main class="page homePage">
     <p class="eyebrow">${todayLine()}</p>
     <h1 class="title${view.reveal ? ' reveal' : ''}">${exodiaHit() && !view.celebrating ? `${esc(state.name || 'You')} hit Exodia` : state.name ? greeting.replace(/\??$/, (mark) => `, ${esc(state.name.split(' ')[0])}${mark}`) : greeting}</h1>
+    ${inviteCards()}
     <section class="card exodiaCard${view.exodiaOpen ? ' open' : ''}${view.reveal ? ' reveal' : ''}${view.blue ? ' hit' : ''}" style="margin-top:20px">
       <button class="head" data-action="toggle-exodia" aria-expanded="${view.exodiaOpen}">
         <span class="headName">Exodia</span>
@@ -5391,18 +5392,19 @@ const loadEveryone = () => {
     .catch(() => {})
     .finally(() => { view.everyoneLoading = false; });
 };
-// A friend put you on a plan: one banner per plan (tap it to open that day in Train together), never again after.
+// A friend invited you: one banner per plan (Home shows the invite card instead) (tap it to open that day in Train together), never again after.
 const planAddedBanner = () => {
   let seen = [];
   try { seen = JSON.parse(localStorage.getItem('exodia.plansSeen') || '[]'); } catch { /* private mode */ }
   const today = todayIso();
-  const fresh = (view.social?.plans || []).find((plan) => plan.date >= today && plan.by && plan.by !== 'me' && !seen.includes(`${plan.date}|${plan.kind}|${plan.by}`));
-  if (!fresh || view.toast) return;
+  const fresh = openInvites().find((plan) => !seen.includes(`${plan.date}|${plan.kind}|${plan.by}`));
+  if (!fresh || view.toast || view.route === 'home') return;
   if (view.route === 'together' && view.together?.date === fresh.date) return;
   seen = [...seen, `${fresh.date}|${fresh.kind}|${fresh.by}`].slice(-40);
   try { localStorage.setItem('exodia.plansSeen', JSON.stringify(seen)); } catch { /* private mode */ }
   const when = fresh.date === today ? 'today' : parseIso(fresh.date).toLocaleDateString('en-GB', { weekday: 'long' });
-  view.toast = { kind: 'rep', title: `${fresh.by} added you to ${fresh.kind.toLowerCase() === 'full body' ? 'a full body day' : `${fresh.kind} day`} ${fresh.date === today ? 'today' : `on ${when}`}`, text: 'Tap to see the plan', go: fresh.date };
+  const from = fresh.members.find((member) => member.owner)?.name || fresh.by;
+  view.toast = { kind: 'rep', title: `${from} invited you to ${fresh.kind.toLowerCase() === 'full body' ? 'a full body day' : `${fresh.kind} day`} ${fresh.date === today ? 'today' : `on ${when}`}`, text: fresh.note || 'Tap to answer', go: fresh.date };
   const shown = view.toast;
   setTimeout(() => {
     if (view.toast === shown) clearToast();
@@ -5862,13 +5864,54 @@ const auraStart = () => {
 };
 document.addEventListener('visibilitychange', () => { if (document.hidden) auraStop(); });
 const AURA_SOUND = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
+// The plan's state under the figures. A draft (only its maker sees it) has the note and Send invite; once sent,
+// everyone sees who's going, and the ones invited answer Going / Can't go (Can't keeps them in, so they can still come).
+const listNames = (list) => esc(list.map((member) => (member.me ? 'You' : member.name)).join(', ').replace(/, ([^,]*)$/, ' and $1'));
+const planStatus = (plan) => {
+  const others = plan.members.filter((member) => !member.me);
+  if (!plan.sent) {
+    return `<div class="tgPlanRow"><p class="tgPlan">${others.length ? `Draft with ${listNames(others)}. Nobody gets anything until you send it.` : 'Just you so far.'}</p><button class="fxBtn quiet" data-action="together-leave">Discard</button></div>
+    ${others.length ? `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Where and when (optional)" value="${esc(view.together?.inviteNote ?? plan.note ?? '')}"><button class="fxBtn clay" type="submit">Send invite</button></form>` : ''}`;
+  }
+  const owner = plan.members.find((member) => member.owner);
+  const me = plan.members.find((member) => member.me);
+  const groups = [['Going', plan.members.filter((member) => member.going === 'yes')], ["Can't", plan.members.filter((member) => member.going === 'no')], ['Not answered', plan.members.filter((member) => !member.going)]].filter(([, list]) => list.length);
+  const who = `<p class="tgGoing">${groups.map(([label, list]) => `<span class="${label === 'Going' ? 'yes' : label === "Can't" ? 'no' : 'wait'}"><b>${label}</b> ${listNames(list)}</span>`).join('')}</p>`;
+  const sentBy = plan.mine ? 'You sent the invite.' : `${esc(owner?.name || plan.by)} invited you.`;
+  const answer = plan.mine ? '' : `<div class="segment full tgRsvp" role="group" aria-label="Are you going?"><button class="segmentOption" data-action="together-rsvp" data-going="yes" aria-pressed="${me?.going === 'yes'}">Going</button><button class="segmentOption" data-action="together-rsvp" data-going="no" aria-pressed="${me?.going === 'no'}">Can't go</button></div>`;
+  return `<div class="tgPlanRow"><p class="tgPlan">${sentBy}</p>${plan.mine ? '<button class="fxBtn quiet" data-action="together-leave">Leave plan</button>' : ''}</div>${answer}${who}`;
+};
+// Invites waiting for your answer: a card on Home (the place you see you were added) with Going / Can't go.
+const openInvites = () => (featureOn('friends') ? (view.social?.plans || []).filter((plan) => plan.sent && !plan.mine && plan.date >= todayIso() && !plan.members.find((member) => member.me)?.going) : []);
+const inviteCards = () => openInvites().map((plan) => {
+  const owner = plan.members.find((member) => member.owner)?.name || plan.by;
+  const day = plan.date === todayIso() ? 'Today' : parseIso(plan.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  return `<section class="card inviteCard"><button class="inviteMain" data-action="invite-open" data-date="${plan.date}"><span class="inviteFrom">${esc(owner)} invited you</span><b>${esc(plan.kind)} day · ${day}</b>${plan.note ? `<span class="inviteNote">${esc(plan.note)}</span>` : ''}</button><div class="inviteAct"><button class="fxBtn clay" data-action="invite-rsvp" data-date="${plan.date}" data-going="yes">Going</button><button class="fxBtn" data-action="invite-rsvp" data-date="${plan.date}" data-going="no">Can't go</button></div></section>`;
+}).join('');
+// Answer an invite from anywhere: shown at once, then saved; the plans come back from the server.
+const answerInvite = (date, going) => {
+  const plan = (view.social?.plans || []).find((one) => one.date === date && one.sent);
+  const me = plan?.members.find((member) => member.me);
+  if (!me) return;
+  const was = me.going;
+  me.going = going;
+  render();
+  socialPost('/api/together', { date, action: 'rsvp', going })
+    .then(({ ok, data }) => {
+      if (data?.plans) view.social = { ...(view.social || {}), plans: data.plans };
+      if (!ok) me.going = was;
+      if (view.social) keepSocial(view.social);
+    })
+    .catch(() => { me.going = was; })
+    .finally(render);
+};
 const planExtras = (plan) => {
   const together = view.together;
   const label = (key) => MUSCLES.find(([muscle]) => muscle === key)?.[1] || key;
   const chosen = plan.muscles || [];
   // Who leaves what out: "Romi leaves out biceps."
   const skips = plan.members.filter((member) => member.skip?.length).map((member) => ` ${member.me ? 'You leave' : `${esc(member.name)} leaves`} out ${member.skip.map((key) => esc(label(key).toLowerCase())).join(', ')}.`).join('');
-  const note = together.noteOpen
+  const note = !plan.sent ? '' : together.noteOpen
     ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
     : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
   // Each planned muscle has a small cross: one tap takes it off the plan, without opening the picker.
@@ -5876,7 +5919,7 @@ const planExtras = (plan) => {
   const muscles = together.picking
     ? `<p class="tgWhy">Tap a muscle to add it to the workout.</p>${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`
     : `${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`;
-  const links = `<p class="tgExtras">${together.noteOpen ? '' : `<button class="textBtn clay" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
+  const links = `<p class="tgExtras">${together.noteOpen || !plan.sent ? '' : `<button class="textBtn clay" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
 // The switch over the squad (and in an opened figure): Recovery, Strength, and Focus once the plan has muscles.
@@ -5975,9 +6018,9 @@ const renderTogether = () => {
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
-    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button>${others.length ? `<label class="tgTell" title="Send ${esc(others.length === 1 ? others[0] : 'the others')} a notice"><input type="checkbox" data-action="together-notify"${together.notify ? ' checked' : ''}>Notify</label>` : ''}</span></p>`; })()
+    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button>${others.length && conflict.plan.sent ? `<label class="tgTell" title="Send ${esc(others.length === 1 ? others[0] : 'the others')} a notice"><input type="checkbox" data-action="together-notify"${together.notify ? ' checked' : ''}>Notify</label>` : ''}</span></p>`; })()
       : `<p class="tgWhy">${picked === fit.best || (people.length === 1 && !plan) ? fit.why : plan ? `${esc(plan.kind)} is planned. ${fit.best} would be fresher for ${people.length === 1 ? 'you' : people.length === 2 ? 'both of you' : 'everyone'}.` : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}${!plan && next && next.by === 'me' ? ` <button class="textBtn clay" data-action="together-move" data-from="${next.date}">Move your ${esc(next.kind)} day here</button>` : ''}</p>`}`;
-  const planLine = plan ? `<div class="tgPlanRow"><p class="tgPlan">${(() => { const names = (list) => esc(list.map((member) => member.name).join(', ').replace(/, ([^,]*)$/, ' and $1')); const others = plan.members.filter((member) => !member.me); if (plan.by === 'me') return others.length ? `With ${names(others)}.` : 'Just you so far.'; const rest = others.filter((member) => member.name !== plan.by); return `${esc(plan.by)} picked it${rest.length ? `, with ${names(rest)}` : ''}.`; })()}</p><button class="fxBtn quiet" data-action="together-leave">Leave plan</button></div>` : '';
+  const planLine = plan ? planStatus(plan) : '';
   return `<main class="page togetherPage">
     <div class="titleRow"><h1 class="title">Train together</h1></div>
     ${row}
@@ -6112,6 +6155,7 @@ const render = () => {
   const caret = draftFocused ? [focused.selectionStart, focused.selectionEnd] : null;
   const searchFocused = focused && focused.id === 'search';
   const friendSearchFocused = focused && focused.id === 'friendSearch';
+  const inviteFocused = focused && focused.id === 'planInviteNote';
   // A set's kg / reps / @ box has no id, so it is found again by what it edits, and keeps its caret.
   const setFocus = focused && focused.dataset?.field && focused.matches('input') ? { ...focused.dataset, caret: [focused.selectionStart, focused.selectionEnd] } : null;
   const oldBody = document.querySelector('.sheetBody');
@@ -6166,6 +6210,12 @@ const render = () => {
       const [start, end] = blank >= 0 ? [blank, blank + 3] : view.selectDraft ? [0, draft.value.length] : caret || [draft.value.length, draft.value.length];
       draft.setSelectionRange(start, end);
     }
+  }
+  // The invite note survives redraws while you type it (a friend's sync can redraw the page mid-word).
+  if (inviteFocused) {
+    const box = document.getElementById('planInviteNote');
+    box?.focus();
+    box?.setSelectionRange(box.value.length, box.value.length);
   }
   if (friendSearchFocused) {
     const box = document.getElementById('friendSearch');
@@ -8977,6 +9027,24 @@ document.addEventListener('click', (event) => {
     turnPush(view.push !== 'on');
     return;
   }
+  if (action === 'together-rsvp') {
+    answerInvite(view.together.date, target.dataset.going);
+    return;
+  }
+  if (action === 'invite-rsvp') {
+    answerInvite(target.dataset.date, target.dataset.going);
+    return;
+  }
+  if (action === 'invite-open') {
+    startTogether();
+    view.together.date = target.dataset.date;
+    syncTogether();
+    view.together.chosen = true;
+    view.togetherWith = true;
+    location.hash = '#/together';
+    render();
+    return;
+  }
   if (action === 'together-leave') {
     view.together.people = new Set();
     view.together.kind = null;
@@ -8989,6 +9057,7 @@ document.addEventListener('click', (event) => {
     if (together.date === target.dataset.date) return;
     // Another day just opens that day: a plan never moves by itself (that's "Move your … day here").
     together.date = target.dataset.date;
+    together.inviteNote = undefined;
     together.chosen = true;
     together.conflict = null;
     together.note = '';
@@ -9533,6 +9602,10 @@ document.addEventListener('click', (event) => {
 let friendSearchTimer = null;
 document.addEventListener('input', (event) => {
   const target = event.target;
+  if (target.id === 'planInviteNote' && view.together) {
+    view.together.inviteNote = target.value;
+    return;
+  }
   if (target.id === 'friendSearch') {
     const q = target.value;
     view.friendSearch = { q, people: view.friendSearch?.people || [], loading: true };
@@ -9976,6 +10049,21 @@ document.addEventListener('submit', (event) => {
   if (plan) Object.assign(plan, { note: note.replace(/\s+/g, ' ').trim().slice(0, 200), noteBy: 'me' });
   render();
   togetherSend({ action: 'note', note });
+});
+// Send invite: the draft goes out to everyone in it, with what's typed as its note.
+document.addEventListener('submit', (event) => {
+  if (!event.target.closest('.tgSendForm')) return;
+  event.preventDefault();
+  const note = (document.getElementById('planInviteNote')?.value || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const plan = togetherPlan();
+  if (!plan) return;
+  document.activeElement?.blur?.();
+  Object.assign(plan, { sent: true, note, noteBy: note ? 'me' : '' });
+  view.together.inviteNote = undefined;
+  const me = plan.members.find((member) => member.me);
+  if (me) me.going = 'yes';
+  render();
+  togetherSend({ action: 'send', note });
 });
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);

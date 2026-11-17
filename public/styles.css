@@ -2103,3 +2103,24 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 .prompt.hasText .roundBtn.send:not(:disabled), .onboardPrompt.hasText .roundBtn.send:not(:disabled) { animation: sendReady 1.8s ease-in-out infinite; }
 @keyframes sendReady { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 50% { box-shadow: 0 0 0 7px rgb(var(--clayRgb) / 0.22); } }
 @media (prefers-reduced-motion: reduce) { .prompt.hasText .roundBtn.send:not(:disabled), .onboardPrompt.hasText .roundBtn.send:not(:disabled) { animation: none; box-shadow: 0 0 0 3px rgb(var(--clayRgb) / 0.25); } }
+
+/* Train together invites. A draft: the note and Send invite on one line under the plan. Once sent: Going / Can't go
+   for the ones invited, then who's going, in a quiet line. */
+.tgSendForm { display: flex; align-items: center; gap: 10px; margin: -12px 0 22px; }
+.tgSendForm .fxBtn { height: 40px; padding: 0 16px; font-size: 15px; }
+.tgPlanRow + .tgRsvp { margin: -12px 0 12px; }
+.segment.tgRsvp .segmentOption { font-size: 15px; }
+.segment.tgRsvp .segmentOption[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); }
+.tgGoing { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 22px; font-size: 14px; line-height: 20px; color: var(--text); }
+.tgPlanRow + .tgGoing { margin-top: -12px; }
+.tgGoing b { font-weight: 600; color: var(--text2); }
+.tgGoing .yes b { color: var(--clayText); }
+.tgGoing .no { color: var(--text2); }
+/* Home: an invite waiting for your answer, the same card as Exodia under it. */
+.inviteCard { margin-top: 20px; padding: 14px 16px; }
+.inviteMain { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; border: 0; background: none; font: inherit; text-align: left; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.inviteFrom { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--clayText); }
+.inviteMain b { font-size: 17px; line-height: 23px; font-weight: 600; }
+.inviteNote { font-size: 15px; line-height: 21px; color: var(--text2); }
+.inviteAct { display: flex; gap: 10px; margin-top: 12px; }
+.inviteAct .fxBtn { flex: 1; height: 40px; font-size: 15px; }

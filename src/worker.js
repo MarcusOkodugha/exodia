@@ -1391,17 +1391,22 @@ const muscleList = (list) => (Array.isArray(list) ? [...new Set(list.filter((mus
 const planOut = async (env, plan, key) => {
   const members = JSON.parse(plan.members || '[]');
   const { all, skip } = planMuscles(plan);
+  const rsvp = planRsvp(plan);
   const people = [];
   for (const member of members) {
     const row = await env.DB.prepare('SELECT s.handle, p.meta FROM profiles p LEFT JOIN sharing s ON s.profile = p.id WHERE p.id = ?').bind(member).first();
-    if (row) people.push({ handle: row.handle || '', name: metaName(row.meta), ...(member === key ? { me: true } : {}), ...(skip[member]?.length ? { skip: skip[member] } : {}) });
+    if (row) people.push({ handle: row.handle || '', name: metaName(row.meta), ...(member === key ? { me: true } : {}), ...(member === plan.owner ? { owner: true } : {}), ...(rsvp[member] ? { going: rsvp[member] } : {}), ...(skip[member]?.length ? { skip: skip[member] } : {}) });
   }
   const by = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.by).first();
   const noteBy = plan.note && plan.note_by ? (plan.note_by === key ? 'me' : metaName((await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.note_by).first())?.meta)) : '';
   const muscles = all;
-  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated, note: plan.note || '', noteBy, muscles };
+  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated, note: plan.note || '', noteBy, muscles, sent: plan.sent !== 0, mine: plan.owner === key };
 };
-const myPlan = (env, date, key) => env.DB.prepare('SELECT * FROM plans WHERE date = ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) ORDER BY updated DESC LIMIT 1').bind(date, key).first();
+// A draft is only seen by the one making it: someone else's draft is not your plan yet, whoever looks (viewer).
+const myPlan = (env, date, key, viewer = key) => env.DB.prepare('SELECT * FROM plans WHERE date = ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) AND (sent = 1 OR owner = ?3) ORDER BY updated DESC LIMIT 1').bind(date, key, viewer).first();
+const planRsvp = (plan) => {
+  try { const value = JSON.parse(plan?.rsvp || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return {}; }
+};
 const dayPlus = (iso, days) => {
   const date = new Date(`${iso}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
@@ -1603,12 +1608,13 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
   return json({ me: { handle: fresh.handle, name: myName, shares: Object.fromEntries(SHARE_KEYS.map((name) => [name, Boolean(fresh[name])])) }, friends, requests, asked, plans: await plansFor(env, key, today) });
 };
 const plansFor = async (env, key, today) => {
-  const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date >= ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) ORDER BY date').bind(dayPlus(today, -1), key).all();
+  const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date >= ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) AND (sent = 1 OR owner = ?2) ORDER BY date').bind(dayPlus(today, -1), key).all();
   return Promise.all(results.map((plan) => planOut(env, plan, key)));
 };
 // Train together. Adding and removing people are small steps the server applies to the plan as it is now, so two
 // people tapping at once never undo each other. Changing what to train needs the plan's version: if someone else
 // changed it since, or picked it in the first place, the answer is the plan as it is, and the app asks first.
+// A new plan is a draft until its maker taps Send invite: until then nobody is told anything, however much it changes.
 const togetherAction = async (env, body, { key, other, today, myName, tell }) => {
   const action = body.action || 'list';
   const now = Date.now();
@@ -1628,24 +1634,28 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
   };
   const url = `/#/together/${date}`;
   const membersOf = (row) => (row ? JSON.parse(row.members) : []);
+  const told = (row, profiles, notice) => { if (row && row.sent !== 0) tell(profiles, notice); };
+  const invite = (row) => `${planDay(row.date)}${row.note ? ` · ${row.note}` : ''}`;
   if (action === 'add') {
     const target = await other(body.handle);
     if (!target || !friends.has(target.profile)) return json({ error: 'Only friends can be added.' }, 403);
     // They already have a plan that day with others: you join it (one plan per group and day).
-    const theirs = await myPlan(env, date, target.profile);
+    const theirs = await myPlan(env, date, target.profile, key);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       plan = await myPlan(env, date, key);
-      if (!plan && theirs) {
-        const members = [...new Set([...JSON.parse(theirs.members), key])];
+      // Your own draft that day folds into their sent plan, with whoever you had picked.
+      const draft = plan && plan.sent === 0 && theirs && theirs.sent !== 0 && theirs.id !== plan.id;
+      if ((!plan || draft) && theirs) {
+        const members = [...new Set([...JSON.parse(theirs.members), key, ...(draft ? JSON.parse(plan.members) : [])])];
         if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, theirs.id, theirs.version).run().then((result) => result.meta?.changes > 0)) {
-          tell(membersOf(theirs), { title: `${myName} joined ${theirs.kind.toLowerCase()} day`, body: planDay(date), url });
+          if (draft) await env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(plan.id).run();
+          told(theirs, membersOf(theirs), { title: `${myName} joined ${theirs.kind.toLowerCase()} day`, body: planDay(date), url });
           return answer(200, { joined: true });
         }
         continue;
       }
       if (!plan) {
-        await env.DB.prepare('INSERT INTO plans (id, date, kind, owner, by, members, version, updated) VALUES (?, ?, ?, ?, ?, ?, 1, ?)').bind(hexId(8), date, kind || 'Pull', key, key, JSON.stringify([key, target.profile]), now).run();
-        tell([target.profile], { title: `${myName} added you to ${(kind || 'Pull').toLowerCase()} day`, body: planDay(date), url });
+        await env.DB.prepare("INSERT INTO plans (id, date, kind, owner, by, members, version, updated, sent, rsvp) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 0, '{}')").bind(hexId(8), date, kind || 'Pull', key, key, JSON.stringify([key, target.profile]), now).run();
         return answer();
       }
       const members = JSON.parse(plan.members);
@@ -1655,13 +1665,13 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
         const merged = [...new Set([...members, ...JSON.parse(theirs.members)])];
         if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(merged), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) {
           await env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(theirs.id).run();
-          tell(membersOf(theirs), { title: `${myName} added you to ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+          told(plan, membersOf(theirs), { title: `${myName} invited you to ${plan.kind.toLowerCase()} day`, body: invite(plan), url });
           return answer();
         }
         continue;
       }
       if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify([...members, target.profile]), now, plan.id, plan.version).run().then((result) => result.meta?.changes > 0)) {
-        tell([target.profile], { title: `${myName} added you to ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+        told(plan, [target.profile], { title: `${myName} invited you to ${plan.kind.toLowerCase()} day`, body: invite(plan), url });
         return answer();
       }
     }
@@ -1678,14 +1688,14 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
         gone = target.profile;
       }
       const members = JSON.parse(plan.members).filter((member) => member !== gone);
-      // A plan with one person left isn't training together any more.
-      const done = members.length < 2
+      // A plan with one person left isn't training together any more, and a draft its maker leaves is gone.
+      const done = members.length < 2 || (plan.sent === 0 && gone === plan.owner)
         ? await env.DB.prepare('DELETE FROM plans WHERE id = ? AND version = ?').bind(plan.id, plan.version).run()
         : await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, plan.id, plan.version).run();
       if (done.meta?.changes > 0) {
         // Leaving tells the others; being taken off tells the one taken off.
-        if (action === 'leave') tell(members, { title: `${myName} left ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
-        else tell([gone], { title: `${myName} took you off ${plan.kind.toLowerCase()} day`, body: planDay(date), url: '/#/together' });
+        if (action === 'leave') told(plan, members, { title: `${myName} left ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+        else told(plan, [gone], { title: `${myName} took you off ${plan.kind.toLowerCase()} day`, body: planDay(date), url: '/#/together' });
         return answer();
       }
     }
@@ -1697,9 +1707,11 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     if (!to || to < dayPlus(today, -1) || to > dayPlus(today, 90)) return json({ error: 'Pick a day from today on.' }, 400);
     if (!plan) return answer();
     for (const member of JSON.parse(plan.members)) if (await myPlan(env, to, member)) return answer(409, { taken: true });
-    const moved = await env.DB.prepare('UPDATE plans SET date = ?, by = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(to, key, now, plan.id, plan.version).run();
+    // A new day needs a new answer from everyone else.
+    const rsvp = planRsvp(plan)[key] ? { [key]: planRsvp(plan)[key] } : {};
+    const moved = await env.DB.prepare('UPDATE plans SET date = ?, by = ?, rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(to, key, JSON.stringify(rsvp), now, plan.id, plan.version).run();
     if (!(moved.meta?.changes > 0)) return answer(409, { busy: true });
-    tell(membersOf(plan), { title: `${myName} moved ${plan.kind.toLowerCase()} day`, body: `Now ${planDay(to)}`, url: `/#/together/${to}` });
+    told(plan, membersOf(plan), { title: `${myName} moved ${plan.kind.toLowerCase()} day`, body: `Now ${planDay(to)}${plan.note ? ` · ${plan.note}` : ''}`, url: `/#/together/${to}` });
     const fresh = await myPlan(env, to, key);
     return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today) });
   }
@@ -1709,7 +1721,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
     if (note === plan.note) return answer();
     await env.DB.prepare('UPDATE plans SET note = ?, note_by = ?, version = version + 1, updated = ? WHERE id = ?').bind(note, note ? key : '', now, plan.id).run();
-    if (note) tell(membersOf(plan), { title: `${myName} added a note to ${plan.kind.toLowerCase()} day`, body: note, url });
+    if (note) told(plan, membersOf(plan), { title: `${myName} added a note to ${plan.kind.toLowerCase()} day`, body: note, url });
     return answer();
   }
   if (action === 'muscles') {
@@ -1727,6 +1739,36 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify({ all, skip }), now, plan.id).run();
     return answer();
   }
+  // Send invite: the draft goes out, with the note if one is typed ("Nordic Wellness kl 18"). One notice each.
+  if (action === 'send') {
+    if (!plan) return answer();
+    if (plan.sent !== 0) return answer();
+    if (plan.owner !== key) return json({ error: 'Only the one making the plan can send it.' }, 403);
+    const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : plan.note;
+    const rsvp = { ...planRsvp(plan), [key]: 'yes' };
+    const sent = await env.DB.prepare('UPDATE plans SET sent = 1, note = ?, note_by = ?, rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND sent = 0').bind(note, note ? key : '', JSON.stringify(rsvp), now, plan.id).run();
+    if (sent.meta?.changes > 0) tell(membersOf(plan), { title: `${myName} invited you to ${plan.kind.toLowerCase()} day`, body: invite({ ...plan, note }), url });
+    return answer();
+  }
+  // Going or Can't go. Can't keeps you in the plan, so you can still change your mind. The plan's maker hears it.
+  if (action === 'rsvp') {
+    if (!plan || plan.sent === 0) return answer();
+    const going = body.going === 'yes' ? 'yes' : body.going === 'no' ? 'no' : '';
+    if (!going) return json({ error: 'Going or not?' }, 400);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      plan = await myPlan(env, date, key);
+      if (!plan) return answer();
+      const rsvp = planRsvp(plan);
+      if (rsvp[key] === going) return answer();
+      rsvp[key] = going;
+      const done = await env.DB.prepare('UPDATE plans SET rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(rsvp), now, plan.id, plan.version).run();
+      if (done.meta?.changes > 0) {
+        tell([plan.owner], { title: going === 'yes' ? `${myName} is going to ${plan.kind.toLowerCase()} day` : `${myName} can't make ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+        return answer();
+      }
+    }
+    return answer(409, { busy: true });
+  }
   if (action === 'kind') {
     if (!kind) return json({ error: 'Pick Push, Pull, Legs, Full body or Move.' }, 400);
     if (!plan) return answer();
@@ -1736,7 +1778,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     if (version !== plan.version || (plan.by !== key && body.confirm !== true)) return answer(409, { conflict: true });
     if (await write(plan, JSON.parse(plan.members), kind)) {
       // The others hear about it only when the one who changed it ticked "Tell …" (older apps don't send it: told).
-      if (body.notify !== false) tell(membersOf(plan), { title: `${myName} changed it to ${kind.toLowerCase()} day`, body: planDay(date), url });
+      if (body.notify !== false) told(plan, membersOf(plan), { title: `${myName} changed it to ${kind.toLowerCase()} day`, body: planDay(date), url });
       return answer();
     }
     return answer(409, { conflict: true });
@@ -1747,9 +1789,10 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
 // Every morning (07:00 in Stockholm in winter, 08:00 in summer): one notice to everyone with a plan today.
 const morningPlans = async (env) => {
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
-  const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date = ?').bind(today).all();
+  const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date = ? AND sent = 1').bind(today).all();
   for (const plan of results) {
-    const members = JSON.parse(plan.members || '[]');
+    const rsvp = planRsvp(plan);
+    const members = JSON.parse(plan.members || '[]').filter((member) => rsvp[member] !== 'no');
     const names = new Map();
     for (const member of members) names.set(member, metaName((await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(member).first())?.meta));
     for (const member of members) {
