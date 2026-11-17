@@ -5771,7 +5771,10 @@ const auraBuild = (show, wait) => {
     // redraw lands before the first frame of the build and the climb from the feet stays smooth.
     if (body3d) {
       body3d.throwSpin(0.07);
-      body3d.buildIn(null, 'feet', AURA_BEAT * 8 * 1000).then(() => { if (aura?.scene.build) auraShow({ show, picks: 'none', pick: false }); });
+      // One after another, a beat apart, starting with whoever made the plan (Marcus, 17 Nov), each from the toes up.
+      const plan = togetherPlan(), names = ['me', ...[...(view.together?.people || [])].map((handle) => friendByHandle(handle)?.name)]; // squad order, cheap
+      const first = Math.max(0, plan?.by ? names.indexOf(plan.by) : 0);
+      body3d.buildIn(null, 'feet', AURA_BEAT * 6 * 1000, { stagger: AURA_BEAT * 1000, first }).then(() => { if (aura?.scene.build) auraShow({ show, picks: 'none', pick: false }); });
     }
     auraShow({ show, picks: 'all', pick: true, build: true });
   }, wait));

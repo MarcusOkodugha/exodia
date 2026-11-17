@@ -886,11 +886,16 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
             run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, end); }); }); }); },
     // Aura. Everyone's muscles in keys (all of them when keys is null) build up together, as in a level-up.
     // from 'feet': heights are measured over the whole body, so it is one sweep from the soles to the crown.
-    buildIn(keys, from, ms = 1900) { const gs = (keys || GROUPS).map((k) => GROUPS.indexOf(k) + 1).filter(Boolean); if (!gs.length || dead) return Promise.resolve();
-      return new Promise((res) => { const fx = { on: new Array(16).fill(0), t: 0, s: -1, k: 0, body: from === 'feet' }; for (const g of gs) fx.on[g] = 1; if (fx.body) fx.on[0] = 1;
-        for (const p of people) p.fx = fx;
-        run(ms, (u) => { fx.t = 1.001 * (fx.body ? u : 0.15 * u + 0.85 * sm(u)); fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
-          run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { for (const p of people) if (p.fx === fx) p.fx = null; dirty = true; kick(); res(); }); }); }); },
+    // stagger (ms): people build one after another in the order given by first (an index, e.g. whoever made the plan),
+    // each with its own clock, so the reveal travels across the squad; the promise ends when the last one stands.
+    buildIn(keys, from, ms = 1900, { stagger = 0, first = 0 } = {}) { const gs = (keys || GROUPS).map((k) => GROUPS.indexOf(k) + 1).filter(Boolean); if (!gs.length || dead) return Promise.resolve();
+      const order = people.map((_, i) => i).sort((a, b) => (a === first ? -1 : b === first ? 1 : a - b));
+      const one = (p, wait) => new Promise((res) => { const fx = { on: new Array(16).fill(0), t: 0, s: -1, k: 0, body: from === 'feet' }; for (const g of gs) fx.on[g] = 1; if (fx.body) fx.on[0] = 1;
+        p.fx = fx; dirty = true;
+        const go = () => run(ms, (u) => { const e = 0.15 * u + 0.85 * sm(u); fx.t = 1.001 * e; fx.k = Math.sin(Math.PI * u); }, () => { fx.k = 0; fx.t = 2;
+          run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { if (p.fx === fx) p.fx = null; dirty = true; kick(); res(); }); });
+        if (wait > 0) run(wait, () => {}, go); else go(); });
+      return Promise.all(order.map((i, k) => one(people[i], k * stagger))).then(() => {}); },
     throwSpin(s) { speed = reduced.matches ? 0 : s; hold = false; face = null; kick(); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
