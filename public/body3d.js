@@ -660,6 +660,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const show = (i) => {
     const r = place(i); if (!r || r.w < 1 || r.h < 1 || r.x > W || r.y > H || r.x + r.w < 0 || r.y + r.h < 0) return;
     const p = people[i], s = slots[i];
+    if (p.appear !== undefined && p.appear <= 0.002) return; // not in yet (Aura, before the drop)
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
     pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
@@ -671,7 +672,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     // An opened figure always gets the drawing, however many stand in the row (r.e rises as it opens).
     // Picking muscles for a plan: each person shows the muscles they'll train, solid, the rest as the drawing.
     U.uPick.value = p.pick; U.uPickOn.value = pickOn;
-    const book = people.length <= (pickOn > 0 ? 4 : 2) ? 1 : r.e, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
+    const book = people.length <= (pickOn > 0 ? 7 : 2) ? 1 : r.e, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
     ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.85 * (1 - f);
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
@@ -682,7 +683,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     U.uFreq.value = Math.max(s.ppu * Math.pow(r.ppu / s.ppu, 0.75), 380 / height) / Math.max(2.4, 3.4 / pr);
     U.uQ.value.x = Math.max(0.45, Math.min(1, (r.ppu * height - 90) / 200));
     const y = H - r.y - r.h - bl; renderer.setViewport(r.x, y, r.w, r.h + bl); renderer.setScissor(r.x, y, r.w, r.h + bl);
-    if (f > 0.002) { LU.uFade.value = f; U.uXr.value = f; LU.uFreq.value = U.uFreq.value * 0.78; dPivot.rotation.y = angle; dPivot.scale.copy(pivot.scale);
+    if (f > 0.002) { LU.uFade.value = f * (p.appear ?? 1); U.uXr.value = f; LU.uFreq.value = U.uFreq.value * 0.78; dPivot.rotation.y = angle; dPivot.scale.copy(pivot.scale);
       const px = Math.max(0.8, Math.min(1.5, r.h * 0.0021)); HPX.value.set(2 * px / r.w, 2 * px / (r.h + bl));
       for (const g of ghosts) g.material.uniforms.uDepth.value.set(cam.position.z, height * 0.11);
       renderer.render(dScene, cam); }
@@ -850,6 +851,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(strong ? frameCap(avg) : 1.12, Math.sqrt(bmi / 23))), shape: strong ? shapeOf(p, avg) : null };
       });
       for (const p of people) if (p.shape) shaped(p.shape, p.fem); // built now, not in the middle of a frame
+      // Someone still fading in (Aura, before the drop) keeps fading in across a redraw.
+      for (const p of people) { const old = prev.find((o) => o.id === p.id); if (old && old.appear !== undefined) p.appear = old.appear; }
       // fade: someone who was already there glides from the old colours and sizes to the new; a build in progress carries on.
       if (fade) for (const p of people) { const old = prev.find((o) => o.id === p.id); if (!old) continue;
         const to = { pal: p.pal, bulk: p.bulk }, from = { pal: old.pal.map((c) => c.clone()), bulk: old.bulk.slice() };
@@ -896,6 +899,15 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
           run(900, (u) => { fx.s = -0.2 + 1.4 * sm(u); }, () => { if (p.fx === fx) p.fx = null; dirty = true; kick(); res(); }); });
         if (wait > 0) run(wait, () => {}, go); else go(); });
       return Promise.all(order.map((i, k) => one(people[i], k * stagger))).then(() => {}); },
+    // Aura before the drop: everyone starts hidden and fades in see-through one after another (first = who leads),
+    // so the whole squad stands there when the drop hits. null shows everyone again at once.
+    appearIn(stagger, ms = 900, first = 0) { if (dead) return;
+      if (stagger === null) { for (const p of people) delete p.appear; dirty = true; kick(); return; }
+      const order = people.map((_, i) => i).sort((a, b) => (a === first ? -1 : b === first ? 1 : a - b));
+      for (const p of people) p.appear = 0;
+      order.forEach((i, k) => { const p = people[i]; const go = () => run(ms, (u) => { p.appear = sm(u); }, () => { p.appear = 1; });
+        if (k) run(k * stagger, () => {}, go); else go(); });
+      dirty = true; kick(); },
     throwSpin(s) { speed = reduced.matches ? 0 : s; hold = false; face = null; kick(); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },

@@ -5800,8 +5800,14 @@ const auraTick = () => {
   aura.at = at;
   for (const timer of aura.timers) clearTimeout(timer);
   aura.timers = [];
-  if (at < 0) auraShow({ show: 'strength', picks: 'none', pick: true }); // before the drop (and when the song comes round again)
-  else AURA_SCENES[at === 0 ? 0 : 1 + (at - 1) % (AURA_SCENES.length - 1)]();
+  if (at < 0) { // before the drop (and when the song comes round again)
+    auraShow({ show: 'strength', picks: 'none', pick: true });
+    // Everyone fades in see-through one after another, whoever made the plan first, all standing before the drop.
+    const plan = togetherPlan(), names = ['me', ...[...(view.together?.people || [])].map((handle) => friendByHandle(handle)?.name)];
+    const room = Math.max(0, drop - time - 1.5) * 1000, step = Math.min(1600, room / Math.max(1, names.length));
+    body3d?.appearIn(step, Math.min(900, step || 900), Math.max(0, plan?.by ? names.indexOf(plan.by) : 0));
+  } else if (aura.at === 0) body3d?.appearIn(null);
+  if (at >= 0) AURA_SCENES[at === 0 ? 0 : 1 + (at - 1) % (AURA_SCENES.length - 1)]();
 };
 const auraStop = (quiet = false) => {
   if (!aura) return;
@@ -5813,6 +5819,7 @@ const auraStop = (quiet = false) => {
   was.audio.removeAttribute('src');
   was.audio.load();
   if (was.synth) was.synth.stop();
+  body3d?.appearIn(null);
   if (was.ac) was.ac.close().catch(() => {});
   if (!quiet) render();
 };
