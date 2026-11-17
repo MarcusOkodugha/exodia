@@ -1750,7 +1750,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     if (sent.meta?.changes > 0) tell(membersOf(plan), { title: `${myName} invited you to ${plan.kind.toLowerCase()} day`, body: invite({ ...plan, note }), url });
     return answer();
   }
-  // Going or Can't go. Can't keeps you in the plan, so you can still change your mind. The plan's maker hears it.
+  // Going, or taking Going back ("no": still invited, so you can say Going again). Only Going tells the plan's maker.
   if (action === 'rsvp') {
     if (!plan || plan.sent === 0) return answer();
     const going = body.going === 'yes' ? 'yes' : body.going === 'no' ? 'no' : '';
@@ -1763,7 +1763,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
       rsvp[key] = going;
       const done = await env.DB.prepare('UPDATE plans SET rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(rsvp), now, plan.id, plan.version).run();
       if (done.meta?.changes > 0) {
-        tell([plan.owner], { title: going === 'yes' ? `${myName} is going to ${plan.kind.toLowerCase()} day` : `${myName} can't make ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
+        if (going === 'yes') tell([plan.owner], { title: `${myName} is going to ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
         return answer();
       }
     }

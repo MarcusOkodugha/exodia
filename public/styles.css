@@ -2104,23 +2104,54 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 @keyframes sendReady { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 50% { box-shadow: 0 0 0 7px rgb(var(--clayRgb) / 0.22); } }
 @media (prefers-reduced-motion: reduce) { .prompt.hasText .roundBtn.send:not(:disabled), .onboardPrompt.hasText .roundBtn.send:not(:disabled) { animation: none; box-shadow: 0 0 0 3px rgb(var(--clayRgb) / 0.25); } }
 
-/* Train together invites. A draft: the note and Send invite on one line under the plan. Once sent: Going / Can't go
-   for the ones invited, then who's going, in a quiet line. */
+/* Train together invites. A draft: the note and Send invite on one line under the plan. Once sent: who's going and
+   who's invited in a quiet line; the invited have one small Going pill on the plan's line. */
 .tgSendForm { display: flex; align-items: center; gap: 10px; margin: -12px 0 22px; }
 .tgSendForm .fxBtn { height: 40px; padding: 0 16px; font-size: 15px; }
-.tgPlanRow + .tgRsvp { margin: -12px 0 12px; }
-.segment.tgRsvp .segmentOption { font-size: 15px; }
-.segment.tgRsvp .segmentOption[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(20, 20, 19, 0.12), 0 0 0 1px rgb(0 0 0 / 0.03); }
-.tgGoing { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 22px; font-size: 14px; line-height: 20px; color: var(--text); }
-.tgPlanRow + .tgGoing { margin-top: -12px; }
-.tgGoing b { font-weight: 600; color: var(--text2); }
+.tgGoing { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 22px; font-size: 14px; line-height: 20px; color: var(--text2); }
+.tgPlanRow + .tgGoing { margin-top: -14px; }
+.tgGoing b { font-weight: 600; }
+.tgGoing .yes { color: var(--text); }
 .tgGoing .yes b { color: var(--clayText); }
-.tgGoing .no { color: var(--text2); }
-/* Home: an invite waiting for your answer, the same card as Exodia under it. */
-.inviteCard { margin-top: 20px; padding: 14px 16px; }
-.inviteMain { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; border: 0; background: none; font: inherit; text-align: left; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.inviteFrom { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--clayText); }
-.inviteMain b { font-size: 17px; line-height: 23px; font-weight: 600; }
-.inviteNote { font-size: 15px; line-height: 21px; color: var(--text2); }
-.inviteAct { display: flex; gap: 10px; margin-top: 12px; }
-.inviteAct .fxBtn { flex: 1; height: 40px; font-size: 15px; }
+/* Going: small, clay; tapped it turns soft with a check (tap again to take it back). Presses like an iOS button. */
+.goingPill { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 14px; border: 0; border-radius: 15px; background: var(--clay); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.28s ease, color 0.28s ease, transform 0.18s cubic-bezier(0.32, 0.72, 0, 1); }
+.goingPill:active { transform: scale(0.94); }
+.goingPill[aria-pressed="true"] { padding: 0 12px 0 10px; background: rgb(var(--clayRgb) / 0.12); color: var(--clayText); }
+.goingPill svg { width: 13px; height: 13px; }
+
+/* Notifications bell, left of Trends. It sits on top of the bar (absolute), so the logo stays centred and nothing
+   moves when the count arrives. The count is a small clay badge; when something new waits, the bell glows warm once
+   and the badge springs in. */
+.topbarInner > .bellBtn { position: absolute; top: 4px; right: 42px; width: 40px; }
+.bellBtn { position: relative; border: 0; background: none; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color 0.25s ease; }
+.bellBtn.on { background: rgb(var(--clayRgb) / 0.1); color: var(--clayText); }
+.bellCount { position: absolute; top: 5px; right: 4px; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--clay); color: #fff; font-size: 11px; line-height: 17px; font-weight: 700; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.bellBtn.glow { animation: bellGlow 2.6s ease-out var(--since, 0ms) both; }
+.bellBtn.glow .bellCount { animation: bellPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) var(--since, 0ms) both; }
+.bellBtn.glow svg { transform-origin: 50% 12%; animation: bellRing 0.9s ease-in-out calc(var(--since, 0ms) + 250ms) both; }
+@keyframes bellGlow { 0% { background-color: rgb(var(--clayRgb) / 0); box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } 22% { background-color: rgb(var(--clayRgb) / 0.14); box-shadow: 0 0 22px 4px rgb(var(--clayRgb) / 0.32); } 100% { background-color: rgb(var(--clayRgb) / 0); box-shadow: 0 0 0 0 rgb(var(--clayRgb) / 0); } }
+@keyframes bellPop { from { transform: scale(0); } to { transform: none; } }
+@keyframes bellRing { 0%, 100% { transform: none; } 15% { transform: rotate(14deg); } 35% { transform: rotate(-11deg); } 55% { transform: rotate(6deg); } 75% { transform: rotate(-3deg); } }
+.sideTop { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; }
+.sideTop .sideBrand { padding-bottom: 4px; }
+.sideTop .bellBtn { margin-right: 4px; }
+
+/* The panel opens out of the bell (iOS curve) and plays back into it on close. Plans coming up, invites first in
+   clay with a small Going. Tap outside, the bell or Escape closes it. */
+.inboxScrim { position: fixed; z-index: 21; inset: 0; }
+.inbox { position: fixed; z-index: 22; top: calc(var(--top) + 52px); right: 12px; left: 12px; max-width: 360px; margin-left: auto; max-height: calc(100vh - var(--top) - 170px); overflow-y: auto; padding: 2px 14px 4px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 32px rgba(20, 20, 19, 0.12); transform-origin: calc(100% - 58px) 0; }
+.inbox.enter { animation: inboxIn 0.42s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.inbox.leave { animation: inboxOut 0.2s ease-in both; }
+@keyframes inboxIn { from { opacity: 0; transform: translateY(-6px) scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes inboxOut { to { opacity: 0; transform: translateY(-4px) scale(0.94); } }
+.inboxHead { margin: 10px 0 2px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+.inboxRow { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.inboxRow + .inboxRow { border-top: 1px solid var(--line); }
+.inboxOpen { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0; border: 0; background: none; font: inherit; text-align: left; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.inboxFrom { font-size: 12px; line-height: 16px; color: var(--text2); }
+.inboxDay { font-size: 15px; line-height: 21px; font-weight: 600; }
+.inboxRow.invite .inboxFrom { font-weight: 600; color: var(--clayText); }
+.inboxNote { font-size: 13px; line-height: 18px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inboxEmpty { margin: 6px 0 12px; font-size: 14px; line-height: 20px; color: var(--text2); }
+@media (min-width: 1024px) { .inbox { top: 88px; left: 20px; right: auto; width: 340px; margin: 0; transform-origin: 300px 0; } }
+@media (prefers-reduced-motion: reduce) { .bellBtn.glow, .bellBtn.glow .bellCount, .bellBtn.glow svg, .inbox.enter, .inbox.leave { animation-duration: 0.01s; } }

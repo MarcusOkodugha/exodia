@@ -112,7 +112,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
-- Train together invites: new plans are drafts (adding people, muscles, kind, note tell nobody); Send invite with an optional note ("Nordic Wellness kl 18") sends one notice each; invited people get a Home card + Going / Can't go on the plan; Can't keeps you in so you can rejoin; the maker is told each answer and sees Going / Can't / Not answered; morning notice skips those who said Can't (v510, migration 0009 applied)
+- Train together invites: new plans are drafts (adding people, muscles, kind, note tell nobody); Send invite with an optional note ("Nordic Wellness kl 18") sends one notice each (v510). Notifications bell left of Trends (computer: next to the logo), space always taken so nothing moves; clay count of unseen invites, warm glow + ring once; panel opens out of the bell with every plan coming up, invites in clay with one small Going (tap again to take it back, quiet). Home invite card, invite toast and every "can't" removed; Together shows Going / Invited (v511, migration 0009 applied)
 
 - Strength levels count reps (130 × 10 ≈ 173) and age (Foster/McCulloch coefficients), age field in the body form, friends' best set by estimated max (v488)
 - First-screen paste goes in by itself and says "Added X days, Y sets" (v488)
