@@ -5849,11 +5849,15 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) auraS
 const AURA_SOUND = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 // The plan's state under the figures. A draft (only its maker sees it) has the note and Send invite; once sent,
 // everyone sees who's going and who's invited, and the ones invited have one small Going pill (tap again to take it back).
+// Only a plan the server marks as a draft is one: plans saved on a phone by an older version have no flag and were sent.
+const isDraft = (plan) => plan?.sent === false;
+// Yours: the server says so (mine); a plan saved by an older version only knows who picked it last.
+const isMine = (plan) => plan?.mine ?? plan?.by === 'me';
 const listNames = (list) => esc(list.map((member) => (member.me ? 'You' : member.name)).join(', ').replace(/, ([^,]*)$/, ' and $1'));
 const goingPill = (date, going) => `<button class="goingPill" data-action="invite-going" data-date="${date}" aria-pressed="${going}">${going ? `${ICONS.check}Going` : 'Going'}</button>`;
 const planStatus = (plan) => {
   const others = plan.members.filter((member) => !member.me);
-  if (!plan.sent) {
+  if (isDraft(plan)) {
     return `<div class="tgPlanRow"><p class="tgPlan">${others.length ? `Draft with ${listNames(others)}. Nobody gets anything until you send it.` : 'Just you so far.'}</p><button class="fxBtn quiet" data-action="together-leave">Discard</button></div>
     ${others.length ? `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Where and when (optional)" value="${esc(view.together?.inviteNote ?? plan.note ?? '')}"><button class="fxBtn clay" type="submit">Send invite</button></form>` : ''}`;
   }
@@ -5862,18 +5866,30 @@ const planStatus = (plan) => {
   const going = plan.members.filter((member) => member.going === 'yes').sort((one, two) => Boolean(two.me) - Boolean(one.me));
   const invited = plan.members.filter((member) => member.going !== 'yes');
   const who = `<p class="tgGoing">${going.length ? `<span class="yes"><b>Going</b> ${listNames(going)}</span>` : ''}${invited.length ? `<span><b>Invited</b> ${listNames(invited)}</span>` : ''}</p>`;
-  const sentBy = plan.mine ? 'You sent the invite.' : `${esc(owner?.name || plan.by)} invited you.`;
-  return `<div class="tgPlanRow"><p class="tgPlan">${sentBy}</p>${plan.mine ? '<button class="fxBtn quiet" data-action="together-leave">Leave plan</button>' : goingPill(plan.date, me?.going === 'yes')}</div>${who}`;
+  const sentBy = isMine(plan) ? 'You sent the invite.' : `${esc(owner?.name || plan.by)} invited you.`;
+  return `<div class="tgPlanRow"><p class="tgPlan">${sentBy}</p>${isMine(plan) ? '<button class="fxBtn quiet" data-action="together-leave">Leave plan</button>' : goingPill(plan.date, me?.going === 'yes')}</div>${who}`;
 };
 // Notifications: the bell left of Trends opens the Notifications page. Its place is always there (nothing moves when
 // invites load); the clay count shows invites and friend requests you haven't looked at, and the page clears it.
-const comingUp = () => (featureOn('friends') ? (view.social?.plans || []).filter((plan) => plan.sent && plan.date >= todayIso()) : []);
-const openInvites = () => comingUp().filter((plan) => !plan.mine && plan.members.find((member) => member.me)?.going !== 'yes');
+const comingUp = () => (featureOn('friends') ? (view.social?.plans || []).filter((plan) => !isDraft(plan) && plan.date >= todayIso()) : []);
+const openInvites = () => comingUp().filter((plan) => !isMine(plan) && plan.members.find((member) => member.me)?.going !== 'yes');
 const inviteKey = (plan) => `${plan.id}|${plan.date}`;
 const invitesSeen = () => { try { return JSON.parse(localStorage.getItem('exodia.invitesSeen') || '[]'); } catch { return []; } };
-const unseenInvites = () => { const seen = invitesSeen(); return [...openInvites().map(inviteKey), ...(featureOn('friends') ? view.social?.requests || [] : []).map((row) => `r|${row.handle}`)].filter((key) => !seen.includes(key)); };
+// What the bell counts: notices you haven't seen, plus invites and friend requests that have no notice of their own
+// (from before notices were kept for everyone). Opening Notifications marks them all seen.
+const noticesNew = () => (featureOn('friends') ? view.social?.notices || [] : []);
+const unseenInvites = () => {
+  const seen = invitesSeen();
+  const notices = noticesNew().filter((notice) => !seen.includes(`n|${notice.id}`));
+  const told = new Set(notices.map((notice) => notice.url));
+  return [
+    ...notices.map((notice) => `n|${notice.id}`),
+    ...openInvites().filter((plan) => !told.has(`/#/together/${plan.date}`)).map(inviteKey),
+    ...(featureOn('friends') ? view.social?.requests || [] : []).filter(() => !told.has('/#/friends')).map((row) => `r|${row.handle}`),
+  ].filter((key) => !seen.includes(key));
+};
 const markInvitesSeen = () => {
-  try { localStorage.setItem('exodia.invitesSeen', JSON.stringify([...new Set([...invitesSeen(), ...unseenInvites()])].slice(-80))); } catch { /* private mode */ }
+  try { localStorage.setItem('exodia.invitesSeen', JSON.stringify([...new Set([...invitesSeen(), ...unseenInvites()])].slice(-120))); } catch { /* private mode */ }
 };
 // The glow plays once per visit when something new is waiting. Redraws build the bell new, so its animation is
 // started at the same moment it had reached (a negative delay) instead of starting over.
@@ -5896,21 +5912,24 @@ const renderNotifications = () => {
     const me = plan.members.find((member) => member.me);
     const others = plan.members.filter((member) => !member.me);
     const owner = plan.members.find((member) => member.owner);
-    const invite = !plan.mine && me?.going !== 'yes';
+    const invite = !isMine(plan) && me?.going !== 'yes';
     const top = invite ? `<span class="fxSub noteFrom">${esc(owner?.name || plan.by)} invited you</span>` : `<span class="fxSub">With ${listNames(others)}</span>`;
-    return row(`#/together/${plan.date}`, (invite ? owner?.name : others[0]?.name) || plan.by, top, `${esc(plan.kind)} day ${planWhen(plan.date)}`, plan.note ? esc(plan.note) : '', plan.mine ? '' : goingPill(plan.date, me?.going === 'yes'));
+    return row(`#/together/${plan.date}`, (invite ? owner?.name : others[0]?.name) || plan.by, top, `${esc(plan.kind)} day ${planWhen(plan.date)}`, plan.note ? esc(plan.note) : '', isMine(plan) ? '' : goingPill(plan.date, me?.going === 'yes'));
   }).join('');
   const requestRows = requests.map((one) => row('#/friends', one.name, '', esc(one.name), 'Wants to be your friend')).join('');
+  // Recent: everything friends did that concerns you, last two weeks, each back to where it happened.
+  const recentRows = noticesNew().map((notice) => row(notice.url.startsWith('/#/') ? notice.url.slice(1) : '#/', notice.who || notice.title.split(' ')[0], '', esc(notice.title), `${stamp(notice.created)}${notice.body ? ` · ${esc(notice.body)}` : ''}`)).join('');
   return `<main class="page notificationsPage">
     <h1 class="title">Notifications</h1>
     ${requestRows ? `<p class="section">Friend requests</p><div class="fxList">${requestRows}</div>` : ''}
     ${planRows ? `<p class="section">Coming up</p><div class="fxList">${planRows}</div>` : ''}
-    ${!planRows && !requestRows ? `<p class="fxEmpty">${view.social ? 'Nothing yet. When a friend plans a workout with you, it shows up here.' : 'Loading…'}</p>` : ''}
+    ${recentRows ? `<p class="section">Recent</p><div class="fxList">${recentRows}</div>` : ''}
+    ${!planRows && !requestRows && !recentRows ? `<p class="fxEmpty">${view.social ? 'Nothing yet. When a friend plans a workout with you, it shows up here.' : 'Loading…'}</p>` : ''}
   </main>`;
 };
 // Going from anywhere: shown at once, then saved; the plans come back from the server. Taking Going back is quiet.
 const answerInvite = (date, going, pill) => {
-  const plan = (view.social?.plans || []).find((one) => one.date === date && one.sent);
+  const plan = (view.social?.plans || []).find((one) => one.date === date && !isDraft(one));
   const me = plan?.members.find((member) => member.me);
   if (!me) return;
   const was = me.going;
@@ -5936,7 +5955,7 @@ const planExtras = (plan) => {
   const chosen = plan.muscles || [];
   // Who leaves what out: "Romi leaves out biceps."
   const skips = plan.members.filter((member) => member.skip?.length).map((member) => ` ${member.me ? 'You leave' : `${esc(member.name)} leaves`} out ${member.skip.map((key) => esc(label(key).toLowerCase())).join(', ')}.`).join('');
-  const note = !plan.sent ? '' : together.noteOpen
+  const note = isDraft(plan) ? '' : together.noteOpen
     ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
     : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
   // Each planned muscle has a small cross: one tap takes it off the plan, without opening the picker.
@@ -5944,7 +5963,7 @@ const planExtras = (plan) => {
   const muscles = together.picking
     ? `<p class="tgWhy">Tap a muscle to add it to the workout.</p>${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`
     : `${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`;
-  const links = `<p class="tgExtras">${together.noteOpen || !plan.sent ? '' : `<button class="textBtn clay" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
+  const links = `<p class="tgExtras">${together.noteOpen || isDraft(plan) ? '' : `<button class="textBtn clay" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
 // The switch over the squad (and in an opened figure): Recovery, Strength, and Focus once the plan has muscles.
@@ -6043,7 +6062,7 @@ const renderTogether = () => {
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
-    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button>${others.length && conflict.plan.sent ? `<label class="tgTell" title="Send ${esc(others.length === 1 ? others[0] : 'the others')} a notice"><input type="checkbox" data-action="together-notify"${together.notify ? ' checked' : ''}>Notify</label>` : ''}</span></p>`; })()
+    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button>${others.length && !isDraft(conflict.plan) ? `<label class="tgTell" title="Send ${esc(others.length === 1 ? others[0] : 'the others')} a notice"><input type="checkbox" data-action="together-notify"${together.notify ? ' checked' : ''}>Notify</label>` : ''}</span></p>`; })()
       : `<p class="tgWhy">${picked === fit.best || (people.length === 1 && !plan) ? fit.why : plan ? `${esc(plan.kind)} is planned. ${fit.best} would be fresher for ${people.length === 1 ? 'you' : people.length === 2 ? 'both of you' : 'everyone'}.` : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}${!plan && next && next.by === 'me' ? ` <button class="textBtn clay" data-action="together-move" data-from="${next.date}">Move your ${esc(next.kind)} day here</button>` : ''}</p>`}`;
   const planLine = plan ? planStatus(plan) : '';
   return `<main class="page togetherPage">
@@ -9054,7 +9073,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (action === 'invite-going') {
-    const plan = (view.social?.plans || []).find((one) => one.date === target.dataset.date && one.sent);
+    const plan = (view.social?.plans || []).find((one) => one.date === target.dataset.date && !isDraft(one));
     const going = plan?.members.find((member) => member.me)?.going === 'yes';
     answerInvite(target.dataset.date, going ? 'no' : 'yes', target);
     return;

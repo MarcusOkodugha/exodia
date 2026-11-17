@@ -1440,16 +1440,17 @@ const pushTo = async (env, endpoint) => {
   const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(unsigned));
   return fetch(endpoint, { method: 'POST', headers: { authorization: `vapid t=${unsigned}.${b64url(signature)}, k=${publicKey}`, ttl: '86400', urgency: 'high', 'content-length': '0' } });
 };
-// Tell these people (profile keys). Only people with notifications on get a row and a push.
-// optional: only devices that asked for this kind (a friend hit Exodia). window: never the same notice twice within it.
+// Tell these people (profile keys). Everyone gets the notice in the app (Notifications); phones with notifications on
+// also get a push. optional: only devices that asked for this kind (a friend hit Exodia), and only as a push.
+// window: never the same notice twice within it.
 const notify = async (env, profiles, notice, { optional = false, window = 600000 } = {}) => {
   const now = Date.now();
   for (const profile of new Set(profiles)) {
     const { results } = await env.DB.prepare(`SELECT endpoint FROM push_subs WHERE profile = ?${optional ? ' AND hits = 1' : ''}`).bind(profile).all();
-    if (!results.length) continue;
+    if (optional && !results.length) continue;
     // Never twice the same thing within 10 minutes (a note edited three times is one notice).
     if (await env.DB.prepare('SELECT 1 FROM notices WHERE profile = ? AND title = ? AND body = ? AND url = ? AND created > ?').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now - window).first()) continue;
-    await env.DB.prepare('INSERT INTO notices (profile, title, body, url, created) VALUES (?, ?, ?, ?, ?)').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now).run();
+    await env.DB.prepare('INSERT INTO notices (profile, title, body, url, created, who) VALUES (?, ?, ?, ?, ?, ?)').bind(profile, notice.title.slice(0, 120), notice.body.slice(0, 200), notice.url, now, String(notice.who || '').slice(0, 40)).run();
     for (const { endpoint } of results) {
       const response = await pushTo(env, endpoint).catch(() => null);
       if (response && (response.status === 404 || response.status === 410)) await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ?').bind(endpoint).run();
@@ -1523,7 +1524,7 @@ const social = async (request, env, which, ctx) => {
   // Notices go out after the answer, so a slow push service never slows the app.
   const tell = (profiles, notice) => {
     const others = profiles.filter((profile) => profile && profile !== key);
-    if (others.length) ctx?.waitUntil(notify(env, others, notice).catch(() => {}));
+    if (others.length) ctx?.waitUntil(notify(env, others, { who: myName, ...notice }).catch(() => {}));
   };
   return which === 'friends' ? friendsAction(env, body, { key, isAdmin, myName, mine, privates, other, today, launched, tell }) : togetherAction(env, body, { key, other, today, myName, tell });
 };
@@ -1605,7 +1606,12 @@ const friendsAction = async (env, body, { key, isAdmin, myName, mine, privates, 
     else requests.push({ handle: share.handle, name });
   }
   const fresh = await env.DB.prepare('SELECT * FROM sharing WHERE profile = ?').bind(key).first();
-  return json({ me: { handle: fresh.handle, name: myName, shares: Object.fromEntries(SHARE_KEYS.map((name) => [name, Boolean(fresh[name])])) }, friends, requests, asked, plans: await plansFor(env, key, today) });
+  return json({ me: { handle: fresh.handle, name: myName, shares: Object.fromEntries(SHARE_KEYS.map((name) => [name, Boolean(fresh[name])])) }, friends, requests, asked, plans: await plansFor(env, key, today), notices: await noticesFor(env, key) });
+};
+// The Notifications page's Recent list: what friends did that concerns you, last two weeks, newest first.
+const noticesFor = async (env, key) => {
+  const { results } = await env.DB.prepare("SELECT id, who, title, body, url, created FROM notices WHERE profile = ? AND created > ? AND title != 'Notifications are on' ORDER BY id DESC LIMIT 40").bind(key, Date.now() - 14 * 86400000).all().catch(() => ({ results: [] }));
+  return results;
 };
 const plansFor = async (env, key, today) => {
   const { results } = await env.DB.prepare('SELECT * FROM plans WHERE date >= ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) AND (sent = 1 OR owner = ?2) ORDER BY date').bind(dayPlus(today, -1), key).all();
@@ -1799,7 +1805,7 @@ const morningPlans = async (env) => {
       const others = members.filter((other) => other !== member).map((other) => names.get(other)).filter(Boolean);
       if (!others.length) continue;
       const withWho = others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`;
-      await notify(env, [member], { title: `${plan.kind} day with ${withWho} today`, body: plan.note || "Tap to see what's fresh for everyone.", url: `/#/together/${today}` }, { window: 12 * 3600000 });
+      await notify(env, [member], { who: others[0], title: `${plan.kind} day with ${withWho} today`, body: plan.note || "Tap to see what's fresh for everyone.", url: `/#/together/${today}` }, { window: 12 * 3600000 });
     }
   }
 };
