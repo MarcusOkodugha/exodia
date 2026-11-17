@@ -1932,6 +1932,9 @@ let body3d = null;
 let body3dState = 'idle';
 let body3dWant = null;
 let body3dSig = '';
+let body3dModeSig = '';
+// The muscles on the back of the figure (as body3d.js has them), to turn it round for one picked from the list.
+const BACK_MUSCLES = new Set(['rearDelts', 'traps', 'upperBack', 'lowerBack', 'triceps', 'glutes', 'hamstrings', 'calves']);
 let body3dWaited = false;
 const RECOVERY_HEX = { recov4: '#C96442', recov3: '#E2AF9C', recov2: '#D2DFCE', recov1: '#6F9B6A' };
 // Low Data Mode no longer swaps the 3D body for the old flat one (Marcus, 15 Nov: never show the flat figure); the model
@@ -1954,6 +1957,7 @@ const body3dLost = () => {
   body3d = null;
   body3dState = 'idle';
   body3dSig = '';
+  body3dModeSig = '';
   render();
 };
 // Picking muscles for a plan. On yourself: a muscle nobody has yet is added for everyone; one you have is left out
@@ -2113,7 +2117,13 @@ const placeBody3d = () => {
     body3dSig = sig;
     body3d.setPeople(want.people, aura ? { fade: 600 } : undefined);
   }
-  body3d.setMode(want.mode || {});
+  // The mode only when it changes: re-applied on every redraw it turned a figure you had turned (picking a muscle
+  // on the back) back to the front.
+  const modeSig = JSON.stringify(want.mode || {});
+  if (modeSig !== body3dModeSig) {
+    body3dModeSig = modeSig;
+    body3d.setMode(want.mode || {});
+  }
   body3d.setSelected(want.selected);
   // A level-up waiting: it plays by itself on your Strength figure, once.
   const next = view.route === 'trends' && slot.dataset.body3d === 'one' ? levelUps().at(-1) : null;
@@ -5884,7 +5894,9 @@ const openSwitch = () => {
     if (view.together.picking && plan) {
       const me = plan.members.find((member) => member.me) || {};
       const on = new Set((plan.muscles?.length ? plan.muscles : KIND_MUSCLES[plan.kind] || []).filter((key) => !(me.skip || []).includes(key)));
-      return `<div class="body3dModes pickPanel"><p class="pickTitle">Select the muscles you want to train</p><div class="pickChips">${MUSCLES.map(([key, label]) => `<button class="pickChip${on.has(key) ? ' on' : ''}" data-action="pick-muscle" data-muscle="${key}" aria-pressed="${on.has(key)}">${esc(label)}</button>`).join('')}</div><button class="fxBtn clay pickDone" data-action="together-muscles">Done</button></div>`;
+      // The same muscle rows as on Trends: a picked one glows clay, tapping a row adds or leaves it out like a tap on the
+      // figure. Phone: two columns under the figure; computer: one column to its right.
+      return `<div class="body3dModes pickPanel"><div class="muscleList pickList">${MUSCLES.map(([key, label]) => `<div class="muscleRow${on.has(key) ? ' picked' : ' muted'}" data-action="together-pick" data-muscle="${key}" role="button" tabindex="0" aria-pressed="${on.has(key)}"><i class="muscleSwatch"></i><span>${esc(label)}</span></div>`).join('')}</div><button class="fxBtn clay pickDone" data-action="together-muscles">Done</button></div>`;
     }
     const kind = view.together.kind || view.together.fit;
     const focus = Boolean(plan?.muscles?.length || (KIND_MUSCLES[plan?.kind || kind] || []).length);
@@ -8987,10 +8999,16 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
-  if (action === 'pick-muscle' && view.route === 'together' && view.together?.picking) {
+  if ((action === 'pick-muscle' || action === 'together-pick') && view.route === 'together' && view.together?.picking) {
     const plan = togetherPlan();
     if (!plan) return;
-    togetherMuscle(plan, target.dataset.muscle, true);
+    // A row for a muscle on the side you can't see turns your figure to it, and it stays there.
+    const key = target.dataset.muscle;
+    if (action === 'together-pick' && body3d?.facing && view.body3dOpen) {
+      const back = BACK_MUSCLES.has(key);
+      if (back !== (body3d.facing() === 'back')) body3d.setMode({ pick: true, face: back ? Math.PI : 0 });
+    }
+    togetherMuscle(plan, key, true);
     return;
   }
   if (action === 'level-up') {

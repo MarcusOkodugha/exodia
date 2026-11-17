@@ -916,6 +916,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     throwSpin(s) { speed = reduced.matches ? 0 : s; hold = false; face = null; kick(); },
     expand(index) { doExpand(index); },
     collapse() { doCollapse(); },
+    // Which side of the figures faces you right now: 'front' or 'back'.
+    facing() { return Math.cos(angle) < 0 ? 'back' : 'front'; },
     destroy() {
       if (dead) return; dead = true; clearTimeout(lostTimer); clearTimeout(settleTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
