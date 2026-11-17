@@ -1985,7 +1985,8 @@ const loadBody3d = () => {
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
-      render();
+      // Built in the background while no page shows a figure (Home on the phone): nothing to redraw yet.
+      if (document.querySelector('[data-body3d]') || view.body3dOpen) render();
     })
     .catch(() => {
       body3dState = 'failed';
@@ -4489,17 +4490,26 @@ window.addEventListener('orientationchange', turnUi);
 window.addEventListener('resize', () => { turnUi(); fitNames(); placeTopRight(); });
 
 const SHORTER = [[/\bExtensions?\b/, 'Ext.'], [/\b(Single|One)[ -]Arm\b/i, '1-Arm'], [/\bDumbbell\b/, 'DB'], [/\bBarbell\b/, 'BB'], [/\bOverhead\b/, 'OH'], [/\bMachine\b/, 'Mach.'], [/\bIncline\b/, 'Inc.'], [/\bDecline\b/, 'Dec.'], [/\bAbduction\b/, 'Abd.'], [/\bAdduction\b/, 'Add.'], [/\bRomanian Deadlift\b/, 'RDL']];
+// All names are written first and measured together, one shortening step at a time for all of them, so a page with
+// a hundred names costs a few layouts instead of one per name (it was most of the opening time on Home).
 const fitNames = () => {
+  let todo = [];
   for (const el of document.querySelectorAll('.dayLift, .exName, .liftName')) {
     if (el.childElementCount) continue;
     if (!el.dataset.full) el.dataset.full = el.textContent;
-    let name = el.dataset.full;
-    el.textContent = name;
-    for (const [pattern, short] of SHORTER) {
-      if (el.scrollWidth <= el.clientWidth + 1) break;
-      if (pattern.test(name)) el.textContent = name = name.replace(pattern, short);
+    if (el.textContent !== el.dataset.full) el.textContent = el.dataset.full;
+    todo.push({ el, name: el.dataset.full, step: 0 });
+  }
+  while (todo.length) {
+    todo = todo.filter((one) => one.el.scrollWidth > one.el.clientWidth + 1);
+    for (const one of todo) {
+      while (one.step < SHORTER.length && !SHORTER[one.step][0].test(one.name)) one.step++;
+      if (one.step >= SHORTER.length) { one.done = true; continue; }
+      one.name = one.name.replace(...SHORTER[one.step++]);
+      one.el.textContent = one.name;
+      one.el.title = one.el.dataset.full;
     }
-    if (name !== el.dataset.full) el.title = el.dataset.full;
+    todo = todo.filter((one) => !one.done);
   }
 };
 
@@ -10027,7 +10037,8 @@ if (resume) requestAnimationFrame(() => scrollPage(resume.scroll || 0));
 requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('resuming')));
 // The 3D body takes a moment to build (three.js, the model, then the figure), so it starts as soon as the first
 // screen is up, while the phone is idle, and is ready by the time Trends opens instead of appearing late.
-(window.requestIdleCallback || ((run) => setTimeout(run, 400)))(() => { if (body3dOn()) loadBody3d(); }, { timeout: 1500 });
+// It waits until the first screen has settled, so it never competes with the opening itself.
+setTimeout(() => (window.requestIdleCallback || ((run) => setTimeout(run, 400)))(() => { if (body3dOn()) loadBody3d(); }, { timeout: 3000 }), 600);
 noteUpdate();
 pointManifest();
 syncNow();

@@ -330,8 +330,13 @@ const loadAssets = () => assets || (assets = (async () => {
     import(THREE_URL),
     fetch(MODEL_URL).then((r) => { if (!r.ok) throw new Error('body3d: model ' + r.status); return r.arrayBuffer(); }),
   ]);
+  // A breath between the heavy steps, so the page stays smooth while the body is built in the background.
+  const breathe = () => new Promise((go) => setTimeout(go, 0));
+  await breathe();
   const parts = parseGlb(THREE, buf);
+  await breathe();
   const ctxGeo = merge(THREE, parts.filter((o) => /context/.test(o.name))), tall = ctxGeo.boundingBox.max.y - ctxGeo.boundingBox.min.y; // the skin runs head to feet
+  await breathe();
   const muscleGeo = merge(THREE, parts.filter((o) => !/context/.test(o.name)), tall * 0.022);
   const box = muscleGeo.boundingBox.clone().union(ctxGeo.boundingBox);
   // The woman's figure is built the first time someone female is shown, not before.
