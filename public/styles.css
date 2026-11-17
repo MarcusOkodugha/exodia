@@ -1,4 +1,6 @@
 :root {
+  /* Always light, also when the computer or phone is set to dark: the browser never paints a dark page or frame. */
+  color-scheme: light only;
   --bg: #FAF9F5;
   --card: #FFFFFF;
   --line: #E6E3D8;
