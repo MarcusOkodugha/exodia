@@ -4752,72 +4752,8 @@ const endDemo = () => {
   location.hash = '#/';
   render();
 };
-// After an update a small pill says so for about a minute. Swipe it away or let it go; the update itself needs no tap.
+// The version this device runs, for Settings → What's new. Updates themselves show nothing (see updateQuietly).
 const VERSION_KEY = 'exodia.version';
-const NOTES_KEY = 'exodia.openNotes';
-const updatedLines = () => {
-  const list = view.updated?.changes || [];
-  return list.length ? list : ['Small improvements and fixes'];
-};
-// "Exodia updated": one small clay pill with the newest change and "+N more". A tap grows the same element in place to
-// show the rest, a tap outside shrinks it back and it goes. If the new version is still waiting to load, the tap loads
-// it and the pill comes back already open.
-const updatedPill = () => {
-  if (state.demo || view.reloading || !(view.updated || view.updateReady)) return '';
-  const open = Boolean(view.updated?.open);
-  const still = view.updatedShown ? ' still' : '';
-  view.updatedShown = true;
-  const lines = view.updated ? updatedLines() : [];
-  const more = !view.updated ? 'Tap to see' : lines.length > 1 ? `Show all ${lines.length}` : 'Show more';
-  const version = view.isAdmin && view.updated ? ` · v${view.updated.version}` : '';
-  return `<div class="updatedPill${open ? ' open' : ''}${still}" data-sig="${view.updated?.version || 'ready'}-${open}-${lines.length}" role="status"><button class="updatedMain" data-action="toggle-updated" aria-expanded="${open}"><span class="updatedDot" aria-hidden="true"></span><span class="updatedLead">${esc(lines[0] || 'Exodia updated')}</span><span class="updatedTitle">What’s new${version}</span><span class="updatedMore">${more}</span><svg class="updatedChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>${lines.length ? `<ul class="updatedNotes">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}</div>`;
-};
-// Grow or shrink the pill between its measured sizes without redrawing it. The content is laid out at the end size
-// from the first frame, so no text reflows while the edge moves; closing drops back to one line and the notes fade.
-const sizeUpdated = (pill, open, after) => {
-  const from = pill.getBoundingClientRect();
-  pill.style.transition = 'none';
-  pill.style.width = '';
-  pill.style.height = '';
-  pill.classList.toggle('open', open);
-  const to = pill.getBoundingClientRect();
-  pill.style.setProperty('--updatedW', `${to.width}px`);
-  pill.classList.add('sizing');
-  pill.style.width = `${from.width}px`;
-  pill.style.height = `${from.height}px`;
-  void pill.offsetWidth;
-  pill.style.transition = '';
-  pill.style.width = `${to.width}px`;
-  pill.style.height = `${to.height}px`;
-  let finished = false;
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    pill.classList.remove('sizing');
-    pill.style.width = '';
-    pill.style.height = '';
-    after?.();
-  };
-  pill.addEventListener('transitionend', (event) => { if (event.target === pill && event.propertyName === 'height') finish(); });
-  setTimeout(finish, 380);
-};
-const toggleUpdated = (open = !view.updated?.open, after) => {
-  if (!view.updated) return after?.();
-  view.updated.open = open;
-  const pill = document.querySelector('.updatedPill');
-  pill?.querySelector('.updatedMain')?.setAttribute('aria-expanded', String(open));
-  if (pill) pill.dataset.sig = `${view.updated.version}-${open}-${updatedLines().length}`;
-  if (pill && !reducedMotion.matches) return sizeUpdated(pill, open, after);
-  pill?.classList.toggle('open', open);
-  after?.();
-};
-const hideUpdated = () => {
-  view.updated = null;
-  const pill = document.querySelector('.updatedPill');
-  if (!pill) return;
-  pill.classList.add('gone');
-  setTimeout(() => pill.remove(), 220);
-};
 const installedVersion = () => {
   try {
     return Number(localStorage.getItem(VERSION_KEY)) || 0;
@@ -4842,55 +4778,10 @@ const runningVersion = () => new Promise((done) => {
 const noteUpdate = async () => {
   if (!window.caches) return;
   const version = await runningVersion();
-  // A newer version took over while this page started: the reloaded page shows its notes.
-  if (!version || view.updateReady || view.reloading) return;
-  let seen = 0;
-  try {
-    seen = Number(localStorage.getItem(VERSION_KEY)) || 0;
-    localStorage.setItem(VERSION_KEY, String(version));
-  } catch {
-    return;
-  }
-  let openNotes = false;
-  try {
-    openNotes = sessionStorage.getItem(NOTES_KEY) === '1';
-    sessionStorage.removeItem(NOTES_KEY);
-  } catch { /* closed */ }
-  if (!seen || seen >= version) return;
-  // Shown once its notes are in, so the teaser is right from the first frame (never a placeholder that swaps).
-  const show = (changes) => {
-    if (view.updated?.version === version) return;
-    view.updated = { version, from: seen, changes, open: openNotes };
-    render();
-    setTimeout(() => {
-      if (view.updated?.version === version && !view.updated.open) hideUpdated();
-    }, 120000);
-  };
-  setTimeout(() => show([]), 4000);
-  fetch('/changes.json').then((response) => response.json()).then((all) => {
-    show(Object.keys(all).map(Number).filter((v) => v > seen && v <= version).sort((a, b) => b - a).flatMap((v) => all[v]).slice(0, 40));
-  }).catch(() => show([]));
+  if (!version || view.reloading) return;
+  try { localStorage.setItem(VERSION_KEY, String(version)); } catch { /* private mode */ }
 };
-// Closed, the pill waits: a tap on it (or within a finger's width of it) opens it, a tap elsewhere leaves it be, and
-// it goes by itself after 2 minutes. Open, a tap anywhere outside shrinks it and it goes for good. pointerdown,
-// because iPhone Safari sends no click for a tap on plain page.
-const UPDATED_SLOP = 16;
-document.addEventListener('pointerdown', (event) => {
-  if (!view.updated || event.target.closest('.updatedPill')) return;
-  const pill = document.querySelector('.updatedPill');
-  if (view.updated.open) {
-    view.updatedClosedAt = Date.now();
-    toggleUpdated(false, hideUpdated);
-    return;
-  }
-  const box = pill?.getBoundingClientRect();
-  if (box && event.clientX > box.left - UPDATED_SLOP && event.clientX < box.right + UPDATED_SLOP && event.clientY > box.top - UPDATED_SLOP && event.clientY < box.bottom + UPDATED_SLOP) {
-    // A near miss counts as a tap on the pill; the click that follows is swallowed so nothing under it fires.
-    view.updatedClosedAt = Date.now();
-    toggleUpdated(true);
-  }
-}, true);
-// Any banner (Undo, a PR, what was added, Sent to Marcus, Exodia is on it) swipes away like "Exodia updated": it
+// Any banner (Undo, a PR, what was added, Sent to Marcus, Exodia is on it) swipes away: it
 // follows the finger sideways or up and fades; let go far or fast enough and it glides off and is gone, otherwise it
 // springs back. A tap still does what it did.
 let bannerSwipe = null;
@@ -4942,85 +4833,35 @@ document.addEventListener('click', (event) => {
     event.stopPropagation();
   }
 }, true);
-// Swiping "Exodia updated" away: it follows the finger and fades as it goes; let go far or fast enough and it glides
-// off that way, otherwise it springs back. A plain tap still opens the notes.
-let updatedSwipe = null;
-document.addEventListener('pointerdown', (event) => {
-  const pill = event.target.closest('.updatedPill');
-  updatedSwipe = pill && !event.target.closest('.updatedNotes') ? { pill, x: event.clientX, y: event.clientY, t: event.timeStamp, dx: 0, dy: 0, moved: false } : null;
-});
-document.addEventListener('pointermove', (event) => {
-  if (!updatedSwipe) return;
-  const swipe = updatedSwipe;
-  swipe.dx = event.clientX - swipe.x;
-  swipe.dy = Math.min(0, event.clientY - swipe.y);
-  // A tap that wobbles a few pixels is still a tap (iPhone fingers move a little); only a real drag swipes it.
-  if (!swipe.moved && Math.hypot(swipe.dx, swipe.dy) < 14) return;
-  swipe.moved = true;
-  swipe.pill.style.transition = 'none';
-  swipe.pill.style.transform = `translate(calc(-50% + ${swipe.dx}px), ${swipe.dy}px)`;
-  swipe.pill.style.opacity = String(Math.max(0.2, 1 - Math.max(Math.abs(swipe.dx) / 220, -swipe.dy / 90)));
-});
-for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, (event) => {
-  const swipe = updatedSwipe;
-  updatedSwipe = null;
-  if (!swipe?.moved) return;
-  view.updatedSwiped = Date.now();
-  const time = Math.max(1, event.timeStamp - swipe.t);
-  const fast = Math.abs(swipe.dx) / time > 0.5 || -swipe.dy / time > 0.4;
-  const far = Math.abs(swipe.dx) > 90 || swipe.dy < -40;
-  swipe.pill.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s ease';
-  if (fast || far) {
-    const up = -swipe.dy > Math.abs(swipe.dx);
-    swipe.pill.style.transform = up ? 'translate(-50%, -80px)' : `translate(calc(-50% + ${Math.sign(swipe.dx) * (window.innerWidth / 2 + 200)}px), 0)`;
-    swipe.pill.style.opacity = '0';
-    view.updated = null;
-    setTimeout(() => swipe.pill.remove(), 300);
-  } else {
-    swipe.pill.style.transform = '';
-    swipe.pill.style.opacity = '';
-  }
-});
-
-// A new version loads by itself as soon as nothing would be lost (no text typed, nothing being sent, recorded or edited).
-// The page, scroll position, open days and the lift on the chart are kept, so you land where you were.
+// A new version is never put in front of you: it loads only while Exodia is out of sight (another app, the phone
+// locked, another window on a computer) and nothing would be lost (no text typed, nothing being sent, recorded or
+// edited). The page, scroll position, open days and the lift on the chart are kept, so you come back where you were,
+// already on the new version. While you're looking, the old version keeps running untouched.
 const RESUME_KEY = 'exodia.resume';
-// On screen it fades out softly and the new version fades in where you were (no logo, no bar popping twice);
-// in the background it just reloads.
+const outOfSight = () => document.hidden || !document.hasFocus();
 const reloadInPlace = () => {
   if (view.reloading) return;
   view.reloading = true;
-  document.querySelector('.updatedPill')?.remove();
   try {
     sessionStorage.setItem(RESUME_KEY, JSON.stringify({ at: Date.now(), scroll: scroller().scrollTop, open: [...view.open], trendOpen: view.trendOpen, trendMore: view.trendMore }));
   } catch {
     // no session storage: reload anyway
   }
-  // Wait until the new version is fully ready, so the reload is served at once and the page is never blank between.
-  const worker = navigator.serviceWorker?.controller;
-  new Promise((ready) => {
-    if (!worker || worker.state === 'activated') return ready();
-    worker.addEventListener('statechange', () => { if (worker.state === 'activated') ready(); });
-    setTimeout(ready, 3000);
-  }).then(() => {
-    if (document.hidden || reducedMotion.matches) return location.reload();
-    document.documentElement.classList.add('leaving');
-    setTimeout(() => location.reload(), 170);
-  });
+  location.reload();
 };
 const updateQuietly = () => {
-  if (!view.updateReady || view.pending.length || recording || view.listening) return false;
+  if (!view.updateReady || !outOfSight() || view.pending.length || recording || view.listening) return false;
   // Never while something is being typed anywhere (search, a name, a number) or a change request is on its way.
   const field = document.activeElement;
   if (field && /^(INPUT|TEXTAREA)$/.test(field.tagName) && field.value) return false;
   if ((state.claudeRuns || []).some((run) => run.status === 'sending')) return false;
   if (view.draft.trim() || view.files?.length || view.editDay || view.onboard?.busy || view.onboard?.file || view.leftOpen || view.menu) return false;
-  if (view.composer && !document.hidden && document.activeElement?.id === 'draft') return false;
   reloadInPlace();
   return true;
 };
 setInterval(updateQuietly, 4000);
 document.addEventListener('visibilitychange', updateQuietly);
+window.addEventListener('blur', () => setTimeout(updateQuietly, 300));
 // The demo link (?demo) says it's example data quietly in the date line instead of a floating pill.
 const todayLine = () => (view.preview ? `${view.realDemo ? 'A real training log' : 'Example data'} · <a class="eyebrowLink" href="/join" target="_blank" rel="noopener">Get your own</a>` : new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }));
 const demoPill = () => (state.demo && !view.preview ? `<div class="demoPill" role="status">${`${view.endDemoAsk ? 'Clear the example?' : 'Example data'}<button data-action="end-demo">${view.endDemoAsk ? 'Yes, start mine' : 'Start my own'}</button>`}</div>` : '');
@@ -6220,9 +6061,6 @@ const render = () => {
       </div></header>
       ${page}${dock}${view.menu ? renderDrawer() : ''}`;
     if (!view.menu) { view.menuShown = false; clearTimeout(view.menuTimer); view.menuTimer = null; }
-  // The update pill keeps its own element across redraws (sync and checks redraw often), so a tap that is under way
-  // on it is never lost to a fresh copy.
-  const keptPill = document.querySelector('.updatedPill');
   // The computer's right panel scrolls on its own; a redraw builds it new, so its place is carried over (it used to
   // jump to the top whenever anything redrew, like Strength / Recovery or a sync).
   const rightTop = document.querySelector('.right')?.scrollTop || 0;
@@ -6233,7 +6071,7 @@ const render = () => {
     ${buildBanner()}${view.toast ? `<div class="toast ${view.toast.kind}${view.toast.open ? ' open' : ''}${view.toast.shown ? ' still' : ''}" role="status">
       <div class="toastMain"><button class="toastBody" data-action="${view.toast.link ? 'toast-link' : view.toast.go ? 'toast-go' : view.toast.detail ? 'toggle-toast' : 'dismiss-toast'}" ${view.toast.detail ? `aria-expanded="${Boolean(view.toast.open)}"` : 'aria-label="Dismiss"'}>${view.toast.kind === 'max' ? `<span class="trophy">${ICONS.trophy}</span>` : ''}<div class="toastWords"><p class="toastTitle">${esc(view.toast.title)}</p><p class="toastText num">${esc(view.toast.text)}</p></div>${view.toast.detail ? `<span class="toastChev">${ICONS.chev}</span>` : ''}</button>${view.toast.undo || view.toast.redo ? `${view.toast.redo ? '<button class="toastEdit" data-action="redo-change">Redo</button>' : ''}${view.toast.undo ? '<button class="toastEdit" data-action="undo-change">Undo</button>' : ''}` : view.toast.edit ? '<button class="toastEdit" data-action="edit-added">Edit</button>' : ''}</div>
       ${view.toast.detail ? `<div class="toastMore"><div><div class="toastDetail">${view.toast.detail}${view.toast.edit && view.toast.undo ? '<button class="textBtn toastEditLink" data-action="edit-added">Change something</button>' : ''}</div></div></div>` : ''}
-    </div>` : ''}${renderLeft()}${updatedPill()}${devExtras()}${demoPill()}${openSwitch()}`;
+    </div>` : ''}${renderLeft()}${devExtras()}${demoPill()}${openSwitch()}`;
   const freshRight = document.querySelector('.right');
   if (freshRight && rightTop) freshRight.scrollTop = rightTop;
   document.querySelectorAll('.calScroll').forEach((strip, index) => {
@@ -6241,8 +6079,6 @@ const render = () => {
   });
   placeWhen();
   placeBody3d();
-  const freshPill = document.querySelector('.updatedPill');
-  if (keptPill && freshPill && keptPill !== freshPill && keptPill.dataset.sig === freshPill.dataset.sig && !keptPill.classList.contains('gone')) freshPill.replaceWith(keptPill);
   if (view.toast) view.toast.shown = true;
   watchDock();
   const draft = document.getElementById('draft');
@@ -8532,8 +8368,6 @@ function pickMuscle(key) {
 
 document.addEventListener('click', (event) => {
   if (view.musclePick && !event.target.closest('[data-action="pick-muscle"], .body3dSlot, .body3dOver, .b3dList')) pickMuscle(null);
-  // The touch outside that closed "What's new" (see pointerdown below) does nothing else.
-  if (Date.now() - (view.updatedClosedAt || 0) < 700 && !event.target.closest('.updatedPill')) return;
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
     if (view.editContext?.date === view.editDay) view.editContext = null;
     view.editDay = null;
@@ -8769,16 +8603,6 @@ document.addEventListener('click', (event) => {
     return endDemo();
   }
   if (action === 'reload-app') return reloadInPlace();
-  if (action === 'toggle-updated' && Date.now() - (view.updatedSwiped || 0) < 400) return;
-  if (action === 'toggle-updated') {
-    if (view.updateReady && !view.updated) {
-      try { sessionStorage.setItem(NOTES_KEY, '1'); } catch { /* opens closed instead */ }
-      return reloadInPlace();
-    }
-    // Closed: a tap opens every change. Open: a tap on the top row closes it and it goes.
-    if (view.updated?.open) return toggleUpdated(false, hideUpdated);
-    return toggleUpdated(true);
-  }
   if ((action === 'onboard-start' || action === 'onboard-blank') && view.onboard) {
     const name = view.onboard.name.trim();
     // A name someone already has opens their log: same person, new phone, deleted app or a fresh link.
@@ -10374,7 +10198,7 @@ tickTypewriter();
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  // New versions install quietly in the background and are used from the next open, never by reloading the page.
+  // New versions install quietly in the background and load only while Exodia is out of sight (updateQuietly).
   // Looks for a new version when the app opens, when you come back to it, and every 2 minutes while it's on screen.
   navigator.serviceWorker.register('/sw.js').then((registration) => {
     // Also when you leave: a new version then installs (and loads) while Exodia is out of sight, not as you open it.
@@ -10387,13 +10211,12 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     const open = typeof event.data?.open === 'string' ? new URL(event.data.open, location.origin) : null;
     if (open && open.origin === location.origin && open.hash) location.hash = open.hash;
   });
-  // When a new version takes over in the background, offer a quiet tap to load it now.
+  // A new version took over in the background: it loads the next time Exodia is out of sight, with nothing shown.
   const hadVersion = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadVersion || view.updateReady) return;
     view.updateReady = true;
-    // Loads at once when nothing would be lost; only if it has to wait does the "Tap to see" bar show.
-    if (!updateQuietly()) render();
+    updateQuietly();
   });
 }
 
@@ -10404,7 +10227,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // transitions. Things you drag (swipe rows' Delete, the box's grabber, the 3D body) and controls with their own press
 // look are left alone.
 const PRESSABLE = 'button, a[href], label.chip, [role="button"], .daySummary, .muscleRow[data-action]';
-const NO_PRESS = ':disabled, [aria-disabled="true"], .swipeDel, .grabber, .body3dSlot *, .body3dOver, .body3dOver *, .updatedPill, .updatedPill *, .calDay, .onboardChoice.main, .bubbleIn, .repTable button, .devMenu button, .leftDev button';
+const NO_PRESS = ':disabled, [aria-disabled="true"], .swipeDel, .grabber, .body3dSlot *, .body3dOver, .body3dOver *, .calDay, .onboardChoice.main, .bubbleIn, .repTable button, .devMenu button, .leftDev button';
 const canScale = Boolean(window.CSS?.supports?.('scale', '0.5'));
 let pressing = null;
 const pressOff = () => {
@@ -10477,7 +10300,7 @@ document.addEventListener('scroll', pressOff, { capture: true, passive: true });
 let pageSwipe = null;
 let pageSwipedAt = 0;
 // The anatomy (3D body and flat figures) is never a page swipe: a sideways drag there spins the body.
-const PAGE_SWIPE_SKIP = '.body3dSlot, .body3dOver, .muscles, .dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .updatedPill, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
+const PAGE_SWIPE_SKIP = '.body3dSlot, .body3dOver, .muscles, .dock, .sheet, .swipeFace, .calScroll, .days, .dayActions, input, textarea, select, .grabber, .drawer, .scrim, .segment, .toast, .buildBanner, .confirm';
 document.addEventListener('pointerdown', (event) => {
   pageSwipe = null;
   if (event.pointerType !== 'touch' || desktopQuery.matches || turn || view.menu || view.composer || !['home', 'trends'].includes(view.route)) return;
