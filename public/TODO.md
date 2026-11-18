@@ -112,6 +112,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Opened figure: name centred right above the head (projected from the figure's crown, any screen), Recovery · Workout · Strength radios instead of the bar; while Aura plays, a pick there only changes colours and Aura's build and drops go on; Aura's sound button bottom right of the figures, inside the page width; Where and when + button 42 px like What to train, same 10 px corners (v520)
+
 - Showing radios restyled as the calendar's picked planned day (solid clay dot, white centre, soft clay halo, planGlow once on pick), circle before the label (standard), row capped at a phone's width so it stays compact; Full body = every muscle (core, forearms, calves, lower back too), also for best fit (v519)
 
 - Train together cleaned up: one radio row under the figures, Recovery (default) · Workout · Strength · Aura (the two toggles are gone; Strength now also in the row); changing What to train switches to Workout; one row with Where and when + a clay button the size of a What to train option: Send invite → Invite sent → Notify again (after sending, kind / day / note / muscles / people changes are quiet until Notify again; a newly added friend still gets their invite, someone taken off is told); invited friends see the note and Going; avatars: soft check = invited, full clay check = going; removed "You sent the invite", "X invited you", the Going/Invited line, Draft/Discard, Leave plan, the notifications offer and the Notify checkbox; your own pick of the kind just changes, only someone else's asks first (v518, migration 0011 applied)

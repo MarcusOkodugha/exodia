@@ -1994,7 +1994,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (aura) aura.look = null; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -5814,11 +5814,8 @@ const planExtras = (plan) => {
   const links = `<p class="tgExtras"><button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
-// The switch over the squad (and in an opened figure): Recovery, Strength, and Focus once the plan has muscles.
-const squadSwitch = (show, focus) => {
-  const options = [['recovery', 'Recovery'], ['focus', 'Workout'], ['strength', 'Strength']].filter(([key]) => key !== 'focus' || focus);
-  return `<div class="segment full tgWhat tgShow" role="group" aria-label="Show" style="grid-template-columns:repeat(${options.length},1fr)">${options.map(([key, label]) => `<button class="segmentOption" data-action="together-show" data-show="${key}" aria-pressed="${show === key}">${label}</button>`).join('')}</div>`;
-};
+// The radios under an opened figure: the same as under the squad, without Aura (Aura keeps playing if it's on).
+const squadSwitch = (show, focus) => `<div class="tgRadios" role="radiogroup" aria-label="Showing">${[['recovery', 'Recovery'], ['focus', 'Workout'], ['strength', 'Strength']].map(([key, label]) => `<button class="tgRadio${view.together?.showAt && Date.now() - view.together.showAt < 1800 && show === key ? ' just' : ''}" role="radio" data-action="together-show" data-show="${key}" aria-checked="${show === key}"${key === 'focus' && !focus ? ' disabled' : ''}><i aria-hidden="true"></i>${label}</button>`).join('')}</div>`;
 // An opened (full-screen) figure keeps the same switch at the bottom: Strength / Recovery on Trends and a friend's
 // page, Recovery / Strength / Focus in Train together.
 const openSwitch = () => {
@@ -5835,7 +5832,7 @@ const openSwitch = () => {
     }
     const kind = view.together.kind || view.together.fit;
     const focus = Boolean(plan?.muscles?.length || (KIND_MUSCLES[plan?.kind || kind] || []).length);
-    const show = view.together.show === 'focus' && !focus ? 'recovery' : view.together.show || 'recovery';
+    const show = aura ? aura.look || aura.scene.show : view.together.show === 'focus' && !focus ? 'recovery' : view.together.show || 'recovery';
     return `<div class="body3dModes">${squadSwitch(show, focus)}</div>`;
   }
   // Trends and a friend's page: no switch on the opened figure (switch on the page, then open it, as before).
@@ -5885,7 +5882,8 @@ const renderTogether = () => {
   const focusView = show === 'focus' && !picking;
   // Aura runs the figures while it is on: its scene says which colours they wear and which muscles stand solid.
   if (picking && aura) auraStop(true);
-  const scene = aura ? aura.scene : null;
+  // An opened figure while Aura plays: your pick only changes the colours; Aura's own build and drop go on.
+  const scene = aura ? (aura.look && view.body3dOpen ? { ...aura.scene, show: aura.look, ...(aura.look === 'focus' ? { picks: 'day' } : {}) } : aura.scene) : null;
   if (aura) aura.day = dayMuscles;
   // Picking and Focus: the planned muscles in clay, the same colour as the chips under an opened figure.
   const colourOf = (entry) => (scene ? (scene.show === 'strength' ? strengthColour : scene.show === 'focus' && dayMuscles.length ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : recoveryColour(entry.load)) : focusView || picking ? (key) => (picksOf(entry).includes(key) ? '#C96442' : null) : show === 'strength' ? strengthColour : recoveryColour(entry.load));
@@ -8884,6 +8882,12 @@ document.addEventListener('click', (event) => {
     view.together.showAt = Date.now();
     if (pick === 'aura') {
       if (!aura) auraStart();
+      return;
+    }
+    // An opened figure while Aura plays: the music and the drops go on, the figure wears what you picked.
+    if (aura && view.body3dOpen) {
+      aura.look = pick;
+      render();
       return;
     }
     if (aura) auraStop(true);

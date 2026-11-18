@@ -719,6 +719,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     const covered = top >= 0 && ts[top] >= 1;
     if (!covered) for (let i = 0; i < people.length; i++) if (i !== top) show(i);
     if (top >= 0) { renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H); veilMat.opacity = Math.min(1, ease(ts[top]) * 1.6); renderer.render(veilScene, veilCam); renderer.clearDepth(); show(top); }
+    placeWho();
     dirty = false;
   };
 
@@ -798,6 +799,12 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   };
   const doCollapse = () => { if (open < 0) return false; open = -1; over.classList.remove('in'); dirty = true; kick(); return true; };
   // The name over an opened figure: a friend's opens their page ("Romi ›"); your own is just your name.
+  // Opened: the name sits just above the head. The crown is projected with the opened figure's own camera, so it holds
+  // for every screen and every height.
+  const crown = new THREE.Vector3(); let whoTop = -1;
+  const placeWho = () => { if (!inOver || open < 0) return; const r = place(open); if (!r) return; aim(r); const bl = bleedAt(r);
+    crown.set(0, height / 2 + 0.01, 0).project(cam); const y = Math.round(r.y + (1 - crown.y) / 2 * (r.h + bl) - 26);
+    if (y !== whoTop) { whoTop = y; whoEl.style.top = `${Math.max(8, y)}px`; } };
   const setWho = (p) => { whoEl.textContent = p?.name || ''; whoEl.classList.toggle('link', Boolean(p?.link && onWho)); };
   whoEl.addEventListener('click', () => { const p = people[open]; if (p?.link && onWho) { doCollapse(); onWho(p.link); } });
   const userCollapse = () => { if (doCollapse() && onCollapse) onCollapse(); };
