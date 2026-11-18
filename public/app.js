@@ -5915,6 +5915,7 @@ const renderTogether = () => {
     ${what}
     ${planLine}
     ${plan ? planExtras(plan) : ''}
+    ${together.date <= today ? loggedTogether(together.date, plan) : ''}
     ${plan && featureOn('notifications') && pushSupported() && pushState() === 'off' && !view.pushOfferGone ? `<p class="tgWhy tgPush">Get a notice if ${esc(plan.members.find((member) => !member.me)?.name || 'a friend')} changes it. Only plans and friend requests, never reminders. <button class="textBtn clay" data-action="push-toggle">Turn on notifications</button></p>` : ''}
     ${together.note ? `<p class="tgNote" role="status">${esc(together.note)}</p>` : ''}
     <p class="tgLabel">When <span class="wnNow">${parseIso(together.date).toLocaleDateString('en-GB', { month: 'long' })}</span></p>
@@ -5922,6 +5923,20 @@ const renderTogether = () => {
     ${view.visitOpen && view.visitOpen < today ? visitCard() : ''}
     ${together.date > today ? leadUp(together.date, picked) : ''}
   </main>`;
+};
+// Logged: what the friends you train with that day have logged (only friends who share workouts). One person logs,
+// the others tap Copy: the lifts you don't have that day yet are added (with Undo), and your day opens in Edit to
+// change weights and reps. Copying again later adds only what they logged since.
+const friendDay = (friend, date) => (friend?.shares?.workouts ? (friend.sessions || []).find((session) => session.date === date && session.exercises?.length) : null);
+const copyable = (day, date) => { const mine = new Set((sessionFor(date)?.exercises || []).map((exercise) => findExerciseName(exercise.name) || exercise.name)); return (day?.exercises || []).filter((exercise) => exercise.sets?.length && !mine.has(findExerciseName(exercise.name) || titleCase(exercise.name))); };
+const loggedTogether = (date, plan) => {
+  const handles = [...new Set([...(plan?.members || []).filter((member) => !member.me && member.handle).map((member) => member.handle), ...(view.together?.people || [])])];
+  const rows = handles.map((handle) => friendByHandle(handle)).filter(Boolean).map((friend) => [friend, friendDay(friend, date)]).filter(([, day]) => day).map(([friend, day]) => {
+    const lifts = day.exercises.filter((exercise) => exercise.sets?.length).map((exercise) => `<span class="fxSub"><b>${esc(exercise.name)}</b> ${esc(condenseSets(exercise.sets.map((set) => ({ kg: String(set.kg), reps: String(set.reps), ...(set.warmup ? { warmup: true } : {}) }))))}</span>`).join('');
+    const left = copyable(day, date).length;
+    return `<div class="fxLine tgLoggedRow">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span>${lifts}</span>${left ? `<button class="fxBtn clay" data-action="together-copy" data-handle="${friend.handle}">Copy</button>` : `<span class="goingPill" aria-pressed="true">${ICONS.check}Copied</span>`}</div>`;
+  });
+  return rows.length ? `<p class="section tgLoggedHead">Logged ${date === todayIso() ? 'today' : dayLabel(date).toLowerCase()}</p><div class="fxList tgLogged">${rows.join('')}</div>` : '';
 };
 // When: weeks back through your history and ahead, Monday first, a month's name where it starts. Logged days are
 // dots in the same shades as the Every session calendar (PR blue, Exodia outlined); a past day opens like there.
@@ -8900,6 +8915,31 @@ document.addEventListener('click', (event) => {
     const plan = (view.social?.plans || []).find((one) => one.date === target.dataset.date && !isDraft(one));
     const going = plan?.members.find((member) => member.me)?.going === 'yes';
     answerInvite(target.dataset.date, going ? 'no' : 'yes', target);
+    return;
+  }
+  if (action === 'together-copy') {
+    const friend = friendByHandle(target.dataset.handle);
+    const date = view.together.date;
+    const lifts = copyable(friendDay(friend, date), date);
+    if (!friend || !lifts.length) return;
+    changeWithUndo(`Copied ${friend.name}'s ${lifts.length === 1 ? lifts[0].name : 'workout'} to ${dayLabel(date)}`, () => addEntries({ exercises: lifts.map((exercise) => ({ name: exercise.name, sets: exercise.sets.map((set) => ({ kg: set.kg, reps: set.reps, ...(set.warmup ? { warmup: true } : {}) })) })) }, date), `Copy ${friend.name}`);
+    // Your day opens in Edit with the copied lifts glowing, ready for your own weights and reps.
+    const session = sessionFor(date);
+    view.open.add(date);
+    view.editDay = date;
+    view.menuEnter = true;
+    if (session) view.editContext = { date, names: session.exercises.map((exercise) => exercise.name), label: dayKind(session) };
+    glowFor(lifts.map((exercise) => ({ date, name: findExerciseName(exercise.name) || titleCase(exercise.name) })));
+    // Already Home before the hash changes, so going there keeps the Undo message.
+    view.route = 'home';
+    location.hash = '#/';
+    render();
+    // The day's top lands just under the header: its name, then the first copied lift.
+    requestAnimationFrame(() => {
+      const card = document.getElementById(`session-${date}`);
+      const top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top')) || 60;
+      if (card) scrollPage(scroller().scrollTop + card.getBoundingClientRect().top - top - 64);
+    });
     return;
   }
   if (action === 'together-leave') {
