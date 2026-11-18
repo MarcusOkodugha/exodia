@@ -5361,7 +5361,8 @@ const avatar = (name, exodia = false) => {
 
 // What fits whom: muscles per kind of day, and how fresh they are for each person on a day.
 const KIND_MUSCLES = { Push: ['chest', 'shoulders', 'triceps'], Pull: ['upperBack', 'rearDelts', 'biceps', 'traps'], Legs: ['quads', 'hamstrings', 'glutes', 'adductors'] };
-KIND_MUSCLES['Full body'] = [...KIND_MUSCLES.Push, ...KIND_MUSCLES.Pull, ...KIND_MUSCLES.Legs];
+// Full body is every muscle: core, forearms, calves and lower back too, not just push, pull and legs together.
+KIND_MUSCLES['Full body'] = MUSCLES.map(([key]) => key);
 const KIND_REGION = { Push: 'chest and shoulders', Pull: 'back', Legs: 'legs', 'Full body': 'whole body', Move: 'cardio' };
 const PLAN_KINDS = ['Push', 'Pull', 'Legs', 'Full body', 'Move'];
 const areOrIs = (region) => (region === 'legs' || region.includes(' and ') ? 'are' : 'is');
