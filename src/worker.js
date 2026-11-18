@@ -1400,7 +1400,7 @@ const planOut = async (env, plan, key) => {
   const by = await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.by).first();
   const noteBy = plan.note && plan.note_by ? (plan.note_by === key ? 'me' : metaName((await env.DB.prepare('SELECT meta FROM profiles WHERE id = ?').bind(plan.note_by).first())?.meta)) : '';
   const muscles = all;
-  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated, note: plan.note || '', noteBy, muscles, sent: plan.sent !== 0, mine: plan.owner === key };
+  return { id: plan.id, date: plan.date, kind: plan.kind, by: plan.by === key ? 'me' : metaName(by?.meta), members: people, version: plan.version, updated: plan.updated, note: plan.note || '', noteBy, muscles, sent: plan.sent !== 0, mine: plan.owner === key, edited: plan.edited === 1 };
 };
 // A draft is only seen by the one making it: someone else's draft is not your plan yet, whoever looks (viewer).
 const myPlan = (env, date, key, viewer = key) => env.DB.prepare('SELECT * FROM plans WHERE date = ?1 AND EXISTS (SELECT 1 FROM json_each(plans.members) WHERE value = ?2) AND (sent = 1 OR owner = ?3) ORDER BY updated DESC LIMIT 1').bind(date, key, viewer).first();
@@ -1621,6 +1621,8 @@ const plansFor = async (env, key, today) => {
 // people tapping at once never undo each other. Changing what to train needs the plan's version: if someone else
 // changed it since, or picked it in the first place, the answer is the plan as it is, and the app asks first.
 // A new plan is a draft until its maker taps Send invite: until then nobody is told anything, however much it changes.
+// After that, changes are quiet too: the plan is marked edited and the app offers Notify again. Only a friend newly
+// added gets their invite, and someone taken off is told.
 const togetherAction = async (env, body, { key, other, today, myName, tell }) => {
   const action = body.action || 'list';
   const now = Date.now();
@@ -1641,6 +1643,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
   const url = `/#/together/${date}`;
   const membersOf = (row) => (row ? JSON.parse(row.members) : []);
   const told = (row, profiles, notice) => { if (row && row.sent !== 0) tell(profiles, notice); };
+  const changed = async (row) => { if (row && row.sent !== 0) await env.DB.prepare('UPDATE plans SET edited = 1 WHERE id = ?').bind(row.id).run(); };
   const invite = (row) => `${planDay(row.date)}${row.note ? ` · ${row.note}` : ''}`;
   if (action === 'add') {
     const target = await other(body.handle);
@@ -1655,7 +1658,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
         const members = [...new Set([...JSON.parse(theirs.members), key, ...(draft ? JSON.parse(plan.members) : [])])];
         if (await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, theirs.id, theirs.version).run().then((result) => result.meta?.changes > 0)) {
           if (draft) await env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(plan.id).run();
-          told(theirs, membersOf(theirs), { title: `${myName} joined ${theirs.kind.toLowerCase()} day`, body: planDay(date), url });
+          await changed(theirs);
           return answer(200, { joined: true });
         }
         continue;
@@ -1700,8 +1703,8 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
         : await env.DB.prepare('UPDATE plans SET members = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(JSON.stringify(members), now, plan.id, plan.version).run();
       if (done.meta?.changes > 0) {
         // Leaving tells the others; being taken off tells the one taken off.
-        if (action === 'leave') told(plan, members, { title: `${myName} left ${plan.kind.toLowerCase()} day`, body: planDay(date), url });
-        else told(plan, [gone], { title: `${myName} took you off ${plan.kind.toLowerCase()} day`, body: planDay(date), url: '/#/together' });
+        if (members.length >= 2) await changed(plan);
+        if (action === 'remove') told(plan, [gone], { title: `${myName} took you off ${plan.kind.toLowerCase()} day`, body: planDay(date), url: '/#/together' });
         return answer();
       }
     }
@@ -1717,7 +1720,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     const rsvp = planRsvp(plan)[key] ? { [key]: planRsvp(plan)[key] } : {};
     const moved = await env.DB.prepare('UPDATE plans SET date = ?, by = ?, rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?').bind(to, key, JSON.stringify(rsvp), now, plan.id, plan.version).run();
     if (!(moved.meta?.changes > 0)) return answer(409, { busy: true });
-    told(plan, membersOf(plan), { title: `${myName} moved ${plan.kind.toLowerCase()} day`, body: `Now ${planDay(to)}${plan.note ? ` · ${plan.note}` : ''}`, url: `/#/together/${to}` });
+    await changed(plan);
     const fresh = await myPlan(env, to, key);
     return json({ plan: fresh ? await planOut(env, fresh, key) : null, plans: await plansFor(env, key, today) });
   }
@@ -1727,13 +1730,14 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
     if (note === plan.note) return answer();
     await env.DB.prepare('UPDATE plans SET note = ?, note_by = ?, version = version + 1, updated = ? WHERE id = ?').bind(note, note ? key : '', now, plan.id).run();
-    if (note) told(plan, membersOf(plan), { title: `${myName} added a note to ${plan.kind.toLowerCase()} day`, body: note, url });
+    await changed(plan);
     return answer();
   }
   if (action === 'muscles') {
     if (!plan) return answer();
     const { skip } = planMuscles(plan);
     await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify({ all: muscleList(body.muscles), skip }), now, plan.id).run();
+    await changed(plan);
     return answer();
   }
   // Leave muscles out for yourself only (an injury): the others still train them.
@@ -1743,6 +1747,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     const mine = muscleList(body.muscles);
     if (mine.length) skip[key] = mine; else delete skip[key];
     await env.DB.prepare('UPDATE plans SET muscles = ?, version = version + 1, updated = ? WHERE id = ?').bind(JSON.stringify({ all, skip }), now, plan.id).run();
+    await changed(plan);
     return answer();
   }
   // Send invite: the draft goes out, with the note if one is typed ("Nordic Wellness kl 18"). One notice each.
@@ -1752,8 +1757,16 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     if (plan.owner !== key) return json({ error: 'Only the one making the plan can send it.' }, 403);
     const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : plan.note;
     const rsvp = { ...planRsvp(plan), [key]: 'yes' };
-    const sent = await env.DB.prepare('UPDATE plans SET sent = 1, note = ?, note_by = ?, rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND sent = 0').bind(note, note ? key : '', JSON.stringify(rsvp), now, plan.id).run();
+    const sent = await env.DB.prepare('UPDATE plans SET sent = 1, edited = 0, note = ?, note_by = ?, rsvp = ?, version = version + 1, updated = ? WHERE id = ? AND sent = 0').bind(note, note ? key : '', JSON.stringify(rsvp), now, plan.id).run();
     if (sent.meta?.changes > 0) tell(membersOf(plan), { title: `${myName} invited you to ${plan.kind.toLowerCase()} day`, body: invite({ ...plan, note }), url });
+    return answer();
+  }
+  // Notify again: everyone in a sent plan hears once what it is now (day, note); the edited mark clears.
+  if (action === 'notify') {
+    if (!plan || plan.sent === 0) return answer();
+    const note = typeof body.note === 'string' ? body.note.replace(/\s+/g, ' ').trim().slice(0, 200) : plan.note;
+    await env.DB.prepare('UPDATE plans SET edited = 0, note = ?, note_by = ?, version = version + 1, updated = ? WHERE id = ?').bind(note, note === plan.note ? plan.note_by : note ? key : '', now, plan.id).run();
+    tell(membersOf(plan), { title: `${myName} updated ${plan.kind.toLowerCase()} day`, body: invite({ ...plan, note }), url });
     return answer();
   }
   // Going, or taking Going back ("no": still invited, so you can say Going again). Only Going tells the plan's maker.
@@ -1783,8 +1796,7 @@ const togetherAction = async (env, body, { key, other, today, myName, tell }) =>
     // Someone else picked it, or it changed since you looked: ask first.
     if (version !== plan.version || (plan.by !== key && body.confirm !== true)) return answer(409, { conflict: true });
     if (await write(plan, JSON.parse(plan.members), kind)) {
-      // The others hear about it only when the one who changed it ticked "Tell …" (older apps don't send it: told).
-      if (body.notify !== false) told(plan, membersOf(plan), { title: `${myName} changed it to ${kind.toLowerCase()} day`, body: planDay(date), url });
+      await changed(plan);
       return answer();
     }
     return answer(409, { conflict: true });

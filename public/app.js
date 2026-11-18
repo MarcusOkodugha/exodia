@@ -1994,7 +1994,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -5697,8 +5697,9 @@ const auraStart = () => {
 };
 document.addEventListener('visibilitychange', () => { if (document.hidden) auraStop(); });
 const AURA_SOUND = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
-// The plan's state under the figures. A draft (only its maker sees it) has the note and Send invite; once sent,
-// everyone sees who's going and who's invited, and the ones invited have one small Going pill (tap again to take it back).
+// The plan's one row under What to train: where and when, and one clay button on its right, the size of a What to
+// train option. Yours: Send invite, then Invite sent; change anything after that and it becomes Notify again (nobody
+// is told by itself). Invited: the note as it is, and Going. Who's in is the figures; who's going is a check on them.
 // Only a plan the server marks as a draft is one: plans saved on a phone by an older version have no flag and were sent.
 const isDraft = (plan) => plan?.sent === false;
 // Yours: the server says so (mine); a plan saved by an older version only knows who picked it last.
@@ -5707,17 +5708,15 @@ const listNames = (list) => esc(list.map((member) => (member.me ? 'You' : member
 const goingPill = (date, going) => `<button class="goingPill" data-action="invite-going" data-date="${date}" aria-pressed="${going}">${going ? `${ICONS.check}Going` : 'Going'}</button>`;
 const planStatus = (plan) => {
   const others = plan.members.filter((member) => !member.me);
-  if (isDraft(plan)) {
-    return `<div class="tgPlanRow"><p class="tgPlan">${others.length ? `Draft with ${listNames(others)}. Nobody gets anything until you send it.` : 'Just you so far.'}</p><button class="fxBtn quiet" data-action="together-leave">Discard</button></div>
-    ${others.length ? `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Where and when (optional)" value="${esc(view.together?.inviteNote ?? plan.note ?? '')}"><button class="fxBtn clay" type="submit">Send invite</button></form>` : ''}`;
+  if (!others.length) return '';
+  if (!isDraft(plan) && !isMine(plan)) {
+    const me = plan.members.find((member) => member.me);
+    return `<div class="tgSendForm tgInvited">${plan.note ? `<p class="tgNoteShown">${esc(plan.note)}</p>` : '<span></span>'}${goingPill(plan.date, me?.going === 'yes')}</div>`;
   }
-  const owner = plan.members.find((member) => member.owner);
-  const me = plan.members.find((member) => member.me);
-  const going = plan.members.filter((member) => member.going === 'yes').sort((one, two) => Boolean(two.me) - Boolean(one.me));
-  const invited = plan.members.filter((member) => member.going !== 'yes');
-  const who = `<p class="tgGoing">${going.length ? `<span class="yes"><b>Going</b> ${listNames(going)}</span>` : ''}${invited.length ? `<span><b>Invited</b> ${listNames(invited)}</span>` : ''}</p>`;
-  const sentBy = isMine(plan) ? 'You sent the invite.' : `${esc(owner?.name || plan.by)} invited you.`;
-  return `<div class="tgPlanRow"><p class="tgPlan">${sentBy}</p>${isMine(plan) ? '<button class="fxBtn quiet" data-action="together-leave">Leave plan</button>' : goingPill(plan.date, me?.going === 'yes')}</div>${who}`;
+  const typed = view.together?.inviteNote;
+  const changed = isDraft(plan) || plan.edited || (typed !== undefined && typed.replace(/\s+/g, ' ').trim() !== (plan.note || ''));
+  const label = isDraft(plan) ? 'Send invite' : changed ? 'Notify again' : 'Invite sent';
+  return `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Where and when" value="${esc(typed ?? plan.note ?? '')}"><button class="tgCta${changed ? '' : ' sent'}" type="submit"${changed ? '' : ' disabled'}>${label}</button></form>`;
 };
 // Notifications: the bell left of Trends opens the Notifications page. Its place is always there (nothing moves when
 // invites load); the clay count shows invites and friend requests you haven't looked at, and the page clears it.
@@ -5805,20 +5804,18 @@ const planExtras = (plan) => {
   const chosen = plan.muscles || [];
   // Who leaves what out: "Romi leaves out biceps."
   const skips = plan.members.filter((member) => member.skip?.length).map((member) => ` ${member.me ? 'You leave' : `${esc(member.name)} leaves`} out ${member.skip.map((key) => esc(label(key).toLowerCase())).join(', ')}.`).join('');
-  const note = isDraft(plan) ? '' : together.noteOpen
-    ? `<form class="tgNoteForm"><label class="sr" for="planNote">Note for everyone</label><input id="planNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Like 18:00 at the gym, bring straps" value="${esc(plan.note || '')}"><button class="textBtn clay" type="submit">Save</button></form>`
-    : plan.note ? `<p class="tgNoteText">${esc(plan.note)}<span>${plan.noteBy === 'me' ? 'Your note' : `${esc(plan.noteBy)}'s note`}</span></p>` : '';
+  const note = '';
   // Each planned muscle has a small cross: one tap takes it off the plan, without opening the picker.
   const list = chosen.length ? `<p class="tgFocusList"><span>Planned</span><b>${chosen.map((key) => `<span class="tgMus">${esc(label(key))}<button data-action="together-muscle-off" data-muscle="${key}" aria-label="Remove ${esc(label(key))}">${ICONS.close || '×'}</button></span>`).join('')}</b></p>` : '';
   const muscles = together.picking
     ? `<p class="tgWhy">Tap a muscle to add it to the workout.</p>${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`
     : `${list}${skips ? `<p class="tgWhy">${skips.trim()}</p>` : ''}`;
-  const links = `<p class="tgExtras">${together.noteOpen || isDraft(plan) ? '' : `<button class="textBtn clay" data-action="together-note-open">${plan.note ? 'Edit note' : 'Add a note'}</button>`}<button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
+  const links = `<p class="tgExtras"><button class="textBtn clay" data-action="together-muscles">${together.picking ? 'Done' : chosen.length ? 'Change muscles' : 'Pick muscles'}</button></p>`;
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
 // The switch over the squad (and in an opened figure): Recovery, Strength, and Focus once the plan has muscles.
 const squadSwitch = (show, focus) => {
-  const options = [['recovery', 'Recovery'], ['strength', 'Strength'], ...(focus ? [['focus', 'Focus']] : [])];
+  const options = [['recovery', 'Recovery'], ['focus', 'Workout'], ['strength', 'Strength']].filter(([key]) => key !== 'focus' || focus);
   return `<div class="segment full tgWhat tgShow" role="group" aria-label="Show" style="grid-template-columns:repeat(${options.length},1fr)">${options.map(([key, label]) => `<button class="segmentOption" data-action="together-show" data-show="${key}" aria-pressed="${show === key}">${label}</button>`).join('')}</div>`;
 };
 // An opened (full-screen) figure keeps the same switch at the bottom: Strength / Recovery on Trends and a friend's
@@ -5866,7 +5863,7 @@ const renderTogether = () => {
   const coming = (handle) => together.people.has(handle);
   const row = `<div class="tgWho" role="group" aria-label="Who's coming">
     <span class="tgP on me">${avatar(myName(), view.blue)}<span class="tgName">${esc(myName())}</span></span>
-    ${friends.map((friend) => `<button class="tgP${coming(friend.handle) ? ' on' : ''}" data-action="together-person" data-handle="${friend.handle}" aria-pressed="${coming(friend.handle)}">${avatar(friend.name, friendHasExodia(friend))}<span class="tgName">${esc(friend.name)}</span></button>`).join('')}
+    ${friends.map((friend) => `<button class="tgP${coming(friend.handle) ? ' on' : ''}${plan && !isDraft(plan) && plan.members.some((member) => member.handle === friend.handle && member.going !== 'yes') ? ' waiting' : ''}" data-action="together-person" data-handle="${friend.handle}" aria-pressed="${coming(friend.handle)}">${avatar(friend.name, friendHasExodia(friend))}<span class="tgName">${esc(friend.name)}</span></button>`).join('')}
     <a class="tgP add" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.plus}</span><span class="tgName">Add</span></a></div>`;
   loadAnatomy();
   const drawn = anatomy && anatomy !== 'loading';
@@ -5880,9 +5877,9 @@ const renderTogether = () => {
   // What the day trains: the muscles picked for the plan, else what Push / Pull / Legs / Full body work.
   const dayMuscles = plan?.muscles?.length ? plan.muscles : KIND_MUSCLES[picked] || [];
   const picksOf = (entry) => { const member = plan?.members.find((one) => (entry.me ? one.me : one.handle === entry.handle)); return (picking ? (plan?.muscles?.length ? plan.muscles : KIND_MUSCLES[plan?.kind] || []) : dayMuscles).filter((key) => !(member?.skip || []).includes(key)); };
-  // What the figures show: Recovery (who's fresh), Strength (everyone's levels) or Focus (the plan's muscles, the rest
-  // see-through, the same view as picking but nothing changes when you tap).
-  if (!view.body3dOpen && together.show === 'strength') together.show = 'recovery'; // Strength only in an opened figure
+  // What the figures show, picked in the row under them: Recovery (who's fresh, the default), Workout (the day's
+  // muscles, the rest see-through, the same view as picking but nothing changes when you tap), Strength (everyone's
+  // levels) or Aura (the song runs the figures).
   const show = together.show === 'focus' && !dayMuscles.length ? 'recovery' : together.show || 'recovery';
   const focusView = show === 'focus' && !picking;
   // Aura runs the figures while it is on: its scene says which colours they wear and which muscles stand solid.
@@ -5896,11 +5893,14 @@ const renderTogether = () => {
   view.squadMe = people.findIndex((entry) => entry.me);
   const extra = (entry) => ({ ...(entry.me ? {} : { link: `#/friend/${entry.handle}` }), ...(scene ? { picks: scene.picks === 'all' ? MUSCLES.map(([key]) => key) : scene.picks === 'day' ? picksOf(entry) : [] } : picking ? { picks: picksOf(entry), zoom: entry.me && people.length > 1 ? 1.6 : 1 } : focusView ? { picks: picksOf(entry) } : {}) });
   const squad3d = drawn && body3dOn() ? body3dSlot('squad', people.map((entry) => (entry.me ? body3dPerson('me', entry.name, state.body?.cm, colourOf(entry), labelOf, extra(entry)) : asPerson(entry.person, () => body3dPerson(entry.name, entry.name, entry.person.body?.cm, colourOf(entry), labelOf, extra(entry))))), '', scene ? (scene.pick ? { pick: true, spin: true } : null) : picking ? { pick: true, face: picked === 'Pull' ? Math.PI : 0 } : focusView ? { pick: true, spin: true } : null) : null;
-  // One switch under the squad: show what the day trains (the rest see-through), off = recovery again.
-  const focusSwitch = squad3d && !picking && dayMuscles.length ? `<button class="fxSet tgFocus" role="switch" aria-checked="${show === 'focus'}" data-action="together-focus"><span class="fxSetText"><b>Show what you'll train</b></span><i class="fxSwitch" aria-hidden="true"></i></button>` : '';
-  // Aura: the same kind of switch; while it is on, a small sound button sits beside it.
-  const auraSwitch = squad3d && !picking ? `<div class="tgAuraRow"><button class="fxSet tgAura" role="switch" aria-checked="${Boolean(aura)}" data-action="together-aura"><span class="fxSetText"><b>Aura</b></span><i class="fxSwitch" aria-hidden="true"></i></button>${aura ? `<button class="tgAuraMute" data-action="together-aura-mute" aria-pressed="${aura.muted}" aria-label="${aura.muted ? 'Sound on' : 'Sound off'}">${AURA_SOUND}</button>` : ''}</div>` : '';
-  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `${squad3d}<div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${focusSwitch}${auraSwitch}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => `<figure><figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`; // never the old flat figure (Marcus, 15 Nov): names only until the 3D body is there
+  // One row under the figures, evenly spaced: what they show. Aura plays while it's picked; its sound button sits in the
+  // corner of the figures, so the row never changes.
+  const showing = aura ? 'aura' : show;
+  // Radio buttons, iOS-clean: a ring each, the picked one filled clay with the planned-day glow as it's picked.
+  const justPicked = together.showAt && Date.now() - together.showAt < 1800 ? showing : null;
+  const showRow = squad3d && !picking ? `<div class="tgRadios" role="radiogroup" aria-label="Showing">${[['recovery', 'Recovery'], ['focus', 'Workout'], ['strength', 'Strength'], ['aura', 'Aura']].map(([key, label]) => `<button class="tgRadio${justPicked === key ? ' just' : ''}"${justPicked === key ? ` style="--since:-${Date.now() - together.showAt}ms"` : ''} role="radio" data-action="together-show" data-show="${key}" aria-checked="${showing === key}"${key === 'focus' && !dayMuscles.length ? ' disabled' : ''}><i aria-hidden="true"></i>${label}</button>`).join('')}</div>` : '';
+  const auraMute = squad3d && aura ? `<button class="tgAuraMute" data-action="together-aura-mute" aria-pressed="${aura.muted}" aria-label="${aura.muted ? 'Sound on' : 'Sound off'}">${AURA_SOUND}</button>` : '';
+  const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<div class="tgSquad">${squad3d}${auraMute}</div><div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${showRow}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => `<figure><figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`; // never the old flat figure (Marcus, 15 Nov): names only until the 3D body is there
   bodyChosen = null;
   // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
   const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -5912,7 +5912,7 @@ const renderTogether = () => {
   const what = `<p class="tgLabel">What to train</p>
     <div class="segment full tgWhat" role="group" aria-label="What to train">${PLAN_KINDS.map((kind) => `<button class="segmentOption" data-action="together-kind" data-kind="${kind}" aria-pressed="${picked === kind}">${kind}</button>`).join('')}</div>
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
-    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button>${others.length && !isDraft(conflict.plan) ? `<label class="tgTell" title="Send ${esc(others.length === 1 ? others[0] : 'the others')} a notice"><input type="checkbox" data-action="together-notify"${together.notify ? ' checked' : ''}>Notify</label>` : ''}</span></p>`; })()
+    ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`; })()
       : `<p class="tgWhy">${picked === fit.best || (people.length === 1 && !plan) ? fit.why : plan ? `${esc(plan.kind)} is planned. ${fit.best} would be fresher for ${people.length === 1 ? 'you' : people.length === 2 ? 'both of you' : 'everyone'}.` : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}${!plan && next && next.by === 'me' ? ` <button class="textBtn clay" data-action="together-move" data-from="${next.date}">Move your ${esc(next.kind)} day here</button>` : ''}</p>`}`;
   const planLine = plan ? planStatus(plan) : '';
   return `<main class="page togetherPage">
@@ -5925,7 +5925,6 @@ const renderTogether = () => {
     ${planLine}
     ${plan ? planExtras(plan) : ''}
     ${together.date <= today ? loggedTogether(together.date, plan) : ''}
-    ${plan && featureOn('notifications') && pushSupported() && pushState() === 'off' && !view.pushOfferGone ? `<p class="tgWhy tgPush">Get a notice if ${esc(plan.members.find((member) => !member.me)?.name || 'a friend')} changes it. Only plans and friend requests, never reminders. <button class="textBtn clay" data-action="push-toggle">Turn on notifications</button></p>` : ''}
     ${together.note ? `<p class="tgNote" role="status">${esc(together.note)}</p>` : ''}
     <p class="tgLabel">When <span class="wnNow">${parseIso(together.date).toLocaleDateString('en-GB', { month: 'long' })}</span></p>
     ${whenCalendar()}
@@ -8786,9 +8785,11 @@ document.addEventListener('click', (event) => {
     const kind = target.dataset.kind;
     const plan = togetherPlan();
     together.conflict = null;
+    // The figures switch to Workout, so what you picked shows on everyone at once.
+    if (!aura && KIND_MUSCLES[kind] && together.show !== 'focus') { together.show = 'focus'; together.showAt = Date.now(); }
     if (plan && plan.kind !== kind) {
-      // A plan with others: ask first (and whether to tell them). Your plan on your own just changes.
-      if (plan.by !== 'me' || plan.members.some((member) => !member.me)) together.conflict = { plan, wanted: kind };
+      // Someone else picked it: ask first. Your own pick just changes (nobody is told until Notify again).
+      if (plan.by !== 'me') together.conflict = { plan, wanted: kind };
       else {
         together.kind = kind;
         togetherSend({ action: 'kind', kind, version: plan.version });
@@ -8803,11 +8804,7 @@ document.addEventListener('click', (event) => {
     together.kind = target.dataset.kind;
     together.conflict = null;
     render();
-    if (plan) togetherSend({ action: 'kind', kind: target.dataset.kind, version: plan.version, confirm: true, notify: Boolean(together.notify) });
-    return;
-  }
-  if (action === 'together-notify') {
-    view.together.notify = !view.together.notify;
+    if (plan) togetherSend({ action: 'kind', kind: target.dataset.kind, version: plan.version, confirm: true });
     return;
   }
   if (action === 'together-next') {
@@ -8881,13 +8878,15 @@ document.addEventListener('click', (event) => {
     render();
     return;
   }
-  if (action === 'together-focus') {
-    view.together.show = view.together.show === 'focus' ? 'recovery' : 'focus';
-    render();
-    return;
-  }
   if (action === 'together-show') {
-    view.together.show = target.dataset.show;
+    const pick = target.dataset.show;
+    view.together.showAt = Date.now();
+    if (pick === 'aura') {
+      if (!aura) auraStart();
+      return;
+    }
+    if (aura) auraStop(true);
+    view.together.show = pick;
     render();
     return;
   }
@@ -9014,14 +9013,6 @@ document.addEventListener('click', (event) => {
     // Start from the day's usual muscles on screen; nothing is saved for everyone until a muscle is tapped.
     if (view.together.picking && plan && !plan.muscles?.length && KIND_MUSCLES[plan.kind]) plan.muscles = [...KIND_MUSCLES[plan.kind]];
     render();
-    return;
-  }
-  if (action === 'together-note-open') {
-    view.together.noteOpen = true;
-    render();
-    const field = document.getElementById('planNote');
-    field?.focus();
-    field?.setSelectionRange(field.value.length, field.value.length);
     return;
   }
   if (action === 'pick-muscle') {
@@ -9510,6 +9501,15 @@ document.addEventListener('input', (event) => {
   const target = event.target;
   if (target.id === 'planInviteNote' && view.together) {
     view.together.inviteNote = target.value;
+    // After sending, typing a different note turns the button into Notify again, without a redraw.
+    const button = target.form?.querySelector('.tgCta');
+    const plan = togetherPlan();
+    if (button && plan && !isDraft(plan)) {
+      const changed = plan.edited || target.value.replace(/\s+/g, ' ').trim() !== (plan.note || '');
+      button.disabled = !changed;
+      button.classList.toggle('sent', !changed);
+      button.textContent = changed ? 'Notify again' : 'Invite sent';
+    }
     return;
   }
   if (target.id === 'friendSearch') {
@@ -9946,18 +9946,7 @@ const route = () => {
   if (view.route === 'home' && view.homeScroll && !view.trendScroll) scrollPage(view.homeScroll);
   if (view.route === 'log' || (view.route === 'admin' && view.adminTab === 'chat')) scrollPage(scroller().scrollHeight);
 };
-// Train together note: Return or Save keeps it for everyone in the plan; an empty note removes it.
-document.addEventListener('submit', (event) => {
-  if (!event.target.closest('.tgNoteForm')) return;
-  event.preventDefault();
-  const note = document.getElementById('planNote')?.value || '';
-  const plan = togetherPlan();
-  view.together.noteOpen = false;
-  if (plan) Object.assign(plan, { note: note.replace(/\s+/g, ' ').trim().slice(0, 200), noteBy: 'me' });
-  render();
-  togetherSend({ action: 'note', note });
-});
-// Send invite: the draft goes out to everyone in it, with what's typed as its note.
+// Send invite (a draft) or Notify again (a sent plan that changed): everyone in it hears once, with the typed note.
 document.addEventListener('submit', (event) => {
   if (!event.target.closest('.tgSendForm')) return;
   event.preventDefault();
@@ -9965,12 +9954,13 @@ document.addEventListener('submit', (event) => {
   const plan = togetherPlan();
   if (!plan) return;
   document.activeElement?.blur?.();
-  Object.assign(plan, { sent: true, note, noteBy: note ? 'me' : '' });
+  const draft = isDraft(plan);
+  Object.assign(plan, { sent: true, edited: false, note, noteBy: note ? 'me' : '' });
   view.together.inviteNote = undefined;
   const me = plan.members.find((member) => member.me);
-  if (me) me.going = 'yes';
+  if (me && draft) me.going = 'yes';
   render();
-  togetherSend({ action: 'send', note });
+  togetherSend({ action: draft ? 'send' : 'notify', note });
 });
 window.addEventListener('hashchange', route);
 desktopQuery.addEventListener('change', render);
