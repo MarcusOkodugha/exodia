@@ -1983,14 +1983,22 @@ const togetherMuscle = (plan, key, mine) => {
   }
   render();
 };
+// Friends' bodies are built in the background as soon as both the 3D body and the friends list are here, so Train
+// together draws everyone at once instead of building shapes while you scroll.
+const prepareBodies = () => {
+  if (!body3d?.prepare || !featureOn('friends')) return;
+  const people = [body3dPerson('me', state.name || '', state.body?.cm, strengthColour), ...friendsList().map((friend) => asPerson(friendState(friend), () => body3dPerson(friend.name, friend.name, friendState(friend).body?.cm, strengthColour)))];
+  body3d.prepare(people);
+};
 const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.together?.picking) view.together.picking = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; if (view.together?.show === 'strength') view.together.show = 'recovery'; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
+      prepareBodies();
       // Built in the background while no page shows a figure (Home on the phone): nothing to redraw yet.
       if (document.querySelector('[data-body3d]') || view.body3dOpen) render();
     })
@@ -5241,6 +5249,7 @@ const loadSocial = () => {
       if (ok) {
         keepSocial(data);
         if (view.route === 'notifications') markInvitesSeen();
+        prepareBodies();
         syncTogether();
       }
       render();
@@ -5896,8 +5905,8 @@ const renderTogether = () => {
   // The top line says what this is: "Pull day on Sunday" for a plan, else the day; and the way back to the next workout.
   const headline = plan ? `${esc(plan.kind)} day ${planWhen(together.date)}` : together.date === today ? 'Today' : parseIso(together.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
   const back = next && next.date !== together.date ? `<button class="textBtn clay tgNext" data-action="together-next">Next: ${esc(next.kind)} ${next.date === today ? 'today' : planWhen(next.date).replace(/^on /, '')}${ICONS.chevRight}</button>` : !next && together.date !== today ? `<button class="textBtn clay tgNext" data-action="together-next">Today${ICONS.chevRight}</button>` : '';
-  // Top right says where you are when there's no way back to show: planned or not, and with whom.
-  const status = back || `<span class="tgStatus">${plan ? `With ${esc(plan.members.filter((member) => !member.me).map((member) => member.name).slice(0, 2).join(' and ') || 'friends')}` : `${esc(picked)} · not planned yet`}</span>`;
+  // Top right: the way to the next workout when there is one; otherwise "not planned yet" for a day without a plan.
+  const status = back || (plan ? '' : `<span class="tgStatus">${esc(picked)} · not planned yet</span>`);
   const head = `<div class="tgHead"><p class="tgDay${plan ? ' plan' : ''}">${headline}</p>${status}</div>`;
   const conflict = together.conflict;
   const what = `<p class="tgLabel">What to train</p>

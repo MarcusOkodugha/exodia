@@ -112,6 +112,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Train together lag fixed at the root: each friend's reshaped 3D body (woman's figure, slimmer shapes) was built on the screen thread inside a frame (freezes up to ~1 s with three friends); now built in a background worker (body3d.js runs as its own worker) and ahead of time once friends load. Real-GPU test, three friends: worst freeze 995 → 126 ms, main-thread body building 203 → 0 ms. Closing an opened figure in Train together clears a tapped muscle (everyone's recovery came back only after a reload); "With Benjamin and Romi" removed from the top (v517)
+
 - Train together → "Logged today": each friend in the plan (or picked) who shares workouts, with their lifts and sets; Copy adds the lifts you don't have that day yet (Undo), opens your day in Edit at the top to change weights and reps; copying again later adds only what they logged since (v516)
 
 - Updates invisible: a new version loads only while Exodia is out of sight (another app, phone locked, another window on a computer), never on screen (it used to fade out and reload in front of you, often right after opening, then slide in an "Exodia updated" pill). No fade on return, no update pill; Settings → What's new keeps the notes (v515)

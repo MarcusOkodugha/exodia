@@ -339,15 +339,31 @@ const loadAssets = () => assets || (assets = (async () => {
   await breathe();
   const muscleGeo = merge(THREE, parts.filter((o) => !/context/.test(o.name)), tall * 0.022);
   const box = muscleGeo.boundingBox.clone().union(ctxGeo.boundingBox);
-  // The woman's figure is built the first time someone female is shown, not before.
-  // The shapes of weaker bodies, each built the first time someone needs it.
-  const shapes = new Map(), shaped = (s, isFem) => { const key = `${s.a},${s.t},${isFem ? 1 : 0}`; let g = shapes.get(key);
-    if (!g) { const sl = slimAt(s.a, s.t), fn = isFem ? (x, y, z) => FEMALE(...sl(x, y, z)) : sl, sp = parts.map((o) => femalePart(THREE, o, fn));
-      shapes.set(key, g = { muscleGeo: merge(THREE, sp.filter((o) => !/context/.test(o.name)), tall * 0.022), ctxGeo: merge(THREE, sp.filter((o) => /context/.test(o.name))) }); }
-    return g; };
-  let fem = null; const femaleGeo = () => fem || (fem = (() => { const fp = parts.map((o) => femalePart(THREE, o));
-    return { muscleGeo: merge(THREE, fp.filter((o) => !/context/.test(o.name)), tall * 0.022), ctxGeo: merge(THREE, fp.filter((o) => /context/.test(o.name))) }; })());
-  return { THREE, muscleGeo, ctxGeo, femaleGeo, shaped, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
+  // Every other body (a woman's figure, the slimmer shapes of weaker lifters) is the whole model reshaped: a few hundred
+  // ms of work each. It runs on a background thread (this same file as a worker, see the end), so the screen never
+  // waits for it; a body is drawn once its shape has arrived. Without workers it's built here, as before.
+  const shapes = new Map(), asked = new Map();
+  let worker = null;
+  try { worker = new Worker(new URL(import.meta.url), { type: 'module' }); } catch { worker = null; }
+  const unpack = (d) => { const geo = new THREE.BufferGeometry();
+    for (const [name, array, size] of d.attrs) geo.setAttribute(name, new THREE.BufferAttribute(array, size));
+    geo.setIndex(new THREE.BufferAttribute(d.index, 1)); geo.computeBoundingBox(); geo.computeBoundingSphere();
+    Object.assign(geo.userData, d.user); geo.userData.grp = geo.getAttribute('aGroup').array; return geo; };
+  if (worker) worker.onmessage = ({ data }) => { const job = asked.get(data.key); if (!job) return;
+    if (data.error) { asked.delete(data.key); worker = null; job.fail(); return; }
+    shapes.set(data.key, { muscleGeo: unpack(data.muscle), ctxGeo: unpack(data.ctx) }); job.done(); };
+  const keyOf = (s, isFem) => (s ? `${s.a},${s.t},${isFem ? 1 : 0}` : isFem ? 'F' : '');
+  const buildHere = (key, s, isFem) => { const sl = s ? slimAt(s.a, s.t) : null, fn = sl ? (isFem ? (x, y, z) => FEMALE(...sl(x, y, z)) : sl) : FEMALE, sp = parts.map((o) => femalePart(THREE, o, fn));
+    shapes.set(key, { muscleGeo: merge(THREE, sp.filter((o) => !/context/.test(o.name)), tall * 0.022), ctxGeo: merge(THREE, sp.filter((o) => /context/.test(o.name))) }); };
+  // The geometry for this body if it's ready (the plain body always is), else null.
+  const geoFor = (s, isFem) => { const key = keyOf(s, isFem); return key ? shapes.get(key) || null : { muscleGeo, ctxGeo }; };
+  // Ask for a body's shape; resolves when it can be drawn.
+  const want = (s, isFem) => { const key = keyOf(s, isFem); if (!key || shapes.has(key)) return Promise.resolve();
+    if (asked.has(key)) return asked.get(key).promise;
+    if (!worker) { buildHere(key, s, isFem); return Promise.resolve(); }
+    const job = {}; job.promise = new Promise((done) => { job.done = done; job.fail = () => { buildHere(key, s, isFem); done(); }; });
+    asked.set(key, job); worker.postMessage({ key, shape: s, fem: isFem, tall }); return job.promise; };
+  return { THREE, muscleGeo, ctxGeo, geoFor, want, box, center: box.getCenter(new THREE.Vector3()), height: box.max.y - box.min.y };
 })().catch((e) => { assets = null; throw e; }));
 
 // ---------- shaders (look F from the lab, bulk per muscle group) ----------
@@ -476,7 +492,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     const a = all > 0 ? q((4 - arms) / 3) : 0, t = all > 0 ? q(2 - all) : 0; return a || t ? { a, t } : null; };
   // Fail before downloading anything when the browser has no WebGL 2 (three 0.170 needs it).
   { const probe = document.createElement('canvas'); const gl = probe.getContext('webgl2'); if (!gl) throw new Error('body3d: no WebGL'); const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
-  const { THREE, muscleGeo, ctxGeo, femaleGeo, shaped, center, height } = await loadAssets();
+  const { THREE, muscleGeo, ctxGeo, geoFor, want, center, height } = await loadAssets();
   const LABEL = { ...NAMES, ...(names || {}) }, LOOK = LOOKS[look] || LOOKS.R;
 
   const canvas = document.createElement('canvas'); canvas.className = 'body3dCanvas'; canvas.setAttribute('aria-hidden', 'true');
@@ -606,7 +622,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const xrayMat = mkMuscle(true);
   dScene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); { const sun2 = new THREE.DirectionalLight(0xffffff, 1.1); sun2.position.set(2, 3, 4); dScene.add(sun2); }
   const dMeshes = [dMesh(false, depthM, -1), dMesh(true, depthC, -1), ...ghosts, dMesh(false, xrayMat, 4), dMesh(false, hullMat, 2), dMesh(true, hullMat, 2), dMesh(false, lineMat(1, 0), 3), dMesh(true, lineMat(0, 0), 3)];
-  const useGeo = (p) => { const g = p.shape ? shaped(p.shape, p.fem) : p.fem ? femaleGeo() : { muscleGeo, ctxGeo }; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; };
+  const useGeo = (p) => { const g = geoFor(p.shape, p.fem); if (!g) return false; muscle.geometry = g.muscleGeo; ctx.geometry = g.ctxGeo; for (const m of dMeshes) m.geometry = m.userData.ctx ? g.ctxGeo : g.muscleGeo; for (const b of breasts) b.visible = p.fem && WOMAN_CHEST; return true; };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d2c4, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(2, 3, 4); scene.add(sun);
   // The sheet that covers the page while a figure is open.
   const veilMat = new THREE.MeshBasicMaterial({ color: '#FAF9F5', transparent: true, depthTest: false, depthWrite: false });
@@ -666,6 +682,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     const r = place(i); if (!r || r.w < 1 || r.h < 1 || r.x > W || r.y > H || r.x + r.w < 0 || r.y + r.h < 0) return;
     const p = people[i], s = slots[i];
     if (p.appear !== undefined && p.appear <= 0.002) return; // not in yet (Aura, before the drop)
+    if (!geoFor(p.shape, p.fem)) return; // their shape is still being built in the background
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
     pivot.rotation.y = angle; pivot.scale.set(p.wx, 1, p.wx); useGeo(p);
     U.uPal.value = p.pal; U.uBulk.value = p.bulk; LU.uHas.value = p.has;
@@ -748,7 +765,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const pick = (i, x, y) => { // null: beside the body; 0: on the body, not a muscle; else the group number
     const r = place(i); if (!r) return null;
     aim(r); const bl = bleedAt(r); if (bl) cam.setViewOffset(r.w, r.h, 0, 0, r.w, r.h + bl); else if (cam.view) cam.clearViewOffset();
-    pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); if (people[i]) useGeo(people[i]); scene.updateMatrixWorld(true);
+    pivot.rotation.y = angle; pivot.scale.set(people[i]?.wx || 1, 1, people[i]?.wx || 1); if (!people[i] || !useGeo(people[i])) return null; scene.updateMatrixWorld(true);
     const cast = (px, py) => { ndc.set((px - r.x) / r.w * 2 - 1, -((py - r.y) / (r.h + bl) * 2 - 1)); ray.setFromCamera(ndc, cam);
       const hit = ray.intersectObjects([muscle, ctx], false)[0];
       return hit ? (hit.object === muscle ? muscle.geometry.userData.grp[hit.face.a] : 0) : null; };
@@ -855,7 +872,8 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
         if (HEADS[p.head]) { loadMarks(); pal[0] = new THREE.Color(HEADS[p.head][0]); } // the small muscles with no group (neck, hands, feet) go with it
         return { id: p.id, name: p.name || '', link: p.link || '', head: HEADS[p.head] ? p.head : null, headMark: p.headMark !== false, headLook: p.headMark === 'crest' ? 1 : 0, cm, pal, bulk, has, fem, labels, pick, zoom: p.zoom || 1, wx: Math.max(0.9, Math.min(strong ? frameCap(avg) : 1.12, Math.sqrt(bmi / 23))), shape: strong ? shapeOf(p, avg) : null };
       });
-      for (const p of people) if (p.shape) shaped(p.shape, p.fem); // built now, not in the middle of a frame
+      // A body not built yet is asked for in the background and drawn the moment it arrives.
+      for (const p of people) want(p.shape, p.fem).then(() => { if (!dead) { dirty = true; kick(); } });
       // Someone still fading in (Aura, before the drop) keeps fading in across a redraw.
       for (const p of people) { const old = prev.find((o) => o.id === p.id); if (old && old.appear !== undefined) p.appear = old.appear; }
       // fade: someone who was already there glides from the old colours and sizes to the new; a build in progress carries on.
@@ -869,6 +887,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       showName();
       layout(); dirty = true; kick();
     },
+    // Build these people's bodies in the background ahead of time (friends, once their levels are known), so a page
+    // that shows them later draws them at once.
+    prepare(list) { for (const p of list || []) want(strong ? shapeOf(p, avgOf(p, GROUPS)) : null, p.sex === 'female'); },
     // { pick: true, face: 0 | Math.PI }: picking muscles; everyone stands still facing that side. { pick: false }: back to normal.
     // { pick: true, spin: true }: the same see-through view, still turning (Focus in Train together).
     setMode({ pick = false, face: to = null, spin = false } = {}) {
@@ -932,4 +953,22 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     },
   };
   return handle;
+}
+
+// ---------- the background builder ----------
+// This file also runs as a worker (loadAssets starts it): it reads the model once and builds a reshaped body when
+// asked, then hands back the finished arrays, so the page's own thread never spends a frame on it.
+if (typeof document === 'undefined' && typeof self !== 'undefined' && typeof self.postMessage === 'function') {
+  let base = null;
+  self.onmessage = async ({ data }) => {
+    try {
+      base ||= Promise.all([import(THREE_URL), fetch(MODEL_URL).then((r) => { if (!r.ok) throw new Error('model ' + r.status); return r.arrayBuffer(); })]).then(([THREE, buf]) => ({ THREE, parts: parseGlb(THREE, buf) }));
+      const { THREE, parts } = await base, s = data.shape, sl = s ? slimAt(s.a, s.t) : null;
+      const fn = sl ? (data.fem ? (x, y, z) => FEMALE(...sl(x, y, z)) : sl) : FEMALE, sp = parts.map((o) => femalePart(THREE, o, fn));
+      const pack = (geo) => ({ attrs: Object.entries(geo.attributes).map(([name, a]) => [name, a.array, a.itemSize]), index: geo.index.array, user: { lo: geo.userData.lo, hi: geo.userData.hi, ...(geo.userData.head ? { head: geo.userData.head } : {}) } });
+      const muscle = pack(merge(THREE, sp.filter((o) => !/context/.test(o.name)), data.tall * 0.022)), ctx = pack(merge(THREE, sp.filter((o) => /context/.test(o.name))));
+      const moved = [...muscle.attrs, ...ctx.attrs].map(([, array]) => array.buffer).concat(muscle.index.buffer, ctx.index.buffer);
+      self.postMessage({ key: data.key, muscle, ctx }, [...new Set(moved)]);
+    } catch (error) { self.postMessage({ key: data.key, error: String(error?.message || error) }); }
+  };
 }
