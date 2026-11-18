@@ -1663,7 +1663,7 @@ button.cardioTime { border: 0; background: none; padding: 0; font: inherit; colo
 .fxSub { font-size: 12.5px; line-height: 16px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fxAdd { color: var(--text2); }
 .fxAdd .fxName { flex: 1; }
-.fxStack { flex: none; display: flex; align-items: center; width: 28px; }
+.fxStack { position: relative; flex: none; display: flex; align-items: center; width: 28px; }
 .fxStack i { width: 18px; height: 18px; border-radius: 50%; background: #D9D6CC; box-shadow: 0 0 0 2px var(--drawer); }
 .fxStack i + i { margin-left: -7px; background: linear-gradient(135deg, hsl(18 32% 60%), hsl(38 36% 71%)); }
 .fxErr { flex: none; font-size: 12px; font-weight: 600; color: var(--clayText); background: rgb(var(--clayRgb) / 0.1); padding: 2px 8px; border-radius: 999px; }
@@ -2145,3 +2145,12 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 .tgSquad .tgAuraMute { top: auto; bottom: 0; right: 0; transform: none; z-index: 2; background: rgb(250 249 245 / 0.85); }
 /* Under an opened figure: the same radios, centred. */
 .body3dModes .tgRadios { width: min(300px, 100%); margin: 0; }
+
+/* Train together in the menu with a workout lined up: the friends' own avatars, small, overlapping like the circles;
+   a clay dot top right while something about a plan is unseen (like the bell's count). */
+.fxStack.faces .fav { flex: none; width: 20px; height: 20px; box-shadow: 0 0 0 2px var(--drawer); }
+.fxStack.faces .fav b { display: block; font-size: 0; line-height: 20px; text-align: center; }
+.fxStack.faces .fav b::first-letter { font-size: 9px; }
+.fxStack.faces .fav + .fav { margin-left: -8px; }
+.fxStack.faces.one .fav { margin-left: 4px; }
+.fxDot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--clay); box-shadow: 0 0 0 2px var(--drawer); }

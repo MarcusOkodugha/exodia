@@ -112,6 +112,8 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Menu Train together icon: plain circles with nothing lined up; with a workout coming up, the friends' own avatars (next workout first, max two, never you); clay dot while a plan or plan change is unseen, cleared by opening Train together or Notifications (v521)
+
 - Opened figure: name centred right above the head (projected from the figure's crown, any screen), Recovery · Workout · Strength radios instead of the bar; while Aura plays, a pick there only changes colours and Aura's build and drops go on; Aura's sound button bottom right of the figures, inside the page width; Where and when + button 42 px like What to train, same 10 px corners (v520)
 
 - Showing radios restyled as the calendar's picked planned day (solid clay dot, white centre, soft clay halo, planGlow once on pick), circle before the label (standard), row capped at a phone's width so it stays compact; Full body = every muscle (core, forearms, calves, lower back too), also for best fit (v519)

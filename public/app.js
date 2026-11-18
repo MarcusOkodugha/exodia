@@ -5249,6 +5249,7 @@ const loadSocial = () => {
       if (ok) {
         keepSocial(data);
         if (view.route === 'notifications') markInvitesSeen();
+        if (view.route === 'together') markPlansSeen();
         prepareBodies();
         syncTogether();
       }
@@ -5513,7 +5514,7 @@ const friendsSide = () => {
   const requests = (view.social?.requests || []).length;
   const friends = friendsList();
   return `<div class="fxSide"><p class="drawerLabel">Friends</p>
-    ${friends.length ? `<a class="fxRow${view.route === 'together' ? ' on' : ''}" href="#/together"><span class="fxStack" aria-hidden="true"><i></i><i></i></span><span class="fxName">Train together</span></a>` : ''}
+    ${friends.length ? `<a class="fxRow${view.route === 'together' ? ' on' : ''}" href="#/together">${togetherIcon()}<span class="fxName">Train together</span></a>` : ''}
     ${friends.map((friend) => `<a class="fxRow${view.route === 'friend' && view.friendHandle === friend.handle ? ' on' : ''}" href="#/friend/${friend.handle}">${avatar(friend.name, friendHasExodia(friend))}<span class="fxText"><span class="fxName">${esc(friend.name)}</span>${friendStatus(friend) ? `<span class="fxSub">${friendStatus(friend)}</span>` : ''}</span>${view.isAdmin && friend.admin?.errors ? `<span class="fxErr">${friend.admin.errors} ${friend.admin.errors === 1 ? 'error' : 'errors'}</span>` : ''}</a>`).join('')}
     <a class="fxRow fxAdd${view.route === 'friends' ? ' on' : ''}" href="#/friends"><span class="fav add" aria-hidden="true">${ICONS.plus}</span><span class="fxName">Add friends</span>${requests ? `<span class="fxCount">${requests}</span>` : ''}</a></div>`;
 };
@@ -5737,6 +5738,20 @@ const unseenInvites = () => {
     ...openInvites().filter((plan) => !told.has(`/#/together/${plan.date}`)).map(inviteKey),
     ...(featureOn('friends') ? view.social?.requests || [] : []).filter(() => !told.has('/#/friends')).map((row) => `r|${row.handle}`),
   ].filter((key) => !seen.includes(key));
+};
+// Train together in the menu: two plain circles until a workout is lined up; then the people you'll train with (the
+// next workout's first, at most two, never you), and a clay dot while a plan or a change to one is still unseen.
+// Opening Train together or Notifications sees them.
+const unseenPlanKeys = () => {
+  const seen = invitesSeen();
+  return [...noticesNew().filter((notice) => /\/together/.test(notice.url)).map((notice) => `n|${notice.id}`), ...openInvites().map(inviteKey)].filter((key) => !seen.includes(key));
+};
+const togetherIcon = () => {
+  const people = [...new Map(comingUp().flatMap((plan) => plan.members.filter((member) => !member.me)).map((member) => [member.handle || member.name, member])).values()].slice(0, 2);
+  return `<span class="fxStack${people.length ? ' faces' : ''}${people.length === 1 ? ' one' : ''}" aria-hidden="true">${people.length ? people.map((member) => avatar(member.name)).join('') : '<i></i><i></i>'}${unseenPlanKeys().length ? '<b class="fxDot"></b>' : ''}</span>`;
+};
+const markPlansSeen = () => {
+  try { localStorage.setItem('exodia.invitesSeen', JSON.stringify([...new Set([...invitesSeen(), ...unseenPlanKeys()])].slice(-120))); } catch { /* private mode */ }
 };
 const markInvitesSeen = () => {
   try { localStorage.setItem('exodia.invitesSeen', JSON.stringify([...new Set([...invitesSeen(), ...unseenInvites()])].slice(-120))); } catch { /* private mode */ }
@@ -9927,6 +9942,7 @@ const route = () => {
   if (view.toast?.undo && wasRoute && wasRoute !== view.route) view.toast = null;
   if (['friends', 'together', 'friend', 'notifications'].includes(view.route)) loadSocial();
   if (view.route === 'notifications') markInvitesSeen();
+  if (view.route === 'together') markPlansSeen();
   if (view.route === 'friends') loadEveryone();
   if (view.route === 'together' && wasRoute !== 'together') {
     view.whenScroll = null;
