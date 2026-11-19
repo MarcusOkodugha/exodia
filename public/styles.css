@@ -2152,3 +2152,14 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 .fxStack.faces .fav + .fav { margin-left: -8px; }
 .fxStack.faces.one .fav { margin-left: 4px; }
 .fxDot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--clay); box-shadow: 0 0 0 2px var(--drawer); }
+
+/* Cardio on Trends: each activity under the minutes-per-week bars, parted by space, never lines. */
+.cardioStats { margin-top: 20px; }
+.cardioStat + .cardioStat { margin-top: 14px; }
+.cardioTop { display: flex; align-items: baseline; gap: 12px; margin: 0; font-size: 17px; line-height: 22px; }
+.cardioTop .meta { margin-left: auto; font-size: 15px; color: var(--text2); white-space: nowrap; }
+.cardioName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardioLine { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Editing a cardio row: minutes, distance and effort wrap under the name when the row is narrow. */
+.cardio:has(.cardioEdit) { flex-wrap: wrap; row-gap: 6px; padding: 6px 0; }
+.cardioEdit .pill { width: 58px; }

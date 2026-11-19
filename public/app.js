@@ -53,7 +53,7 @@ const PIECES = [
   { id: 'pull', name: 'Pull', target: 1, rule: 'heavy deadlift' },
   { id: 'legs', name: 'Legs', target: 1, rule: 'a leg lift, 2 working sets: squat, hack squat, leg press, leg extension…' },
   { id: 'arms', name: 'Arms', target: 1, rule: 'arm work, 2 working sets' },
-  { id: 'move', name: 'Move', target: 2, rule: 'cardio or a walk, 20 min or more, 2 times' }
+  { id: 'move', name: 'Move', target: 2, rule: 'movement or a walk, 20 min or more, 2 times' }
 ];
 
 // A short buzz on Android for the moments that matter (iPhone has no web vibration). Never on scrolls or plain taps.
@@ -943,16 +943,16 @@ const addEntries = (result, date = todayIso()) => {
   // "instead of", "change" or "not" also counts as a correction when the AI forgets to flag it.
   if (result.cardioMinutes) {
     const fixing = result.cardioTotal || (session.cardio && /\b(instead|change|changed|correct|should be|not \d+|was \d+)\b/i.test(`${result.transcript || ''} ${view.lastSaid || ''}`));
-    const name = result.cardioName || 'Cardio';
+    const name = result.cardioName || 'Movement';
     const parts = cardioParts(session);
-    const far = cardioFar({ meters: result.cardioMeters, guess: result.cardioGuess });
+    const far = cardioFar({ meters: result.cardioMeters, guess: result.cardioGuess, effort: result.cardioEffort });
     // A distance adds to a row of the same activity that has a distance; next to a time-only row it gets its own.
     const same = parts.find((part) => part.name.toLowerCase() === name.toLowerCase() && (fixing || Boolean(part.meters) === Boolean(far.meters)));
     if (fixing && (same || parts.length <= 1)) {
       // A correction changes the activity it names (or the only one there is).
-      if (same) { same.minutes = Number(result.cardioMinutes); if (far.meters) { same.meters = far.meters; same.guess = far.guess; } }
-      else parts.splice(0, parts.length, { name: result.cardioName || parts[0]?.name || 'Cardio', minutes: Number(result.cardioMinutes), ...far });
-    } else if (same) { same.minutes += Number(result.cardioMinutes); if (far.meters) { same.meters += far.meters; same.guess = Boolean(same.guess && far.guess); } }
+      if (same) { same.minutes = Number(result.cardioMinutes); if (far.meters) { same.meters = far.meters; same.guess = far.guess; } if (far.effort) same.effort = far.effort; }
+      else parts.splice(0, parts.length, { name: result.cardioName || parts[0]?.name || 'Movement', minutes: Number(result.cardioMinutes), ...far });
+    } else if (same) { same.minutes += Number(result.cardioMinutes); if (far.meters) { same.meters += far.meters; same.guess = Boolean(same.guess && far.guess); } if (far.effort) same.effort = far.effort; }
     else parts.push({ name, minutes: Number(result.cardioMinutes), ...far });
     setCardioParts(session, parts);
   }
@@ -1275,30 +1275,43 @@ const glowing = (date, name) => {
 
 const KINDS = { legs: 'Leg day', pull: 'Pull day', push: 'Push day', arms: 'Arm day' };
 // What the cardio was (Football, Cycling), or plain Cardio when nobody said.
-const cardioLabel = (session) => session.cardioName || 'Cardio';
+const cardioLabel = (session) => session.cardioName || 'Movement';
 // Each cardio you name keeps its own row (Bike 20 minutes, Football 1 hour) while session.cardio stays the day's
 // total, which is what the Move goal counts. Days from before parts existed, or whose total changed somewhere else,
 // are read back into parts that add up to the total.
 // A distance you said ("swam 500 meters", "bike 90 km") stays on its row as metres. guess: the time was not said,
 // only worked out from the distance, so the row shows the distance alone; the minutes still count as cardio.
-const cardioFar = (part) => (Number(part.meters) > 0 ? { meters: Math.round(Number(part.meters)), ...(part.guess ? { guess: true } : {}) } : {});
+// effort: how hard it felt in percent (optional, 10–100), the way people say "football at 80%".
+const cardioFar = (part) => ({
+  ...(Number(part.meters) > 0 ? { meters: Math.round(Number(part.meters)), ...(part.guess ? { guess: true } : {}) } : {}),
+  ...(Number(part.effort) >= 10 && Number(part.effort) <= 100 ? { effort: Math.round(Number(part.effort)) } : {}),
+});
 const humanMeters = (meters) => (meters < 1000 ? `${meters} m` : `${Math.round(meters / 100) / 10} km`);
-const cardioAmount = (part) => (Number(part.meters) > 0 ? `${humanMeters(Math.round(Number(part.meters)))}${part.guess ? '' : ` · ${humanMinutes(part.minutes)}`}` : humanMinutes(part.minutes));
+const cardioAmount = (part) => `${Number(part.meters) > 0 ? `${humanMeters(Math.round(Number(part.meters)))}${part.guess ? '' : ` · ${humanMinutes(part.minutes)}`}` : humanMinutes(part.minutes)}${part.effort ? ` at ${part.effort}%` : ''}`;
+// Swimming is counted in metres and paced per 100 m; everything else in km.
+const swims = (name) => /swim|simn/i.test(name);
+// Editing a cardio row: distance and effort sit next to the minutes, both optional (empty is fine).
+const cardioMore = (session, part, index) => {
+  const swim = swims(part.name);
+  const far = part.meters ? (swim ? part.meters : Math.round(part.meters / 10) / 100) : '';
+  return `<input class="pill num cardioMin" inputmode="decimal" value="${far}" placeholder="${swim ? 'm' : 'km'}" data-cardio-date="${session.date}" data-index="${index}" data-cardio-field="distance" aria-label="${esc(part.name)} distance in ${swim ? 'metres' : 'km'}"><span class="unit">${swim ? 'm' : 'km'}</span><input class="pill num cardioMin" inputmode="numeric" value="${part.effort || ''}" placeholder="effort" data-cardio-date="${session.date}" data-index="${index}" data-cardio-field="effort" aria-label="${esc(part.name)} effort in percent"><span class="unit">%</span>`;
+};
 const cardioParts = (session) => {
   const total = Number(session.cardio) || 0;
   if (!total) return [];
-  const parts = (session.cardioParts || []).filter((part) => Number(part.minutes) > 0).map((part) => ({ name: String(part.name || 'Cardio'), minutes: Number(part.minutes), ...cardioFar(part) }));
+  // Rows saved before it was called Movement still say Cardio; they read back as Movement.
+  const parts = (session.cardioParts || []).filter((part) => Number(part.minutes) > 0).map((part) => ({ name: !part.name || /^cardio$/i.test(part.name) ? 'Movement' : String(part.name), minutes: Number(part.minutes), ...cardioFar(part) }));
   const sum = parts.reduce((all, part) => all + part.minutes, 0);
   if (!parts.length || sum > total) return [{ name: cardioLabel(session), minutes: total }];
-  if (sum < total) parts.push({ name: parts.length ? 'Cardio' : cardioLabel(session), minutes: total - sum });
+  if (sum < total) parts.push({ name: parts.length ? 'Movement' : cardioLabel(session), minutes: total - sum });
   return parts;
 };
 const setCardioParts = (session, parts) => {
-  const kept = parts.filter((part) => Number(part.minutes) > 0).map((part) => ({ name: part.name || 'Cardio', minutes: Math.round(Number(part.minutes)), ...cardioFar(part) }));
+  const kept = parts.filter((part) => Number(part.minutes) > 0).map((part) => ({ name: part.name || 'Movement', minutes: Math.round(Number(part.minutes)), ...cardioFar(part) }));
   session.cardio = kept.reduce((all, part) => all + part.minutes, 0);
-  if (kept.length > 1 || kept[0]?.meters) session.cardioParts = kept;
+  if (kept.length > 1 || kept[0]?.meters || kept[0]?.effort) session.cardioParts = kept;
   else delete session.cardioParts;
-  if (kept[0] && kept[0].name !== 'Cardio') session.cardioName = kept[0].name;
+  if (kept[0] && !/^(cardio|movement)$/i.test(kept[0].name)) session.cardioName = kept[0].name;
   else delete session.cardioName;
 };
 const dayKind = (session) => {
@@ -1386,7 +1399,7 @@ const renderSession = (session) => {
     ${open ? `
       ${session.exercises.map((exercise, index) => renderExercise(session, exercise, index)).join('')}
       ${pendings.map(renderPending).join('')}
-      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<span class="cardioEdit"><input class="pill num cardioMin" inputmode="numeric" value="${part.minutes}" placeholder="min" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span class="unit">min</span></span>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${cardioAmount(part)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
+      ${cardioParts(session).map((part, index) => `<div class="swipe"><button class="swipeDel" tabindex="-1" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">Delete</button><div class="cardio swipeFace">${editing ? `<button class="minus" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}"></button>` : ''}<span>${esc(part.name)}</span>${editing ? `<span class="cardioEdit"><input class="pill num cardioMin" inputmode="numeric" value="${part.minutes}" placeholder="min" data-cardio-date="${session.date}" data-index="${index}" aria-label="${esc(part.name)} minutes"><span class="unit">min</span>${featureOn('cardio') ? cardioMore(session, part, index) : ''}</span>` : `<button class="meta num cardioTime" data-action="edit-day" data-date="${session.date}" aria-label="Change ${esc(part.name)} time">${cardioAmount(part)}</button>`}<button class="rowX" data-action="remove-cardio" data-date="${session.date}" data-index="${index}" aria-label="Delete ${esc(part.name)}">×</button></div></div>`).join('')}
       ${dayNote(session, editing)}
       <div class="dayActions">
         <span class="dayAdd">${session.exercises.length && !editing ? `<button class="textBtn" data-action="add-set" data-date="${session.date}" data-exercise="${session.exercises.length - 1}">+ Set</button>` : ''}<button class="textBtn" data-action="open-composer" data-date="${session.date}">+ Exercise</button>${editing ? `<button class="textBtn" data-action="add-note" data-date="${session.date}">+ Note</button>` : ''}</span>
@@ -1816,6 +1829,27 @@ const MUSCLE_RULES = [
   [/crunch|sit.?up|plank|\babs?\b|leg raise|core|oblique/, ['abs']],
   [/wrist|forearm|farmer|grip/, ['forearms']],
 ];
+// Cardio on the muscles it works, by what it was: [name pattern, muscles worked, muscles helping]. First match wins.
+// Plain "Cardio", walks, yoga and anything unknown touch nothing.
+const CARDIO_RULES = [
+  [/cross.?country|längd|langd|nordic|xc|skate ski|ski erg|skierg/, ['upperBack', 'triceps', 'quads', 'glutes'], ['shoulders', 'abs']],
+  [/ski|snowboard|slalom|alpin|utför/, ['quads', 'glutes'], ['adductors', 'abs']],
+  [/swim|simn/, ['upperBack', 'shoulders'], ['triceps', 'chest']],
+  [/run|jog|sprint|löp|trail|interval/, ['quads', 'hamstrings', 'calves'], ['glutes']],
+  [/football|soccer|fotboll|futsal|rugby|basket|handball|handboll|floorball|innebandy|hockey/, ['quads', 'hamstrings', 'calves', 'adductors'], ['glutes']],
+  [/cycl|bike|biking|spin|cykel|peloton/, ['quads', 'glutes'], ['calves', 'hamstrings']],
+  [/row|rodd|erg/, ['upperBack', 'quads'], ['biceps', 'glutes', 'lowerBack']],
+  [/padel|tennis|squash|badminton|pickleball|table tennis|pingis/, ['shoulders', 'forearms'], ['quads', 'calves']],
+  [/box|kick|muay|mma/, ['shoulders'], ['triceps', 'abs']],
+  [/climb|boulder|klättr/, ['forearms', 'upperBack'], ['biceps']],
+  [/hik|vandr|stair|trapp|step/, ['quads', 'glutes', 'calves']],
+  [/ellip|cross.?trainer|crosstrainer/, ['quads'], ['glutes', 'calves']],
+  [/plyo|jump|hopp/, ['calves', 'quads'], ['glutes']],
+];
+// How much a cardio session takes out of a muscle, as a share of its full recovery time: an hour at your usual effort
+// (60% when you didn't say) is a quarter, 90 minutes of football at 80% about half (3 days on the quads), a long hard race all of it.
+const cardioLoad = (part) => Math.min(1, Math.max(0.2, (Math.min(180, part.minutes) / 60) * ((part.effort || 60) / 100) * 0.4));
+const cardioRule = (part) => (featureOn('cardio') ? CARDIO_RULES.find(([pattern]) => pattern.test(part.name.toLowerCase())) : null);
 let anatomy = null;
 const loadAnatomy = () => {
   if (anatomy) return;
@@ -1861,6 +1895,19 @@ const muscleLoad = (today = todayIso()) => {
         }
       }
     }
+    for (const part of cardioParts(session)) {
+      const rule = cardioRule(part);
+      if (!rule) continue;
+      for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.6]]) {
+        for (const key of keys) {
+          const needs = RECOVERY_DAYS[key] * cardioLoad(part) * share;
+          const left = Math.max(0, 1 - ago / needs);
+          fatigue[key] += left;
+          fresh[key] = Math.max(fresh[key], left);
+          remaining[key] = Math.max(remaining[key], left * needs);
+        }
+      }
+    }
   }
   return { sets, fatigue, fresh, remaining };
 };
@@ -1880,6 +1927,7 @@ const lastTrained = () => remember('lastTrained', () => {
       const count = validSets(exercise).filter((set) => !set.warmup).length;
       for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) for (const key of keys) if (count * share >= 1 && !(last[key] > session.date)) last[key] = session.date;
     }
+    for (const part of cardioParts(session)) for (const key of cardioRule(part)?.[1] || []) if (!(last[key] > session.date)) last[key] = session.date;
   }
   return last;
 });
@@ -3385,27 +3433,71 @@ const renderCalendar = () => {
     </section>`;
 };
 
-const renderVolume = () => {
-  // Calendar weeks, Monday to Sunday, so each bar matches its week number. The last bar is the current week so far.
+// Six calendar weeks, Monday to Sunday, as bars: each bar matches its week number, the last one is this week so far.
+// chart names the picked-week key in view; value sums one session; short is the bar label, full the picked week's line.
+const weekChart = ({ chart, title, aria, value, short, full, extra = '' }) => {
   const monday = addDays(todayIso(), -((new Date(`${todayIso()}T12:00:00Z`).getUTCDay() + 6) % 7));
   const weeks = Array.from({ length: 6 }, (unused, index) => {
     const start = addDays(monday, -7 * (5 - index));
     const end = addDays(start, 6);
-    const volume = state.sessions.filter((session) => session.date >= start && session.date <= end).reduce((sum, session) => sum + sessionVolume(session), 0);
+    const volume = state.sessions.filter((session) => session.date >= start && session.date <= end).reduce((sum, session) => sum + value(session), 0);
     return { end, volume };
   });
+  const pick = view.weekPick?.[chart] ?? 5;
   const maxVolume = Math.max(1, ...weeks.map((week) => week.volume));
   // Average of the finished weeks that have training; the current week is still filling up.
   const active = weeks.slice(0, 5).filter((week) => week.volume > 0);
   const average = active.length >= 2 ? active.reduce((sum, week) => sum + week.volume, 0) / active.length : 0;
   // Bars fill up to 78% of the chart height (the rest is room for the value labels), so the average line uses the same scale.
-  const averageLine = average ? `<i class="avgLine" style="bottom:${((average / maxVolume) * 78).toFixed(1)}%" aria-hidden="true"><span class="num">avg ${(average / 1000).toFixed(1)}</span></i>` : '';
-  return `<p class="section">Volume per week · tonnes</p>
+  const averageLine = average ? `<i class="avgLine" style="bottom:${((average / maxVolume) * 78).toFixed(1)}%" aria-hidden="true"><span class="num">avg ${short(average)}</span></i>` : '';
+  return `<p class="section">${title}</p>
     <section class="card weekChart" style="padding:14px 16px">
-      <div class="weekBars" role="group" aria-label="Volume for the last 6 weeks">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-index="${index}" aria-pressed="${(view.volumeWeek ?? 5) === index}" aria-label="Week ${isoWeek(week.end)}, ${tonnes(week.volume)}"><span class="barValue num">${week.volume ? (week.volume / 1000).toFixed(1) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}${averageLine}</div>
-      <div class="weekLabels num" aria-hidden="true">${weeks.map((week, index) => `<span${(view.volumeWeek ?? 5) === index ? ' class="on"' : ''}>W${isoWeek(week.end)}</span>`).join('')}</div>
-      <div class="axis num" style="margin-top:6px"><span>${(view.volumeWeek ?? 5) === 5 ? `This week · W${isoWeek(weeks[5].end)}` : `Week ${isoWeek(weeks[view.volumeWeek ?? 5].end)}`}</span><span>${tonnes(weeks[view.volumeWeek ?? 5].volume)}</span></div>
+      <div class="weekBars" role="group" aria-label="${aria}">${weeks.map((week, index) => `<button class="weekBar" data-action="pick-week" data-chart="${chart}" data-index="${index}" aria-pressed="${pick === index}" aria-label="Week ${isoWeek(week.end)}, ${full(week.volume)}"><span class="barValue num">${week.volume ? short(week.volume) : ''}</span><div style="height:${Math.round((week.volume / maxVolume) * 78)}%"></div></button>`).join('')}${averageLine}</div>
+      <div class="weekLabels num" aria-hidden="true">${weeks.map((week, index) => `<span${pick === index ? ' class="on"' : ''}>W${isoWeek(week.end)}</span>`).join('')}</div>
+      <div class="axis num" style="margin-top:6px"><span>${pick === 5 ? `This week · W${isoWeek(weeks[5].end)}` : `Week ${isoWeek(weeks[pick].end)}`}</span><span>${full(weeks[pick].volume)}</span></div>${extra}
     </section>`;
+};
+const renderVolume = () => `${weekChart({ chart: 'volume', title: 'Volume per week · tonnes', aria: 'Volume for the last 6 weeks', value: sessionVolume, short: (kg) => (kg / 1000).toFixed(1), full: tonnes })}${renderCardio()}`;
+
+// Cardio on Trends. Minutes per week is the cardio version of tonnes (the WHO asks for 150 a week). Under it each
+// activity with what shows progress: for anything with a distance its best pace (per km, per 100 m in the pool, km/h on
+// a bike) and whether this month beat it; for time sports like football the time in the last 4 weeks and how hard.
+const clockMinutes = (minutes) => (minutes >= 60 ? `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}` : `${minutes} min`);
+const renderCardio = () => {
+  if (!featureOn('cardio') || !state.sessions.some((session) => Number(session.cardio) > 0)) return '';
+  const today = todayIso();
+  const byName = new Map();
+  for (const session of [...state.sessions].filter((one) => one.date <= today).sort((one, two) => one.date.localeCompare(two.date))) {
+    for (const part of cardioParts(session)) byName.set(part.name, [...(byName.get(part.name) || []), { date: session.date, ...part }]);
+  }
+  const names = [...byName.keys()].sort((one, two) => byName.get(two).at(-1).date.localeCompare(byName.get(one).at(-1).date));
+  const month = addDays(today, -30);
+  const row = (name) => {
+    const all = byName.get(name);
+    const rides = /cycl|bike|biking|spin|cykel/i.test(name);
+    const swim = swims(name);
+    // Pace in seconds per km (per 100 m swimming), or km/h on a bike, where higher is better.
+    const pace = (part) => (rides ? part.meters / 1000 / (part.minutes / 60) : (part.minutes * 60) / (part.meters / (swim ? 100 : 1000)));
+    const faster = (one, two) => (rides ? one > two : one < two);
+    const clock = (seconds) => `${Math.floor(Math.round(seconds) / 60)}:${String(Math.round(seconds) % 60).padStart(2, '0')}`;
+    const showPace = (value) => (rides ? `${value.toFixed(1)} km/h` : `${clock(value)} /${swim ? '100 m' : 'km'}`);
+    const bestOf = (parts) => parts.map(pace).reduce((best, value) => (best === null || faster(value, best) ? value : best), null);
+    const timed = all.filter((part) => part.meters && !part.guess && part.minutes);
+    const efforts = all.filter((part) => part.effort).slice(-5);
+    const usual = efforts.length ? `usually ${Math.round(efforts.reduce((sum, part) => sum + part.effort, 0) / efforts.length / 5) * 5}%` : '';
+    const count = `${all.length} ${all.length === 1 ? 'session' : 'sessions'}`;
+    if (timed.length) {
+      const recent = bestOf(timed.filter((part) => part.date >= month));
+      const before = bestOf(timed.filter((part) => part.date < month));
+      const gain = recent !== null && before !== null && faster(recent, before) ? (rides ? `${(recent - before).toFixed(1)} km/h faster this month` : `${before - recent < 59.5 ? `${Math.round(before - recent)} s` : clock(before - recent)} faster this month`) : '';
+      const longest = Math.max(...all.map((part) => part.meters || 0));
+      return { name, meta: `best ${showPace(bestOf(timed))}`, line: (gain ? [count, gain] : [count, `longest ${humanMeters(longest)}`, usual]).filter(Boolean).join(' · ') };
+    }
+    const weeks = all.filter((part) => part.date > addDays(today, -28)).reduce((sum, part) => sum + part.minutes, 0);
+    const longest = Math.max(...all.map((part) => part.minutes));
+    return { name, meta: weeks ? `${clockMinutes(weeks)} in 4 weeks` : `last ${dayLabel(all.at(-1).date)}`, line: [count, `longest ${clockMinutes(longest)}`, usual].filter(Boolean).join(' · ') };
+  };
+  return `${weekChart({ chart: 'cardio', title: 'Movement per week · minutes', aria: 'Movement minutes for the last 6 weeks', value: (session) => Number(session.cardio) || 0, short: (minutes) => String(Math.round(minutes)), full: (minutes) => clockMinutes(Math.round(minutes)), extra: `<div class="cardioStats">${names.map(row).map((item) => `<div class="cardioStat"><p class="cardioTop"><span class="cardioName">${esc(item.name)}</span><span class="meta num">${esc(item.meta)}</span></p><p class="cardioLine num">${esc(item.line)}</p></div>`).join('')}</div>` })}`;
 };
 
 // Strength levels (Strength Level standards: one-rep max by bodyweight and sex, Beginner → Elite) as a spider web.
@@ -4106,7 +4198,7 @@ const exportHelp = (open) => `<details class="onboardHow"${open ? ' open' : ''}>
 const HELP_EXAMPLES = [
   ['bench 100 for 5, 3 sets', 'three sets of 5 at 100 kg, today'],
   ['squat 140x5x3 yesterday', 'sets × reps, on another day'],
-  ['ran 30 min', 'cardio counts for Move'],
+  ['ran 30 min', 'movement counts for Move'],
   ['/note felt heavy, their benches are worse', 'a note on your latest session, tap it to read'],
   ['bench was 105, not 100', 'fixes the last set'],
   ['last friday deadlift 200 for 2', 'any day, any language'],
@@ -4162,7 +4254,7 @@ const renderPicks = () => {
   const date = view.composerDate || todayIso();
   const picks = pickList();
   const query = !/\d/.test(view.draft) && view.draft.trim();
-  const cardio = !query || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Cardio</span><span class="pickLast">Cardio or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : '';
+  const cardio = !query || 'movement'.includes(query.toLowerCase()) || 'cardio'.includes(query.toLowerCase()) ? `<button class="pick" data-action="pick-cardio"><span style="flex:1"><span class="pickName">Movement</span><span class="pickLast">A run, a game or a walk, 30 min · counts for Move</span></span><span class="plusDot" aria-hidden="true">${ICONS.plus}</span></button>` : '';
   const split = picks.filter((name) => BIG_THREE.includes(name)).length;
   const button = nameQuery() ? fillButton : pickButton;
   return `${picks.slice(0, split).map((name) => button(name, date)).join('')}${cardio}${picks.slice(split).map((name) => button(name, date)).join('')}
@@ -5465,7 +5557,7 @@ const bestFit = (people, date) => {
   const solo = people.length === 1;
   const who = solo ? 'Your' : people.length === 2 ? 'Both your' : "Everyone's";
   const region = KIND_REGION[best];
-  const lead = best === 'Move' ? `Most muscles are still recovering, so cardio fits ${solo ? 'you' : 'everyone'} well.` : average(best) >= 0.9 ? (solo ? `Your ${region} ${areOrIs(region)} fresh.` : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} fresh for ${people.length === 2 ? 'both of you' : 'everyone'}.`) : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} the freshest for ${solo ? 'you' : 'everyone'}.`;
+  const lead = best === 'Move' ? `Most muscles are still recovering, so movement fits ${solo ? 'you' : 'everyone'} well.` : average(best) >= 0.9 ? (solo ? `Your ${region} ${areOrIs(region)} fresh.` : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} fresh for ${people.length === 2 ? 'both of you' : 'everyone'}.`) : `${region[0].toUpperCase()}${region.slice(1)} ${areOrIs(region)} the freshest for ${solo ? 'you' : 'everyone'}.`;
   // What the second option needs to know: the one who trained it most recently.
   const tired = second === 'Move' ? null : [...people].sort((one, two) => one.ready[second] - two.ready[second])[0];
   const lastOf = tired && KIND_MUSCLES[second].map((key) => tired.last[key]).filter(Boolean).sort().at(-1);
@@ -5483,7 +5575,7 @@ const leadUp = (date, kind) => {
   const load = muscleLoad();
   const others = ['Legs', 'Pull', 'Push'].filter((other) => other !== kind && kind !== 'Full body').sort((one, two) => readiness(load, two) - readiness(load, one));
   const rows = [];
-  if (kind === 'Move') rows.push('<li>Anything works until then. Cardio is easy on the muscles.</li>');
+  if (kind === 'Move') rows.push('<li>Anything works until then. Easy movement is light on the muscles.</li>');
   else if (kind === 'Full body') rows.push(`<li>Lighter sessions until then, so everything is fresh on ${short(date)}.</li>`);
   else {
     const order = days === 1 ? others.slice(0, 2) : others;
@@ -6725,7 +6817,7 @@ const addLog = (said, did, extra = {}) => {
   if (step && !replaying && Date.now() - step.at < 1500 && !OFF_LINE.test(did?.[0] || '')) step.title = String(did?.[0] || said || '').slice(0, 80);
 };
 
-const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `${result.cardioName || 'Cardio'} is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'cardio'} ${cardioAmount({ minutes: result.cardioMinutes, meters: result.cardioMeters, guess: result.cardioGuess })}`] : [])].join(', ')} to ${dayLabel(day)}`;
+const describeAdd = (result, day) => result.cardioTotal && !result.exercises?.length ? `${result.cardioName || 'Movement'} is now ${humanMinutes(result.cardioMinutes)} on ${dayLabel(day)}` : `Added ${[...(result.exercises || []).map((exercise) => `${findExerciseName(exercise.name) || titleCase(exercise.name)} ${setCount(exercise.sets.length)}`), ...(result.cardioMinutes ? [`${result.cardioName || 'movement'} ${cardioAmount({ minutes: result.cardioMinutes, meters: result.cardioMeters, guess: result.cardioGuess })}`] : [])].join(', ')} to ${dayLabel(day)}`;
 
 // Your words win over the AI's guess: when the note spells out a more specific lift ("incline dumbbell press") than the
 // one the AI returned ("Incline Bench Press", whose only word in the note is "incline"), use the one you spelled out.
@@ -8443,7 +8535,7 @@ const deleteRow = (action, target) => {
     const parts = cardioParts(session);
     const index = target.dataset.index === undefined ? -1 : Number(target.dataset.index);
     const gone = parts[index]?.name || 'cardio';
-    changeWithUndo(`Removed ${gone === 'Cardio' ? 'cardio' : gone} on ${dayLabel(date)}`, () => setCardioParts(session, index >= 0 ? parts.filter((part, at) => at !== index) : []), 'Remove cardio');
+    changeWithUndo(`Removed ${gone === 'Movement' ? 'movement' : gone} on ${dayLabel(date)}`, () => setCardioParts(session, index >= 0 ? parts.filter((part, at) => at !== index) : []), 'Remove cardio');
   }
 };
 
@@ -9371,7 +9463,7 @@ document.addEventListener('click', (event) => {
     }
   }
   else if (action === 'focus-lift') view.focusLift = target.dataset.name;
-  else if (action === 'pick-week') view.volumeWeek = Number(target.dataset.index);
+  else if (action === 'pick-week') view.weekPick = { ...view.weekPick, [target.dataset.chart]: Number(target.dataset.index) };
   else if (action === 'open-trend') {
     view.trendOpen = target.dataset.name;
     view.trendScroll = target.dataset.name;
@@ -9489,7 +9581,7 @@ document.addEventListener('click', (event) => {
     if (!last) view.focusSet = { date: day, name };
   } else if (action === 'pick-cardio') {
     const day = view.composerDate || todayIso();
-    changeWithUndo(`Added cardio 30 min to ${dayLabel(day)}`, () => addEntries({ exercises: [], cardioMinutes: 30 }, day), 'Add cardio');
+    changeWithUndo(`Added movement 30 min to ${dayLabel(day)}`, () => addEntries({ exercises: [], cardioMinutes: 30 }, day), 'Add cardio');
     closeComposer();
   } else if (action === 'mic') {
     return view.listening ? send() : startListening();
@@ -9730,6 +9822,26 @@ document.addEventListener('change', (event) => {
       save();
       render();
     }
+    return;
+  }
+  if (target.dataset.cardioDate && target.dataset.cardioField) {
+    const session = sessionFor(target.dataset.cardioDate);
+    const parts = session ? cardioParts(session) : [];
+    const part = parts[Number(target.dataset.index)];
+    const raw = target.value.trim().replace(',', '.');
+    const value = raw === '' ? 0 : Number(raw);
+    if (part && Number.isFinite(value) && value >= 0) {
+      const distance = target.dataset.cardioField === 'distance';
+      const next = distance ? Math.round(swims(part.name) ? value : value * 1000) : Math.round(value);
+      const fine = distance ? next <= 1000000 : next === 0 || (next >= 10 && next <= 100);
+      const key = distance ? 'meters' : 'effort';
+      if (fine && (Number(part[key]) || 0) !== next) {
+        const words = distance ? (next ? humanMeters(next) : 'no distance') : next ? `${next}% effort` : 'no effort';
+        changeWithUndo(`${part.name} ${words} on ${dayLabel(session.date)}`, () => setCardioParts(session, parts.map((item) => (item === part ? { ...item, [key]: next, ...(distance ? { guess: false } : {}) } : item))), distance ? 'Change distance' : 'Change effort');
+        save();
+      }
+    }
+    render();
     return;
   }
   if (target.dataset.cardioDate) {
