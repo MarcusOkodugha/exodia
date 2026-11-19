@@ -112,6 +112,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Recovery: 3+ working sets at half your best or more count as a moderate day, so 3×10 leg curls recover like that day's squats. Exercise names follow StrengthLog for everyone (Leg Extension Machine → Leg Extension, Pull Up → Pull-Up, Lateral Raise → Dumbbell Lateral Raise…), old logs renamed on every phone, AI writes StrengthLog names (v523)
 - Showing radios across the full width again (edges aligned), picked one a solid clay dot with its halo, no white centre (v522)
 
 - Menu Train together icon: plain circles with nothing lined up; with a workout coming up, the friends' own avatars (next workout first, max two, never you); clay dot while a plan or plan change is unseen, cleared by opening Train together or Notifications (v521)

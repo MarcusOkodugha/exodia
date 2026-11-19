@@ -11,15 +11,16 @@ const LIBRARY = [
   { name: 'Bench Press', piece: 'push', heavy: true, aliases: ['bench', 'bench press', 'bp', 'barbell bench press', 'flat bench', 'flat bench press', 'flat barbell bench press', 'bänkpress'] },
   { name: 'Incline Bench Press', piece: 'push', heavy: true, aliases: ['incline', 'incline bench', 'incline bench press'] },
   { name: 'Incline Dumbbell Press', piece: 'push', heavy: true, aliases: ['incline db', 'incline dumbbell', 'incline dumbbell press'] },
-  { name: 'Dumbbell Bench Press', piece: 'push', heavy: true, aliases: ['db bench', 'dumbbell bench', 'dumbbell press'] },
+  { name: 'Dumbbell Chest Press', piece: 'push', heavy: true, aliases: ['db bench', 'dumbbell bench', 'dumbbell press', 'dumbbell bench press'] },
   { name: 'Overhead Press', piece: 'push', heavy: true, aliases: ['ohp', 'overhead press', 'press', 'military press'] },
-  { name: 'Dips', piece: 'push', heavy: false, aliases: ['dips', 'dip'] },
+  { name: 'Bar Dip', piece: 'push', heavy: false, aliases: ['dips', 'dip', 'bar dips'] },
   { name: 'Pause Bench Press', piece: 'push', heavy: true, aliases: ['pause bench', 'pause bench press', 'paused bench'] },
   { name: 'Close-Grip Bench Press', piece: 'push', heavy: true, aliases: ['close grip', 'close grip bench', 'close-grip bench', 'closegrip'] },
   { name: 'Deadlift', piece: 'pull', heavy: true, aliases: ['deadlift', 'deadlifts', 'dl', 'marklyft', 'barbell deadlift', 'conventional deadlift'] },
   { name: 'Sumo Deadlift', piece: 'pull', heavy: true, aliases: ['sumo', 'sumo deadlift'] },
   { name: 'Barbell Row', piece: 'pull', heavy: false, aliases: ['row', 'rows', 'barbell row'] },
-  { name: 'Pull-up', piece: 'pull', heavy: false, aliases: ['pullup', 'pullups', 'pull-up', 'pull-ups', 'chins', 'chin-ups'] },
+  { name: 'Pull-Up', piece: 'pull', heavy: false, aliases: ['pullup', 'pullups', 'pull-up', 'pull-ups', 'pull up', 'pull ups'] },
+  { name: 'Chin-Up', piece: 'pull', heavy: false, aliases: ['chins', 'chin-up', 'chin-ups', 'chinup', 'chinups', 'chin up', 'chin ups'] },
   { name: 'Lat Pulldown', piece: 'pull', heavy: false, aliases: ['pulldown', 'lat pulldown', 'lat pull'] },
   { name: 'Lat Pullover', piece: 'pull', heavy: false, aliases: ['lat pullover', 'lat pull-over', 'pullover', 'pull-over', 'cable pullover', 'machine pullover'] },
   { name: 'Dumbbell Pullover', piece: 'pull', heavy: false, aliases: ['dumbbell pullover', 'db pullover'] },
@@ -39,11 +40,11 @@ const LIBRARY = [
   { name: 'Barbell Curl', piece: 'arms', heavy: false, aliases: ['curl', 'curls', 'barbell curl', 'bicep curl', 'biceps curl'] },
   { name: 'Dumbbell Curl', piece: 'arms', heavy: false, aliases: ['db curl', 'dumbbell curl', 'dumbbell curls'] },
   { name: 'Hammer Curl', piece: 'arms', heavy: false, aliases: ['hammer', 'hammer curl', 'hammer curls'] },
-  { name: 'Triceps Pushdown', piece: 'arms', heavy: false, aliases: ['pushdown', 'pushdowns', 'triceps pushdown', 'tricep pushdown'] },
-  { name: 'Skull Crusher', piece: 'arms', heavy: false, aliases: ['skull crusher', 'skull crushers', 'skullcrusher'] },
+  { name: 'Tricep Pushdown', piece: 'arms', heavy: false, aliases: ['pushdown', 'pushdowns', 'triceps pushdown', 'tricep pushdown'] },
+  { name: 'Barbell Lying Triceps Extension', piece: 'arms', heavy: false, aliases: ['skull crusher', 'skull crushers', 'skullcrusher', 'skullcrushers'] },
   { name: 'Overhead Triceps Extension', piece: 'arms', heavy: false, aliases: ['triceps extension', 'overhead extension'] },
-  { name: 'Lateral Raise', piece: null, heavy: false, aliases: ['lateral', 'laterals', 'lateral raise', 'lateral raises', 'side raise'] },
-  { name: 'Cable Fly', piece: null, heavy: false, aliases: ['fly', 'flys', 'flies', 'cable fly'] },
+  { name: 'Dumbbell Lateral Raise', piece: null, heavy: false, aliases: ['lateral', 'laterals', 'lateral raise', 'lateral raises', 'side raise'] },
+  { name: 'Standing Cable Chest Fly', piece: null, heavy: false, aliases: ['fly', 'flys', 'flies', 'cable fly', 'cable flys', 'cable flies', 'cable crossover'] },
   { name: 'Face Pull', piece: null, heavy: false, aliases: ['face pull', 'face pulls'] }
 ];
 
@@ -211,14 +212,61 @@ const recordStep = (before, now) => {
   } else undoSteps = [...undoSteps, { at: now, title: '', before }].slice(-30);
   redoSteps = [];
 };
-// Exercises renamed in the library, old name → new. Bulgarian split squat is logged with a barbell, so "Split Squat".
-const RENAMED = { 'Bulgarian Split Squat': 'Split Squat' };
+// One name per exercise, the one StrengthLog uses (Marcus, 19 Nov), so friends' logs line up: old or other name → it.
+// Matched in any case, with or without hyphens. A plain name stays plain when StrengthLog splits it by machine and the
+// lifter didn't say which (Leg Curl, Calf Raise, Cable Curl). Bulgarian split squat is logged with a barbell, so
+// "Split Squat".
+const RENAMED = {
+  'Bulgarian Split Squat': 'Split Squat',
+  'Pull Up': 'Pull-Up', 'Chin Up': 'Chin-Up', 'Dips': 'Bar Dip', 'Parallel Bar Triceps Dip': 'Bar Dip',
+  'Dumbbell Bench Press': 'Dumbbell Chest Press', 'Incline Dumbbell Bench Press': 'Incline Dumbbell Press', 'Incline Barbell Bench Press': 'Incline Bench Press',
+  'Incline Smith Bench': 'Smith Machine Incline Bench Press', 'Bench Press With Pause': 'Pause Bench Press', 'Paused Bench Press': 'Pause Bench Press',
+  'Seated Machine Chest Press': 'Machine Chest Press', 'Nutilus Chest Press': 'Machine Chest Press', 'Seated Machine Fly': 'Machine Chest Fly',
+  'Cable Fly': 'Standing Cable Chest Fly', 'Cable Crossover': 'Standing Cable Chest Fly', 'Dumbbell Fly': 'Dumbbell Chest Fly',
+  'Lateral Raise': 'Dumbbell Lateral Raise', 'Lateral Dumbbell Raise': 'Dumbbell Lateral Raise', 'HS Lateral Raiase': 'Machine Lateral Raise', 'AS Standing Lateral Raise': 'Machine Lateral Raise',
+  'Front Dumbbell Raise': 'Dumbbell Front Raise', 'Rear Delt Dumbbell Raise': 'Reverse Dumbbell Flyes', 'Rear Delt Machine Fly': 'Reverse Machine Fly',
+  'Arnold Dumbbell Press': 'Arnold Press', 'Dumbell Overhead Press': 'Dumbbell Shoulder Press', 'Dumbbell Overhead Press': 'Dumbbell Shoulder Press',
+  'Seated Dumbbell Press': 'Seated Dumbbell Shoulder Press', 'HS MRS Shoulder Press': 'Machine Shoulder Press',
+  'Triceps Pushdown': 'Tricep Pushdown', 'Triceps Pushdown With Bar': 'Tricep Pushdown With Bar', 'V-Bar Push Down': 'Tricep Pushdown With Bar',
+  'Triceps Pushdown With Rope': 'Tricep Pushdown With Rope', 'Rope Push Down': 'Tricep Pushdown With Rope',
+  'Skull Crusher': 'Barbell Lying Triceps Extension', 'EZ-Bar Skullcrusher': 'EZ Bar Lying Triceps Extension',
+  'Cable Overhead Triceps Extension': 'Overhead Cable Triceps Extension', 'Rope Overhead Extension': 'Overhead Cable Triceps Extension',
+  'Dumbbell Overhead Triceps Extension': 'Dumbbell Standing Triceps Extension',
+  'Cable Curls': 'Cable Curl', 'Cable Curl (Behind Back)': 'Bayesian Curl', 'EZ-Bar Curl': 'EZ Curl', 'Dumbbell Hammer Curl': 'Hammer Curl',
+  'Seated Machine Curl': 'Machine Bicep Curl', 'Lying Biceps Cable Curl On Bench': 'Lying Bicep Cable Curl on Bench',
+  'Machine Lat Pull-down': 'Machine Lat Pulldown', 'Reverse-grip Lat Pulldown': 'Lat Pulldown With Supinated Grip',
+  'Machine Row': 'Seated Machine Row', 'One Arm Cable Row': 'One-Handed Cable Row',
+  'Leg Extension Machine': 'Leg Extension', 'Lying Leg Curl Machine': 'Lying Leg Curl', 'Leg Curls': 'Leg Curl',
+  'Abduction': 'Hip Abduction Machine', 'Adduction': 'Hip Adduction Machine', 'Crunch Machine': 'Machine Crunch',
+};
+const nameKey = (name) => String(name || '').toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+const RENAMED_BY_KEY = new Map(Object.entries(RENAMED).map(([old, name]) => [nameKey(old), name]));
+const strengthLogName = (name) => RENAMED_BY_KEY.get(nameKey(name)) || name;
 const renameOld = () => {
   if (view.sandbox) return false;
   let renamed = false;
   for (const session of state.sessions) for (const exercise of session.exercises || []) {
-    if (RENAMED[exercise.name]) {
-      exercise.name = RENAMED[exercise.name];
+    const name = strengthLogName(exercise.name);
+    if (name !== exercise.name) {
+      exercise.name = name;
+      renamed = true;
+    }
+  }
+  // Two rows of the same lift on one day (Pull Up and Pull-up) become one.
+  if (renamed) for (const session of state.sessions) {
+    const merged = [];
+    for (const exercise of session.exercises || []) {
+      const same = merged.find((other) => other.name === exercise.name);
+      if (same) same.sets.push(...exercise.sets);
+      else merged.push(exercise);
+    }
+    session.exercises = merged;
+  }
+  for (const old of Object.keys(state.bests || {})) {
+    const name = strengthLogName(old);
+    if (name !== old) {
+      state.bests[name] = Math.max(Number(state.bests[name]) || 0, Number(state.bests[old]) || 0);
+      delete state.bests[old];
       renamed = true;
     }
   }
@@ -877,7 +925,7 @@ const addEntries = (result, date = todayIso()) => {
   const session = ensureSession(date);
   const names = new Set();
   for (const item of result.exercises || []) {
-    const name = findExerciseName(item.name) || titleCase(item.name);
+    const name = strengthLogName(findExerciseName(item.name) || titleCase(item.name));
     names.add(name);
     let exercise = session.exercises.find((existing) => existing.name === name);
     if (!exercise) {
@@ -915,7 +963,7 @@ const pickList = () => {
   for (const session of sortedSessions()) {
     for (const exercise of session.exercises) if (!recent.includes(exercise.name)) recent.push(exercise.name);
   }
-  const starters = ['Bench Press', 'Squat', 'Deadlift', 'Overhead Press', 'Pull-up', 'Barbell Row'];
+  const starters = ['Bench Press', 'Squat', 'Deadlift', 'Overhead Press', 'Pull-Up', 'Barbell Row'];
   const library = [...starters, ...LIBRARY.map((entry) => entry.name).filter((name) => !starters.includes(name))];
   const names = [...new Set([...BIG_THREE, ...recent, ...library])];
   // Lifts already logged today stay in the list too, so Bench Press is always one tap away.
@@ -1790,9 +1838,12 @@ const muscleLoad = (today = todayIso()) => {
       // How hard it was: the top set against your best for that lift. Near your max (85%+, like 290 when your best
       // is 300) takes the full time, so a heavy deadlift keeps the lower back recovering for about 5 days; a
       // moderate day three quarters of it, a light one half. A lift with nothing to compare to counts as moderate.
+      // Three or more working sets at half your best or more are moderate too: 3×10 leg curls at 60% of your best
+      // tire the hamstrings as much as the squats tired the quads that day (Marcus, 19 Nov).
       const best = bestOverall(exercise.name);
       const top = Math.max(0, ...working.map((set) => setValue(exercise.name, set)));
-      const hard = best > 0 && top > 0 ? (top / best >= 0.85 ? 1 : top / best >= 0.7 ? 0.75 : 0.5) : 0.75;
+      const ratio = best > 0 && top > 0 ? top / best : null;
+      const hard = ratio === null ? 0.75 : ratio >= 0.85 ? 1 : ratio >= 0.7 || (count >= 3 && ratio >= 0.5) ? 0.75 : 0.5;
       for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) {
         for (const key of keys) {
           const needs = RECOVERY_DAYS[key] * hard * (share < 1 ? 0.75 : 1);
@@ -3435,7 +3486,7 @@ const MUSCLE_ONLY_LIFTS = () => [
   { label: 'Calf raise', key: 'machine-calf-raise', names: ['calf raise', 'calf raises', 'calves', 'machine calf raise', 'standing calf raise', 'seated calf raise'] },
   { label: 'Sit-up', key: 'sit-ups', addedKey: 'cable-crunch', reps: true, names: ['sit-up', 'sit-ups', 'sit up', 'sit ups', 'situp', 'situps', 'weighted sit-up', 'decline sit-up', 'crunch', 'crunches', 'cable crunch', 'machine crunch', 'ab crunch', 'ab crunch machine', 'crunch machine', 'ab machine'] },
 ];
-const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
+const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Chest Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Tricep Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Dumbbell Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Barbell Lying Triceps Extension': 'lying-tricep-extension', 'Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Standing Cable Chest Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
   .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || []), ...Object.keys(RENAMED).filter((old) => RENAMED[old] === label).map((old) => old.toLowerCase())] }));
 const standardAt = (rows, bodyweight) => {
   if (!rows?.length) return null;
@@ -3917,7 +3968,7 @@ const renderProgress = () => {
     ${view.route === 'trends' ? '' : renderMuscles()}`;
 };
 
-const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Bench Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
+const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Chest Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
 
 const dayName = (session) => {
   const peaks = topSets(session).map(({ name, set }) => `${SHORT_NAMES[name] || name}${prKind(name, session.date, set) === 'max' ? ' PR' : ''} ${set.kg}×${set.reps}`);
@@ -4713,12 +4764,12 @@ const demoSessions = (weeks = 8) => {
       { name: 'Bench Press', sets: [...sets(round(80 + step * 2), 5, 3), ...sets(round(85 + step * 2), 3, 1, 8)] },
       { name: 'Overhead Press', sets: sets(round(45 + step), 8, 3) },
       { name: 'Incline Bench Press', sets: sets(round(62.5 + step * 1.5), 8, 3) },
-      { name: 'Dumbbell Bench Press', sets: sets(round(26 + step * 0.5), 10, 3) },
+      { name: 'Dumbbell Chest Press', sets: sets(round(26 + step * 0.5), 10, 3) },
     ] });
     days.push({ date: at(4), label: 'Pull day', exercises: [
       { name: 'Deadlift', sets: [...sets(round(140 + step * 3), 5, 2), ...sets(round(150 + step * 3), 3, 1, 8)] },
       { name: 'Barbell Row', sets: sets(round(65 + step * 1.5), 8, 3) },
-      { name: 'Pull-up', sets: sets(0, Math.round(7 + step / 2), 3) },
+      { name: 'Pull-Up', sets: sets(0, Math.round(7 + step / 2), 3) },
       { name: 'Lat Pulldown', sets: sets(round(55 + step), 10, 3) },
     ] });
     days.push({ date: at(2), label: 'Leg day', exercises: [
@@ -4728,7 +4779,7 @@ const demoSessions = (weeks = 8) => {
     ] });
     days.push({ date: at(1), label: 'Arm day', exercises: [
       { name: 'Dumbbell Curl', sets: sets(round(12 + step * 0.5), 10, 3) },
-      { name: 'Triceps Pushdown', sets: sets(round(25 + step), 12, 3) },
+      { name: 'Tricep Pushdown', sets: sets(round(25 + step), 12, 3) },
     ], cardio: week % 2 === 0 ? 30 : 0 });
   }
   days.push({ date: addDays(today, -3), label: 'Push day', exercises: [
