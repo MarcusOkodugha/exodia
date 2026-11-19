@@ -5875,7 +5875,19 @@ const planStatus = (plan) => {
   const typed = view.together?.inviteNote;
   const changed = isDraft(plan) || plan.edited || (typed !== undefined && typed.replace(/\s+/g, ' ').trim() !== (plan.note || ''));
   const label = isDraft(plan) ? 'Send invite' : changed ? 'Notify again' : 'Invite sent';
-  return `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Where and when" value="${esc(typed ?? plan.note ?? '')}"><button class="tgCta${changed ? '' : ' sent'}" type="submit"${changed ? '' : ' disabled'}>${label}</button></form>`;
+  if (inviteWaiting && isDraft(plan)) inviteWokeAt = Date.now();
+  inviteWaiting = false;
+  const woke = Date.now() - inviteWokeAt < 700;
+  return `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="send" placeholder="Where and when" value="${esc(typed ?? plan.note ?? '')}"><button class="tgCta${changed ? '' : ' sent'}${woke ? ' woke' : ''}" type="submit"${woke ? ` style="--since:-${Date.now() - inviteWokeAt}ms"` : ''}${changed ? '' : ' disabled'}>${label}</button></form>`;
+};
+// Before anyone is picked (Marcus, 19 Nov): Where and when is already there to fill in, and Send invite waits greyed,
+// the way Mail's Send waits for a recipient. Tapping it then lights up the people to pick from; picking someone wakes
+// the button with one small pop (inviteWokeAt), and what was typed stays.
+let inviteWaiting = false;
+let inviteWokeAt = 0;
+const waitingInvite = () => {
+  inviteWaiting = true;
+  return `<form class="tgSendForm"><label class="sr" for="planInviteNote">Where and when</label><input id="planInviteNote" class="tgNoteField" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="Where and when" value="${esc(view.together?.inviteNote ?? '')}"><button class="tgCta wait" type="submit" aria-disabled="true" aria-label="Send invite, pick who you train with first">Send invite</button></form>`;
 };
 // Notifications: the bell left of Trends opens the Notifications page. Its place is always there (nothing moves when
 // invites load); the clay count shows invites and friend requests you haven't looked at, and the page clears it.
@@ -6086,7 +6098,7 @@ const renderTogether = () => {
     <div class="tgMarks" aria-hidden="true">${PLAN_KINDS.map((kind) => `<span class="${kind === fit.best ? 'best' : ''}">${kind === fit.best ? 'Best fit' : kind === fit.second ? 'Also good' : ''}</span>`).join('')}</div>
     ${conflict ? (() => { const others = (conflict.plan.members || []).filter((member) => !member.me).map((member) => member.name); return `<p class="tgWhy">${conflict.plan.by === 'me' ? 'Change' : `${esc(conflict.plan.by)} picked <b>${esc(conflict.plan.kind)}</b>. Change`} it to <b>${esc(conflict.wanted)}</b>?<span class="tgAsk"><button class="textBtn clay" data-action="together-confirm" data-kind="${esc(conflict.wanted)}">Change to ${esc(conflict.wanted)}</button><button class="textBtn" data-action="together-keep">Keep ${esc(conflict.plan.kind)}</button></span></p>`; })()
       : `<p class="tgWhy">${picked === fit.best || (people.length === 1 && !plan) ? fit.why : plan ? `${esc(plan.kind)} is planned. ${fit.best} would be fresher for ${people.length === 1 ? 'you' : people.length === 2 ? 'both of you' : 'everyone'}.` : `${fit.best} is the best fit${together.date === today ? ' today' : ' that day'}. ${picked} works too.`}${!plan && next && next.by === 'me' ? ` <button class="textBtn clay" data-action="together-move" data-from="${next.date}">Move your ${esc(next.kind)} day here</button>` : ''}</p>`}`;
-  const planLine = plan ? planStatus(plan) : '';
+  const planLine = plan && plan.members.some((member) => !member.me) ? planStatus(plan) : waitingInvite();
   return `<main class="page togetherPage">
     <div class="titleRow"><h1 class="title">Train together</h1></div>
     ${row}
@@ -6195,7 +6207,14 @@ const askBodyOnce = () => {
   } catch { return; }
   view.toast = { kind: 'info', title: 'Add your height, weight and sex', text: featureOn('friends') ? 'Your body and strength levels then fit you. Friends is new too: train together.' : 'Your body and strength levels then fit you.', link: '#/you' };
 };
+// A redraw that comes in while you turn a 3D body (a sync, friends refreshing) waits until you let go, so the body
+// never stutters under your finger (Marcus, 19 Nov: Train together lagged while turning).
+let renderHeld = false;
+document.addEventListener('b3ddragend', () => { if (renderHeld) { renderHeld = false; render(); } });
+// Never stuck: any finger lifted anywhere, or leaving the window, ends the hold.
+for (const type of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(type, () => setTimeout(() => { if (document.documentElement.classList.contains('b3dDrag')) { document.documentElement.classList.remove('b3dDrag'); document.dispatchEvent(new Event('b3ddragend')); } }, 0));
 const render = () => {
+  if (document.documentElement.classList.contains('b3dDrag')) { renderHeld = true; return; }
   keepPrivateUrl();
   if (aura && view.route !== 'together') auraStop(true); // Aura belongs to Train together: leaving stops the music
   body3dWant = null;
@@ -10151,7 +10170,12 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   const note = (document.getElementById('planInviteNote')?.value || '').replace(/\s+/g, ' ').trim().slice(0, 200);
   const plan = togetherPlan();
-  if (!plan) return;
+  // Nobody picked yet: the people to pick from light up once, right where they are.
+  if (!plan || !plan.members.some((member) => !member.me)) {
+    document.querySelectorAll('.tgWho .tgP:not(.me)').forEach((person, index) => person.animate([{ transform: 'none' }, { transform: 'translateY(-5px)' }, { transform: 'none' }], { duration: 420, delay: index * 60, easing: 'cubic-bezier(0.3, 0.7, 0.3, 1)' }));
+    document.querySelectorAll('.tgWho .tgP:not(.me):not(.on)').forEach((person) => person.animate([{ opacity: 0.38, filter: 'grayscale(1)' }, { opacity: 1, filter: 'grayscale(0)' }, { opacity: 0.38, filter: 'grayscale(1)' }], { duration: 1100, easing: 'ease-in-out' }));
+    return;
+  }
   document.activeElement?.blur?.();
   const draft = isDraft(plan);
   Object.assign(plan, { sent: true, edited: false, note, noteBy: note ? 'me' : '' });

@@ -112,6 +112,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Smoother 3D drag (no page redraws, layout reads or avatar shine during a drag) and Train together invite row shown from the start with a waiting Send invite (v527). Not checked in Safari: Playwright WebKit isn't installed on the Mac.
 - Level-ups shown once per account (levelsSeen in profile meta, highest level per muscle), as a small line in the figure's corner while it plays, nothing moves (v526)
 - Movement (v525, launched for everyone 19 Nov): cardio renamed Movement; running, football, swimming, skiing etc. show on the muscles in Recovery (scaled by minutes and effort); rows take optional distance and effort %; Trends: Movement per week in minutes + per activity best pace (per km, /100 m swim, km/h bike) and "faster this month", time and usual effort for time sports.
 - Exercise names kept short: StrengthLog's name unless it's longer than what people write (Lateral Raise, Cable Fly, Skull Crusher, Rope Pushdown); Strength radio removed from Train together (v524)

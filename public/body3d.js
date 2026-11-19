@@ -639,7 +639,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   // there (same figure, same size, same place), on top of what lies under it. Taps still belong to the slot only:
   // the canvas lets them through and the slot listens, so whatever lies under the feet stays tappable.
   const BLEED = 0.08; let bleedPx = 0;
-  const fit = () => { const inHost = !inOver; canvas.style.bottom = inHost ? 'auto' : ''; canvas.style.height = inHost ? `calc(100% + ${bleedPx}px)` : ''; canvas.style.pointerEvents = inHost ? 'none' : ''; canvas.style.zIndex = inHost ? '1' : ''; };
+  const fit = () => { measured = false; const inHost = !inOver; canvas.style.bottom = inHost ? 'auto' : ''; canvas.style.height = inHost ? `calc(100% + ${bleedPx}px)` : ''; canvas.style.pointerEvents = inHost ? 'none' : ''; canvas.style.zIndex = inHost ? '1' : ''; };
   const bleedAt = (r) => Math.round(bleedPx * (1 - r.e));
   let people = [], slots = [], ts = [];
   let angle = 0.5, speed = reduced.matches ? 0 : 0.05, hold = false, drag = null, open = -1;
@@ -662,9 +662,16 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
       const ppuMax = Math.min(hostH / (height * 1.04), colW / (height * WIDE * (n > 1 ? 1 : 1.04))), foot = (hostH - height * ppuMax) / 2; // px from the bottom to the soles
       const ppu = ppuMax * p.cm / maxCm, slot = { x, y: 0, w: colW, h: hostH, ppu, cy: -height / 2 + (hostH / 2 - foot) / ppu }; x += colW; return slot; });
   };
+  // Sizes are read only after something could have changed them (attach, open, close, a resize), never every frame:
+  // reading them each frame made the browser lay out the whole page 120 times a second while you turned a body.
+  let measured = false, overW = 0, overH = 0;
   const size = () => {
-    if (hostEl) { const w = hostEl.clientWidth, h = hostEl.clientHeight; if (w !== hostW || h !== hostH) { hostW = w; hostH = h; bleedPx = Math.round(h * BLEED); fit(); layout(); dirty = true; } }
-    const w = inOver ? over.clientWidth : hostW, h = inOver ? over.clientHeight : hostH + bleedPx;
+    if (!measured) {
+      measured = true;
+      if (hostEl) { const w = hostEl.clientWidth, h = hostEl.clientHeight; if (w !== hostW || h !== hostH) { hostW = w; hostH = h; bleedPx = Math.round(h * BLEED); fit(); layout(); dirty = true; } }
+      if (inOver) { overW = over.clientWidth; overH = over.clientHeight; }
+    }
+    const w = inOver ? overW : hostW, h = inOver ? overH : hostH + bleedPx;
     if (w > 0 && h > 0 && (w !== W || h !== H)) { W = w; H = h; renderer.setSize(W, H, false); dirty = true; }
   };
   // The rectangle, zoom and camera height of person i right now, between their place in the row and the whole screen.
@@ -826,13 +833,15 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   };
   // Drag sideways to spin (with a little throw); a touch that moved less than 6 px is a tap. Up and down is left
   // to the page (touch-action: pan-y), which then cancels the pointer.
-  const down = (e) => { if (e.button || (e.target !== canvas && e.target !== hostEl)) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; speed = 0; hold = pickTo > 0 && !pickSpin; try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} kick(); };
+  // While a body is turned the page knows (html.b3dDrag): it holds its redraws and still decorations until you let go.
+  const dragging = (on) => { document.documentElement.classList.toggle('b3dDrag', on); if (!on) document.dispatchEvent(new Event('b3ddragend')); };
+  const down = (e) => { if (e.button || (e.target !== canvas && e.target !== hostEl)) return; drag = { id: e.pointerId, x: e.clientX, y: e.clientY, a: angle, last: e.clientX, lt: e.timeStamp, far: 0 }; dragging(true); speed = 0; hold = pickTo > 0 && !pickSpin; try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} kick(); };
   const move = (e) => { if (!drag || drag.id !== e.pointerId) return; drag.far = Math.max(drag.far, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
     if (drag.far < 6) return; face = null; spunSincePick = true; const k = 0.012 * Math.min(1, 393 / Math.max(393, window.innerWidth * 0.6));
     angle = drag.a + (e.clientX - drag.x) * k; speed = Math.max(-0.3, Math.min(0.3, (e.clientX - drag.last) * k / Math.max(1, e.timeStamp - drag.lt) * 16.7)); drag.last = e.clientX; drag.lt = e.timeStamp; kick(); };
-  const up = (e) => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null;
+  const up = (e) => { if (!drag || drag.id !== e.pointerId) return; const d = drag; drag = null; dragging(false);
     if (d.far < 6) { speed = 0.0001 * Math.sign(d.a - angle || 1); tap(e); } else if (e.timeStamp - d.lt > 80 || reduced.matches) speed = 0; kick(); };
-  const cancel = () => { drag = null; kick(); };
+  const cancel = () => { if (drag) dragging(false); drag = null; kick(); };
   const listen = (el, on) => { for (const [n, f] of [['pointerdown', down], ['pointermove', move], ['pointerup', up], ['pointercancel', cancel]]) el[on ? 'addEventListener' : 'removeEventListener'](n, f); };
   listen(canvas, true); // the opened figure; in its slot the slot itself listens (see attach)
   // A lost GPU context usually comes back; if it hasn't after 3 s (iOS after the app was in the background), the app
@@ -848,7 +857,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   // and draw it at once, twice (the observer and the window both fire). Now a resize in progress is drawn once a
   // frame at the screen's plain sharpness, and at full sharpness 200 ms after it stops.
   let coarse = false, settleTimer = 0;
-  const resized = () => { if (dead) return;
+  const resized = () => { if (dead) return; measured = false;
     const w = inOver ? over.clientWidth : hostEl ? hostEl.clientWidth : 0, h = inOver ? over.clientHeight : hostEl ? hostEl.clientHeight : 0;
     if (!W || !H || (inOver ? w === W && h === H : w === hostW && h === hostH)) { size(); if (dirty) render(); kick(); return; } // first size, or nothing changed
     if (!coarse && pr > 1) { coarse = true; renderer.setPixelRatio(1); }
@@ -862,6 +871,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const handle = {
     attach(host) {
       if (dead || !host) return;
+      measured = false;
       if (host !== hostEl) { if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } listen(host, true); if (ro) { ro.disconnect(); ro.observe(host); } hostEl = host; host.classList.add('body3dHost'); hostW = hostH = 0; }
       if (!inOver && canvas.parentNode !== host) host.appendChild(canvas); fit();
       // Draw before the browser paints, so a moved or resized canvas never shows empty.

@@ -2166,3 +2166,11 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 /* Editing a cardio row: minutes, distance and effort wrap under the name when the row is narrow. */
 .cardio:has(.cardioEdit) { flex-wrap: wrap; row-gap: 6px; padding: 6px 0; }
 .cardioEdit .pill { width: 58px; }
+/* Turning a 3D body: the avatars' shine and the prompt's glow hold still so nothing else repaints under the finger. */
+.b3dDrag .favFx::after, .b3dDrag .prompt::before { animation-play-state: paused; }
+.favFx::after { will-change: transform; }
+/* Send invite before anyone is picked: greyed like Mail's Send without a recipient. Picking someone wakes it once. */
+.tgCta.wait { background: #EFECE4; color: var(--text3, #A8A397); cursor: default; }
+.tgCta.woke { animation: ctaWake 0.6s cubic-bezier(0.3, 0.7, 0.3, 1) var(--since, 0ms) both; }
+@keyframes ctaWake { 0% { transform: scale(0.94); } 45% { transform: scale(1.05); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tgCta.woke { animation: none; } }
