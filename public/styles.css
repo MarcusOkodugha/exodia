@@ -1969,12 +1969,15 @@ body:has(.body3dModes) .dock, body:has(.body3dModes) .dock *, body:has(.body3dMo
 /* The slot takes the taps (the canvas reaches a little below it for the feet and lets them through). */
 .body3dHost { cursor: grab; }
 /* Level-up: the notice over the anatomy ("Rear delts just moved to Advanced"); a tap plays it on the 3D body. */
-.lvlUp { display: flex; align-items: center; gap: 10px; width: 100%; margin: 20px 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--field); color: var(--text); text-align: left; }
-.lvlUp:active { transform: scale(0.985); }
+/* Level-up: a small line in the figure's top corner while the muscle builds up, gone with the animation. Laid over
+   the figure, so nothing on the page moves when it comes or goes. */
+.muscles { position: relative; }
+.lvlUp { position: absolute; top: 0; left: 0; z-index: 4; display: inline-flex; align-items: center; gap: 6px; max-width: 60%; font-size: 13px; line-height: 18px; color: var(--text2); white-space: nowrap; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease; }
+.lvlUp span { overflow: hidden; text-overflow: ellipsis; }
 .lvlUp .muscleSwatch { flex: none; }
-.lvlUpText { min-width: 0; }
-.lvlUp b { display: block; font-size: 15px; line-height: 20px; font-weight: 600; }
-.lvlUp small { display: block; font-size: 13px; line-height: 18px; color: var(--text2); }
+.lvlUp.enter { animation: lvlIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.lvlUp.out { opacity: 0; transform: translateY(-4px); }
+@keyframes lvlIn { from { opacity: 0; transform: translateY(4px); } }
 /* Planned muscles: each with a small cross that takes it off the plan. */
 /* Aura: its switch, and the small sound button beside it while it is on (it takes no room of its own). */
 .tgAuraRow { position: relative; }

@@ -112,6 +112,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Level-ups shown once per account (levelsSeen in profile meta, highest level per muscle), as a small line in the figure's corner while it plays, nothing moves (v526)
 - Movement (v525, launched for everyone 19 Nov): cardio renamed Movement; running, football, swimming, skiing etc. show on the muscles in Recovery (scaled by minutes and effort); rows take optional distance and effort %; Trends: Movement per week in minutes + per activity best pace (per km, /100 m swim, km/h bike) and "faster this month", time and usual effort for time sports.
 - Exercise names kept short: StrengthLog's name unless it's longer than what people write (Lateral Raise, Cable Fly, Skull Crusher, Rope Pushdown); Strength radio removed from Train together (v524)
 - Recovery: 3+ working sets at half your best or more count as a moderate day, so 3×10 leg curls recover like that day's squats. Exercise names follow StrengthLog for everyone (Leg Extension Machine → Leg Extension, Pull Up → Pull-Up, Lateral Raise → Dumbbell Lateral Raise…), old logs renamed on every phone, AI writes StrengthLog names (v523)

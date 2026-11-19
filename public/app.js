@@ -183,7 +183,7 @@ let syncState = loadSync();
 view.isAdmin = Boolean(syncState?.admin);
 try { view.adminTab = localStorage.getItem('exodia.adminTab') || 'chat'; } catch { view.adminTab = 'chat'; }
 const localJson = () => Object.fromEntries(state.sessions.map((session) => [session.date, JSON.stringify(session)]));
-const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}), ...(state.visits && Object.keys(state.visits).length ? { visits: state.visits } : {}) });
+const metaJson = () => JSON.stringify({ name: state.name || '', bests: state.bests || {}, log: state.log || [], ...(state.body ? { body: state.body } : {}), ...(state.visits && Object.keys(state.visits).length ? { visits: state.visits } : {}), ...(state.levelsSeen && Object.keys(state.levelsSeen).length ? { levelsSeen: state.levelsSeen } : {}) });
 let lastSaved = localJson();
 let lastMeta = metaJson();
 
@@ -321,7 +321,13 @@ const applyIncoming = (result) => {
   if (result.meta) {
     const { updated, ...incomingMeta } = result.meta;
     if (JSON.stringify(incomingMeta.bests || {}) === LEAKED_BESTS) incomingMeta.bests = {};
-    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}), ...(incomingMeta.visits && Object.keys(incomingMeta.visits).length ? { visits: incomingMeta.visits } : {}) });
+    const incoming = JSON.stringify({ name: incomingMeta.name || '', bests: incomingMeta.bests || {}, log: incomingMeta.log || [], ...(incomingMeta.body ? { body: incomingMeta.body } : {}), ...(incomingMeta.visits && Object.keys(incomingMeta.visits).length ? { visits: incomingMeta.visits } : {}), ...(incomingMeta.levelsSeen && Object.keys(incomingMeta.levelsSeen).length ? { levelsSeen: incomingMeta.levelsSeen } : {}) });
+    // Level-ups shown on another device count here too, at once (the highest of both), so it never plays twice.
+    if (incomingMeta.levelsSeen && typeof incomingMeta.levelsSeen === 'object') {
+      const merged = { ...(state.levelsSeen || {}) };
+      for (const [key, rank] of Object.entries(incomingMeta.levelsSeen)) merged[key] = Math.max(Number(merged[key]) || 0, Number(rank) || 0);
+      if (JSON.stringify(merged) !== JSON.stringify(state.levelsSeen || {})) { state.levelsSeen = merged; changed = true; }
+    }
     const dirty = lastMeta !== syncState.metaSynced;
     // Bodyweight saved on another device comes through even while this one has unsent log lines (a body just
     // typed here is kept: it goes up with the next sync).
@@ -2118,70 +2124,74 @@ const headMark = (levels) => {
   if (known.length < 8) return null;
   return known.every((level) => level >= 5) ? 'blue' : known.every((level) => level >= 4) ? 'clay' : null;
 };
-// Level-up (Marcus, 15 Nov). When a muscle reaches a higher level colour than this phone last saw, a notice sits over
-// the anatomy ("Rear delts just moved to Advanced") until it's tapped; the tap plays that muscle building up in its new
-// colour on the 3D body. Until then the body keeps the old colour, so the change is seen as it happens. Kept per
-// device, like the Exodia hit. The first look only remembers the levels, so nobody opens to fifteen notices; a first
-// level for a muscle (no colour before) is not a level-up. An in-app notice, never a phone notification.
+// Level-up (Marcus, 15 Nov). When a muscle reaches a higher level colour than you have ever been shown, it plays once
+// by itself on your Strength figure: the muscle builds up in its new colour, with a small "Lower back · Elite" in the
+// corner of the figure while it plays, gone with the animation (Marcus, 19 Nov: shown once, never over and over, and
+// nothing on the page moves). Until then the body keeps the old colour, so the change is seen as it happens.
+// What you've been shown is saved on your account (state.levelsSeen, the highest level per muscle), so a phone and the
+// computer never show the same one again, and a level that drops and comes back is not news. The first look only
+// remembers the levels, so nobody opens to fifteen notices; a first level for a muscle is not a level-up either.
 const TIER_RANK = { tierBeg: 1, tierNov: 2, tierInt: 3, tierAdv: 4, tierElite: 5 };
 let levelUpBusy = false;
-let levelUpsMemo = null; // one answer per render: several parts of the page ask
+let levelUpPlaying = null; // the one on screen while its animation plays
 const levelUps = () => {
-  if (levelUpsMemo) return levelUpsMemo;
-  queueMicrotask(() => { levelUpsMemo = null; });
+  // A friend's figure (asPerson) is never news for you.
+  if (typeof memoSaved === 'symbol' || view.sandbox || state.demo) return [];
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : null;
-  if (!levels) return (levelUpsMemo = []);
-  let seen = null;
-  let pending = [];
-  try {
-    seen = JSON.parse(localStorage.getItem('exodia.tiers') || 'null');
-    pending = JSON.parse(localStorage.getItem('exodia.levelUps') || '[]');
-  } catch {}
-  if (!Array.isArray(pending)) pending = [];
+  if (!levels) return [];
   const now = Object.fromEntries(MUSCLES.map(([key]) => [key, TIER_RANK[tierOf(levels[key] || 0)?.[2]] || 0]));
-  const before = JSON.stringify([seen, pending]);
-  if (seen) for (const [key] of MUSCLES) if (seen[key] > 0 && now[key] > seen[key]) pending = [...pending.filter((one) => one.key !== key), { key, from: seen[key] }];
-  pending = pending.filter((one) => now[one.key] > one.from); // dropped back since: nothing to show
-  if (JSON.stringify([now, pending]) !== before) {
-    try {
-      localStorage.setItem('exodia.tiers', JSON.stringify(now));
-      localStorage.setItem('exodia.levelUps', JSON.stringify(pending));
-    } catch {}
+  let seen = state.levelsSeen && Object.keys(state.levelsSeen).length ? state.levelsSeen : null;
+  if (!seen) {
+    // From before it was on the account: what this phone had seen, else today's levels with nothing to show.
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem('exodia.tiers') || 'null'); } catch {}
+    seen = Object.fromEntries(MUSCLES.map(([key]) => [key, Math.max(Number(local?.[key]) || 0, local ? 0 : now[key])]));
+    state.levelsSeen = seen;
+    queueMicrotask(save);
   }
-  return (levelUpsMemo = pending);
+  // A muscle getting its first level is not a level-up: it is simply remembered.
+  const fresh = MUSCLES.filter(([key]) => !(seen[key] > 0) && now[key] > 0);
+  if (fresh.length) {
+    state.levelsSeen = { ...seen, ...Object.fromEntries(fresh.map(([key]) => [key, now[key]])) };
+    seen = state.levelsSeen;
+    queueMicrotask(save);
+  }
+  return MUSCLES.filter(([key]) => now[key] > seen[key]).map(([key]) => ({ key, from: seen[key] }));
 };
 const levelUpNotice = () => {
-  const pending = levelUps();
-  const one = pending[pending.length - 1];
-  if (!one || !body3dOn()) return '';
-  const tier = tierOf(muscleLevels()?.[one.key] || 0);
-  const title = MUSCLES.find(([key]) => key === one.key)?.[1];
+  const key = levelUpPlaying?.key;
+  const tier = key && tierOf(muscleLevels()?.[key] || 0);
+  const title = MUSCLES.find(([one]) => one === key)?.[1];
   if (!tier || !title) return '';
-  // Not a button (Marcus, 16 Nov): it plays by itself once the 3D body is on screen, and only once per level.
-  return `<div class="lvlUp" role="status"><i class="muscleSwatch ${tier[2]}"></i><span class="lvlUpText"><b>${title} just moved to ${tier[1]}</b></span></div>`;
+  // Fades in once; redraws while it plays leave it still.
+  const enter = !levelUpPlaying.drawn;
+  levelUpPlaying.drawn = true;
+  return `<div class="lvlUp${enter ? ' enter' : ''}" role="status"><i class="muscleSwatch ${tier[2]}"></i><span>${title} · ${tier[1]}</span></div>`;
 };
 const playLevelUp = (key) => {
   if (levelUpBusy) return;
-  // Seen the moment it starts, so it never asks again (it used to come back each time the app opened).
-  const forget = () => { try { localStorage.setItem('exodia.levelUps', JSON.stringify(levelUps().filter((one) => one.key !== key))); } catch {} levelUpsMemo = null; };
-  const done = () => {
-    levelUpBusy = false;
-    forget();
-    render();
-  };
   const tier = tierOf(muscleLevels()?.[key] || 0);
-  if (!tier || body3dState === 'failed') { done(); return; }
-  if (body3dState !== 'ready' || !body3d) return; // still loading: the notice stays for the next tap
+  // Seen the moment it starts, on the account, so no device asks again.
+  const seenNow = () => {
+    state.levelsSeen = { ...(state.levelsSeen || {}), [key]: Math.max(Number(state.levelsSeen?.[key]) || 0, TIER_RANK[tier?.[2]] || 0) };
+    save();
+  };
+  if (!tier || body3dState === 'failed') { seenNow(); render(); return; }
+  if (body3dState !== 'ready' || !body3d) return; // still loading: it plays when the body is ready
   levelUpBusy = true;
-  const keep = levelUps().find((one) => one.key === key);
-  forget();
-  levelUpsMemo = keep ? [keep] : []; // the line stays on screen while it plays
+  levelUpPlaying = levelUps().find((one) => one.key === key) || { key, from: (TIER_RANK[tier[2]] || 1) - 1 };
+  seenNow();
   if (view.muscleMode !== 'strength' || view.musclePick) {
     view.muscleMode = 'strength';
     view.musclePick = null;
     try { localStorage.setItem('exodia.muscleMode', 'strength'); } catch {}
-    render();
   }
+  render();
+  const done = () => {
+    const notice = document.querySelector('.lvlUp');
+    const finish = () => { levelUpBusy = false; levelUpPlaying = null; render(); };
+    if (notice) { notice.classList.add('out'); setTimeout(finish, 320); } else finish();
+  };
   requestAnimationFrame(() => {
     document.querySelector('[data-body3d="one"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     body3d.levelUp(0, key, TIER_COLOURS[tier[2]], muscleLevels()[key]).then(done, done);
@@ -2191,7 +2201,7 @@ const TIER_BY_RANK = Object.fromEntries(Object.entries(TIER_RANK).map(([name, ra
 const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
   const levels = state.body?.kg && state.body?.sex ? muscleLevels() : {};
   // Your own Strength figure keeps a muscle in its old colour and size until its level-up has been played.
-  const held = id === 'me' && colours === strengthColour ? Object.fromEntries(levelUps().map((one) => [one.key, one.from + 0.5])) : {};
+  const held = id === 'me' && colours === strengthColour ? Object.fromEntries([...levelUps(), ...(levelUpPlaying ? [levelUpPlaying] : [])].map((one) => [one.key, one.from + 0.5])) : {};
   // The head mark is about strength, so it shows only on the Strength figure, never on Recovery or Train together.
   return { ...extra, ...(id === 'me' && colours === strengthColour ? { head: headMark(levels), headMark: 'crest' } : {}), id, name, heightCm: Number(cm) || null, kg: Number(state.body?.kg) || null, sex: state.body?.sex || null, muscles: Object.fromEntries(MUSCLES.map(([key, title]) => [key, { color: colours(key, held[key] || levels[key]) || null, level: held[key] || levels[key] || null, label: labels ? labels(key, title, levels[key]) : title }])) };
 };
@@ -2265,10 +2275,10 @@ const renderMuscles = () => {
   const load = muscleLoad();
   const { sets } = load;
   const levels = view.muscleMode === 'strength' ? muscleLevels() : null;
-  const toggle = `${levelUpNotice()}<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
+  const toggle = `<div class="segment full anatomySwitch" role="group" aria-label="Anatomy">${[['strength', 'Strength'], ['recovery', 'Recovery']].map(([mode, label]) => `<button class="segmentOption" data-action="muscle-mode" data-mode="${mode}" aria-pressed="${(view.muscleMode || 'strength') === mode}">${label}</button>`).join('')}<i class="segmentKnob${view.muscleMode === 'recovery' ? ' on' : ''}" aria-hidden="true"></i></div>`;
   if (view.muscleMode === 'strength') {
     return `${toggle}
-    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour, strengthLabel)], '') || ''}
+    ${levels ? `<div class="muscles${view.musclePick ? ' picking' : ''}${body3dOn() ? ' has3d' : ''}">${body3dSlot('one', [body3dPerson('me', state.name || '', state.body?.cm, strengthColour, strengthLabel)], '') || ''}${levelUpNotice()}
       <div class="muscleList">${MUSCLES.map(([key, label]) => {
         const tier = tierOf(levels[key] || 0);
         return `<div class="muscleRow${tier ? '' : ' muted'}${view.musclePick === key ? ' picked' : ''}"${tier ? ` style="--rowc:${TIER_COLOURS[tier[2]]}"` : ''} data-action="pick-muscle" data-muscle="${key}" role="button" tabindex="0"><i class="muscleSwatch ${tier ? tier[2] : 'tierNone'}"></i><span>${label}</span><span class="num tierWord" title="${tier ? tier[1] : ''}">${tier ? `<span class="tierLong">${tier[1]}</span><span class="tierShort">${tier[3]}</span> <span class="tierNum">${levelNumber(levels[key])}</span>` : '–'}</span></div>`;

@@ -834,6 +834,12 @@ const mergeDay = (newestJson, otherJson) => {
     return newestJson;
   }
 };
+// Level-ups already shown (highest level colour per muscle, 1–5), so no device shows the same one twice.
+const cleanLevels = (raw) => {
+  if (!raw || typeof raw !== 'object') return {};
+  const levels = Object.fromEntries(Object.entries(raw).filter(([key, rank]) => /^[a-zA-Z]{2,20}$/.test(key) && Number.isInteger(rank) && rank >= 0 && rank <= 5).slice(0, 30));
+  return Object.keys(levels).length ? { levelsSeen: levels } : {};
+};
 const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
   try {
     const current = JSON.parse(currentJson || '{}');
@@ -866,7 +872,9 @@ const mergeMeta = (currentJson, incomingJson, incomingNewer) => {
     };
     const visits = { ...(current.visits || {}) };
     for (const [date, visit] of Object.entries(incoming.visits || {})) visits[date] = visits[date] ? richer(visit, visits[date]) : visit;
-    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log, ...(bodyNow ? { body: bodyNow } : {}), ...(Object.keys(visits).length ? { visits } : {}) });
+    const levelsSeen = { ...(current.levelsSeen || {}) };
+    for (const [key, rank] of Object.entries(incoming.levelsSeen || {})) levelsSeen[key] = Math.max(Number(levelsSeen[key]) || 0, Number(rank) || 0);
+    return JSON.stringify({ name: String(name ?? '').slice(0, 40), bests, log, ...(bodyNow ? { body: bodyNow } : {}), ...(Object.keys(visits).length ? { visits } : {}), ...(Object.keys(levelsSeen).length ? { levelsSeen } : {}) });
   } catch {
     return incomingJson;
   }
@@ -893,7 +901,7 @@ const sync = async (request, env) => {
     .map((change) => ({ date: change.date, updated: Math.round(change.updated), base: Number.isFinite(change.base) ? Math.round(change.base) : null, data: change.data && typeof change.data === 'object' ? JSON.stringify(change.data) : null }))
     .filter((change) => change.data === null || change.data.length <= MAX_RECORD);
   const meta = body?.meta && typeof body.meta === 'object' && Number.isFinite(body.meta.updated)
-    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex, ...(Number(body.meta.body.cm) >= 120 && Number(body.meta.body.cm) <= 230 ? { cm: Math.round(Number(body.meta.body.cm)) } : {}), ...(Number(body.meta.body.age) >= 12 && Number(body.meta.body.age) <= 100 ? { age: Math.round(Number(body.meta.body.age)) } : {}) } } : {}), ...cleanVisits(body.meta.visits) }), updated: Math.round(body.meta.updated) }
+    ? { json: JSON.stringify({ name: String(body.meta.name ?? '').slice(0, 40), bests: body.meta.bests && typeof body.meta.bests === 'object' ? body.meta.bests : {}, log: Array.isArray(body.meta.log) ? body.meta.log.slice(0, 80) : [], ...(Number(body.meta.body?.kg) >= 30 && Number(body.meta.body?.kg) <= 250 && ['male', 'female'].includes(body.meta.body?.sex) ? { body: { kg: Number(body.meta.body.kg), sex: body.meta.body.sex, ...(Number(body.meta.body.cm) >= 120 && Number(body.meta.body.cm) <= 230 ? { cm: Math.round(Number(body.meta.body.cm)) } : {}), ...(Number(body.meta.body.age) >= 12 && Number(body.meta.body.age) <= 100 ? { age: Math.round(Number(body.meta.body.age)) } : {}) } } : {}), ...cleanVisits(body.meta.visits), ...cleanLevels(body.meta.levelsSeen) }), updated: Math.round(body.meta.updated) }
     : null;
   if (meta && meta.json.length > MAX_RECORD * 4) return json({ error: 'Too big' }, 400);
   const now = Date.now();
