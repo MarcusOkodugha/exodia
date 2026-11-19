@@ -1393,7 +1393,12 @@ const friendView = async (env, profile, share, isAdmin, today) => {
     const open = await env.DB.prepare("SELECT at, detail FROM events WHERE profile = ? AND kind = 'open' ORDER BY at DESC LIMIT 1").bind(profile).first();
     const last = await env.DB.prepare('SELECT max(at) AS at FROM events WHERE profile = ?').bind(profile).first();
     const stuck = await env.DB.prepare("SELECT count(*) AS n FROM events WHERE profile = ? AND kind = 'stuck' AND at > ?").bind(profile, Date.now() - 2 * 86400000).first();
-    out.admin = { online: last?.at || open?.at || null, phone: String(open?.detail || '').split(' · ')[1] || '', errors: stuck?.n || 0 };
+    // What didn't go through lately, from their own chat: what they sent, what Exodia heard and what it said back, so
+    // Marcus can see why (Marcus, 19 Nov: "when it says error on Benjamin, how do I see what the problem was?").
+    const heardOf = (entry) => { try { return String(JSON.parse(entry.raw || '{}').transcript || ''); } catch { return ''; } };
+    const failed = (Array.isArray(meta.log) ? meta.log : []).filter((entry) => Number(entry?.at) > Date.now() - 7 * 86400000 && /^(Not logged|Didn't understand)/.test([].concat(entry.did)[0] || '')).slice(0, 5)
+      .map((entry) => ({ at: Number(entry.at), said: String(entry.said || '').slice(0, 300), heard: heardOf(entry).slice(0, 300), did: [].concat(entry.did).join(' · ').slice(0, 300), by: String(entry.by || '').slice(0, 40) }));
+    out.admin = { online: last?.at || open?.at || null, phone: String(open?.detail || '').split(' · ')[1] || '', errors: stuck?.n || 0, failed };
   }
   return out;
 };

@@ -54,8 +54,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## To do (Claude)
 
-- Admin: tapping a friend's "N errors" badge shows what they sent, what happened and when (Benjamin's: 18 Nov 19:30 "Nothing to log in that"). Worker friendView returns the last few 'stuck' details, never keys.
-- v527 follow-up: full sweep (tools/screens.cjs as Marcus and ADMIN=0); before/after pictures of the waiting and woken Send invite; ask Marcus if the Train together drag still lags and in which browser (not tested in Safari); Done rows for v526 and v527 on Exodia decisions.
+- Ask Marcus if the Train together drag still lags after v527, and in which browser (not tested in Safari).
 - [ ] **For Fable 5.2 (limit resets 19 Nov 22:00 UTC):** Aura smooth on iPhone 15 Pro Max (spin and toes-up build; no full page render during scenes, shapes pre-built before the drop at 0:39.5); see-through in Aura for up to 7 people (today limited to few); desktop flashes dark then white on opening; general lag on opening (make the 3D preload wait for idle). Never make a figure look worse; stop and report if it does.
 
 - [ ] **Easier logging, rest of 6A (Marcus decided 16 Nov):** + lays out last time's sets as grey placeholders (warm-ups marked W) that only count once ticked; one steady "+ Add set" row under every lift (copies the next set from last time); Undo bar by the thumb at the bottom; swipe then tap Delete only. Bugs already fixed in v500. Test like a normal user with an agent before pushing (scripts: tools/screens.cjs plus a touch test).
@@ -114,6 +113,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Friend page (admin): messages that didn't go through in the last 7 days, with what was heard and the answer (v528). Benjamin's 18 Nov one was a voice note with no words in it.
 - Smoother 3D drag (no page redraws, layout reads or avatar shine during a drag) and Train together invite row shown from the start with a waiting Send invite (v527). Not checked in Safari: Playwright WebKit isn't installed on the Mac.
 - Level-ups shown once per account (levelsSeen in profile meta, highest level per muscle), as a small line in the figure's corner while it plays, nothing moves (v526)
 - Movement (v525, launched for everyone 19 Nov): cardio renamed Movement; running, football, swimming, skiing etc. show on the muscles in Recovery (scaled by minutes and effort); rows take optional distance and effort %; Trends: Movement per week in minutes + per activity best pace (per km, /100 m swim, km/h bike) and "faster this month", time and usual effort for time sports.

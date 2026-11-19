@@ -5702,6 +5702,14 @@ const renderFriends = () => {
 };
 
 // A friend's Exodia: their name as the title, everything read only, and the way back where your box sits.
+// Admin: what didn't go through for this friend in the last 7 days, newest first: when, what they sent (and what the
+// voice note was heard as), and what Exodia answered. The error count on their row leads here.
+const friendFailed = (friend) => {
+  const failed = view.isAdmin ? friend.admin?.failed || [] : [];
+  if (!failed.length) return '';
+  const when = (at) => `${dayLabel(isoDate(new Date(at)))} · ${new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  return `<p class="section">Didn’t go through</p><div class="fxFails">${failed.map((entry) => `<div class="fxFail"><p class="fxFailWhen num">${esc(when(entry.at))}${entry.by ? ` · ${esc(engineName(entry.by))}` : ''}</p><p class="fxFailSaid">${esc(entry.said || 'Voice note')}${entry.said === 'Voice note' || !entry.said ? `<span class="fxFailHeard">${entry.heard ? `Heard: ${esc(entry.heard)}` : 'Heard: nothing, the recording had no words'}</span>` : ''}</p><p class="fxFailDid">${esc(entry.did)}</p></div>`).join('')}</div>`;
+};
 const renderFriend = () => {
   const friend = friendByHandle(view.friendHandle);
   if (!featureOn('friends')) return renderHome();
@@ -5718,6 +5726,7 @@ const renderFriend = () => {
     <p class="eyebrow">${friendHasExodia(friend) ? 'Has Exodia' : 'Friend'}</p>
     <div class="titleRow"><h1 class="title">${esc(friend.name)}</h1></div>
     <a class="fxTogether" href="#/together" data-action="together-with" data-handle="${friend.handle}">Train together with ${esc(friend.name)}${ICONS.chevRight}</a>
+    ${friendFailed(friend)}
     ${body}
   </main>`;
 };

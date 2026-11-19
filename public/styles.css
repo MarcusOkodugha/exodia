@@ -2174,3 +2174,10 @@ body:has(.pickPanel) .body3dOver { bottom: var(--pickH, calc(env(safe-area-inset
 .tgCta.woke { animation: ctaWake 0.6s cubic-bezier(0.3, 0.7, 0.3, 1) var(--since, 0ms) both; }
 @keyframes ctaWake { 0% { transform: scale(0.94); } 45% { transform: scale(1.05); } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .tgCta.woke { animation: none; } }
+/* Admin, on a friend's page: what didn't go through, one quiet block each, parted by space. */
+.fxFails { display: grid; gap: 14px; margin: 0 0 24px; }
+.fxFail p { margin: 0; }
+.fxFailWhen { font-size: 13px; line-height: 18px; color: var(--text2); }
+.fxFailSaid { font-size: 15px; line-height: 21px; color: var(--text); }
+.fxFailHeard { display: block; font-size: 13px; line-height: 18px; color: var(--text2); }
+.fxFailDid { font-size: 13px; line-height: 18px; color: var(--clayText); }
