@@ -11,9 +11,9 @@ const LIBRARY = [
   { name: 'Bench Press', piece: 'push', heavy: true, aliases: ['bench', 'bench press', 'bp', 'barbell bench press', 'flat bench', 'flat bench press', 'flat barbell bench press', 'bänkpress'] },
   { name: 'Incline Bench Press', piece: 'push', heavy: true, aliases: ['incline', 'incline bench', 'incline bench press'] },
   { name: 'Incline Dumbbell Press', piece: 'push', heavy: true, aliases: ['incline db', 'incline dumbbell', 'incline dumbbell press'] },
-  { name: 'Dumbbell Chest Press', piece: 'push', heavy: true, aliases: ['db bench', 'dumbbell bench', 'dumbbell press', 'dumbbell bench press'] },
+  { name: 'Dumbbell Bench Press', piece: 'push', heavy: true, aliases: ['db bench', 'dumbbell bench', 'dumbbell press', 'dumbbell chest press'] },
   { name: 'Overhead Press', piece: 'push', heavy: true, aliases: ['ohp', 'overhead press', 'press', 'military press'] },
-  { name: 'Bar Dip', piece: 'push', heavy: false, aliases: ['dips', 'dip', 'bar dips'] },
+  { name: 'Dips', piece: 'push', heavy: false, aliases: ['dips', 'dip', 'bar dip', 'bar dips'] },
   { name: 'Pause Bench Press', piece: 'push', heavy: true, aliases: ['pause bench', 'pause bench press', 'paused bench'] },
   { name: 'Close-Grip Bench Press', piece: 'push', heavy: true, aliases: ['close grip', 'close grip bench', 'close-grip bench', 'closegrip'] },
   { name: 'Deadlift', piece: 'pull', heavy: true, aliases: ['deadlift', 'deadlifts', 'dl', 'marklyft', 'barbell deadlift', 'conventional deadlift'] },
@@ -40,11 +40,11 @@ const LIBRARY = [
   { name: 'Barbell Curl', piece: 'arms', heavy: false, aliases: ['curl', 'curls', 'barbell curl', 'bicep curl', 'biceps curl'] },
   { name: 'Dumbbell Curl', piece: 'arms', heavy: false, aliases: ['db curl', 'dumbbell curl', 'dumbbell curls'] },
   { name: 'Hammer Curl', piece: 'arms', heavy: false, aliases: ['hammer', 'hammer curl', 'hammer curls'] },
-  { name: 'Tricep Pushdown', piece: 'arms', heavy: false, aliases: ['pushdown', 'pushdowns', 'triceps pushdown', 'tricep pushdown'] },
-  { name: 'Barbell Lying Triceps Extension', piece: 'arms', heavy: false, aliases: ['skull crusher', 'skull crushers', 'skullcrusher', 'skullcrushers'] },
+  { name: 'Triceps Pushdown', piece: 'arms', heavy: false, aliases: ['pushdown', 'pushdowns', 'triceps pushdown', 'tricep pushdown'] },
+  { name: 'Skull Crusher', piece: 'arms', heavy: false, aliases: ['skull crusher', 'skull crushers', 'skullcrusher', 'skullcrushers', 'lying triceps extension'] },
   { name: 'Overhead Triceps Extension', piece: 'arms', heavy: false, aliases: ['triceps extension', 'overhead extension'] },
-  { name: 'Dumbbell Lateral Raise', piece: null, heavy: false, aliases: ['lateral', 'laterals', 'lateral raise', 'lateral raises', 'side raise'] },
-  { name: 'Standing Cable Chest Fly', piece: null, heavy: false, aliases: ['fly', 'flys', 'flies', 'cable fly', 'cable flys', 'cable flies', 'cable crossover'] },
+  { name: 'Lateral Raise', piece: null, heavy: false, aliases: ['lateral', 'laterals', 'lateral raise', 'lateral raises', 'side raise', 'dumbbell lateral raise'] },
+  { name: 'Cable Fly', piece: null, heavy: false, aliases: ['fly', 'flys', 'flies', 'cable fly', 'cable flys', 'cable flies', 'cable crossover'] },
   { name: 'Face Pull', piece: null, heavy: false, aliases: ['face pull', 'face pulls'] }
 ];
 
@@ -212,32 +212,36 @@ const recordStep = (before, now) => {
   } else undoSteps = [...undoSteps, { at: now, title: '', before }].slice(-30);
   redoSteps = [];
 };
-// One name per exercise, the one StrengthLog uses (Marcus, 19 Nov), so friends' logs line up: old or other name → it.
-// Matched in any case, with or without hyphens. A plain name stays plain when StrengthLog splits it by machine and the
-// lifter didn't say which (Leg Curl, Calf Raise, Cable Curl). Bulgarian split squat is logged with a barbell, so
-// "Split Squat".
+// One name per exercise, so friends' logs line up: old or other name → it. StrengthLog's name (Marcus, 19 Nov), unless
+// that's longer than what people already write: then the short one everyone uses (Lateral Raise, Cable Fly, Skull
+// Crusher). Matched in any case, with or without hyphens. A plain name stays plain when the lifter didn't say which
+// machine (Leg Curl, Calf Raise, Cable Curl). Bulgarian split squat is logged with a barbell, so "Split Squat".
 const RENAMED = {
   'Bulgarian Split Squat': 'Split Squat',
-  'Pull Up': 'Pull-Up', 'Chin Up': 'Chin-Up', 'Dips': 'Bar Dip', 'Parallel Bar Triceps Dip': 'Bar Dip',
-  'Dumbbell Bench Press': 'Dumbbell Chest Press', 'Incline Dumbbell Bench Press': 'Incline Dumbbell Press', 'Incline Barbell Bench Press': 'Incline Bench Press',
-  'Incline Smith Bench': 'Smith Machine Incline Bench Press', 'Bench Press With Pause': 'Pause Bench Press', 'Paused Bench Press': 'Pause Bench Press',
+  'Pull Up': 'Pull-Up', 'Chin Up': 'Chin-Up', 'Bar Dip': 'Dips', 'Parallel Bar Triceps Dip': 'Dips',
+  'Dumbbell Chest Press': 'Dumbbell Bench Press', 'Incline Dumbbell Bench Press': 'Incline Dumbbell Press', 'Incline Barbell Bench Press': 'Incline Bench Press',
+  'Bench Press With Pause': 'Pause Bench Press', 'Paused Bench Press': 'Pause Bench Press',
   'Seated Machine Chest Press': 'Machine Chest Press', 'Nutilus Chest Press': 'Machine Chest Press', 'Seated Machine Fly': 'Machine Chest Fly',
-  'Cable Fly': 'Standing Cable Chest Fly', 'Cable Crossover': 'Standing Cable Chest Fly', 'Dumbbell Fly': 'Dumbbell Chest Fly',
-  'Lateral Raise': 'Dumbbell Lateral Raise', 'Lateral Dumbbell Raise': 'Dumbbell Lateral Raise', 'HS Lateral Raiase': 'Machine Lateral Raise', 'AS Standing Lateral Raise': 'Machine Lateral Raise',
+  'Cable Crossover': 'Cable Fly', 'Standing Cable Chest Fly': 'Cable Fly', 'Dumbbell Fly': 'Dumbbell Chest Fly',
+  'Dumbbell Lateral Raise': 'Lateral Raise', 'Lateral Dumbbell Raise': 'Lateral Raise', 'HS Lateral Raiase': 'Machine Lateral Raise', 'AS Standing Lateral Raise': 'Machine Lateral Raise',
   'Front Dumbbell Raise': 'Dumbbell Front Raise', 'Rear Delt Dumbbell Raise': 'Reverse Dumbbell Flyes', 'Rear Delt Machine Fly': 'Reverse Machine Fly',
   'Arnold Dumbbell Press': 'Arnold Press', 'Dumbell Overhead Press': 'Dumbbell Shoulder Press', 'Dumbbell Overhead Press': 'Dumbbell Shoulder Press',
-  'Seated Dumbbell Press': 'Seated Dumbbell Shoulder Press', 'HS MRS Shoulder Press': 'Machine Shoulder Press',
-  'Triceps Pushdown': 'Tricep Pushdown', 'Triceps Pushdown With Bar': 'Tricep Pushdown With Bar', 'V-Bar Push Down': 'Tricep Pushdown With Bar',
-  'Triceps Pushdown With Rope': 'Tricep Pushdown With Rope', 'Rope Push Down': 'Tricep Pushdown With Rope',
-  'Skull Crusher': 'Barbell Lying Triceps Extension', 'EZ-Bar Skullcrusher': 'EZ Bar Lying Triceps Extension',
-  'Cable Overhead Triceps Extension': 'Overhead Cable Triceps Extension', 'Rope Overhead Extension': 'Overhead Cable Triceps Extension',
-  'Dumbbell Overhead Triceps Extension': 'Dumbbell Standing Triceps Extension',
+  'HS MRS Shoulder Press': 'Machine Shoulder Press',
+  'Tricep Pushdown': 'Triceps Pushdown', 'Triceps Pushdown With Bar': 'Triceps Pushdown', 'V-Bar Push Down': 'Triceps Pushdown',
+  'Triceps Pushdown With Rope': 'Rope Pushdown', 'Rope Push Down': 'Rope Pushdown',
+  'EZ-Bar Skullcrusher': 'Skull Crusher', 'Skullcrusher': 'Skull Crusher',
+  'Cable Overhead Triceps Extension': 'Overhead Triceps Extension', 'Rope Overhead Extension': 'Overhead Triceps Extension',
   'Cable Curls': 'Cable Curl', 'Cable Curl (Behind Back)': 'Bayesian Curl', 'EZ-Bar Curl': 'EZ Curl', 'Dumbbell Hammer Curl': 'Hammer Curl',
-  'Seated Machine Curl': 'Machine Bicep Curl', 'Lying Biceps Cable Curl On Bench': 'Lying Bicep Cable Curl on Bench',
-  'Machine Lat Pull-down': 'Machine Lat Pulldown', 'Reverse-grip Lat Pulldown': 'Lat Pulldown With Supinated Grip',
-  'Machine Row': 'Seated Machine Row', 'One Arm Cable Row': 'One-Handed Cable Row',
+  'Seated Machine Curl': 'Machine Bicep Curl',
+  'Machine Lat Pull-down': 'Machine Lat Pulldown', 'Seated Machine Row': 'Machine Row', 'One Arm Cable Row': 'One-Handed Cable Row',
   'Leg Extension Machine': 'Leg Extension', 'Lying Leg Curl Machine': 'Lying Leg Curl', 'Leg Curls': 'Leg Curl',
   'Abduction': 'Hip Abduction Machine', 'Adduction': 'Hip Adduction Machine', 'Crunch Machine': 'Machine Crunch',
+  // Long names v523 gave for a day, back to the short ones.
+  'Tricep Pushdown With Bar': 'Triceps Pushdown', 'Tricep Pushdown With Rope': 'Rope Pushdown', 'Barbell Lying Triceps Extension': 'Skull Crusher',
+  'EZ Bar Lying Triceps Extension': 'Skull Crusher', 'Overhead Cable Triceps Extension': 'Overhead Triceps Extension',
+  'Lat Pulldown With Supinated Grip': 'Reverse-Grip Lat Pulldown', 'Reverse-grip Lat Pulldown': 'Reverse-Grip Lat Pulldown',
+  'Smith Machine Incline Bench Press': 'Incline Smith Bench', 'Seated Dumbbell Shoulder Press': 'Seated Dumbbell Press',
+  'Dumbbell Standing Triceps Extension': 'Dumbbell Overhead Triceps Extension', 'Lying Bicep Cable Curl On Bench': 'Lying Biceps Cable Curl on Bench',
 };
 const nameKey = (name) => String(name || '').toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
 const RENAMED_BY_KEY = new Map(Object.entries(RENAMED).map(([old, name]) => [nameKey(old), name]));
@@ -3486,7 +3490,7 @@ const MUSCLE_ONLY_LIFTS = () => [
   { label: 'Calf raise', key: 'machine-calf-raise', names: ['calf raise', 'calf raises', 'calves', 'machine calf raise', 'standing calf raise', 'seated calf raise'] },
   { label: 'Sit-up', key: 'sit-ups', addedKey: 'cable-crunch', reps: true, names: ['sit-up', 'sit-ups', 'sit up', 'sit ups', 'situp', 'situps', 'weighted sit-up', 'decline sit-up', 'crunch', 'crunches', 'cable crunch', 'machine crunch', 'ab crunch', 'ab crunch machine', 'crunch machine', 'ab machine'] },
 ];
-const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Chest Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Tricep Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Dumbbell Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Barbell Lying Triceps Extension': 'lying-tricep-extension', 'Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Standing Cable Chest Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
+const OTHER_LIFTS = Object.entries({ 'Sumo Deadlift': 'sumo-deadlift', 'Front Squat': 'front-squat', 'Romanian Deadlift': 'romanian-deadlift', 'Hip Thrust': 'hip-thrust', 'Hip Abduction Machine': 'hip-abduction', 'Leg Press': 'sled-leg-press', 'Leg Extension': 'leg-extension', 'Leg Curl': 'seated-leg-curl', 'Lat Pulldown': 'lat-pulldown', 'Dumbbell Bench Press': 'dumbbell-bench-press', 'Incline Dumbbell Press': 'incline-dumbbell-bench-press', 'Barbell Curl': 'barbell-curl', 'Dumbbell Curl': 'dumbbell-curl', 'Hammer Curl': 'hammer-curl', 'Triceps Pushdown': 'tricep-pushdown', 'Hack Squat': 'hack-squat', 'Close-Grip Bench Press': 'close-grip-bench-press', 'Lateral Raise': 'dumbbell-lateral-raise', 'Calf Raise': 'machine-calf-raise', 'Skull Crusher': 'lying-tricep-extension', 'Split Squat': 'bulgarian-split-squat', 'Stiff-Legged Deadlift': 'stiff-leg-deadlift', 'Pause Bench Press': 'paused-bench-press', 'Face Pull': 'face-pull', 'Cable Fly': 'cable-fly', 'Overhead Triceps Extension': 'dumbbell-tricep-extension' })
   .map(([label, key]) => ({ label, key, names: [label.toLowerCase(), ...(libraryEntry(label)?.aliases || []), ...Object.keys(RENAMED).filter((old) => RENAMED[old] === label).map((old) => old.toLowerCase())] }));
 const standardAt = (rows, bodyweight) => {
   if (!rows?.length) return null;
@@ -3968,7 +3972,7 @@ const renderProgress = () => {
     ${view.route === 'trends' ? '' : renderMuscles()}`;
 };
 
-const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Chest Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
+const SHORT_NAMES = { 'Bench Press': 'Bench', 'Pause Bench Press': 'P.bench', 'Close-Grip Bench Press': 'CG bench', 'Dumbbell Bench Press': 'DB', 'Incline Bench Press': 'Inc', 'Incline Dumbbell Press': 'Inc DB', 'Overhead Press': 'OHP', 'Deadlift': 'DL', 'Stiff-Legged Deadlift': 'SLDL', 'Romanian Deadlift': 'RDL', 'Squat': 'SQ', 'Hack Squat': 'Hack', 'Leg Press': 'Leg press', 'Leg Extension': 'Leg ext', 'Lat Pulldown': 'Lat pull', 'Hip Thrust': 'Thrust', 'Barbell Curl': 'Curl' };
 
 const dayName = (session) => {
   const peaks = topSets(session).map(({ name, set }) => `${SHORT_NAMES[name] || name}${prKind(name, session.date, set) === 'max' ? ' PR' : ''} ${set.kg}×${set.reps}`);
@@ -4764,7 +4768,7 @@ const demoSessions = (weeks = 8) => {
       { name: 'Bench Press', sets: [...sets(round(80 + step * 2), 5, 3), ...sets(round(85 + step * 2), 3, 1, 8)] },
       { name: 'Overhead Press', sets: sets(round(45 + step), 8, 3) },
       { name: 'Incline Bench Press', sets: sets(round(62.5 + step * 1.5), 8, 3) },
-      { name: 'Dumbbell Chest Press', sets: sets(round(26 + step * 0.5), 10, 3) },
+      { name: 'Dumbbell Bench Press', sets: sets(round(26 + step * 0.5), 10, 3) },
     ] });
     days.push({ date: at(4), label: 'Pull day', exercises: [
       { name: 'Deadlift', sets: [...sets(round(140 + step * 3), 5, 2), ...sets(round(150 + step * 3), 3, 1, 8)] },
@@ -4779,7 +4783,7 @@ const demoSessions = (weeks = 8) => {
     ] });
     days.push({ date: at(1), label: 'Arm day', exercises: [
       { name: 'Dumbbell Curl', sets: sets(round(12 + step * 0.5), 10, 3) },
-      { name: 'Tricep Pushdown', sets: sets(round(25 + step), 12, 3) },
+      { name: 'Triceps Pushdown', sets: sets(round(25 + step), 12, 3) },
     ], cardio: week % 2 === 0 ? 30 : 0 });
   }
   days.push({ date: addDays(today, -3), label: 'Push day', exercises: [
@@ -5881,7 +5885,7 @@ const planExtras = (plan) => {
   return `<div class="tgPlanExtras">${note}${muscles}${links}</div>`;
 };
 // The radios under an opened figure: the same as under the squad, without Aura (Aura keeps playing if it's on).
-const squadSwitch = (show, focus) => `<div class="tgRadios" role="radiogroup" aria-label="Showing">${[['recovery', 'Recovery'], ['focus', 'Workout'], ['strength', 'Strength']].map(([key, label]) => `<button class="tgRadio${view.together?.showAt && Date.now() - view.together.showAt < 1800 && show === key ? ' just' : ''}" role="radio" data-action="together-show" data-show="${key}" aria-checked="${show === key}"${key === 'focus' && !focus ? ' disabled' : ''}><i aria-hidden="true"></i>${label}</button>`).join('')}</div>`;
+const squadSwitch = (show, focus) => `<div class="tgRadios" role="radiogroup" aria-label="Showing">${[['recovery', 'Recovery'], ['focus', 'Workout']].map(([key, label]) => `<button class="tgRadio${view.together?.showAt && Date.now() - view.together.showAt < 1800 && show === key ? ' just' : ''}" role="radio" data-action="together-show" data-show="${key}" aria-checked="${show === key}"${key === 'focus' && !focus ? ' disabled' : ''}><i aria-hidden="true"></i>${label}</button>`).join('')}</div>`;
 // An opened (full-screen) figure keeps the same switch at the bottom: Strength / Recovery on Trends and a friend's
 // page, Recovery / Strength / Focus in Train together.
 const openSwitch = () => {
@@ -5898,7 +5902,7 @@ const openSwitch = () => {
     }
     const kind = view.together.kind || view.together.fit;
     const focus = Boolean(plan?.muscles?.length || (KIND_MUSCLES[plan?.kind || kind] || []).length);
-    const show = aura ? aura.look || aura.scene.show : view.together.show === 'focus' && !focus ? 'recovery' : view.together.show || 'recovery';
+    const show = aura ? aura.look || aura.scene.show : (view.together.show === 'focus' && !focus) || view.together.show === 'strength' ? 'recovery' : view.together.show || 'recovery';
     return `<div class="body3dModes">${squadSwitch(show, focus)}</div>`;
   }
   // Trends and a friend's page: no switch on the opened figure (switch on the page, then open it, as before).
@@ -5944,7 +5948,8 @@ const renderTogether = () => {
   // What the figures show, picked in the row under them: Recovery (who's fresh, the default), Workout (the day's
   // muscles, the rest see-through, the same view as picking but nothing changes when you tap), Strength (everyone's
   // levels) or Aura (the song runs the figures).
-  const show = together.show === 'focus' && !dayMuscles.length ? 'recovery' : together.show || 'recovery';
+  // Strength isn't one of the choices here (Marcus, 19 Nov); a phone that still has it saved shows recovery.
+  const show = (together.show === 'focus' && !dayMuscles.length) || together.show === 'strength' ? 'recovery' : together.show || 'recovery';
   const focusView = show === 'focus' && !picking;
   // Aura runs the figures while it is on: its scene says which colours they wear and which muscles stand solid.
   if (picking && aura) auraStop(true);
@@ -5963,7 +5968,7 @@ const renderTogether = () => {
   const showing = aura ? 'aura' : show;
   // Radio buttons, iOS-clean: a ring each, the picked one filled clay with the planned-day glow as it's picked.
   const justPicked = together.showAt && Date.now() - together.showAt < 1800 ? showing : null;
-  const showRow = squad3d && !picking ? `<div class="tgRadios" role="radiogroup" aria-label="Showing">${[['recovery', 'Recovery'], ['focus', 'Workout'], ['strength', 'Strength'], ['aura', 'Aura']].map(([key, label]) => `<button class="tgRadio${justPicked === key ? ' just' : ''}"${justPicked === key ? ` style="--since:-${Date.now() - together.showAt}ms"` : ''} role="radio" data-action="together-show" data-show="${key}" aria-checked="${showing === key}"${key === 'focus' && !dayMuscles.length ? ' disabled' : ''}><i aria-hidden="true"></i>${label}</button>`).join('')}</div>` : '';
+  const showRow = squad3d && !picking ? `<div class="tgRadios" role="radiogroup" aria-label="Showing">${[['recovery', 'Recovery'], ['focus', 'Workout'], ['aura', 'Aura']].map(([key, label]) => `<button class="tgRadio${justPicked === key ? ' just' : ''}"${justPicked === key ? ` style="--since:-${Date.now() - together.showAt}ms"` : ''} role="radio" data-action="together-show" data-show="${key}" aria-checked="${showing === key}"${key === 'focus' && !dayMuscles.length ? ' disabled' : ''}><i aria-hidden="true"></i>${label}</button>`).join('')}</div>` : '';
   const auraMute = squad3d && aura ? `<button class="tgAuraMute" data-action="together-aura-mute" aria-pressed="${aura.muted}" aria-label="${aura.muted ? 'Sound on' : 'Sound off'}">${AURA_SOUND}</button>` : '';
   const bodies = !drawn ? '<div class="tgBodies"></div>' : squad3d ? `<div class="tgSquad">${squad3d}${auraMute}</div><div class="tgNames" style="grid-template-columns:${picking ? people.map((entry) => (entry.me && people.length > 1 ? '1.6fr' : '1fr')).join(' ') : `repeat(${people.length},1fr)`}">${people.map((entry, index) => `<span class="tgNameCell">${entry.me || !entry.handle ? `<span>${esc(entry.name)}</span>` : `<a href="#/friend/${entry.handle}">${esc(entry.name)}</a>`}<button data-action="body3d-expand" data-index="${index}" aria-label="${esc(entry.name)} full screen">${ICONS.expand}</button></span>`).join('')}</div>${showRow}${heightAsk}` : `<div class="tgBodies${people.length > 3 ? ' many' : ''}${bodyChosen ? ' chosen' : ''}">${people.map((entry) => `<figure><figcaption>${esc(entry.name)}</figcaption></figure>`).join('')}</div>`; // never the old flat figure (Marcus, 15 Nov): names only until the 3D body is there
   bodyChosen = null;

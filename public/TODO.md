@@ -112,6 +112,7 @@ Three big pieces Marcus wants done properly when the time comes. Don't start one
 
 ## Done (recent)
 
+- Exercise names kept short: StrengthLog's name unless it's longer than what people write (Lateral Raise, Cable Fly, Skull Crusher, Rope Pushdown); Strength radio removed from Train together (v524)
 - Recovery: 3+ working sets at half your best or more count as a moderate day, so 3×10 leg curls recover like that day's squats. Exercise names follow StrengthLog for everyone (Leg Extension Machine → Leg Extension, Pull Up → Pull-Up, Lateral Raise → Dumbbell Lateral Raise…), old logs renamed on every phone, AI writes StrengthLog names (v523)
 - Showing radios across the full width again (edges aligned), picked one a solid clay dot with its halo, no white centre (v522)
 
