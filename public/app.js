@@ -138,6 +138,15 @@ const loadState = () => {
   return { version: 1, deviceId: crypto.randomUUID(), sessions: [], bests: {} };
 };
 
+// Running on Marcus's Mac (localhost): no service worker, a test log to look at, and logging without the server.
+// Never true on the live site.
+const LOCAL_DEV = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+let devFresh = false;
+try {
+  devFresh = LOCAL_DEV && !navigator.webdriver && !localStorage.getItem(STORE_KEY);
+} catch {
+  // no storage: nothing to seed
+}
 let state = loadState();
 // From 2 to 5 Nov a new phone started with someone else's bench best (145) saved as its own; it showed as a 145 bench
 // on logs that never went near it. It's dropped here, on the phone that still has it (the server drops it too).
@@ -813,6 +822,12 @@ const parseChunk = (chunk) => {
   return null;
 };
 
+// Local development only: "bench 144 1 deadlift 299 1" becomes one line per lift, "144 1" becomes 144x1.
+const devLines = (text) => text
+  .replace(/(\d)\s+(?=(?!(?:for|x|kg|kilos?|reps?|sets?|times)\b)[a-zåäö])/gi, '$1\n')
+  .replace(/(\d+(?:[.,]\d+)?)\s+(\d{1,2})(?=\s*(?:\n|$))/g, '$1x$2');
+let apiCheck = null;
+const apiReachable = () => (apiCheck ||= fetch('/api/features').then((response) => response.ok && /json/.test(response.headers.get('content-type') || '')).catch(() => false));
 const parseLocally = (text) => {
   const chunks = text.split(/\n|;|\.\s|\bthen\b|\bsen\b/i).map((chunk) => chunk.trim()).filter(Boolean);
   const result = { exercises: [], cardioMinutes: 0 };
@@ -1235,7 +1250,7 @@ const importLeft = (item) => {
   return `About ${minutes} min left.`;
 };
 const pendingHint = (item, tag) => {
-  if (!item.import) return `<${tag} class="ghostHint">It lands by itself. Keep logging, or look at <a href="#/trends">Trends</a>.</${tag}>`;
+  if (!item.import) return `<${tag} class="ghostHint">Exodia is on it in the background.</${tag}>`;
   const { index = 0, total = 1 } = item.parts || {};
   // The bar grows from where it was to the new part, also when the page draws again meanwhile.
   const width = Math.round((index / total) * 100);
@@ -8389,7 +8404,16 @@ const send = async () => {
     render();
     return;
   }
-  const local = !view.fixing && !view.editContext && !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
+  let local = !view.fixing && !view.editContext && !voice && !DAY_WORDS.test(text) && !EDIT_WORDS.test(text) && !/rpe|@/i.test(text) ? parseLocally(text) : null;
+  // On the Mac without the server: simple lines still log on the computer; anything else says so instead of waiting.
+  if (!local && LOCAL_DEV && !(await apiReachable())) {
+    local = voice ? null : parseLocally(devLines(text));
+    if (!local) {
+      view.status = 'Needs the server. Here only simple lines log, like "bench 100x5" or "squat 140 5".';
+      render();
+      return;
+    }
+  }
   if (local) {
     const before = JSON.stringify(state.sessions);
     view.draft = '';
@@ -10634,7 +10658,16 @@ document.addEventListener('focusout', () => {
 tickTypewriter();
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+// On the Mac: an old service worker would keep serving yesterday's files, so it goes and edits show on reload.
+if (LOCAL_DEV && 'serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then((list) => list.forEach((one) => one.unregister())).catch(() => {});
+// A first open on the Mac starts in a test log named Test (half a year of training, a body for the anatomy and the
+// strength levels), so it's never mistaken for a real one. Clear site data to start again.
+if (devFresh) {
+  state = { version: 1, deviceId: state.deviceId || 'local-test', name: 'Test', started: true, bests: {}, body: { kg: 88, sex: 'male', cm: 182, age: 30 }, sessions: demoSessions(26) };
+  writeLocal();
+  render();
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !LOCAL_DEV) {
   // New versions install quietly in the background and load only while Exodia is out of sight (updateQuietly).
   // Looks for a new version when the app opens, when you come back to it, and every 2 minutes while it's on screen.
   navigator.serviceWorker.register('/sw.js').then((registration) => {
