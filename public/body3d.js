@@ -24,6 +24,8 @@
 // - A tap on a figure but not on a muscle (head, hands), or a double tap, opens that person: the view expands
 //   itself and then calls onExpand(index). A tap on the background, the cross or Esc closes it and calls
 //   onCollapse(). expand() and collapse() called by the app do not call back.
+// - info(key, personIndex), optional: HTML about the picked muscle in the open view, or '' for none. When it gives
+//   some, an (i) follows the muscle's name and opens it in a box; a tap outside, the (i) again or Esc closes it.
 //
 // Model: Z-Anatomy (Gauthier Kervyn), BodyParts3D (DBCLS), CC BY-SA 4.0. See lab/README.md.
 
@@ -484,7 +486,7 @@ const breastGeo = (THREE) => { const g = new THREE.SphereGeometry(1, 40, 28), p 
 
 // ---------- the view ----------
 
-export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onWho, names, look, sizing } = {}) {
+export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onWho, names, look, sizing, info } = {}) {
   const strong = sizing === 'strong';
   const avgOf = (p, keys) => { const ls = keys.map((g) => (p.muscles || {})[g]?.level).filter((l) => l > 0); return ls.length ? ls.reduce((a, b) => a + b, 0) / ls.length : 0; };
   // Which shape someone stands in (see SHAPES), in quarter steps so only a few shapes are ever built.
@@ -789,10 +791,24 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   };
   // The line under the open figure: the picked muscle with what the app says about it ("Traps · Elite 5.4",
   // "Quads · 2 days ago") when it passes a label, else just its name.
+  // With info (the app's explanation for that muscle, or nothing), an (i) sits after the name and opens it in a box.
   const showName = () => { const key = GROUPS[selGroup - 1];
     if (key) { const p = people[open >= 0 ? open : 0], c = p?.pal[selGroup], hex = c && c !== plainC ? '#' + c.getHexString() : CLAY;
       const sw = document.createElement('i'), text = document.createElement('span'); sw.style.background = hex; text.textContent = p?.labels[key] || LABEL[key];
-      nameEl.replaceChildren(sw, text); nameEl.classList.add('on'); } else nameEl.classList.remove('on'); };
+      const about = info && open >= 0 ? info(key, open) : '';
+      nameEl.replaceChildren(sw, text, ...(about ? [infoBtn] : [])); nameEl.classList.add('on'); over.classList.add('named');
+      if (about) infoEl.innerHTML = about; else setInfo(false); }
+    else { nameEl.classList.remove('on'); over.classList.remove('named'); setInfo(false); } };
+  const infoBtn = document.createElement('button'); infoBtn.type = 'button'; infoBtn.className = 'infoBtn body3dInfoBtn'; infoBtn.textContent = 'i';
+  infoBtn.setAttribute('aria-label', 'Why this level'); infoBtn.setAttribute('aria-expanded', 'false');
+  const infoEl = document.createElement('div'); infoEl.className = 'body3dInfo'; infoEl.setAttribute('role', 'note'); let infoOpen = false;
+  const setInfo = (on) => { if (on === infoOpen) return; infoOpen = on; infoBtn.setAttribute('aria-expanded', String(on));
+    if (on && !infoEl.parentNode) document.body.appendChild(infoEl); infoEl.classList.toggle('on', on); };
+  infoBtn.addEventListener('click', () => setInfo(!infoOpen));
+  // Open, a tap anywhere outside the box closes it and does nothing else (it doesn't unpick the muscle or turn the body);
+  // the cross and the list beside the figure still work as well.
+  window.addEventListener('pointerdown', (e) => { if (dead || !infoOpen || infoEl.contains(e.target) || infoBtn.contains(e.target)) return; setInfo(false);
+    if (e.target === canvas) e.stopPropagation(); }, true);
   const doExpand = (i) => {
     if (dead || i === open || !people[i]) return false;
     open = i; setWho(people[i]); showName();
@@ -804,7 +820,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     }
     dirty = true; kick(); return true;
   };
-  const doCollapse = () => { if (open < 0) return false; open = -1; over.classList.remove('in'); dirty = true; kick(); return true; };
+  const doCollapse = () => { if (open < 0) return false; open = -1; setInfo(false); over.classList.remove('in'); dirty = true; kick(); return true; };
   // The name over an opened figure: a friend's opens their page ("Romi ›"); your own is just your name.
   // Opened: the name sits just above the head. The crown is projected with the opened figure's own camera, so it holds
   // for every screen and every height.
@@ -815,7 +831,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
   const setWho = (p) => { whoEl.textContent = p?.name || ''; whoEl.classList.toggle('link', Boolean(p?.link && onWho)); };
   whoEl.addEventListener('click', () => { const p = people[open]; if (p?.link && onWho) { doCollapse(); onWho(p.link); } });
   const userCollapse = () => { if (doCollapse() && onCollapse) onCollapse(); };
-  const onKey = (e) => { if (e.key === 'Escape' && open >= 0) userCollapse(); };
+  const onKey = (e) => { if (e.key === 'Escape' && infoOpen) setInfo(false); else if (e.key === 'Escape' && open >= 0) userCollapse(); };
   const tap = (e) => {
     const b = canvas.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
     if (open >= 0) {
@@ -959,7 +975,7 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     destroy() {
       if (dead) return; dead = true; clearTimeout(lostTimer); clearTimeout(settleTimer); cancelAnimationFrame(raf); if (io) io.disconnect(); if (ro) ro.disconnect();
       document.removeEventListener('visibilitychange', onVis); window.removeEventListener('resize', onWin); document.removeEventListener('keydown', onKey);
-      if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } canvas.remove(); over.remove();
+      if (hostEl) { hostEl.classList.remove('body3dHost'); listen(hostEl, false); } canvas.remove(); over.remove(); infoEl.remove();
       muscleMat.dispose(); xrayMat.dispose(); ctxMat.dispose(); breastMat.dispose(); bGeo.dispose(); hullMat.dispose(); depthM.dispose(); depthC.dispose(); for (const m of dMeshes) if (m.material.isShaderMaterial) m.material.dispose(); veilMat.dispose(); renderer.dispose(); renderer.forceContextLoss(); // the geometry is shared with other views and stays
     },
     // For tests and tuning only.

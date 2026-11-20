@@ -143,7 +143,7 @@ let state = loadState();
 // on logs that never went near it. It's dropped here, on the phone that still has it (the server drops it too).
 const LEAKED_BESTS = '{"Bench Press":145}';
 if (JSON.stringify(state.bests || {}) === LEAKED_BESTS) state.bests = {};
-const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 0, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null, search: { query: '', local: [], ai: [], loading: false } };
+const view = { route: 'home', menu: false, composer: false, open: new Set([todayIso()]), exodiaOpen: false, trendOpen: null, range: 0, draft: '', status: '', listening: false, toast: null, pending: [], fresh: null, search: { query: '', local: [], ai: [], loading: false, answer: null } };
 
 const SYNC_KEY = 'exodia.sync';
 const PROFILE_KEY = /^[a-f0-9]{32}$/;
@@ -2103,7 +2103,7 @@ const loadBody3d = () => {
   if (body3dState !== 'idle') return;
   body3dState = 'loading';
   import('/body3d.js')
-    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (aura) aura.look = null; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; render(); }, names: Object.fromEntries(MUSCLES) }))
+    .then(({ createBodyView }) => createBodyView({ sizing: 'strong', info: body3dInfo, onPick: body3dPick, onLost: body3dLost, onWho: (link) => { location.hash = link; }, onExpand: () => { view.body3dOpen = true; render(); }, onCollapse: () => { view.body3dOpen = false; if (aura) aura.look = null; if (view.route === 'together' && view.musclePick) pickMuscle(null); if (view.together?.picking) view.together.picking = false; render(); }, names: Object.fromEntries(MUSCLES) }))
     .then((made) => {
       body3d = made;
       body3dState = 'ready';
@@ -2207,6 +2207,47 @@ const body3dPerson = (id, name, cm, colours, labels = null, extra = {}) => {
 };
 // The line under an opened figure: "Traps · Elite 5.4" in Strength, "Quads · 2 days ago" in Recovery.
 const strengthLabel = (key, title, level) => (level ? `${title} · ${tierOf(level)?.[1] || ''} ${levelNumber(level)}` : title);
+// The (i) next to a picked muscle in the opened Strength figure: which lifts set its level (each one's best set and
+// level, the main lift first) and what the main lift needs for the next level at your bodyweight, sex and age.
+const muscleWhy = (key) => {
+  const body = state.body;
+  const level = body?.kg && body?.sex ? muscleLevels()?.[key] || 0 : null;
+  if (level === null || !MUSCLE_LIFTS[key]) return '';
+  const all = [...WEB_LIFTS, ...MUSCLE_ONLY_LIFTS(), ...OTHER_LIFTS];
+  const parts = Object.entries(MUSCLE_LIFTS[key]).sort((one, two) => two[1] - one[1]).map(([liftKey, share]) => {
+    const lift = all.find((one) => one.key === liftKey);
+    return lift && { lift, share, result: liftStrength(lift, body) };
+  }).filter(Boolean);
+  if (!parts.length) return '';
+  const nameOf = (part) => part.result.best?.name || libraryEntry(part.lift.label)?.name || part.lift.label;
+  const when = (date) => parseIso(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(date.slice(0, 4) === todayIso().slice(0, 4) ? {} : { year: 'numeric' }) });
+  const tierBox = (score) => `<span class="b3iLevel"><i class="muscleSwatch ${tierOf(score)?.[2] || 'tierNone'}"></i>${levelWord(score)} ${levelNumber(score)}</span>`;
+  const setLine = (part) => {
+    const { best } = part.result;
+    const [kg, reps] = [Number(best.set.kg) || 0, Number(best.set.reps)];
+    if (part.lift.reps) return best.weighted ? `+${kg} kg × ${reps}` : `${reps} reps in one set`;
+    return `${kg} × ${reps}${reps > 1 ? ` → est. ${Math.round(estimate(kg, reps))} kg` : ''}`;
+  };
+  const done = parts.filter((part) => part.result.everScore > 0);
+  const rows = done.map((part) => `<div class="b3iLift"><p class="b3iTop"><span class="b3iName">${esc(nameOf(part))}</span>${tierBox(part.result.everScore)}</p><p class="b3iSet num">${setLine(part)} · ${when(part.result.best.date)}</p></div>`).join('');
+  // The main lift (the biggest share) alone is enough for the next level: a muscle never sits below its main lift.
+  // Not done yet while one other lift is: that one carries the level on its own, so it's the one to name.
+  const main = parts[0].result.everScore > 0 || done.length !== 1 ? parts[0] : done[0];
+  const next = level < 1 ? 1 : Math.floor(level) + 1;
+  const marks = main.result.marks || standardAt(STANDARDS[main.lift.key]?.[body.sex], body.kg);
+  const age = ageFactor(body.age);
+  const mark = marks?.[Math.min(5, next) - 1];
+  const lower = nameOf(main).toLowerCase();
+  const needs = !mark ? '' : main.lift.reps
+    ? (main.result.weighted ? `${lower} with +${Math.ceil(mark)} kg` : `${Math.ceil(mark)} ${lower.endsWith('s') ? lower : `${lower}s`} in one set`)
+    : `${lower} ${Math.round(mark / age)} kg 1RM, about ${Math.ceil(weightFor(mark / age, 5) / 2.5) * 2.5} × 5`;
+  const who = `At ${round(Number(body.kg))} kg bodyweight, ${body.sex}${Number(body.age) ? `, ${Math.round(Number(body.age))}` : ''}.`;
+  const nextLine = !needs ? '' : next > 5
+    ? `<p class="b3iHead">Past Elite</p><p class="b3iNext">Elite is ${esc(needs)}.</p><p class="b3iSet">${who}</p>`
+    : `<p class="b3iHead">Next: ${LEVELS[next - 1]} ${next}.0</p><p class="b3iNext">${esc(needs.charAt(0).toUpperCase() + needs.slice(1))}.</p><p class="b3iSet">${who}</p>`;
+  return `<p class="b3iHead">${done.length > 1 ? 'Set by these lifts' : 'Set by'}</p>${rows || `<p class="b3iNext">No ${esc(lower)} logged yet.</p>`}${nextLine}`;
+};
+const body3dInfo = (key, index) => (index === 0 && (view.route === 'trends' || view.route === 'home') && view.muscleMode === 'strength' && document.querySelector('[data-body3d="one"]') ? muscleWhy(key) : '');
 const plainWhen = (date) => { const ago = daysBetween(date, todayIso()); return ago === 0 ? 'today' : ago === 1 ? 'yesterday' : `${ago} days ago`; };
 const recoveryLabel = (key, title) => (lastTrained()[key] ? `${title} · ${plainWhen(lastTrained()[key])}` : title);
 const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
@@ -4085,18 +4126,95 @@ const dayName = (session) => {
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-const searchLocal = (query) => {
-  const text = query.toLowerCase();
+// The lifts a search names ("bench" is Bench Press), the most specific only: "incline bench" is not also Bench Press.
+const searchLifts = (text) => {
   const names = [...new Set([...LIBRARY.map((entry) => entry.name), ...state.sessions.flatMap((session) => session.exercises.map((exercise) => exercise.name))])];
   const mentioned = names.filter((name) => [name.toLowerCase(), ...(libraryEntry(name)?.aliases || [])].some((alias) => new RegExp(`(^|[^a-z])${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z])`).test(text)));
-  const wanted = mentioned.filter((name) => !mentioned.some((other) => other !== name && other.toLowerCase().includes(name.toLowerCase())));
+  return mentioned.filter((name) => !mentioned.some((other) => other !== name && other.toLowerCase().includes(name.toLowerCase())));
+};
+// Weights and reps in a search: "100 kg", "x5", "for 5", "5 reps", "5rm"; small bare numbers are reps. Dates are skipped.
+const searchNumbers = (text) => {
   const kgs = [];
   const reps = [];
-  for (const match of text.replace(/\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/g, ' ').replace(/\b(19|20)\d{2}\b/g, ' ').matchAll(/(for\s+|x\s*|×\s*)?(\d+(?:[.,]\d+)?)\s*(kg|kilos?|reps?)?/g)) {
+  for (const match of text.replace(/\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/g, ' ').replace(/\b(19|20)\d{2}\b/g, ' ').replace(/\be1rm\b|\b1\s?rm\b/g, ' ').matchAll(/(for\s+|x\s*|×\s*)?(\d+(?:[.,]\d+)?)\s*(kg|kilos?|reps?|rm\b)?/g)) {
     const value = Number(match[2].replace(',', '.'));
-    if (match[3]?.startsWith('rep') || match[1] || (value < 20 && !match[3])) reps.push(value);
+    if (match[3]?.startsWith('rep') || match[3] === 'rm' || match[1] || (value < 20 && !match[3])) reps.push(value);
     else kgs.push(value);
   }
+  return { kgs, reps };
+};
+// Simple weight and reps questions about one lift, answered on the phone from the log, no AI: "most reps on 100 kg
+// bench", "best 100kg bench", "heaviest bench for 5", "best bench" (estimated 1RM), "first 100 kg bench". Each day
+// shows its matching sets, best first. Anything else (null) goes to the AI search.
+const searchAnswer = (query) => {
+  const text = query.toLowerCase().replace(/\s+/g, ' ').trim().replace(/\bbenched\b/g, 'bench').replace(/\bsquatted\b/g, 'squat').replace(/\bdeadlifted\b/g, 'deadlift');
+  const lifts = searchLifts(text);
+  if (lifts.length !== 1) return null;
+  const [lift] = lifts;
+  const { kgs, reps } = searchNumbers(text);
+  if (kgs.length > 1 || reps.length > 1) return null;
+  const [kg] = kgs;
+  const [rep] = reps;
+  const best = /\b(best|max|maximum|most|top|pr|prs|record|heaviest|strongest|biggest|highest)\b|personal best/.test(text);
+  const first = /\b(first|earliest)\b/.test(text);
+  const latest = /\b(last|latest|recent|newest)\b/.test(text);
+  const e1rm = /\be1rm\b|\b1\s?rm\b|one rep max|estimated|\best\b/.test(text);
+  if (!best && !first && !latest && !e1rm && kg === undefined && rep === undefined) return null;
+  // Words this can't answer (dates, people, feelings) go to the AI.
+  const known = /\b(best|max|maximum|most|top|set|sets|pr|prs|record|records|heaviest|strongest|biggest|highest|personal|first|earliest|last|latest|recent|newest|e1rm|1rm|rm|one|rep|reps|estimated|est|kg|kgs|kilo|kilos|x|for|on|at|with|my|the|a|of|in|what|whats|is|was|were|did|i|how|many|much|weight|ever|time|when|single|double|triple|all|lift|lifted|done|do)\b/g;
+  const left = [lift.toLowerCase(), ...(libraryEntry(lift)?.aliases || [])].sort((one, two) => two.length - one.length).reduce((rest, alias) => rest.replace(new RegExp(`(^|[^a-z])${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z])`, 'g'), ' '), text.replace(/['’]/g, ''))
+    .replace(/\be1rm\b|\b1\s?rm\b/g, ' ').replace(/\d+(?:[.,]\d+)?/g, ' ').replace(known, ' ').replace(/[^a-z]+/g, ' ').trim();
+  if (left) return null;
+  const sets = [];
+  for (const session of state.sessions) {
+    for (const exercise of session.exercises) {
+      if (exercise.name !== lift) continue;
+      for (const set of validSets(exercise)) {
+        if (set.warmup) continue;
+        const [weight, count] = [Number(set.kg) || 0, Number(set.reps)];
+        if (first || latest ? (kg !== undefined && weight < kg) || (rep !== undefined && count < rep) : (kg !== undefined && weight !== kg) || (rep !== undefined && kg !== undefined && count !== rep) || (rep !== undefined && kg === undefined && count < rep)) continue;
+        sets.push({ date: session.date, name: exercise.name, set, weight, count, est: setValue(exercise.name, set) });
+      }
+    }
+  }
+  const kgText = (value) => `${value} kg`;
+  // What it ranks by: the date (first, latest), the reps at one weight, the weight for some reps, or the estimate.
+  const repsAsked = /\b(most|max|maximum) reps\b|how many reps/.test(text) || (isBodyweightLift(lift) && !e1rm && rep === undefined);
+  const mode = first ? 'first' : latest ? 'latest' : (kg !== undefined || repsAsked) && rep === undefined ? 'reps' : rep !== undefined && kg === undefined ? 'weight' : kg !== undefined ? 'latest' : e1rm || !/\b(heaviest|most weight|top set|top)\b/.test(text) ? 'est' : 'weight';
+  const rank = {
+    first: (one, two) => one.date.localeCompare(two.date) || two.weight - one.weight,
+    latest: (one, two) => two.date.localeCompare(one.date) || two.weight - one.weight,
+    reps: (one, two) => two.count - one.count || two.est - one.est || two.date.localeCompare(one.date),
+    weight: (one, two) => two.weight - one.weight || two.count - one.count || two.date.localeCompare(one.date),
+    est: (one, two) => two.est - one.est || two.weight - one.weight || two.date.localeCompare(one.date)
+  }[mode];
+  sets.sort(rank);
+  const label = {
+    first: `First ${kg !== undefined ? kgText(kg) : 'sets'}${rep !== undefined ? ` for ${rep}` : ''}`,
+    latest: `Latest ${kg !== undefined ? kgText(kg) : 'sets'}${rep !== undefined ? ` × ${rep}` : ''}`,
+    reps: kg !== undefined ? `Most reps at ${kgText(kg)}` : 'Most reps',
+    weight: rep !== undefined ? `Heaviest for ${rep}+ ${rep === 1 ? 'rep' : 'reps'}` : 'Heaviest sets',
+    est: 'Best estimated 1RM'
+  }[mode];
+  // One row per day, in the order of that day's best set; the day's other matching sets follow it.
+  const days = [];
+  for (const one of sets) {
+    const day = days.find((item) => item.date === one.date);
+    if (day) day.sets.push(one);
+    else days.push({ date: one.date, sets: [one] });
+  }
+  const setText = (one) => `${one.weight} × ${one.count}`;
+  const rows = days.slice(0, 8).map((day) => ({
+    date: day.date,
+    line: `${lift} ${day.sets.slice(0, mode === 'est' || mode === 'weight' ? 1 : 3).map(setText).join(', ')}${day.sets.length > 3 && mode !== 'est' && mode !== 'weight' ? ' …' : ''}${mode === 'est' || mode === 'weight' ? ` · est. ${Math.round(day.sets[0].est)} kg` : ''}`
+  }));
+  return { label: `${label} · ${lift}`, rows };
+};
+
+const searchLocal = (query) => {
+  const text = query.toLowerCase();
+  const wanted = searchLifts(text);
+  const { kgs, reps } = searchNumbers(text);
   const wantsPr = /\bprs?\b|record|personal best/.test(text);
   const wantsTop = /\btop\b|heaviest/.test(text);
   const dayMonth = text.match(/(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/) || text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*(\d{1,2})\b/);
@@ -4150,16 +4268,18 @@ const searchIndex = () => sortedSessions()
 let searchTimer = 0;
 let searchSeq = 0;
 
+const searchRow = (item) => `<button class="searchRow" data-action="jump-session" data-date="${item.date}"><span class="searchTop"><span>${dayLabel(item.date)}</span><span class="searchKind">${esc(dayKind(sessionFor(item.date)))}</span></span><span class="searchLine">${esc(item.line)}</span></button>`;
 const searchResults = () => {
-  const { local, ai, loading } = view.search;
+  const { local, ai, loading, answer } = view.search;
+  if (answer) return answer.rows.filter((item) => sessionFor(item.date)).map(searchRow).join('') || '<p class="searchNote">Nothing found.</p>';
   const seen = new Set();
   const rows = [...ai.map((item) => ({ date: item.date, line: item.why })), ...local].filter((item) => sessionFor(item.date) && !seen.has(item.date) && seen.add(item.date));
-  return `${rows.map((item) => `<button class="searchRow" data-action="jump-session" data-date="${item.date}"><span class="searchTop"><span>${dayLabel(item.date)}</span><span class="searchKind">${esc(dayKind(sessionFor(item.date)))}</span></span><span class="searchLine">${esc(item.line)}</span></button>`).join('')}${loading ? '<p class="searchNote">Searching with AI…</p>' : rows.length ? '' : '<p class="searchNote">Nothing found.</p>'}`;
+  return `${rows.map(searchRow).join('')}${loading ? '<p class="searchNote">Searching with AI…</p>' : rows.length ? '' : '<p class="searchNote">Nothing found.</p>'}`;
 };
 
 const recentRows = () => sortedSessions().slice(0, 8).map((session) => `<button class="drawerRow" data-action="jump-session" data-date="${session.date}"><span class="dayName" title="${esc(dayName(session))}">${esc(dayName(session))}</span><span class="muted">${['Today', 'Yesterday'].includes(dayLabel(session.date)) ? dayLabel(session.date) : parseIso(session.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(session.date.slice(0, 4) === todayIso().slice(0, 4) ? {} : { year: '2-digit' }) })}</span></button>`).join('') || '<p class="drawerRow muted">None yet</p>';
 
-const drawerList = () => (view.search.query.trim() ? `<p class="drawerLabel">Results</p>${searchResults()}` : `<p class="drawerLabel">Recent sessions</p>${recentRows()}`);
+const drawerList = () => (view.search.query.trim() ? `<p class="drawerLabel">${esc(view.search.answer?.label || 'Results')}</p>${searchResults()}` : `<p class="drawerLabel">Recent sessions</p>${recentRows()}`);
 
 const paintSearch = () => {
   const list = document.getElementById('drawerList');
@@ -4168,7 +4288,8 @@ const paintSearch = () => {
 
 const runAiSearch = () => {
   const query = view.search.query.trim();
-  if (query.length < 3 || !navigator.onLine) return;
+  // Answered from the log on the phone: no AI needed.
+  if (query.length < 3 || !navigator.onLine || view.search.answer) return;
   const seq = ++searchSeq;
   view.search.loading = true;
   paintSearch();
@@ -8590,7 +8711,7 @@ function pickMuscle(key) {
 }
 
 document.addEventListener('click', (event) => {
-  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"], .body3dSlot, .body3dOver, .b3dList')) pickMuscle(null);
+  if (view.musclePick && !event.target.closest('[data-action="pick-muscle"], .body3dSlot, .body3dOver, .b3dList, .body3dInfo')) pickMuscle(null);
   if (view.editDay && !event.target.closest(`#session-${view.editDay}`) && !event.target.closest('.dock')) {
     if (view.editContext?.date === view.editDay) view.editContext = null;
     view.editDay = null;
@@ -9785,12 +9906,13 @@ document.addEventListener('input', (event) => {
   }
   if (target.id === 'search') {
     view.search.query = target.value;
-    view.search.local = target.value.trim() ? searchLocal(target.value) : [];
+    view.search.answer = target.value.trim() ? searchAnswer(target.value) : null;
+    view.search.local = target.value.trim() && !view.search.answer ? searchLocal(target.value) : [];
     view.search.ai = [];
     view.search.loading = false;
     searchSeq += 1;
     clearTimeout(searchTimer);
-    if (target.value.trim().length >= 3) searchTimer = setTimeout(runAiSearch, 700);
+    if (target.value.trim().length >= 3 && !view.search.answer) searchTimer = setTimeout(runAiSearch, 700);
     paintSearch();
     return;
   }
