@@ -699,11 +699,11 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     { const hb = ctx.geometry.userData.head, hc = HEADS[p.head]; HU.uHead.value = hb && hc && HU.tMark.value ? 1 : 0;
       if (HU.uHead.value) { HU.uHeadFill.value.set(hc[0]); HU.uHeadLine.value.set(hc[1]); HU.uHeadBox.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, p.headMark ? 1 : 0, hb[3] * 0.98); HU.uHeadZ.value = hb[4];
         HU.uHeadLook.value = p.headLook && HU.tCrest.value ? 1 : 0; HU.uHeadC.value.set(hb[0], hb[1] + (hb[2] - hb[1]) * 0.5, (hb[5] + hb[6]) / 2); } }
-    // The drawing replaces the rest of the body only for one or two people; a row of many fades to plain instead.
+    // The drawing replaces the rest of the body for up to seven people (a picked muscle, or picking for a plan); more fade to plain.
     // An opened figure always gets the drawing, however many stand in the row (r.e rises as it opens).
     // Picking muscles for a plan: each person shows the muscles they'll train, solid, the rest as the drawing.
     U.uPick.value = p.pick; U.uPickOn.value = pickOn;
-    const book = people.length <= (pickOn > 0 ? 7 : 2) ? 1 : r.e, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
+    const book = people.length <= 7 ? 1 : r.e, f = book * Math.max(sel.y, sel.w, pickOn); U.uBook.value = book;
     ctxMat.opacity = 1 - f; ctx.visible = f < 0.998; breastMat.opacity = 0.85 * (1 - f);
     // Both sides only where it's seen up close (one person, or opened); a row of many keeps the cheaper front side.
     muscleMat.side = people.length <= 3 || r.e > 0 ? THREE.DoubleSide : THREE.FrontSide;
