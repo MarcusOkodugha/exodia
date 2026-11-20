@@ -796,9 +796,9 @@ export async function createBodyView({ onPick, onExpand, onCollapse, onLost, onW
     if (key) { const p = people[open >= 0 ? open : 0], c = p?.pal[selGroup], hex = c && c !== plainC ? '#' + c.getHexString() : CLAY;
       const sw = document.createElement('i'), text = document.createElement('span'); sw.style.background = hex; text.textContent = p?.labels[key] || LABEL[key];
       const about = info && open >= 0 ? info(key, open) : '';
-      nameEl.replaceChildren(sw, text, ...(about ? [infoBtn] : [])); nameEl.classList.add('on'); over.classList.add('named');
+      nameEl.replaceChildren(sw, text, ...(about ? [infoBtn] : [])); nameEl.classList.add('on');
       if (about) infoEl.innerHTML = about; else setInfo(false); }
-    else { nameEl.classList.remove('on'); over.classList.remove('named'); setInfo(false); } };
+    else { nameEl.classList.remove('on'); setInfo(false); } };
   const infoBtn = document.createElement('button'); infoBtn.type = 'button'; infoBtn.className = 'infoBtn body3dInfoBtn'; infoBtn.textContent = 'i';
   infoBtn.setAttribute('aria-label', 'Why this level'); infoBtn.setAttribute('aria-expanded', 'false');
   const infoEl = document.createElement('div'); infoEl.className = 'body3dInfo'; infoEl.setAttribute('role', 'note'); let infoOpen = false;

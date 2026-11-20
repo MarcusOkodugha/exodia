@@ -1878,8 +1878,8 @@ button.wnDay { cursor: pointer; }
 .body3dName span { overflow: hidden; text-overflow: ellipsis; }
 .body3dName i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
 /* The (i) after the picked muscle's name, and its box: which lifts set the level and what the next one needs. Frosted, in
-   the card's colours, just under the name. Phone: the name takes the top line in full, centred over the figure, and your
-   own name above the head steps aside while a muscle is picked (the two used to cut each other off). */
+   the card's colours. Phone: the name sits in full under the figure and the box opens upwards from it. Computer: the name
+   stays top right and the box sits in the empty space left of the figure, level with the name, covering nothing. */
 .body3dName .body3dInfoBtn { position: relative; margin-left: 1px; pointer-events: auto; background: rgb(255 255 255 / 0.6); }
 .body3dName .body3dInfoBtn::after { content: ""; position: absolute; inset: -13px; }
 .body3dInfo { position: fixed; z-index: 91; top: calc(env(safe-area-inset-top) + 52px); left: 50%; width: min(340px, calc(100% - 32px)); padding: 14px 16px 15px; border: 1px solid var(--line); border-radius: 16px; background: rgb(255 255 255 / 0.84); -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2); box-shadow: 0 8px 28px rgba(20, 20, 19, 0.08); color: var(--text); text-align: left; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-50%, -4px); transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s; }
@@ -1894,12 +1894,11 @@ button.wnDay { cursor: pointer; }
 .body3dInfo .b3iSet { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text2); }
 .body3dInfo .b3iNext { font-size: 14px; line-height: 19px; }
 @media (max-width: 1023px) {
-  .body3dName { left: 54px; right: 54px; max-width: none; justify-content: center; }
-  .body3dWho { transition: opacity 0.28s ease; }
-  .body3dOver.in.named .body3dWho { opacity: 0; pointer-events: none; }
+  .body3dName { left: 16px; right: 16px; top: auto; bottom: calc(env(safe-area-inset-bottom) + 18px); max-width: none; justify-content: center; transform: translateY(4px); }
+  .body3dInfo { top: auto; bottom: calc(env(safe-area-inset-bottom) + 50px); transform: translate(-50%, 4px); }
 }
 @media (min-width: 1024px) {
-  .body3dInfo { left: auto; right: 34px; width: 340px; transform: translateY(-4px); }
+  .body3dInfo { top: calc(env(safe-area-inset-top) + 14px); left: 34px; width: 340px; transform: translateY(-4px); }
   .body3dInfo.on { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .body3dClose, .body3dWho, .body3dName, .body3dInfo { transition: none; } }
