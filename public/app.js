@@ -1816,7 +1816,8 @@ const MUSCLE_RULES = [
   [/leg ext/, ['quads']],
   [/back ext|hyperext|good morning/, ['lowerBack'], ['glutes', 'hamstrings']],
   [/romanian|\brdl\b|stiff/, ['hamstrings'], ['glutes', 'lowerBack']],
-  [/deadlift/, ['hamstrings', 'glutes', 'lowerBack'], ['upperBack', 'forearms', 'traps']],
+  // The traps hold a deadlift's whole weight (they're its main lift in the Strength view), so they count fully.
+  [/deadlift/, ['hamstrings', 'glutes', 'lowerBack', 'traps'], ['upperBack', 'forearms']],
   [/shrug/, ['traps'], ['forearms']],
   [/hack|leg press|squat|lunge|split|step.?up/, ['quads', 'glutes'], ['adductors']],
   [/hip thrust|glute|bridge|kickback|abduct/, ['glutes']],
@@ -1894,7 +1895,8 @@ const muscleLoad = (today = todayIso()) => {
           const part = Math.max(0, 1 - ago / needs);
           sets[key] += count * share;
           fatigue[key] += count * share * part;
-          if (count * share >= 1) {
+          // A heavy set near your max counts on its own, also for the muscles helping (a 250 × 2 deadlift is one set).
+          if (count * share >= 1 || (hard === 1 && count >= 1)) {
             fresh[key] = Math.max(fresh[key], part);
             remaining[key] = Math.max(remaining[key], part * needs);
           }
@@ -1930,8 +1932,11 @@ const lastTrained = () => remember('lastTrained', () => {
     for (const exercise of session.exercises) {
       const rule = MUSCLE_RULES.find(([pattern]) => pattern.test(exercise.name.toLowerCase()));
       if (!rule) continue;
-      const count = validSets(exercise).filter((set) => !set.warmup).length;
-      for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) for (const key of keys) if (count * share >= 1 && !(last[key] > session.date)) last[key] = session.date;
+      const working = validSets(exercise).filter((set) => !set.warmup);
+      const count = working.length;
+      const best = count && count < 2 ? bestOverall(exercise.name) : 0;
+      const heavy = best > 0 && Math.max(...working.map((set) => setValue(exercise.name, set))) >= best * 0.85;
+      for (const [keys, share] of [[rule[1], 1], [rule[2] ?? [], 0.5]]) for (const key of keys) if ((count * share >= 1 || (heavy && count >= 1)) && !(last[key] > session.date)) last[key] = session.date;
     }
     for (const part of cardioParts(session)) for (const key of cardioRule(part)?.[1] || []) if (!(last[key] > session.date)) last[key] = session.date;
   }
@@ -2247,7 +2252,44 @@ const muscleWhy = (key) => {
     : `<p class="b3iHead">Next: ${LEVELS[next - 1]} ${next}.0</p><p class="b3iNext">${esc(needs.charAt(0).toUpperCase() + needs.slice(1))}.</p><p class="b3iSet">${who}</p>`;
   return `<p class="b3iHead">${done.length > 1 ? 'Set by these lifts' : 'Set by'}</p>${rows || `<p class="b3iNext">No ${esc(lower)} logged yet.</p>`}${nextLine}`;
 };
-const body3dInfo = (key, index) => (index === 0 && (view.route === 'trends' || view.route === 'home') && view.muscleMode === 'strength' && document.querySelector('[data-body3d="one"]') ? muscleWhy(key) : '');
+// Your own figure on Trends and Home, or a friend's on their page, read from their log, bodyweight, sex and age.
+const body3dInfo = (key, index) => {
+  if (index !== 0 || view.muscleMode !== 'strength' || !document.querySelector('[data-body3d="one"]')) return '';
+  if (view.route === 'trends' || view.route === 'home') return muscleWhy(key);
+  const friend = view.route === 'friend' && featureOn('friends') ? friendByHandle(view.friendHandle) : null;
+  return friend?.shares?.strength ? asPerson(friendState(friend), () => muscleWhy(key)) : '';
+};
+// The anatomical names, shown greyed after the muscle's name in an opened row.
+const MUSCLE_LATIN = { traps: 'Trapezius', shoulders: 'Front and side deltoid', rearDelts: 'Posterior deltoid', chest: 'Pectoralis major', upperBack: 'Latissimus, rhomboids', biceps: 'Biceps brachii', triceps: 'Triceps brachii', forearms: 'Brachioradialis', abs: 'Rectus abdominis', lowerBack: 'Erector spinae', glutes: 'Gluteus maximus', quads: 'Quadriceps femoris', adductors: 'Adductor magnus', hamstrings: 'Biceps femoris', calves: 'Gastrocnemius' };
+// Computer, figure opened: the picked row in the list beside it opens downwards with the same explanation as the (i)
+// on the phone, pushing the rows below down; picking another row or tapping away closes it again.
+let b3dWhyKey = null;
+const syncB3dWhy = () => {
+  const side = document.querySelector('.b3dList');
+  if (!side) { b3dWhyKey = null; return; }
+  const key = view.musclePick;
+  const html = key ? body3dInfo(key, 0) : '';
+  const old = side.querySelector('.b3dWhy');
+  if (old && old.dataset.key === key && html) return;
+  const fresh = !old && b3dWhyKey === key && html; // the list was just drawn again: open at once, no animation
+  if (old) {
+    old.classList.remove('on');
+    side.querySelector('.muscleRow.open')?.classList.remove('open');
+    side.querySelectorAll('.muscleLatin').forEach((item) => item.remove());
+    setTimeout(() => old.remove(), 260);
+  }
+  b3dWhyKey = html ? key : null;
+  const row = html && side.querySelector(`.muscleRow[data-muscle="${key}"]`);
+  if (!row) return;
+  row.classList.add('open');
+  if (MUSCLE_LATIN[key]) row.querySelector('span')?.insertAdjacentHTML('beforeend', ` <span class="muscleLatin">${MUSCLE_LATIN[key]}</span>`);
+  const why = document.createElement('div');
+  why.className = `b3dWhy${fresh ? ' on' : ''}`;
+  why.dataset.key = key;
+  why.innerHTML = `<div class="b3dWhyIn">${html}</div>`;
+  row.after(why);
+  if (!fresh) requestAnimationFrame(() => requestAnimationFrame(() => why.classList.add('on')));
+};
 const plainWhen = (date) => { const ago = daysBetween(date, todayIso()); return ago === 0 ? 'today' : ago === 1 ? 'yesterday' : `${ago} days ago`; };
 const recoveryLabel = (key, title) => (lastTrained()[key] ? `${title} · ${plainWhen(lastTrained()[key])}` : title);
 const strengthColour = (key, level) => (level ? TIER_COLOURS[tierOf(level)?.[2]] : null);
@@ -2308,6 +2350,7 @@ const syncB3dList = () => {
   side.className = 'b3dList';
   side.appendChild(list.cloneNode(true));
   document.body.appendChild(side);
+  syncB3dWhy();
 };
 const renderMuscles = () => {
   loadAnatomy();
@@ -8708,6 +8751,7 @@ function pickMuscle(key) {
   if (body3d && document.querySelector('[data-body3d]') && !(view.route === 'together' && view.together?.picking)) body3d.setSelected(key);
   for (const box of document.querySelectorAll('.muscles')) box.classList.toggle('picking', Boolean(key));
   for (const item of document.querySelectorAll('[data-action="pick-muscle"]')) item.classList.toggle('picked', item.dataset.muscle === key);
+  syncB3dWhy();
 }
 
 document.addEventListener('click', (event) => {

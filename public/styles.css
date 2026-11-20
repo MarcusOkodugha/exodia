@@ -1882,17 +1882,17 @@ button.wnDay { cursor: pointer; }
    stays top right and the box sits in the empty space left of the figure, level with the name, covering nothing. */
 .body3dName .body3dInfoBtn { position: relative; margin-left: 1px; pointer-events: auto; background: rgb(255 255 255 / 0.6); }
 .body3dName .body3dInfoBtn::after { content: ""; position: absolute; inset: -13px; }
-.body3dInfo { position: fixed; z-index: 91; top: calc(env(safe-area-inset-top) + 52px); left: 50%; width: min(340px, calc(100% - 32px)); padding: 14px 16px 15px; border: 1px solid var(--line); border-radius: 16px; background: rgb(255 255 255 / 0.84); -webkit-backdrop-filter: blur(20px) saturate(1.2); backdrop-filter: blur(20px) saturate(1.2); box-shadow: 0 8px 28px rgba(20, 20, 19, 0.08); color: var(--text); text-align: left; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-50%, -4px); transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s; }
+.body3dInfo { position: fixed; z-index: 91; top: calc(env(safe-area-inset-top) + 52px); left: 50%; width: min(340px, calc(100% - 32px)); padding: 14px 16px 15px; border: 1px solid rgb(255 255 255 / 0.7); border-radius: 22px; background: linear-gradient(180deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.46)); -webkit-backdrop-filter: blur(28px) saturate(1.9); backdrop-filter: blur(28px) saturate(1.9); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.85), inset 0 0 0 0.5px rgb(255 255 255 / 0.4), 0 0 0 0.5px rgb(20 20 19 / 0.08), 0 12px 32px rgba(20, 20, 19, 0.12); color: var(--text); text-align: left; opacity: 0; visibility: hidden; pointer-events: none; transform: translate(-50%, -4px); transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s; }
 .body3dInfo.on { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, 0); transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s; }
-.body3dInfo p { margin: 0; }
-.body3dInfo .b3iHead { margin-bottom: 6px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
-.body3dInfo * + .b3iHead { margin-top: 14px; }
-.body3dInfo .b3iLift + .b3iLift { margin-top: 8px; }
-.body3dInfo .b3iTop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 15px; line-height: 20px; font-weight: 600; }
-.body3dInfo .b3iName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.body3dInfo .b3iLevel { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.body3dInfo .b3iSet { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text2); }
-.body3dInfo .b3iNext { font-size: 14px; line-height: 19px; }
+:is(.body3dInfo, .b3dWhy) p { margin: 0; }
+:is(.body3dInfo, .b3dWhy) .b3iHead { margin-bottom: 6px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text2); }
+:is(.body3dInfo, .b3dWhy) * + .b3iHead { margin-top: 14px; }
+:is(.body3dInfo, .b3dWhy) .b3iLift + .b3iLift { margin-top: 8px; }
+:is(.body3dInfo, .b3dWhy) .b3iTop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 15px; line-height: 20px; font-weight: 600; }
+:is(.body3dInfo, .b3dWhy) .b3iName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.body3dInfo, .b3dWhy) .b3iLevel { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:is(.body3dInfo, .b3dWhy) .b3iSet { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text2); }
+:is(.body3dInfo, .b3dWhy) .b3iNext { font-size: 14px; line-height: 19px; }
 @media (max-width: 1023px) {
   .body3dName { left: 16px; right: 16px; top: auto; bottom: calc(env(safe-area-inset-bottom) + 18px); max-width: none; justify-content: center; transform: translateY(4px); }
   .body3dInfo { top: auto; bottom: calc(env(safe-area-inset-bottom) + 50px); transform: translate(-50%, 4px); }
@@ -2080,12 +2080,32 @@ html.resuming .boot { display: none; }
 @media (prefers-reduced-motion: reduce) { .roundBtn.send.nudge { animation: none; box-shadow: 0 0 0 3px rgb(var(--clayRgb) / 0.35); } }
 
 /* Computer: the muscle list beside a figure opened full screen (over the opened view, right of the figure). */
-.b3dList { position: fixed; z-index: 90; top: 50%; right: 34px; width: min(340px, 26vw); transform: translateY(-50%); animation: b3dListIn 0.35s ease both; }
-.b3dList .muscleList { display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 17px; line-height: 24px; }
-.b3dList .muscleRow { min-height: 42px; padding-top: 8px; padding-bottom: 8px; border-radius: 10px; }
-.b3dList .muscleRow .num { font-size: 15px; }
-@keyframes b3dListIn { from { opacity: 0; transform: translate(8px, -50%); } }
+.b3dList { position: fixed; z-index: 90; top: calc(env(safe-area-inset-top) + 52px); right: 26px; width: min(356px, calc(26vw + 16px)); padding: 8px; max-height: calc(100vh - 60px); overflow-y: auto; scrollbar-width: none; animation: b3dListIn 0.35s ease both; }
+.b3dList::-webkit-scrollbar { display: none; }
+/* Every row fits with one opened (room for the longest explanation is kept below them), from 1440×900 down to 1280×720. */
+.b3dList .muscleList { display: grid; grid-template-columns: 1fr; gap: 2px; font-size: 16px; line-height: 20px; }
+.b3dList .muscleRow { min-height: clamp(24px, calc((100vh - 340px) / 15 - 2px), 40px); padding-top: 2px; padding-bottom: 2px; border-radius: 10px; }
+.b3dList .muscleRow .num { font-size: 14px; }
+@keyframes b3dListIn { from { opacity: 0; transform: translateX(8px); } }
 @media (prefers-reduced-motion: reduce) { .b3dList { animation: none; } }
+/* The picked row opens downwards into one card with its explanation; the anatomical name follows the name, greyed. */
+.b3dList .muscleRow.open { border-radius: 12px 12px 0 0; box-shadow: none; }
+.b3dList .muscleLatin { margin-left: 6px; font-size: 13px; font-weight: 400; color: var(--text2); }
+.b3dWhy { display: grid; grid-template-rows: 0fr; margin-top: -2px; border-radius: 0 0 12px 12px; background: rgb(var(--clayRgb) / 0.1); transition: grid-template-rows 0.26s ease; }
+.b3dWhy.on { grid-template-rows: 1fr; }
+.b3dWhyIn { min-height: 0; overflow: hidden; padding: 0 12px 0 23px; }
+.b3dWhyIn > :first-child { margin-top: 6px; }
+.b3dWhyIn > :last-child { margin-bottom: 12px; }
+.b3dWhy .b3iTop { font-size: 14px; line-height: 19px; }
+.b3dWhy .b3iLevel { font-size: 13px; }
+.b3dWhy .b3iLift + .b3iLift { margin-top: 6px; }
+.b3dWhy * + .b3iHead { margin-top: 10px; }
+.b3dWhy .b3iHead { margin-bottom: 4px; font-size: 12px; line-height: 16px; }
+.b3dWhy .b3iSet { font-size: 12.5px; line-height: 17px; }
+.b3dWhy .b3iNext { font-size: 13px; line-height: 18px; }
+/* The list says which muscle is picked, so the line top right and the name above the head step aside. */
+body:has(.b3dList) .body3dName, body:has(.b3dList) .body3dWho { display: none; }
+@media (prefers-reduced-motion: reduce) { .b3dWhy { transition: none; } }
 /* Train together, picking muscles: your opened figure above, the same muscle rows as on Trends under it (two columns,
    top to bottom like the body), Done at the end. The figure gets the space above the panel, nothing of it is covered.
    On the computer the rows stand in one column to the right of the figure, as beside an opened figure on Trends. */
