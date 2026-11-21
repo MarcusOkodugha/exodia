@@ -1894,8 +1894,8 @@ button.wnDay { cursor: pointer; }
 :is(.body3dInfo, .b3dWhy) .b3iSet { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text2); }
 :is(.body3dInfo, .b3dWhy) .b3iNext { font-size: 14px; line-height: 19px; }
 @media (max-width: 1023px) {
-  .body3dName { left: 16px; right: 16px; top: auto; bottom: calc(env(safe-area-inset-bottom) + 18px); max-width: none; justify-content: center; transform: translateY(4px); }
-  .body3dInfo { top: auto; bottom: calc(env(safe-area-inset-bottom) + 50px); transform: translate(-50%, 4px); }
+  .body3dName { left: 16px; right: 16px; top: auto; bottom: max(8px, calc(env(safe-area-inset-bottom) - 4px)); max-width: none; justify-content: center; transform: translateY(4px); }
+  .body3dInfo { top: auto; bottom: max(36px, calc(env(safe-area-inset-bottom) + 28px)); transform: translate(-50%, 4px); }
 }
 @media (min-width: 1024px) {
   .body3dInfo { top: calc(env(safe-area-inset-top) + 14px); left: 34px; width: 340px; transform: translateY(-4px); }
