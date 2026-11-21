@@ -73,6 +73,7 @@ textarea::placeholder, input::placeholder { color: var(--text2); }
 
 .exercise { border-top: 1px solid var(--sep); padding: 10px 0 2px; }
 .landing { animation: land 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.ghostIn { animation: fadeIn 0.3s ease-out both; }
 .exercise.landing { animation: land 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes land { from { opacity: 0; transform: translateY(10px); } }
 @keyframes fadeIn { from { opacity: 0; } }
@@ -357,7 +358,7 @@ button.bubbleIn:active { filter: brightness(0.95); }
 @keyframes wave { 0%, 100% { height: 5px; opacity: 0.6; } 50% { height: 18px; opacity: 1; } }
 .wave:not(.speaking) i { animation-name: idle; }
 @keyframes idle { 0%, 100% { height: 4px; } 50% { height: 8px; } }
-@media (prefers-reduced-motion: reduce) { .wave i { animation: none; height: 10px; } .prompt::before, .landing, .exercise.landing, .shimmer, .scrim, .drawer, .session.opening *, .dayMenu, .rules { animation: none !important; } .prompt::before { opacity: 0.6; } .hint { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wave i { animation: none; height: 10px; } .prompt::before, .landing, .ghostIn, .exercise.landing, .shimmer, .scrim, .drawer, .session.opening *, .dayMenu, .rules { animation: none !important; } .prompt::before { opacity: 0.6; } .hint { transition: none; } }
 
 .exodiaHits { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--clay); color: #FFFFFF; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .homePage .list { gap: 0; }
@@ -401,6 +402,10 @@ button.bubbleIn:active { filter: brightness(0.95); }
 .searchKind { flex: none; font-size: 13px; font-weight: 400; color: var(--text2); }
 .searchLine { display: block; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .searchNote { margin: 6px 12px; font-size: 13px; line-height: 18px; color: var(--text2); }
+/* Searching: a day that just joined the results fades in where it lands; the rest stay put. One line for the heading. */
+.searchRow.fresh { animation: fadeIn 0.18s ease-out both; }
+#drawerList > .drawerLabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .searchRow.fresh { animation: none; } }
 .dayActions { display: flex; justify-content: space-between; border-top: 1px solid var(--sep); }
 .homePage .session:not(.open) { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .prPill.est, .pct.pr.est { background: none; box-shadow: inset 0 0 0 1.5px var(--clay); color: var(--clayText); }
@@ -533,11 +538,12 @@ html.turned .onboardPrompt .onboardData { max-height: calc(var(--vw) * 0.4); }
 .exodiaCard.hit .fill, .exodiaCard.hit .fill.done { background: var(--exodiaBlue); }
 .exodiaCard.hit .exodiaHits { background: var(--exodiaBlue); color: var(--exodiaInk); }
 .logo.blue { background-image: url(/logo-blue.png); }
-.logo.land { animation: land 0.5s cubic-bezier(0.3, 1.6, 0.5, 1); }
-@keyframes land { 0% { transform: scale(1.5); } 100% { transform: none; } }
+.logo.land { animation: logoLand 0.5s cubic-bezier(0.3, 1.6, 0.5, 1); }
+/* Its own name: called "land" it replaced the days' landing (a fade up) with this 1.5× pop on every landing card. */
+@keyframes logoLand { 0% { transform: scale(1.5); } 100% { transform: none; } }
 .title.reveal { animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
-.reveal .exodiaHits { animation: land 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.15s both; }
+.reveal .exodiaHits { animation: logoLand 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.15s both; }
 .reveal .fill { position: relative; overflow: hidden; }
 .reveal .fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent); transform: translateX(-100%); animation: sweep 0.7s ease-out both; }
 .reveal .bars > div:nth-child(2) .fill::after { animation-delay: 0.08s; }
@@ -1392,6 +1398,9 @@ main.page { overflow-x: clip; }
 .ghostRow .tickReps { grid-column: 5; text-align: center; }
 .ghostRow .tickX { grid-column: 4; color: var(--text2); opacity: 0.4; font-size: 14px; }
 .ghostRow .tickE1 { grid-column: 7; justify-self: end; color: var(--clayText, var(--clay)); }
+/* The counting e1RM keeps one width (99 to 100 never nudges it), and a card drawn again keeps its rows as they are. */
+.ghostRow .tickE1 { min-width: 3.4ch; }
+.ghost.still .ghostName, .ghost.still .ghostRow { animation: none; opacity: 1; }
 
 /* Phone: the desktop's warm glow, answering your finger instead of the mouse. Behind the box, soft enough to never
    cover what's above it. */

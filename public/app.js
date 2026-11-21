@@ -1259,7 +1259,9 @@ const pendingHint = (item, tag) => {
   const bar = total > 1 ? `<span class="importBar" aria-hidden="true"><i style="--from:${from}%;width:${width}%"></i></span>` : '';
   return `${bar}<${tag} class="ghostHint importHint">${importLeft(item)} <b>Keep Exodia open</b> until it's done; you can keep using it.</${tag}>`;
 };
-const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}" role="status">${saidQuote(item)}${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span>${pendingHint(item, 'span')}`}</div>`;
+const pendingSeen = new WeakSet();
+const pendingStill = (item) => (pendingSeen.has(item) ? ' still' : (pendingSeen.add(item), ''));
+const renderPending = (item = {}) => `<div class="ghost${item.later ? ' later' : ''}${pendingStill(item)}" role="status">${saidQuote(item)}${item.later ? '<span class="ghostText">Exodia is on it in the background · lands by itself</span>' : writingLine(item.progress || '')}${item.later ? '' : `<span class="ghostRows" aria-hidden="true"><span class="ghostName" style="--at:0ms"><i></i></span>${Array.from({ length: guessSets(item.text) }, (_, index) => index + 1).map((row) => `<span class="ghostRow setRow" style="--at:${Math.min(row, 4) * 200}ms"><i></i><b class="roll tickKg num" data-max="${row % 2 ? 140 : 100}">0</b><span class="tickX">×</span><b class="roll tickReps num" data-max="${row % 2 ? 8 : 12}">0</b><b class="roll tickE1 num" data-max="${row % 2 ? 180 : 130}">0</b></span>`).join('')}</span>${pendingHint(item, 'span')}`}</div>`;
 // What is on its way to a day: being read right now, or waiting in the background for the AI.
 // While a note is read, the waiting rows' kg, reps and e1RM count up fast and accelerating, over and over, in the
 // real columns; the real row replaces them the moment the answer lands.
@@ -1431,12 +1433,20 @@ const renderSession = (session) => {
   </section>`;
 };
 
+// A card for what's on its way fades in once, then holds its size and look on every redraw until the answer lands
+// (it used to replay its entrance each time the page drew).
+const ghostSeen = new WeakSet();
+const ghostIn = (items) => {
+  const first = items.some((item) => !ghostSeen.has(item));
+  items.forEach((item) => ghostSeen.add(item));
+  return first ? ' ghostIn' : '';
+};
 const listWithGhosts = (sessions) => {
   const known = inFlight().filter((pending) => pending.known !== false);
   const ghostDates = [...new Set(known.map((pending) => pending.date))].filter((date) => !sessions.some((session) => session.date === date));
-  const ghosts = ghostDates.map((date) => ({ date, html: `<section class="card session open landing" id="session-${date}"><div class="head"><span class="headName">${dayLabel(date)}</span></div>${known.filter((pending) => pending.date === date).map(renderPending).join('')}</section>` }));
+  const ghosts = ghostDates.map((date) => ({ date, html: `<section class="card session open${ghostIn(known.filter((pending) => pending.date === date))}" id="session-${date}"><div class="head"><span class="headName">${dayLabel(date)}</span></div>${known.filter((pending) => pending.date === date).map(renderPending).join('')}</section>` }));
   const unsure = inFlight().filter((pending) => pending.known === false);
-  return (unsure.length ? `<section class="card session open landing incoming" id="session-incoming">${unsure.map(renderPending).join('')}</section>` : '') + [...sessions.map((session) => ({ date: session.date, html: renderSession(session) })), ...ghosts]
+  return (unsure.length ? `<section class="card session open incoming${ghostIn(unsure)}" id="session-incoming">${unsure.map(renderPending).join('')}</section>` : '') + [...sessions.map((session) => ({ date: session.date, html: renderSession(session) })), ...ghosts]
     .sort((first, second) => second.date.localeCompare(first.date))
     .map((item) => item.html)
     .join('');
@@ -4325,13 +4335,22 @@ const searchIndex = () => sortedSessions()
 
 let searchTimer = 0;
 let searchSeq = 0;
+document.addEventListener('focusin', (event) => {
+  if (event.target.id === 'search') holdSearchRoom(true);
+});
+document.addEventListener('focusout', (event) => {
+  if (event.target.id === 'search' && !view.search.query.trim()) holdSearchRoom(false);
+});
 
-const searchRow = (item) => `<button class="searchRow" data-action="jump-session" data-date="${item.date}"><span class="searchTop"><span>${dayLabel(item.date)}</span><span class="searchKind">${esc(dayKind(sessionFor(item.date)))}</span></span><span class="searchLine">${esc(item.line)}</span></button>`;
+// Rows already on screen stay still; only a day that wasn't there a moment ago fades in.
+let searchShown = new Set();
+const searchRow = (item) => `<button class="searchRow${searchShown.has(item.date) ? '' : ' fresh'}" data-action="jump-session" data-date="${item.date}"><span class="searchTop"><span>${dayLabel(item.date)}</span><span class="searchKind">${esc(dayKind(sessionFor(item.date)))}</span></span><span class="searchLine">${esc(item.line)}</span></button>`;
 const searchResults = () => {
   const { local, ai, loading, answer } = view.search;
   if (answer) return answer.rows.filter((item) => sessionFor(item.date)).map(searchRow).join('') || '<p class="searchNote">Nothing found.</p>';
   const seen = new Set();
-  const rows = [...ai.map((item) => ({ date: item.date, line: item.why })), ...local].filter((item) => sessionFor(item.date) && !seen.has(item.date) && seen.add(item.date));
+  // What's found on the phone stays where it is; the AI's extra days join below it, so nothing moves under the finger.
+  const rows = [...local, ...ai.map((item) => ({ date: item.date, line: item.why }))].filter((item) => sessionFor(item.date) && !seen.has(item.date) && seen.add(item.date));
   return `${rows.map(searchRow).join('')}${loading ? '<p class="searchNote">Searching with AI…</p>' : rows.length ? '' : '<p class="searchNote">Nothing found.</p>'}`;
 };
 
@@ -4341,7 +4360,16 @@ const drawerList = () => (view.search.query.trim() ? `<p class="drawerLabel">${e
 
 const paintSearch = () => {
   const list = document.getElementById('drawerList');
-  if (list) list.innerHTML = drawerList();
+  if (!list) return;
+  list.innerHTML = drawerList();
+  searchShown = new Set([...list.querySelectorAll('.searchRow')].map((row) => row.dataset.date));
+};
+// While you search, the list under the field never gets shorter than it was when you started: a shorter list would
+// pull the scrolled menu down, and the field with it, as you type.
+const holdSearchRoom = (on) => {
+  const list = document.getElementById('drawerList');
+  view.search.room = on && list ? Math.max(view.search.room || 0, list.offsetHeight) : 0;
+  if (list) list.style.minHeight = view.search.room ? `${view.search.room}px` : '';
 };
 
 const runAiSearch = () => {
@@ -4367,7 +4395,7 @@ const drawerContent = () => {
   return `${[['home', 'Home', ICONS.home], ['trends', 'Trends', ICONS.trends.replace('width="24" height="24"', 'width="22" height="22"')], ['import', 'Add your data', ICONS.clip.replace('width="18" height="18"', 'width="22" height="22"')], ['feedback', 'Help & feedback', '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6"/><path d="M12 17h.01"/></svg>'], ...(view.isAdmin ? [['admin', 'Admin', ICONS.admin]] : []), ['you', 'Settings', ICONS.settings]].map(([route, label, icon]) => `<a class="navItem${view.route === route || (route === 'feedback' && view.route === 'help') ? ' on' : ''}" href="#/${route === 'home' ? '' : route}" ${view.route === route ? 'aria-current="page"' : ''}>${icon}${esc(label)}</a>`).join('')}
       ${friendsSide()}
       <label class="searchBox">${ICONS.search}<span class="sr">Search your training</span><input id="search" type="search" placeholder="Search your training" enterkeyhint="search" autocomplete="off" value="${esc(view.search.query)}"></label>
-      <div id="drawerList">${drawerList()}</div>
+      <div id="drawerList"${view.search.room ? ` style="min-height:${view.search.room}px"` : ''}>${drawerList()}</div>
       <div class="drawerTools"><button class="drawerTool" data-action="undo-change" ${undoSteps.length ? '' : 'disabled'}>Undo</button><button class="drawerTool" data-action="redo-change" ${redoSteps.length ? '' : 'disabled'}>Redo</button></div>`;
 };
 
@@ -9973,6 +10001,7 @@ document.addEventListener('input', (event) => {
     return;
   }
   if (target.id === 'search') {
+    holdSearchRoom(true);
     view.search.query = target.value;
     view.search.answer = target.value.trim() ? searchAnswer(target.value) : null;
     view.search.local = target.value.trim() && !view.search.answer ? searchLocal(target.value) : [];
